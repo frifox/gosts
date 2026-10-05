@@ -102,11 +102,20 @@ if fb.Spread() > 20 || fb.Fighting(30) { /* members disagree on a shared axis */
 ## Auto-tuning
 
 The `autotune` sub-package finds position-loop settings by experiment: it applies candidate values
-(until power-off), makes short test moves around the current position with the real load, and scores
-each response for accurate and calm motion (overshoot, wobble, hunting, and for groups how much the
-members disagree). It hill-climbs P, D, start force and dead zone (I is left alone) in about 15–30
-tests. Moves stay within ±35° and anything beyond 45° aborts; faults, high current or temperature
-abort too (temperature and current only when they stay over the limit for 300 ms / 100 ms, so a single bad reading is ignored), and an abort restores the original values.
+(until power-off), makes test moves around the current position with the real load, and scores each
+response for accurate and calm motion (stopping short of the goal, overshoot, wobble, hunting, and for
+groups how much the members disagree). It hill-climbs P, D, I, start force, dead zone and the move
+acceleration in about 20–35 tests.
+
+Start it where the load pulls hardest: for an unbalanced arm, horizontal (gravity's pull is largest
+there, smallest pointing straight up or down). The tests move up against gravity and down with it, in
+large moves and small steps, each back to the start, so the sag is measured where it is worst; I is
+what removes it, and it is only kept when it doesn't add wobble. The acceleration (`Params.Acc`) isn't a
+servo setting: pass it with your moves (gosts-ctl keeps it in `config.toml`).
+
+Moves stay within ±35° and anything beyond 45° aborts; faults, high current or temperature abort too
+(temperature and current only when they stay over the limit for 300 ms / 100 ms, so a single bad
+reading is ignored), and an abort restores the original values.
 
 ```go
 res, err := autotune.Run(ctx, autotune.ForGroup(bus.Group(1, 2)), autotune.Options{})

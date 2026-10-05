@@ -10,12 +10,19 @@ import (
 	"github.com/frifox/gosts"
 )
 
-// plant is a crude servo + load: inertia, friction, and a controller shaped
-// by P, D, start force and dead zone. It runs on virtual time (5 ms per read).
+// plant is a crude servo + load: inertia, friction, optional gravity, and a
+// controller shaped by P, D, I, start force and dead zone that follows a
+// speed/acceleration-limited profile to the goal like the servo does. It runs
+// on virtual time (5 ms per read).
 type plant struct {
 	p           Params
 	pos, vel    float64
 	goal        float64
+	sp, spVel   float64 // profiled setpoint
+	speed, acc  float64 // of the current move (step/s, step/s²)
+	integ       float64
+	gravity     float64 // constant pull towards lower positions (step/s²), like an unbalanced arm
+	u           float64 // last drive, reported as load
 	now         time.Time
 	members     int
 	offset      float64 // second member's position offset (group test)
@@ -28,20 +35,34 @@ type plant struct {
 }
 
 func newPlant(p Params) *plant {
-	return &plant{p: p, pos: 2048, goal: 2048, now: time.Unix(0, 0), members: 1, inertiaMul: 1}
+	return &plant{p: p, pos: 2048, goal: 2048, sp: 2048, now: time.Unix(0, 0), members: 1, inertiaMul: 1, speed: 1000, acc: 3000}
 }
 
 func (f *plant) step(dt float64) {
-	err := f.goal - f.pos
+	// Setpoint profile: accelerate, cruise, brake to stop on the goal.
+	d := f.goal - f.sp
+	vmax := math.Min(f.speed, math.Sqrt(2*f.acc*math.Abs(d)))
+	want := math.Copysign(vmax, d)
+	dv := math.Max(-f.acc*dt, math.Min(f.acc*dt, want-f.spVel))
+	f.spVel += dv
+	f.sp += f.spVel * dt
+	if math.Abs(f.goal-f.sp) < 0.5 && math.Abs(f.spVel) < f.acc*dt*2 {
+		f.sp, f.spVel = f.goal, 0
+	}
+
+	err := f.sp - f.pos
+	f.integ = math.Max(-400, math.Min(400, f.integ+err*dt))
 	var u float64
 	if math.Abs(err) > float64(f.p.DeadZone) {
-		u = float64(f.p.P)*err*0.6 - float64(f.p.D)*f.vel*0.3
+		u = float64(f.p.P)*err*0.6 - float64(f.p.D)*f.vel*0.3 + float64(f.p.I)*f.integ*2
 		if s := float64(f.p.MinStart) * 2; math.Abs(u) < s {
 			u = math.Copysign(s, u)
 		}
 	} else {
-		u = -float64(f.p.D) * f.vel * 0.3
+		u = -float64(f.p.D)*f.vel*0.3 + float64(f.p.I)*f.integ*2
 	}
+	f.u = u
+	u -= f.gravity
 	u = math.Max(-3000, math.Min(3000, u))
 	const friction = 60
 	acc := u / f.inertiaMul
@@ -56,14 +77,28 @@ func (f *plant) step(dt float64) {
 }
 
 func (f *plant) Params() (Params, error) { return f.p, nil }
-func (f *plant) Apply(p Params) error    { f.p = p; f.applied = append(f.applied, p); return nil }
+func (f *plant) Apply(p Params) error {
+	p.Acc = 0 // a move setting, not stored on the servo
+	f.p = p
+	f.applied = append(f.applied, p)
+	return nil
+}
 func (f *plant) Save(p Params) error     { return f.Apply(p) }
 func (f *plant) Position() (int, error)  { return int(math.Round(f.pos)), nil }
 func (f *plant) Limits() (int, int, error) {
 	return 0, 4095, nil
 }
-func (f *plant) MoveTo(pos, _ int, _ uint8) error { f.goal = float64(pos); return nil }
-func (f *plant) Stop() error                      { f.goal = f.pos; return nil }
+func (f *plant) MoveTo(pos, speed int, acc uint8) error {
+	f.goal, f.speed, f.acc = float64(pos), float64(speed), float64(acc)*100
+	if speed == 0 {
+		f.speed = 3400
+	}
+	if acc == 0 {
+		f.acc = 25000
+	}
+	return nil
+}
+func (f *plant) Stop() error { f.goal, f.sp, f.spVel = f.pos, f.pos, 0; return nil }
 func (f *plant) Now() time.Time                   { return f.now }
 func (f *plant) Read() ([]Reading, error) {
 	for i := 0; i < 5; i++ {
@@ -71,7 +106,7 @@ func (f *plant) Read() ([]Reading, error) {
 	}
 	f.now = f.now.Add(5 * time.Millisecond)
 	f.reads++
-	fb := gosts.Feedback{Position: int(math.Round(f.pos)), Moving: math.Abs(f.vel) > 5, Load: 0, Current: math.Abs(f.vel) / 5}
+	fb := gosts.Feedback{Position: int(math.Round(f.pos)), Moving: math.Abs(f.vel) > 5, Load: f.u / 30, Current: math.Abs(f.vel) / 5}
 	if f.failAt > 0 && f.reads > f.failAt {
 		fb.Status = gosts.StatusOverload
 	}
@@ -108,7 +143,9 @@ func TestTunesAnUnderdampedServo(t *testing.T) {
 	if !a.Settled {
 		t.Fatal("best values don't settle")
 	}
-	if f.p != res.Best.Params {
+	want := res.Best.Params
+	want.Acc = 0
+	if f.p != want {
 		t.Fatal("best values not left applied")
 	}
 	if p, _ := f.Position(); abs(p-2048) > 3 {
@@ -193,5 +230,30 @@ func TestSustainedOverheatAborts(t *testing.T) {
 	_, err := Run(context.Background(), f, Options{})
 	if !errors.Is(err, ErrAborted) || f.p != start {
 		t.Fatal("want abort with values restored, got", err, f.p)
+	}
+}
+
+func TestGravitySag(t *testing.T) {
+	// An unbalanced arm held horizontally: gravity pulls it below every goal.
+	f := newPlant(Params{P: 32, D: 48, MinStart: 16, DeadZone: 1})
+	f.gravity = 500
+	res, err := Run(context.Background(), f, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, a := res.Before.Metrics, res.Best.Metrics
+	t.Logf("before %v: %+v", res.Before.Params, b)
+	t.Logf("best   %v: %+v", res.Best.Params, a)
+	if b.FinalError < 10 {
+		t.Fatal("the plant should sag with the starting values", b.FinalError)
+	}
+	if res.Best.Params.I == 0 || a.FinalError > 2 {
+		t.Fatal("sag not removed")
+	}
+	if a.Wobble > b.Wobble+1 || a.Overshoot > b.Overshoot+5 {
+		t.Fatal("removing the sag made it wobble")
+	}
+	if a.HoldLoad < 10 {
+		t.Fatal("holding load not measured", a.HoldLoad)
 	}
 }

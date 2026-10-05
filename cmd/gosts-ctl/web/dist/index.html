@@ -620,13 +620,13 @@ td .num { width: 90px; padding: 3px 6px; }
     <h2 id="atTitle">Auto-tune <span id="atTarget" class="at-target"></span><span class="spacer"></span><span id="atBadge" class="chip" hidden></span></h2>
     <div class="card-body">
       <div id="atSetup">
-        <p class="hint" style="margin-top:0">The servo will make short test moves around its <b>current position</b>, with each candidate setting, and keep the values that give the most accurate and calm motion (no overshoot, wobble or hunting). It tunes stiffness (P), damping (D), start force and dead zone, and takes about 1–3 minutes. Values are applied <b>until power-off</b>; you decide whether to save them at the end.</p>
-        <p class="hint">Mount the real load (camera, counterweight), make sure the arm can swing freely by the test range in both directions, and keep clear. Stop restores the original values.</p>
+        <p class="hint" style="margin-top:0">The servo will make test moves around its <b>current position</b> (large moves up and down, then small steps), with each candidate setting, and keep the values that reach the goal most accurately and calmly (no sag, overshoot, wobble or hunting). It tunes stiffness (P), damping (D), sag correction (I), start force, dead zone and the move acceleration, and takes about 5–10 minutes. Values are applied <b>until power-off</b>; you decide whether to save them at the end.</p>
+        <p class="hint">Start with the arm where its load pulls hardest: for an unbalanced arm that is <b>horizontal</b> (gravity's pull is largest there, smallest pointing straight up or down). Mount the real load (camera, counterweight), make sure the arm can swing freely by the test range in both directions, and keep clear. Stop restores the original values.</p>
         <div class="field"><label>Test range ±°</label><input type="range" id="atAmp" min="10" max="35" value="30"><input class="num" type="number" id="atAmpNum" value="30"></div>
         <div class="field"><label>Speed</label><input type="range" id="atSpeed" min="100" max="3400" value="1000"><input class="num" type="number" id="atSpeedNum" value="1000"></div>
-        <div class="field"><label>Acceleration</label><input type="range" id="atAcc" min="1" max="254" value="30"><input class="num" type="number" id="atAccNum" value="30"></div>
+        <div class="field"><label>Start acceleration</label><input type="range" id="atAcc" min="1" max="254" value="30"><input class="num" type="number" id="atAccNum" value="30"></div>
         <div class="field"><label>Tolerance (steps)</label><input type="range" id="atTol" min="1" max="10" value="2"><input class="num" type="number" id="atTolNum" value="2"></div>
-        <p class="hint">Use the speed and acceleration you'll move with. Tolerance: how close counts as "on target" (2 steps ≈ 0.18°). Never moves more than 45° from the start.</p>
+        <p class="hint">Use the speed you'll move with; the acceleration is tuned, starting from this value. Tolerance: how close counts as "on target" (2 steps ≈ 0.18°). Never moves more than 45° from the start.</p>
         <div class="err" id="atSetupErr"></div>
         <div class="row" style="margin-top:14px">
           <span class="spacer"></span>
@@ -963,6 +963,14 @@ function updateListItem(id, f) {
     : `${fmtDeg(vdeg(id, f.position))} · ${f.voltage.toFixed(1)}V · ${f.temperature}°C`;
 }
 
+// accOf is the tuned move acceleration of the shown servo or group (0 = none).
+function accOf() {
+  const g = curGroup();
+  if (g) return g.acc || 0;
+  return (state.accs || {})[state.selected] || 0;
+}
+function applyTunedAcc() { const a = accOf(); if (a) setPair("acc", a); }
+
 function selectGroup(key) {
   const g = (state.groups || []).find((x) => x.key === key);
   if (!g) return;
@@ -974,6 +982,7 @@ function selectGroup(key) {
   renderNames();
   renderHealthSettings();
   $("main").hidden = false;
+  applyTunedAcc();
   loadConfig(true);
 }
 
@@ -1007,6 +1016,7 @@ function selectServo(id) {
   $("newId").value = "";
   $("mirrored").checked = !!state.mirrored?.has(id);
   $("main").hidden = false;
+  applyTunedAcc();
   loadConfig(true);
 }
 
@@ -1273,7 +1283,7 @@ function onConfig(m) {
     if (c.mode === 1) { if (!busy("wheel")) setPair("wheel", c.goalSpeed); }
     else if (c.goalSpeed > 0 && !busy("speed")) setPair("speed", c.goalSpeed);
     if (c.mode === 2 && !busy("pwm")) setPair("pwm", c.goalTime);
-    if (!busy("acc")) setPair("acc", c.acceleration);
+    if (!busy("acc")) setPair("acc", accOf() || c.acceleration); // a tuned acceleration wins over the last move's
     if (!busy("tlimit")) setPair("tlimit", Math.round(c.torqueLimit / 10));
     state.syncControls = false;
   }
@@ -1734,6 +1744,7 @@ function onState(m) {
   if (!m.connected) state.wantScan = false;
   if (!m.scanning) $("scanBar").style.width = m.scanned ? "100%" : "0";
   state.groups = m.groups || []; // before setServos: it may open a group
+  state.accs = m.accs || {};
   setServos(m.ids);
   state.mirrored = new Set(m.mirrored || []);
   state.signed = new Set(m.signed || []);
@@ -2225,8 +2236,12 @@ $("atStop").onclick = () => send("autotuneStop").catch((e) => log(e.message, "er
 $("atKeep").onclick = () => { $("autoModal").hidden = true; state.atOpen = null; };
 $("atSave").onclick = async () => {
   const best = state.at?.result?.best?.params;
-  if (!best || !await ask(`Save the auto-tuned values to ${state.at.label}?\n\nP ${best.p} · D ${best.d} · start force ${best.minStart} · dead zone ${best.deadZone}`, "Save")) return;
-  try { await send("autotuneSave"); $("autoModal").hidden = true; state.atOpen = null; } catch (e) { $("atErr").textContent = e.message; }
+  if (!best || !await ask(`Save the auto-tuned values to ${state.at.label}?\n\nP ${best.p} · D ${best.d} · I ${best.i} · start force ${best.minStart} · dead zone ${best.deadZone}\n\nAcceleration ${best.acc} is kept in config.toml and used for moves from this console (it isn't a servo setting).`, "Save")) return;
+  try {
+    await send("autotuneSave");
+    setPair("acc", best.acc);
+    $("autoModal").hidden = true; state.atOpen = null;
+  } catch (e) { $("atErr").textContent = e.message; }
 };
 $("atRevert").onclick = async () => {
   try { await send("autotuneRevert"); $("autoModal").hidden = true; state.atOpen = null; } catch (e) { $("atErr").textContent = e.message; }
@@ -2242,7 +2257,7 @@ function onAutotune(m) {
 }
 
 const AT_ROWS = [
-  ["Values", (t) => `P ${t.params.p} · D ${t.params.d} · start ${t.params.minStart} · dz ${t.params.deadZone}`],
+  ["Values", (t) => `P ${t.params.p} · D ${t.params.d} · I ${t.params.i} · start ${t.params.minStart} · dz ${t.params.deadZone} · acc ${t.params.acc}`],
   ["Overshoot", (t) => `${t.metrics.overshoot} st`, (t) => t.metrics.overshoot],
   ["Wobble", (t) => `${t.metrics.wobble}`, (t) => t.metrics.wobble],
   ["Settle time", (t) => (t.metrics.settled ? `${t.metrics.settleMs} ms` : "never"), (t) => (t.metrics.settled ? t.metrics.settleMs : 1e9)],
@@ -2251,6 +2266,7 @@ const AT_ROWS = [
   ["Spread", (t) => `${t.metrics.spread} st`, (t) => t.metrics.spread, true],
   ["Opposing load", (t) => `${t.metrics.opposing.toFixed(1)} %`, (t) => t.metrics.opposing, true],
   ["Peak current", (t) => `${Math.round(t.metrics.peakMa)} mA`, (t) => t.metrics.peakMa],
+  ["Holding load", (t) => `${t.metrics.holdLoad.toFixed(1)} %`],
   ["Score (lower = better)", (t) => t.metrics.score.toFixed(1), (t) => t.metrics.score],
 ];
 

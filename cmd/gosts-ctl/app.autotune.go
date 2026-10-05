@@ -29,6 +29,7 @@ func tunedValues(p autotune.Params) []internal.RegValue {
 	return []internal.RegValue{
 		{Register: gosts.RegPositionP.Name, Value: p.P},
 		{Register: gosts.RegPositionD.Name, Value: p.D},
+		{Register: gosts.RegPositionI.Name, Value: p.I},
 		{Register: gosts.RegMinStartForce.Name, Value: p.MinStart},
 		{Register: gosts.RegCWDeadZone.Name, Value: p.DeadZone},
 		{Register: gosts.RegCCWDeadZone.Name, Value: p.DeadZone},
@@ -180,7 +181,23 @@ func (a *app) finishAutotune(save bool) error {
 	m := internal.AutotuneMsg{Type: "autotune", Key: run.key, Label: run.label, Members: internal.ToInts(run.members), Result: &res, Saved: save, Reverted: !save}
 	a.Broadcast(m)
 	if save {
-		a.Logf("info", "auto-tune of %s: saved %s", run.label, res.Best.Params)
+		// The acceleration isn't a servo setting: keep it in config.toml for
+		// this console's moves.
+		acc := res.Best.Params.Acc
+		var cerr error
+		if run.group != "" {
+			if g, ok := a.cfg.Group(run.group); ok {
+				g.Acc = acc
+				_, cerr = a.cfg.SetGroup(run.group, g)
+			}
+		} else {
+			cerr = a.cfg.Update(run.members[0], func(sc *internal.ServoConfig) { sc.Acc = acc })
+		}
+		if cerr != nil {
+			a.Logf("error", "auto-tune of %s: acceleration not saved: %v", run.label, cerr)
+		}
+		a.BroadcastState()
+		a.Logf("info", "auto-tune of %s: saved %s (acceleration kept in config.toml for moves from this console)", run.label, res.Best.Params)
 	} else {
 		a.Logf("info", "auto-tune of %s: reverted to %s", run.label, res.Before.Params)
 	}

@@ -31,10 +31,11 @@ type ServoConfig struct {
 	Range    []int   `toml:"Range,omitempty"`  // motion range [lo, hi]: clockwise arc in encoder-scale steps (0..4095, logical)
 	// WeightComp nudges the goal until a sagging arm reaches it (see servo.WeightComp).
 	WeightComp bool `toml:"WeightComp,omitempty"`
+	Acc        int  `toml:"Acc,omitzero"` // move acceleration found by auto-tune (100 step/s²); 0 = not set
 }
 
 func (c ServoConfig) empty() bool {
-	return c.Name == "" && !c.Mirrored && !c.Signed && c.Color == "" && c.Zero == 0 && c.DialUp == 0 && len(c.Range) == 0 && !c.WeightComp
+	return c.Name == "" && !c.Mirrored && !c.Signed && c.Color == "" && c.Zero == 0 && c.DialUp == 0 && len(c.Range) == 0 && !c.WeightComp && c.Acc == 0
 }
 
 // GroupConfig is a set of servos driven as one (see gosts.Group).
@@ -45,6 +46,7 @@ type GroupConfig struct {
 	MaxSpread    int     `toml:"MaxSpread,omitzero"`    // steps; 0 = default
 	MaxFightLoad float64 `toml:"MaxFightLoad,omitzero"` // %; 0 = default
 	OnFight      string  `toml:"OnFight,omitempty"`     // "warn" (default) or "torque-off"
+	Acc          int     `toml:"Acc,omitzero"`          // move acceleration found by auto-tune (100 step/s²); 0 = not set
 }
 
 const (

@@ -20,7 +20,7 @@ func groupInfos(groups map[string]internal.GroupConfig) []internal.GroupInfo {
 			onFight = "warn"
 		}
 		out = append(out, internal.GroupInfo{Key: k, Name: g.Name, Members: internal.ToInts(g.Members),
-			MaxSpread: g.SpreadLimit(), MaxFightLoad: g.FightLoadLimit(), OnFight: onFight})
+			MaxSpread: g.SpreadLimit(), MaxFightLoad: g.FightLoadLimit(), OnFight: onFight, Acc: g.Acc})
 	}
 	slices.SortFunc(out, func(a, b internal.GroupInfo) int { return a.Members[0] - b.Members[0] })
 	return out
@@ -49,8 +49,9 @@ func (a *app) groupSave(req internal.Request) error {
 	if onFight == "warn" {
 		onFight = "" // the default; keeps config.toml short
 	}
+	old, _ := a.cfg.Group(req.Group) // keeps what the dialog doesn't edit
 	key, err := a.cfg.SetGroup(req.Group, internal.GroupConfig{Name: name, Members: members,
-		MaxSpread: req.MaxSpread, MaxFightLoad: req.MaxFightLoad, OnFight: onFight})
+		MaxSpread: req.MaxSpread, MaxFightLoad: req.MaxFightLoad, OnFight: onFight, Acc: old.Acc})
 	if err != nil {
 		return err
 	}

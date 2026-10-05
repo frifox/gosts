@@ -2,10 +2,18 @@
 // experiment: it applies candidate values (temporarily), makes short test
 // moves with the real load, scores the response and keeps the best.
 //
-// It tunes P, D, minimum start force and the dead zone (CW = CCW). The
-// integral gain I is left unchanged. Scoring favours accurate and calm
-// motion: overshoot, wobble after arriving and hunting while holding cost the
-// most; speed matters least.
+// It tunes P, D, I, minimum start force, the dead zone (CW = CCW) and the
+// move acceleration. Scoring favours accurate and calm motion: overshoot,
+// wobble after arriving, hunting while holding and stopping short of the goal
+// cost the most; speed matters least.
+//
+// Start it where the load is heaviest. For an arm with an unbalanced load
+// that is horizontal: gravity's pull on the arm is largest there (and
+// smallest pointing straight up or down). The test moves go both ways from
+// the start, up against gravity and down with it, in large moves and small
+// steps, and every move returns to the start, so the final error is measured
+// where the sag is worst. The integral gain I is what removes that sag; it is
+// raised carefully and only kept when it doesn't add wobble.
 //
 //	res, err := autotune.Run(ctx, autotune.ForServo(bus.Servo(1)), autotune.Options{})
 //	// res.Best.Params is applied until power-off; persist it with SaveParams.
@@ -25,12 +33,16 @@ import (
 type Params struct {
 	P        int `json:"p"`        // PositionP
 	D        int `json:"d"`        // PositionD
+	I        int `json:"i"`        // PositionI
 	MinStart int `json:"minStart"` // MinStartForce (0.1%)
 	DeadZone int `json:"deadZone"` // CWDeadZone and CCWDeadZone (steps)
+	// Acc is the move acceleration (100 step/s²). It is not a servo setting:
+	// it is sent with every move, so Save doesn't store it on the servo.
+	Acc int `json:"acc"`
 }
 
 func (p Params) String() string {
-	return fmt.Sprintf("P %d · D %d · start %d · dead zone %d", p.P, p.D, p.MinStart, p.DeadZone)
+	return fmt.Sprintf("P %d · D %d · I %d · start %d · dead zone %d · acc %d", p.P, p.D, p.I, p.MinStart, p.DeadZone, p.Acc)
 }
 
 // Metrics summarise one test (the worst value over all moves and members).
@@ -41,6 +53,7 @@ type Metrics struct {
 	Wobble     int     `json:"wobble"`     // direction reversals after reaching the target
 	Jitter     int     `json:"jitter"`     // position range while holding (steps)
 	PeakMA     float64 `json:"peakMa"`     // largest current (mA)
+	HoldLoad   float64 `json:"holdLoad"`   // load needed to hold at the start (%): how unbalanced the arm is
 	// Groups only (e.g. two servos joined by a bar): how much the members
 	// disagree while holding. Both are 0 for a single servo.
 	Spread   int     `json:"spread"`   // steps between members' positions
@@ -83,11 +96,12 @@ type Progress struct {
 
 // Options configure a run. Zero values select the defaults.
 type Options struct {
-	Amplitude int           // test move size in steps either side of the start (default 341 ≈ 30°, max 400 ≈ 35°)
+	Amplitude int           // large test move in steps either side of the start (default 341 ≈ 30°, max 400 ≈ 35°)
+	Step      int           // small test step either side of the start (default 34 ≈ 3°)
 	Speed     int           // step/s (default 1000)
-	Acc       uint8         // 100 step/s² (default 30)
+	Acc       uint8         // starting acceleration, 100 step/s² (default 30); tuned
 	Tolerance int           // steps counted as "on target" (default 2)
-	Hold      time.Duration // how long each target is held to measure hunting (default 700ms)
+	Hold      time.Duration // how long each target is held to measure hunting and sag (default 1s)
 	Timeout   time.Duration // per move (default 4s)
 	MaxMA     float64       // abort above this current (default 2500 mA)
 	MaxTemp   int           // abort above this temperature (default 65 °C)
@@ -106,6 +120,9 @@ func (o *Options) defaults() {
 		o.Amplitude = 341
 	}
 	o.Amplitude = min(o.Amplitude, MaxAmplitude)
+	if o.Step == 0 {
+		o.Step = 34
+	}
 	if o.Speed == 0 {
 		o.Speed = 1000
 	}
@@ -116,7 +133,7 @@ func (o *Options) defaults() {
 		o.Tolerance = 2
 	}
 	if o.Hold == 0 {
-		o.Hold = 700 * time.Millisecond
+		o.Hold = time.Second
 	}
 	if o.Timeout == 0 {
 		o.Timeout = 4 * time.Second
@@ -136,8 +153,10 @@ var ErrAborted = errors.New("autotune: aborted")
 var (
 	candP        = []int{16, 24, 32, 40, 48, 64, 80, 96, 128}
 	candD        = []int{8, 16, 24, 32, 48, 64, 80, 96, 128}
+	candI        = []int{0, 1, 2, 4, 6, 8, 12, 16}
 	candMinStart = []int{0, 8, 16, 24, 32, 48, 64}
 	candDeadZone = []int{0, 1, 2, 3}
+	candAcc      = []int{8, 12, 16, 24, 32, 50, 80}
 )
 
 // Run tunes t. On success the best values stay applied (temporarily) and the
@@ -195,6 +214,7 @@ func (r *run) run(ctx context.Context) (Result, error) {
 	if r.before, err = r.t.Params(); err != nil {
 		return Result{}, err
 	}
+	r.before.Acc = int(r.opt.Acc) // not stored on the servo: the starting value
 	r.haveBefore = true
 	if r.start, err = r.t.Position(); err != nil {
 		return Result{}, err
@@ -212,7 +232,8 @@ func (r *run) run(ctx context.Context) (Result, error) {
 	}
 	r.opt.Amplitude = amp
 	r.lo, r.hi = r.start-amp, r.start+amp
-	r.total = 24 // typical; hill-climbing usually needs 15-30 tests
+	r.opt.Step = min(r.opt.Step, amp/2)
+	r.total = 30 // typical; hill-climbing usually needs 20-35 tests
 
 	// Baseline with the current values.
 	if r.beforeTrial, err = r.test(ctx, "baseline", r.before); err != nil {
@@ -222,8 +243,10 @@ func (r *run) run(ctx context.Context) (Result, error) {
 
 	cur := r.before
 	cur.DeadZone = max(cur.DeadZone, 0)
-	// Coordinate search in the order that matters: stiffness, damping,
-	// start force, dead zone. Each phase keeps the best value found.
+	// Coordinate search in the order that matters: stiffness, damping, the
+	// integral against sag, start force, dead zone, then the acceleration
+	// that starts and stops the load most calmly. Each phase keeps the best
+	// value found.
 	phases := []struct {
 		name string
 		vals []int
@@ -232,16 +255,18 @@ func (r *run) run(ctx context.Context) (Result, error) {
 	}{
 		{"stiffness (P)", candP, func(p Params) int { return p.P }, func(p *Params, v int) { p.P = v }},
 		{"damping (D)", candD, func(p Params) int { return p.D }, func(p *Params, v int) { p.D = v }},
+		{"sag correction (I)", candI, func(p Params) int { return p.I }, func(p *Params, v int) { p.I = v }},
 		{"start force", candMinStart, func(p Params) int { return p.MinStart }, func(p *Params, v int) { p.MinStart = v }},
 		{"dead zone", candDeadZone, func(p Params) int { return p.DeadZone }, func(p *Params, v int) { p.DeadZone = v }},
+		{"acceleration", candAcc, func(p Params) int { return p.Acc }, func(p *Params, v int) { p.Acc = v }},
 	}
 	for _, ph := range phases {
 		if cur, err = r.scan(ctx, ph.name, cur, ph.vals, ph.get, ph.set); err != nil {
 			return r.result(), err
 		}
 	}
-	// P and D interact: one more pass of each with the other settled.
-	for _, ph := range phases[:2] {
+	// P, D and I interact: one more pass of each with the others settled.
+	for _, ph := range phases[:3] {
 		if cur, err = r.scan(ctx, ph.name+" (2nd pass)", cur, ph.vals, ph.get, ph.set); err != nil {
 			return r.result(), err
 		}
@@ -277,7 +302,7 @@ func (r *run) run(ctx context.Context) (Result, error) {
 	if err := r.t.Apply(best.Params); err != nil {
 		return r.result(), err
 	}
-	if err := r.t.MoveTo(r.start, r.opt.Speed, r.opt.Acc); err != nil {
+	if err := r.t.MoveTo(r.start, r.opt.Speed, uint8(best.Params.Acc)); err != nil {
 		return r.result(), err
 	}
 	return r.result(), nil
@@ -358,15 +383,17 @@ func (r *run) test(ctx context.Context, phase string, p Params) (Trial, error) {
 	if err := r.t.Apply(p); err != nil {
 		return Trial{}, err
 	}
-	a := r.opt.Amplitude
-	targets := []int{r.start + a, r.start, r.start - a, r.start}
+	// Large moves up and down, then small steps, each back to the start
+	// (where the load is heaviest): sag shows as final error there.
+	a, st := r.opt.Amplitude, r.opt.Step
+	targets := []int{r.start + a, r.start, r.start - a, r.start, r.start + st, r.start, r.start - st, r.start}
 	tr := Trial{Params: p}
 	m := &tr.Metrics
 	m.Settled = true
 	t0 := r.t.Now()
 	from := r.start
 	for _, target := range targets {
-		mv, trace, err := r.move(ctx, from, target, t0)
+		mv, trace, err := r.move(ctx, from, target, t0, uint8(p.Acc))
 		if err != nil {
 			return tr, err
 		}
@@ -377,6 +404,9 @@ func (r *run) test(ctx context.Context, phase string, p Params) (Trial, error) {
 		m.Wobble = max(m.Wobble, mv.Wobble)
 		m.Jitter = max(m.Jitter, mv.Jitter)
 		m.PeakMA = math.Max(m.PeakMA, mv.PeakMA)
+		if target == r.start {
+			m.HoldLoad = math.Max(m.HoldLoad, mv.HoldLoad)
+		}
 		m.Spread = max(m.Spread, mv.Spread)
 		m.Opposing = math.Max(m.Opposing, mv.Opposing)
 		m.Settled = m.Settled && mv.Settled
@@ -395,11 +425,12 @@ func (r *run) test(ctx context.Context, phase string, p Params) (Trial, error) {
 	return tr, nil
 }
 
-// score: accurate & calm. Weights are per step / per event.
+// score: accurate & calm. Weights are per step / per event. Stopping short
+// of the goal (sag) costs the most per step; speed the least.
 func (r *run) score(m Metrics) float64 {
 	s := 3*float64(m.Overshoot) + 6*float64(m.Wobble) + 4*float64(m.Jitter) +
 		4*float64(m.Spread) + m.Opposing/2 +
-		10*float64(max(0, m.FinalError-r.opt.Tolerance)) + float64(m.SettleMS)/100 + m.PeakMA/1000
+		15*float64(max(0, m.FinalError-r.opt.Tolerance)) + float64(m.SettleMS)/100 + m.PeakMA/1000
 	if !m.Settled {
 		s += 500
 	}
@@ -407,10 +438,10 @@ func (r *run) score(m Metrics) float64 {
 }
 
 // move commands one target and measures the response of every member.
-func (r *run) move(ctx context.Context, from, target int, t0 time.Time) (Metrics, []Sample, error) {
+func (r *run) move(ctx context.Context, from, target int, t0 time.Time, acc uint8) (Metrics, []Sample, error) {
 	var m Metrics
 	var trace []Sample
-	if err := r.t.MoveTo(target, r.opt.Speed, r.opt.Acc); err != nil {
+	if err := r.t.MoveTo(target, r.opt.Speed, acc); err != nil {
 		return m, nil, err
 	}
 	dir := 1
@@ -424,10 +455,11 @@ func (r *run) move(ctx context.Context, from, target int, t0 time.Time) (Metrics
 		arrived bool
 		ext     int // furthest position in the current direction
 		lastDir int
-		holdMin int
-		holdMax int
-		holdSum int
-		holdN   int
+		holdMin  int
+		holdMax  int
+		holdSum  int
+		holdN    int
+		holdLoad float64
 	}
 	states := map[int]*memberState{}
 	readErrs := 0
@@ -497,6 +529,7 @@ func (r *run) move(ctx context.Context, from, target int, t0 time.Time) (Metrics
 				}
 				st.holdMin, st.holdMax = min(st.holdMin, f.Position), max(st.holdMax, f.Position)
 				st.holdSum += f.Position
+				st.holdLoad += math.Abs(f.Load)
 				st.holdN++
 			}
 		}
@@ -537,6 +570,7 @@ func (r *run) move(ctx context.Context, from, target int, t0 time.Time) (Metrics
 					m.Jitter = max(m.Jitter, st.holdMax-st.holdMin)
 					mean := float64(st.holdSum) / float64(st.holdN)
 					m.FinalError = max(m.FinalError, int(math.Round(math.Abs(mean-float64(target)))))
+					m.HoldLoad = math.Max(m.HoldLoad, st.holdLoad/float64(st.holdN))
 				}
 			}
 			m.Overshoot = max(0, m.Overshoot)

@@ -19,6 +19,7 @@ type StateMsg struct {
 	Mirrored   []int              `json:"mirrored"`
 	Signed     []int              `json:"signed"`     // servos whose angles are shown as -180..180
 	WeightComp []int              `json:"weightComp"` // servos with weight compensation on
+	Accs       map[string]int     `json:"accs"`       // servo ID -> tuned move acceleration
 	Names      map[string]string  `json:"names"`      // servo ID -> name from config.toml
 	Colors     map[string]string  `json:"colors"`     // servo ID -> color override from config.toml
 	Zeros      map[string]float64 `json:"zeros"`      // servo ID -> virtual 0° in degrees
@@ -170,6 +171,7 @@ type GroupInfo struct {
 	MaxSpread    int     `json:"maxSpread"`
 	MaxFightLoad float64 `json:"maxFightLoad"`
 	OnFight      string  `json:"onFight"`
+	Acc          int     `json:"acc,omitempty"` // tuned move acceleration, 0 = not set
 }
 
 // GroupHealth is sent with every telemetry frame.

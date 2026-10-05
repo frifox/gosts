@@ -31,17 +31,18 @@ type Target interface {
 	Now() time.Time
 }
 
-var tunedRegs = []gosts.Register{gosts.RegPositionP, gosts.RegPositionD, gosts.RegMinStartForce,
+// tunedRegs are the servo settings of Params (Acc is sent with each move).
+var tunedRegs = []gosts.Register{gosts.RegPositionP, gosts.RegPositionD, gosts.RegPositionI, gosts.RegMinStartForce,
 	gosts.RegCWDeadZone, gosts.RegCCWDeadZone}
 
-func values(p Params) []int { return []int{p.P, p.D, p.MinStart, p.DeadZone, p.DeadZone} }
+func values(p Params) []int { return []int{p.P, p.D, p.I, p.MinStart, p.DeadZone, p.DeadZone} }
 
 func readParams(s *gosts.Servo) (Params, error) {
 	mem, err := s.ReadMemory()
 	if err != nil {
 		return Params{}, err
 	}
-	return Params{P: gosts.RegPositionP.Value(mem), D: gosts.RegPositionD.Value(mem),
+	return Params{P: gosts.RegPositionP.Value(mem), D: gosts.RegPositionD.Value(mem), I: gosts.RegPositionI.Value(mem),
 		MinStart: gosts.RegMinStartForce.Value(mem), DeadZone: gosts.RegCWDeadZone.Value(mem)}, nil
 }
 
