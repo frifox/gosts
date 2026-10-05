@@ -58,6 +58,8 @@ header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: .2px; 
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 }
 .card-body { padding: 14px; }
+.tune-scope { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.tune-scope.warn { color: var(--warn); }
 .lim-row.off { opacity: .45; }
 .card > h2.toggle { cursor: pointer; user-select: none; }
 .card > h2.toggle::before { content: "▾"; font-size: 11px; transition: transform .15s; }
@@ -561,8 +563,8 @@ td .num { width: 90px; padding: 3px 6px; }
       </div>
     </section>
 
-    <section class="card servo-only" id="tuningCard">
-      <h2>Tuning <span class="spacer"></span>
+    <section class="card" id="tuningCard">
+      <h2>Tuning <span id="tuneScope" class="tune-scope"></span><span class="spacer"></span>
         <button class="btn small" id="autoTuneBtn" title="Find good values automatically by test moves">Auto…</button>
         <select id="tunePreset" title="Preset matching the values shown; pick one to load it" class="num" style="width:auto;text-transform:none;letter-spacing:0;font-weight:400;font-family:inherit">
           <option value="custom" disabled>Custom</option>
@@ -988,6 +990,7 @@ function selectGroup(key) {
 
 // applyMode shows the group console or the single-servo console.
 function applyMode() {
+  renderTuneScope();
   updateWeightCompBox();
   const grp = !!state.selGroup;
   document.querySelectorAll(".servo-only").forEach((el) => (el.hidden = grp));
@@ -1262,7 +1265,7 @@ function isMultiTurn(c) { return c.minAngleLimit === 0 && c.maxAngleLimit === 0;
 function onConfig(m) {
   const c = m.config;
   state.cfg[m.id] = c;
-  if (members().includes(m.id)) { updateTorqueBox(); updateGroupMultiTurn(); }
+  if (members().includes(m.id)) { updateTorqueBox(); updateGroupMultiTurn(); renderTuneScope(); }
   if (m.id !== state.selected) return;
   $("selInfo").textContent = `servo v${c.servoMajor}.${c.servoMinor} · fw ${c.firmwareMajor}.${c.firmwareMinor} · ${c.baudRate === 0 ? "1 Mbps" : "baud idx " + c.baudRate}`;
   $("multiturn").checked = isMultiTurn(c);
@@ -1635,7 +1638,7 @@ async function resetTune(reg) {
   }
   const v = t.saved[reg];
   if (v === undefined) return;
-  if (await cmd("tune", { values: [{ register: reg, value: v }], save: false }, `${reg} back to the saved ${v}`)) {
+  if (await ctl("tune", { values: [{ register: reg, value: v }], save: false }, `${reg} back to the saved ${v}`)) {
     t.cur[reg] = t.base[reg] = v;
     delete t.tried[reg];
     renderTuning();
@@ -1687,6 +1690,38 @@ function updateTuning(id, regs, tried, saved) {
   renderTuning();
 }
 
+// tuneTargetLabel names where Try/Save write: the servo, or every member of
+// the shown group (the card shows the leader's values).
+function tuneTargetLabel() {
+  const g = curGroup();
+  return g ? `every member of ${g.name} (#${g.members.join(", #")}), saved on the servos` : `servo ${state.selected}'s EEPROM`;
+}
+
+// TUNE_CFG are the Tuning card settings as ServoConfig keys, to compare group members.
+const TUNE_CFG = { positionP: "P", positionD: "D", positionI: "I", minStartForce: "start force", cwDeadZone: "dead zone CW",
+  ccwDeadZone: "dead zone CCW", maxTorque: "max torque", overloadTorque: "overload level", protectionTime: "overload time",
+  protectiveTorque: "protective torque", protectionCurrent: "current limit", overCurrentTime: "over-current time",
+  speedP: "speed P", speedI: "speed I" };
+
+// renderTuneScope says whose values the card shows; for a group it lists
+// members whose settings differ from the leader's.
+function renderTuneScope() {
+  const el = $("tuneScope"), g = curGroup();
+  el.classList.remove("warn");
+  if (!g) { el.textContent = ""; return; }
+  const lead = state.cfg[g.members[0]];
+  const diffs = [];
+  for (const id of g.members.slice(1)) {
+    const c = state.cfg[id];
+    if (!lead || !c) continue;
+    const d = Object.entries(TUNE_CFG).filter(([k]) => c[k] !== lead[k]).map(([k, n]) => `${n} ${c[k]}`);
+    if (d.length) diffs.push(`#${id}: ${d.join(", ")}`);
+  }
+  el.textContent = `· leader #${g.members[0]} shown, applies to all members` + (diffs.length ? ` · differs: ${diffs.join("; ")}` : "");
+  el.title = diffs.length ? "Save (or Copy tuning from leader) makes the members match the leader" : "";
+  el.classList.toggle("warn", diffs.length > 0);
+}
+
 async function applyTuning(save) {
   let values = tuneChanges();
   if (save) {
@@ -1698,13 +1733,13 @@ async function applyTuning(save) {
     // Nothing tracked (e.g. values tried before the server restarted): save
     // everything currently active on the servo.
     values = TUNE_ITEMS.filter((it) => state.tune.cur[it.reg] !== undefined).map((it) => ({ register: it.reg, value: state.tune.cur[it.reg] }));
-    if (!await ask(`No unsaved changes are tracked. Save all ${values.length} current tuning values to servo ${state.selected}'s EEPROM?`)) return;
-    return void (await cmd("tune", { values, save: true }, `saved all ${values.length} tuning values`) && loadConfig(false));
+    if (!await ask(`No unsaved changes are tracked. Save all ${values.length} current tuning values to ${tuneTargetLabel()}?`)) return;
+    return void (await ctl("tune", { values, save: true }, `saved all ${values.length} tuning values`) && loadConfig(false));
   }
   if (!values.length) return;
-  if (save && !await ask(`Save ${values.length} value(s) to servo ${state.selected}'s EEPROM?\n\n` +
+  if (save && !await ask(`Save ${values.length} value(s) to ${tuneTargetLabel()}?\n\n` +
     values.map((v) => `${v.register} = ${v.value}`).join("\n"))) return;
-  const ok = await cmd("tune", { values, save }, `tuned ${values.length} value(s), ${save ? "saved" : "until power-off"}`);
+  const ok = await ctl("tune", { values, save }, `tuned ${values.length} value(s), ${save ? "saved" : "until power-off"}`);
   if (ok) {
     state.tune.base = { ...state.tune.base, ...Object.fromEntries(values.map((v) => [v.register, v.value])) };
     renderTuning();

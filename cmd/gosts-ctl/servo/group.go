@@ -129,6 +129,14 @@ func (c *Controller) GroupExec(bus *gosts.Bus, req internal.Request) error {
 		return g.SetTorqueLimit(req.Percent)
 	case "weightComp":
 		return c.SetWeightComp(bus, gc.Members, req.On)
+	case "tune": // the Tuning card shows the leader's values; they go to every member
+		var errs []error
+		for _, id := range gc.Members {
+			if err := c.tune(bus, id, req.Values, req.Save); err != nil {
+				errs = append(errs, fmt.Errorf("servo %d: %w", id, err))
+			}
+		}
+		return errors.Join(errs...)
 	case "multiturn":
 		var errs []error
 		for _, id := range gc.Members {

@@ -125,34 +125,41 @@ func (c *Controller) Exec(bus *gosts.Bus, req internal.Request) error {
 		c.SetTried(req.ID, []internal.RegValue{{Register: reg.Name, Value: req.Value}}, true, nil) // now saved
 		return nil
 	case "tune":
-		before := map[string]int{} // for Try: the values to go back to
-		for _, rv := range req.Values {
-			reg, ok := gosts.RegisterByName(rv.Register)
-			if !ok {
-				return fmt.Errorf("unknown register %q", rv.Register)
-			}
-			if !req.Save {
-				v, err := sv.Read(reg)
-				if err != nil {
-					return fmt.Errorf("%s: %w", reg.Name, err)
-				}
-				before[reg.Name] = v
-			}
-			write := sv.WriteTemporary
-			if req.Save {
-				write = sv.Write
-			}
-			if err := write(reg, rv.Value); err != nil {
-				return fmt.Errorf("%s: %w", reg.Name, err)
-			}
-		}
-		c.SetTried(req.ID, req.Values, req.Save, before)
-		how := "until power-off"
-		if req.Save {
-			how = "saved"
-		}
-		log.Printf("servo %d: tuned %d register(s), %s", req.ID, len(req.Values), how)
-		return nil
+		return c.tune(bus, req.ID, req.Values, req.Save)
 	}
 	return fmt.Errorf("unknown command %q", req.Type)
+}
+
+// tune writes tuning values to one servo: until power-off (tried, so Save can
+// persist them later) or saved.
+func (c *Controller) tune(bus *gosts.Bus, id uint8, values []internal.RegValue, save bool) error {
+	sv := bus.Servo(id)
+	before := map[string]int{} // for Try: the values to go back to
+	for _, rv := range values {
+		reg, ok := gosts.RegisterByName(rv.Register)
+		if !ok {
+			return fmt.Errorf("unknown register %q", rv.Register)
+		}
+		if !save {
+			v, err := sv.Read(reg)
+			if err != nil {
+				return fmt.Errorf("%s: %w", reg.Name, err)
+			}
+			before[reg.Name] = v
+		}
+		write := sv.WriteTemporary
+		if save {
+			write = sv.Write
+		}
+		if err := write(reg, rv.Value); err != nil {
+			return fmt.Errorf("%s: %w", reg.Name, err)
+		}
+	}
+	c.SetTried(id, values, save, before)
+	how := "until power-off"
+	if save {
+		how = "saved"
+	}
+	log.Printf("servo %d: tuned %d register(s), %s", id, len(values), how)
+	return nil
 }
