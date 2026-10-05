@@ -1,6 +1,6 @@
 # Go ST Servo
 
-Go package built to control Waveshare ST3215 servo, but should work with other Waveshare ST and possibly the original Feetech STS servos too.
+Go package built to control Waveshare ST3215 servo, but should work with other Waveshare ST and possibly the original Feetech ST servos too.
 Servos are driven by the **Waveshare Bus Servo Adapter (A)** but connecting to servo directly should also work.
 
 ![gosts-ctl web console controlling ST3215 servos](docs/screenshot.jpg)
