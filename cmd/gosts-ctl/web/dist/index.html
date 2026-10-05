@@ -124,6 +124,8 @@ header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: .2px; 
 .chip.on { color: #fff; background: var(--bad); border-color: var(--bad); }
 .chip.okc { color: var(--ok); border-color: var(--ok); }
 /* chart */
+.span-pick { font: inherit; color: inherit; text-transform: none; letter-spacing: 0; background: transparent; border: 0; border-bottom: 1px dashed var(--muted); padding: 0 1px; cursor: pointer; }
+.span-pick option { color: var(--text); background: var(--panel); }
 .tabs { display: inline-flex; max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-left: auto; }
 .tabs button { border: 0; background: transparent; padding: 3px 10px; cursor: pointer; font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--muted); }
 .tabs button.active { background: var(--accent); color: #fff; }
@@ -392,7 +394,9 @@ td .num { width: 90px; padding: 3px 6px; }
     </section>
 
     <section class="card history-card">
-      <h2>History (30 s)
+      <h2><span>History (<select id="chartSpan" class="span-pick" title="Time shown">
+          <option value="1000">1 s</option><option value="5000">5 s</option><option value="15000">15 s</option><option value="30000" selected>30 s</option>
+        </select>)</span>
         <div class="tabs" id="chartTabs">
           <button data-k="position" class="active">Position</button>
           <button data-k="speed">Speed</button>
@@ -1191,6 +1195,15 @@ $("dial").addEventListener("click", (e) => {
 
 // ---------------------------------------------------------------- chart
 const UNITS = { position: "steps", speed: "step/s", load: "%", current: "mA", temperature: "°C", voltage: "V" };
+// Time span shown (the last 30 s are kept); each window remembers its choice.
+state.chartSpan = 30000;
+try { const v = Number(localStorage.getItem("chartSpan")); if ([1000, 5000, 15000, 30000].includes(v)) state.chartSpan = v; } catch {}
+$("chartSpan").value = String(state.chartSpan);
+$("chartSpan").addEventListener("change", (e) => {
+  state.chartSpan = Number(e.target.value);
+  try { localStorage.setItem("chartSpan", e.target.value); } catch {}
+  drawChart();
+});
 $("chartTabs").addEventListener("click", (e) => {
   const k = e.target.dataset.k;
   if (!k) return;
@@ -1209,18 +1222,21 @@ function drawChart() {
   const ctx = cv.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
-  const series = members().map((id) => ({ id, data: state.hist[id] || [], color: colorOf(id) }));
-  const key = state.chartKey;
+  const key = state.chartKey, spanMs = state.chartSpan;
   const padL = 64, padR = 10, padT = 10, padB = 22;
   let now = 0;
-  for (const se of series) if (se.data.length) now = Math.max(now, se.data[se.data.length - 1].t);
+  for (const id of members()) { const d = state.hist[id]; if (d && d.length) now = Math.max(now, d[d.length - 1].t); }
   if (!now) now = Date.now();
+  // The points inside the shown time span, plus the one before it so the line
+  // reaches the left edge.
+  const shown = (d) => { const i = d.findIndex((p) => now - p.t <= spanMs); return i < 0 ? [] : d.slice(Math.max(0, i - 1)); };
+  const series = members().map((id) => ({ id, data: shown(state.hist[id] || []), color: colorOf(id) }));
   let lo = Infinity, hi = -Infinity;
   for (const se of series) for (const p of se.data) { lo = Math.min(lo, p[key]); hi = Math.max(hi, p[key]); }
   if (!isFinite(lo)) { lo = 0; hi = 1; }
   if (hi - lo < 1e-6) { lo -= 1; hi += 1; }
   const span = hi - lo; lo -= span * 0.08; hi += span * 0.08;
-  const X = (t) => padL + (w - padL - padR) * (1 - (now - t) / HISTORY_MS);
+  const X = (t) => padL + (w - padL - padR) * (1 - (now - t) / spanMs);
   const Y = (v) => padT + (h - padT - padB) * (1 - (v - lo) / (hi - lo));
 
   ctx.font = `11px ${cssVar("--mono")}`;
@@ -1234,17 +1250,21 @@ function drawChart() {
     ctx.fillText(Math.abs(hi - lo) > 20 ? v.toFixed(0) : v.toFixed(1), padL - 6, y);
   }
   ctx.textAlign = "center"; ctx.textBaseline = "top";
-  for (let s = 0; s <= 30; s += 5) ctx.fillText(s ? `-${s}s` : "now", X(now - s * 1000), h - padB + 6);
+  const tick = { 1000: 200, 5000: 1000, 15000: 3000, 30000: 5000 }[spanMs] || spanMs / 6;
+  for (let ms = 0; ms <= spanMs; ms += tick) ctx.fillText(ms ? `-${+(ms / 1000).toFixed(1)}s` : "now", X(now - ms), h - padB + 6);
   ctx.save(); ctx.translate(10, padT + (h - padT - padB) / 2); ctx.rotate(-Math.PI / 2);
   ctx.textBaseline = "middle"; ctx.fillText(UNITS[key], 0, 0); ctx.restore();
 
   ctx.lineWidth = 2; ctx.lineJoin = "round";
+  ctx.save();
+  ctx.beginPath(); ctx.rect(padL, 0, w - padL - padR, h); ctx.clip(); // the point before the span
   for (const se of series) {
     ctx.strokeStyle = se.color;
     ctx.beginPath();
     se.data.forEach((p, i) => (i ? ctx.lineTo(X(p.t), Y(p[key])) : ctx.moveTo(X(p.t), Y(p[key]))));
     ctx.stroke();
   }
+  ctx.restore();
   if (series.length > 1) { // legend
     ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.font = `11px ${cssVar("--mono")}`;
     let x = padL + 8;
