@@ -2186,10 +2186,14 @@ function openAutotune() {
   const busy = state.at && state.at.running && state.at.key !== key;
   if (busy) $("atSetupErr").textContent = `Auto-tune of ${state.at.label} is running in this or another window.`;
   $("atStart").disabled = !!busy;
-  if (state.at && state.at.key === key && (state.at.running || (state.at.result && !state.at.saved && !state.at.reverted))) {
+  // A run in progress, or a finished one waiting for Save/Revert, is shown
+  // again; a run that stopped early (values already restored) is over, so the
+  // setup comes back for a new start.
+  if (state.at && state.at.key === key && (state.at.running || (state.at.result && !state.at.error && !state.at.saved && !state.at.reverted))) {
     showAtRun(true);
     renderAutotune(state.at);
   } else {
+    if (state.at && state.at.key === key && state.at.error) $("atSetupErr").textContent = `Last run: ${state.at.error}`;
     setPair("atSpeed", Math.max(100, Number($("speed").value) || 1000));
     setPair("atAcc", Math.max(1, Number($("acc").value) || 30));
     showAtRun(false);

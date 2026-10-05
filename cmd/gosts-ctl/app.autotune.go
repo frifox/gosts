@@ -21,6 +21,7 @@ type autotuneRun struct {
 	group   string  // group key, if any
 	cancel  context.CancelFunc
 	result  *autotune.Result
+	err     string // why the run stopped early ("" = finished); its values were restored
 }
 
 // tunedNames are the registers autotune.Params maps to, in config/tried terms.
@@ -107,10 +108,6 @@ func (a *app) startAutotune(req internal.Request) error {
 		}
 		res, err := autotune.Run(ctx, target, opt)
 
-		a.mu.Lock()
-		run.cancel = nil
-		run.result = &res
-		a.mu.Unlock()
 		end := msg()
 		end.Result = &res
 		switch {
@@ -138,6 +135,9 @@ func (a *app) startAutotune(req internal.Request) error {
 			}
 			a.Logf("info", "auto-tune of %s done: %s (until power-off; Save to keep)", run.label, res.Best.Params)
 		}
+		a.mu.Lock()
+		run.cancel, run.result, run.err = nil, &res, end.Error
+		a.mu.Unlock()
 		a.Broadcast(end)
 		for _, id := range run.members {
 			a.Refresh(id)
@@ -151,7 +151,7 @@ func (a *app) finishAutotune(save bool) error {
 	a.mu.Lock()
 	run := a.at
 	a.mu.Unlock()
-	if run == nil || run.result == nil || run.cancel != nil {
+	if run == nil || run.result == nil || run.cancel != nil || run.err != "" {
 		return errors.New("no finished auto-tune result")
 	}
 	res := *run.result
@@ -210,5 +210,5 @@ func (a *app) autotuneState() *internal.AutotuneMsg {
 		return nil
 	}
 	return &internal.AutotuneMsg{Type: "autotune", Key: a.at.key, Label: a.at.label, Members: internal.ToInts(a.at.members),
-		Running: a.at.cancel != nil, Result: a.at.result}
+		Running: a.at.cancel != nil, Result: a.at.result, Error: a.at.err}
 }
