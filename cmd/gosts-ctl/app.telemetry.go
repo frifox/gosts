@@ -27,7 +27,10 @@ func (a *app) pollLoop(ctx context.Context) {
 		states := map[string]internal.ServoState{}
 		var health map[string]internal.GroupHealth
 		err := a.board.WithBus(func(bus *gosts.Bus) error {
-			defer func() { health = a.ctl.CheckGroups(bus, states) }()
+			defer func() {
+				health = a.ctl.CheckGroups(bus, states)
+				a.ctl.WeightComp(bus, states, a.tuning)
+			}()
 			if a.noSync {
 				for _, id := range st.IDs {
 					f, err := bus.Servo(id).Feedback()

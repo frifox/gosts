@@ -22,6 +22,7 @@ type Controller struct {
 	mu     sync.Mutex
 	tried  map[uint8]map[string]triedValue // values applied with "Try" but not saved, per servo
 	fights map[string]*fightState          // fight protection per group key
+	comp   map[uint8]*compState            // weight compensation per servo
 }
 
 // New returns a controller using the settings in cfg and reporting to n.
@@ -94,6 +95,8 @@ func (c *Controller) Exec(bus *gosts.Bus, req internal.Request) error {
 		return c.ClearLimits(bus, sv, req.ID)
 	case "torqueLimit":
 		return sv.SetTorqueLimit(req.Percent)
+	case "weightComp":
+		return c.SetWeightComp(bus, []uint8{req.ID}, req.On)
 	case "zeroAt":
 		// Absolute: where the servo's 0° goes on the encoder scale. The servo's
 		// own zero replaces a virtual one, so that is cleared.

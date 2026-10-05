@@ -667,6 +667,29 @@ func (s *Servo) SetTorqueLimit(percent float64) error {
 	return s.Write(RegTorqueLimit, int(percent*10+0.5))
 }
 
+// Goal reads the goal position (logical steps, in goal coordinates: with the
+// turn count in multi-turn mode). Meaningful in ModePosition.
+func (s *Servo) Goal() (int, error) {
+	g, err := s.Read(RegGoalPosition)
+	return mirrorPos(s.Mirrored(), g), err
+}
+
+// SetGoal changes only the goal position (logical steps), keeping the speed
+// and acceleration of the move in progress. With a motion range it is kept on
+// the range like MoveTo. Note that writing a goal switches torque on.
+func (s *Servo) SetGoal(pos int) error {
+	pos, err := s.rangeGoal(pos)
+	if err != nil {
+		return err
+	}
+	p, err := RegGoalPosition.encode(mirrorPos(s.Mirrored(), pos))
+	if err != nil {
+		return err
+	}
+	_, err = s.bus.Write(s.id, RegGoalPosition.Addr, p)
+	return err
+}
+
 // SetAcceleration sets the acceleration in units of 100 step/s² (0 = maximum).
 func (s *Servo) SetAcceleration(acc uint8) error { return s.Write(RegAcceleration, int(acc)) }
 

@@ -127,6 +127,8 @@ func (c *Controller) GroupExec(bus *gosts.Bus, req internal.Request) error {
 		return g.SetMode(gosts.Mode(req.Mode))
 	case "torqueLimit":
 		return g.SetTorqueLimit(req.Percent)
+	case "weightComp":
+		return c.SetWeightComp(bus, gc.Members, req.On)
 	case "multiturn":
 		var errs []error
 		for _, id := range gc.Members {

@@ -165,6 +165,7 @@ Name = "Left"
 Name = "Right"
 Mirrored = true
 Signed = true  # show angles as -180..180 instead of 0..360
+WeightComp = true # nudge the goal until a sagging arm reaches it (Weight Comp toggle)
 Zero = 270.0   # virtual 0°: physical 270° is shown as 0°, straight up as 90°
 DialUp = 340.0 # dial orientation: the arm points physically up at encoder 340°
 ```

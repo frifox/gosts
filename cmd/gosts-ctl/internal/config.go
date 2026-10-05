@@ -29,10 +29,12 @@ type ServoConfig struct {
 	Zero     float64 `toml:"Zero,omitzero"`    // virtual 0° (degrees, 0..360): shown angle = physical - Zero
 	DialUp   float64 `toml:"DialUp,omitzero"`  // encoder-scale angle at which the arm points physically up (dial orientation)
 	Range    []int   `toml:"Range,omitempty"`  // motion range [lo, hi]: clockwise arc in encoder-scale steps (0..4095, logical)
+	// WeightComp nudges the goal until a sagging arm reaches it (see servo.WeightComp).
+	WeightComp bool `toml:"WeightComp,omitempty"`
 }
 
 func (c ServoConfig) empty() bool {
-	return c.Name == "" && !c.Mirrored && !c.Signed && c.Color == "" && c.Zero == 0 && c.DialUp == 0 && len(c.Range) == 0
+	return c.Name == "" && !c.Mirrored && !c.Signed && c.Color == "" && c.Zero == 0 && c.DialUp == 0 && len(c.Range) == 0 && !c.WeightComp
 }
 
 // GroupConfig is a set of servos driven as one (see gosts.Group).

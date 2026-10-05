@@ -62,7 +62,7 @@ func (a *app) Refresh(id uint8) { a.scheduleRefresh(id, -1) }
 func (a *app) stateMsg() internal.StateMsg {
 	st := a.board.Status()
 	mirrored, signed, names, colors, zeros, dialUps := []int{}, []int{}, map[string]string{}, map[string]string{}, map[string]float64{}, map[string]float64{}
-	ranges := map[string][]int{}
+	ranges, weightComp := map[string][]int{}, []int{}
 	for id, sc := range a.cfg.All() {
 		key := strconv.Itoa(int(id))
 		if sc.Mirrored {
@@ -70,6 +70,9 @@ func (a *app) stateMsg() internal.StateMsg {
 		}
 		if sc.Signed {
 			signed = append(signed, int(id))
+		}
+		if sc.WeightComp {
+			weightComp = append(weightComp, int(id))
 		}
 		if len(sc.Range) == 2 {
 			ranges[key] = sc.Range
@@ -89,8 +92,9 @@ func (a *app) stateMsg() internal.StateMsg {
 	}
 	slices.Sort(mirrored)
 	slices.Sort(signed)
+	slices.Sort(weightComp)
 	return internal.StateMsg{Type: "state", Connected: st.Port != "", Port: st.Port, Baud: st.Baud,
-		Scanning: st.Scanning, Scanned: st.Scanned, IDs: internal.ToInts(st.IDs), Mirrored: mirrored, Signed: signed, Names: names,
+		Scanning: st.Scanning, Scanned: st.Scanned, IDs: internal.ToInts(st.IDs), Mirrored: mirrored, Signed: signed, WeightComp: weightComp, Names: names,
 		Colors: colors, Zeros: zeros, DialUps: dialUps, Ranges: ranges, Groups: groupInfos(a.cfg.AllGroups())}
 }
 

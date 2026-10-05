@@ -88,3 +88,20 @@ func TestRangeFollowsZero(t *testing.T) {
 		t.Fatal("range not cleared")
 	}
 }
+
+func TestGoalSetGoalMirrored(t *testing.T) {
+	b, p := rangeServo(t, 1000, true)
+	b.SetMirrored(1, true)
+	s := b.Servo(1)
+	putU16(p.servos[1].mem[RegAcceleration.Addr:], 0)
+	p.servos[1].mem[RegAcceleration.Addr] = 30
+	if err := s.SetGoal(3000); err != nil {
+		t.Fatal(err)
+	}
+	if physGoal(p, 1) != 2*CenterPosition-3000 || p.servos[1].mem[RegAcceleration.Addr] != 30 {
+		t.Fatal("goal", physGoal(p, 1))
+	}
+	if g, err := s.Goal(); err != nil || g != 3000 {
+		t.Fatal("Goal", g, err)
+	}
+}

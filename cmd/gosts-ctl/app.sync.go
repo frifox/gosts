@@ -49,6 +49,8 @@ func changeNote(req internal.Request) string {
 		return fmt.Sprintf("mirrored %s", internal.OnOff(req.On))
 	case "servoEdit":
 		return "settings edited"
+	case "weightComp":
+		return fmt.Sprintf("weight compensation %s", internal.OnOff(req.On))
 	case "step":
 		return fmt.Sprintf("step %d", req.Position)
 	case "align":
@@ -63,7 +65,7 @@ func changeNote(req internal.Request) string {
 var changesServo = map[string]bool{
 	"torque": true, "move": true, "stop": true, "wheel": true, "pwm": true, "mode": true,
 	"multiturn": true, "limits": true, "limitsClear": true, "zeroHere": true, "torqueLimit": true, "write": true, "tune": true,
-	"mirror": true, "setid": true, "servoEdit": true, "zeroAt": true, "angle": true, "jog": true, "step": true, "align": true, "copyTuning": true,
+	"mirror": true, "setid": true, "servoEdit": true, "weightComp": true, "zeroAt": true, "angle": true, "jog": true, "step": true, "align": true, "copyTuning": true,
 }
 
 func (a *app) afterChange(c *web.Client, req internal.Request) {

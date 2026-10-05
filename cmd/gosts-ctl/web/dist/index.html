@@ -409,6 +409,7 @@ td .num { width: 90px; padding: 3px 6px; }
       <div class="card-body">
         <div class="row" style="margin-top:0">
           <label class="switch"><input type="checkbox" id="torque"><span class="track"></span><span title="On: the motor holds its position. Off: the servo turns freely by hand.">Torque Lock</span></label>
+          <label class="switch"><input type="checkbox" id="weightComp"><span class="track"></span><span title="A heavy or unbalanced load makes the arm settle slightly short of the goal. On: once the arm stops, its goal is nudged until the arm reaches the target (at most 11°). Saved per servo.">Weight Comp</span></label>
           <span class="spacer"></span>
           <div class="seg" id="modeSeg">
             <button data-mode="0">Position</button>
@@ -978,6 +979,7 @@ function selectGroup(key) {
 
 // applyMode shows the group console or the single-servo console.
 function applyMode() {
+  updateWeightCompBox();
   const grp = !!state.selGroup;
   document.querySelectorAll(".servo-only").forEach((el) => (el.hidden = grp));
   document.querySelectorAll(".group-only").forEach((el) => (el.hidden = !grp));
@@ -1281,6 +1283,14 @@ function onConfig(m) {
 }
 
 // The Torque Lock box is on when every shown servo holds torque, mixed otherwise.
+// Weight Comp is on when every shown servo has it on.
+function updateWeightCompBox() {
+  const ids = members(), on = ids.filter((id) => state.weightComp?.has(id));
+  $("weightComp").checked = ids.length > 0 && on.length === ids.length;
+  $("weightComp").indeterminate = on.length > 0 && on.length < ids.length;
+}
+$("weightComp").onchange = (e) => ctl("weightComp", { on: e.target.checked }, `weight compensation ${e.target.checked ? "on" : "off"}`);
+
 function updateTorqueBox() {
   const t = members().map((id) => state.cfg[id]?.torqueEnabled).filter((v) => v !== undefined);
   $("torque").checked = t.length > 0 && t.every(Boolean);
@@ -1727,6 +1737,8 @@ function onState(m) {
   setServos(m.ids);
   state.mirrored = new Set(m.mirrored || []);
   state.signed = new Set(m.signed || []);
+  state.weightComp = new Set(m.weightComp || []);
+  updateWeightCompBox();
   state.names = m.names || {};
   state.colors = m.colors || {};
   state.zeros = m.zeros || {};

@@ -9,21 +9,22 @@ import (
 
 // StateMsg is the connection, scan and settings state shared by all windows.
 type StateMsg struct {
-	Type      string             `json:"type"`
-	Connected bool               `json:"connected"`
-	Port      string             `json:"port"`
-	Baud      int                `json:"baud"`
-	Scanning  bool               `json:"scanning"`
-	Scanned   bool               `json:"scanned"`
-	IDs       []int              `json:"ids"` // not []uint8: encoding/json would emit base64
-	Mirrored  []int              `json:"mirrored"`
-	Signed    []int              `json:"signed"`  // servos whose angles are shown as -180..180
-	Names     map[string]string  `json:"names"`   // servo ID -> name from config.toml
-	Colors    map[string]string  `json:"colors"`  // servo ID -> color override from config.toml
-	Zeros     map[string]float64 `json:"zeros"`   // servo ID -> virtual 0° in degrees
-	DialUps   map[string]float64 `json:"dialUps"` // servo ID -> factory-scale angle that is physically up
-	Ranges    map[string][]int   `json:"ranges"`  // servo ID -> motion range [lo, hi], encoder-scale steps
-	Groups    []GroupInfo        `json:"groups"`
+	Type       string             `json:"type"`
+	Connected  bool               `json:"connected"`
+	Port       string             `json:"port"`
+	Baud       int                `json:"baud"`
+	Scanning   bool               `json:"scanning"`
+	Scanned    bool               `json:"scanned"`
+	IDs        []int              `json:"ids"` // not []uint8: encoding/json would emit base64
+	Mirrored   []int              `json:"mirrored"`
+	Signed     []int              `json:"signed"`     // servos whose angles are shown as -180..180
+	WeightComp []int              `json:"weightComp"` // servos with weight compensation on
+	Names      map[string]string  `json:"names"`      // servo ID -> name from config.toml
+	Colors     map[string]string  `json:"colors"`     // servo ID -> color override from config.toml
+	Zeros      map[string]float64 `json:"zeros"`      // servo ID -> virtual 0° in degrees
+	DialUps    map[string]float64 `json:"dialUps"`    // servo ID -> factory-scale angle that is physically up
+	Ranges     map[string][]int   `json:"ranges"`     // servo ID -> motion range [lo, hi], encoder-scale steps
+	Groups     []GroupInfo        `json:"groups"`
 }
 
 type PortsMsg struct {
