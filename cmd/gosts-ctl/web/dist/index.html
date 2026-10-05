@@ -397,6 +397,7 @@ td .num { width: 90px; padding: 3px 6px; }
           <button data-k="load">Load</button>
           <button data-k="current">Current</button>
           <button data-k="temperature">Temp</button>
+          <button data-k="voltage">Voltage</button>
         </div>
       </h2>
       <div class="card-body chart-body"><canvas id="chart"></canvas></div>
@@ -1027,7 +1028,7 @@ function onFeedback(m) {
     state.fb[id] = f;
     if (!f.error) {
       const h = (state.hist[id] ||= []);
-      h.push({ t: m.time, position: f.position, speed: f.speed, load: f.load, current: f.current, temperature: f.temperature });
+      h.push({ t: m.time, position: f.position, speed: f.speed, load: f.load, current: f.current, temperature: f.temperature, voltage: f.voltage });
       while (h.length && h[0].t < m.time - HISTORY_MS) h.shift();
     }
     updateListItem(id, f);
@@ -1174,7 +1175,7 @@ $("dial").addEventListener("click", (e) => {
 });
 
 // ---------------------------------------------------------------- chart
-const UNITS = { position: "steps", speed: "step/s", load: "%", current: "mA", temperature: "°C" };
+const UNITS = { position: "steps", speed: "step/s", load: "%", current: "mA", temperature: "°C", voltage: "V" };
 $("chartTabs").addEventListener("click", (e) => {
   const k = e.target.dataset.k;
   if (!k) return;
