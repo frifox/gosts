@@ -2,13 +2,22 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "example",
+      "name": "gosts-ctl",
       "runtimeExecutable": "sh",
       "runtimeArgs": [
         "-c",
         "go run ./cmd/gosts-ctl -addr localhost:8080"
       ],
       "port": 8080
+    },
+    {
+      "name": "gosts",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "go run ./cmd/gosts -addr localhost:8081"
+      ],
+      "port": 8081
     }
   ]
 }
