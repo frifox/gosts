@@ -55,6 +55,9 @@ func planShots(p Plan, m Motion) (shots []shot, rows int, spacing float64, err e
 	spacing = deg(math.Sqrt(area / float64(n)))
 	// Rows: as many as the band's height holds at that spacing.
 	rows = max(1, min(n, int(math.Round((hi-lo)/spacing))))
+	if p.Moving {
+		return spiralOrder(pts, rows, z0, z1), rows, spacing, nil
+	}
 	slices.SortStableFunc(pts, func(a, b shot) int { return cmp.Compare(a.Elevation, b.Elevation) })
 	for r := 0; r < rows; r++ {
 		row := pts[r*n/rows : (r+1)*n/rows]
@@ -69,6 +72,33 @@ func planShots(p Plan, m Motion) (shots []shot, rows int, spacing float64, err e
 		}
 	}
 	return pts, rows, spacing, nil
+}
+
+// spiralOrder orders the shots along one rising helix of `turns` windings,
+// for moving shots: the turntable keeps turning one way while the camera
+// climbs a little with every shot, so there are no row ends and no
+// reversals. Each shot sits on the winding nearest to it: u (0..turns) is its
+// height on the sphere as a fraction of the band, and its place on the helix
+// is the winding k plus its azimuth as a fraction of a turn.
+func spiralOrder(pts []shot, turns int, z0, z1 float64) []shot {
+	key := make(map[*shot]float64, len(pts))
+	for i := range pts {
+		u := float64(turns) * (math.Sin(rad(pts[i].Elevation)) - z0) / (z1 - z0)
+		af := (pts[i].Azimuth + 180) / 360
+		k := math.Round(u - af)
+		key[&pts[i]] = k + af
+	}
+	ptrs := make([]*shot, len(pts))
+	for i := range pts {
+		ptrs[i] = &pts[i]
+	}
+	slices.SortStableFunc(ptrs, func(a, b *shot) int { return cmp.Compare(key[a], key[b]) })
+	out := make([]shot, len(pts))
+	for i, p := range ptrs {
+		out[i] = *p
+		out[i].Ring = int(math.Floor(key[p]))
+	}
+	return out
 }
 
 func rad(d float64) float64    { return d * math.Pi / 180 }
@@ -145,6 +175,9 @@ func (c *capture) start(p Plan) error {
 	if err != nil {
 		return err
 	}
+	if t := math.Abs(spiralTurns(shots)); p.Moving && t > maxSpiralTurns {
+		return fmt.Errorf("moving shots: %d photos make a %.0f-turn spiral, more than the platform servo can turn in one go (%d): use fewer photos, or stop for each shot", len(shots), t, maxSpiralTurns)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	c.mu.Lock()
 	if c.running {
@@ -156,7 +189,11 @@ func (c *capture) start(p Plan) error {
 	c.rows, c.spacing = rows, spacing
 	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
 	c.mu.Unlock()
-	c.rig.logf("info", "capture started: %d photos in %d rows, about %.0f° apart", len(shots), rows, spacing)
+	how := fmt.Sprintf("in %d rows, stopping for each", rows)
+	if p.Moving {
+		how = fmt.Sprintf("on a %d-turn spiral, without stopping", rows)
+	}
+	c.rig.logf("info", "capture started: %d photos about %.0f° apart, %s", len(shots), spacing, how)
 	c.send()
 	go c.run(ctx, p)
 	return nil
@@ -185,7 +222,34 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	c.send()
 }
 
+// maxSpiralTurns is the longest moving-shots spiral: the platform servo's
+// goal range is about ±7.5 turns, and the spiral starts pre-wound by half.
+const maxSpiralTurns = 14
+
+// spiralTurns is how far the platform turns along the shots (in turns,
+// signed like azimuth), each hop the short way.
+func spiralTurns(shots []shot) float64 {
+	t := 0.0
+	for i := 1; i < len(shots); i++ {
+		t += wrap180(shots[i].Azimuth - shots[i-1].Azimuth)
+	}
+	return t / 360
+}
+
 func (c *capture) loop(ctx context.Context, p Plan) error {
+	if p.Moving {
+		c.mu.Lock()
+		turns := spiralTurns(c.shots)
+		c.mu.Unlock()
+		// A long spiral would run the platform servo out of turns: wind it
+		// back by half first, so it spirals through its whole range.
+		if wind := int(math.Round(turns / 2)); math.Abs(turns) > 6 && wind != 0 {
+			c.rig.logf("info", "capture: winding the platform back %d turns first (the spiral turns it %.1f times)", abs(wind), math.Abs(turns))
+			if err := c.rig.prewind(ctx, -wind); err != nil {
+				return err
+			}
+		}
+	}
 	for {
 		c.mu.Lock()
 		if c.index >= len(c.shots) {
@@ -203,21 +267,32 @@ func (c *capture) loop(ctx context.Context, p Plan) error {
 			}
 			continue
 		}
-		e, a := sh.Elevation, sh.Azimuth
-		if err := c.rig.moveTo(&e, &a); err != nil {
-			return err
-		}
-		if err := c.rig.waitStill(ctx); err != nil {
-			return err
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Duration(p.SettleMS) * time.Millisecond):
+		if p.Moving {
+			// Head for the shot with both axes arriving together, and take
+			// the photo as the rig passes it: no stop, no settle.
+			if err := c.rig.moveThrough(ctx, sh.Elevation, sh.Azimuth); err != nil {
+				return err
+			}
+		} else {
+			e, a := sh.Elevation, sh.Azimuth
+			if err := c.rig.moveTo(&e, &a); err != nil {
+				return err
+			}
+			if err := c.rig.waitStill(ctx); err != nil {
+				return err
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Duration(p.SettleMS) * time.Millisecond):
+			}
 		}
 		// The photo: the camera isn't connected yet, so the shot is only
 		// recorded with where the rig really is.
 		ae, aa := c.rig.where()
+		if fe, fa, err := c.rig.angles(); err == nil { // fresh: moving shots are taken in motion
+			ae, aa = fe, fa
+		}
 		c.mu.Lock()
 		c.shots[c.index].Done = true
 		c.shots[c.index].ActualElevation, c.shots[c.index].ActualAzimuth = ae, aa

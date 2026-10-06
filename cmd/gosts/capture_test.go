@@ -98,3 +98,38 @@ func TestSimStartPosition(t *testing.T) {
 		t.Fatalf("platform starts at azimuth %.1f", a)
 	}
 }
+
+func TestSpiralOrder(t *testing.T) {
+	m := Motion{ElevationMin: -45, ElevationMax: 80}
+	shots, turns, spacing, err := planShots(Plan{Photos: 120, Moving: true}, m)
+	if err != nil || len(shots) != 120 {
+		t.Fatal(len(shots), err)
+	}
+	// The turntable keeps turning one way: every step forward in azimuth.
+	backwards, maxStep, total := 0, 0.0, 0.0
+	for i := 1; i < len(shots); i++ {
+		da := wrap180(shots[i].Azimuth - shots[i-1].Azimuth)
+		if da < 0 {
+			backwards++
+		}
+		total += da
+		a, b := shots[i-1], shots[i]
+		pa := [3]float64{math.Cos(rad(a.Elevation)) * math.Cos(rad(a.Azimuth)), math.Cos(rad(a.Elevation)) * math.Sin(rad(a.Azimuth)), math.Sin(rad(a.Elevation))}
+		pb := [3]float64{math.Cos(rad(b.Elevation)) * math.Cos(rad(b.Azimuth)), math.Cos(rad(b.Elevation)) * math.Sin(rad(b.Azimuth)), math.Sin(rad(b.Elevation))}
+		maxStep = math.Max(maxStep, deg(math.Acos(math.Min(1, pa[0]*pb[0]+pa[1]*pb[1]+pa[2]*pb[2]))))
+	}
+	t.Logf("%d turns, spacing %.1f°: %d backward steps, %.0f° of turntable travel, largest hop %.1f°", turns, spacing, backwards, total, maxStep)
+	if backwards > len(shots)/20 {
+		t.Fatalf("%d steps go backwards", backwards)
+	}
+	if total < float64(turns-1)*360 || total > float64(turns+1)*360 {
+		t.Fatalf("turntable travel %.0f° for %d turns", total, turns)
+	}
+	if maxStep > 3*spacing {
+		t.Fatalf("a hop of %.1f° (spacing %.1f°)", maxStep, spacing)
+	}
+	// It climbs: the first shots low, the last high.
+	if shots[0].Elevation > 0 || shots[len(shots)-1].Elevation < 40 {
+		t.Fatal("not a rising spiral", shots[0].Elevation, shots[len(shots)-1].Elevation)
+	}
+}

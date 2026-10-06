@@ -50,6 +50,9 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .grid2 label, .grid4 label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
 .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 8px; }
 .grid4 .span2 { grid-column: span 2; }
+.plan-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px 12px; align-items: end; }
+.plan-row > label:not(.switch) { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
+.plan-row .switch { padding-bottom: 6px; font-size: 13px; white-space: nowrap; }
 .mini { border: 0; background: none; padding: 0 2px; color: var(--accent); font: inherit; font-size: 13px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; }
 .label-head { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; line-height: 1.2; }
 .mini:hover { filter: brightness(1.35); } /* no underline */
@@ -135,9 +138,10 @@ td.mono { font-family: var(--mono); }
     <section class="card">
       <h2>Capture plan</h2>
       <div class="card-body">
-        <div class="grid2">
+        <div class="plan-row">
           <label>Photos<input type="number" id="pPhotos" min="1" max="2000" value="60"></label>
-          <label>Settle before shot (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
+          <label title="How long the rig waits after arriving, before each photo (not used with Moving Shots)">Settle (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
+          <label class="switch" title="Take the photos without stopping: the rig keeps moving along one smooth spiral and each photo is taken as it passes its shot. Needs a fast shutter speed."><input type="checkbox" id="pMoving"><span class="track"></span><span>Moving Shots</span></label>
         </div>
         <p class="hint" id="pLayout"></p>
         <div class="row" style="margin-top:12px">
@@ -424,23 +428,28 @@ function onTelemetry(m) {
 
 // ---------------------------------------------------------------- capture plan
 function planFromForm() {
-  return { Photos: Number($("pPhotos").value), SettleMS: Number($("pSettle").value) };
+  return { Photos: Number($("pPhotos").value), SettleMS: Number($("pSettle").value), Moving: $("pMoving").checked };
 }
 function loadPlan(p) {
-  $("pPhotos").value = p.Photos; $("pSettle").value = p.SettleMS;
+  $("pPhotos").value = p.Photos; $("pSettle").value = p.SettleMS; $("pMoving").checked = !!p.Moving;
+  $("pSettle").disabled = !!p.Moving;
 }
 // The points are spread evenly over the sphere between the elevation limits
 // in Rig config; the server lays them out and the rig view shows them.
 function renderLayout() {
   const m = state.cap, c = state.server?.config;
   if (!m || !c || !m.total) { $("pLayout").textContent = ""; return; }
+  const how = c.Plan.Moving
+    ? `taken without stopping along one smooth spiral of ${m.rows} turn${m.rows > 1 ? "s" : ""}`
+    : `taken in ${m.rows} row${m.rows > 1 ? "s" : ""}, stopping for each`;
   $("pLayout").textContent = `${m.total} photos spread evenly round the object, about ${m.spacing.toFixed(0)}° apart, ` +
-    `between ${c.Motion.ElevationMin}° and ${c.Motion.ElevationMax}° elevation (the range in Rig config), taken in ${m.rows} row${m.rows > 1 ? "s" : ""}.`;
+    `between ${c.Motion.ElevationMin}° and ${c.Motion.ElevationMax}° elevation (the range in Rig config), ${how}.`;
 }
 let planTimer = null;
-for (const id of ["pPhotos", "pSettle"]) {
-  $(id).addEventListener("input", () => {
-    if (id === "pPhotos") stopPreview(); // the path changes
+for (const id of ["pPhotos", "pSettle", "pMoving"]) {
+  $(id).addEventListener(id === "pMoving" ? "change" : "input", () => {
+    if (id !== "pSettle") stopPreview(); // the path changes
+    $("pSettle").disabled = $("pMoving").checked || !!state.cap?.running; // moving shots don't stop to settle
     clearTimeout(planTimer);
     planTimer = setTimeout(() => { if (!state.cap?.running) act("plan", { plan: planFromForm() }, $("capNote")); }, 300);
   });
@@ -454,7 +463,7 @@ $("previewBtn").onclick = () => {
   const shots = state.cap?.shots || [];
   if (shots.length < 2 || !window.rig3d) return;
   $("previewBtn").textContent = "Stop";
-  window.rig3d.startPreview(shots).then(() => ($("previewBtn").textContent = "Preview"));
+  window.rig3d.startPreview(shots, $("pMoving").checked).then(() => ($("previewBtn").textContent = "Preview"));
 };
 $("pauseBtn").onclick = () => act("pause", { on: !state.cap?.paused });
 $("abortBtn").onclick = () => act("stop");
@@ -469,7 +478,8 @@ function onCapture(m) {
   $("pauseBtn").disabled = !m.running;
   $("pauseBtn").textContent = m.paused ? "Resume" : "Pause";
   $("abortBtn").disabled = !m.running;
-  for (const id of ["pPhotos", "pSettle"]) $(id).disabled = m.running;
+  for (const id of ["pPhotos", "pMoving"]) $(id).disabled = m.running;
+  $("pSettle").disabled = m.running || $("pMoving").checked;
   renderLayout();
   $("capNote").textContent = m.running ? (m.paused ? "Paused." : `Shot ${Math.min(m.index + 1, m.total)} of ${m.total}…`) : m.note;
   draw();
@@ -563,7 +573,8 @@ function draw() {
   const t = state.tele, cap = state.cap;
   if (!dimsEdited()) window.rig3d?.setDims(savedDims()); // while editing, the fields are shown
   const live = t && t.elevation !== null && t.elevation !== undefined;
-  window.rig3d?.update({ elevation: live ? t.elevation : null, azimuth: t?.azimuth ?? null, shots: cap?.shots, index: cap?.index, running: cap?.running });
+  window.rig3d?.update({ elevation: live ? t.elevation : null, azimuth: t?.azimuth ?? null, shots: cap?.shots, index: cap?.index, running: cap?.running,
+    smooth: !!state.server?.config.Plan.Moving });
   $("noData").hidden = live;
   $("noData").textContent = state.server?.connected ? "waiting for the servos…" : "no board connected: showing the rig at 0°";
 }

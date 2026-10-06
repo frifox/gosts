@@ -132,10 +132,11 @@ func (a *app) exec(req request) (any, error) {
 		if req.Plan == nil {
 			return nil, errors.New("no plan")
 		}
-		if err := a.cap.preview(*req.Plan); err != nil {
+		if err := a.cfg.update(func(c *Config) { c.Plan = *req.Plan }); err != nil {
 			return nil, err
 		}
-		return nil, a.cfg.update(func(c *Config) { c.Plan = *req.Plan })
+		a.rig.sendState() // windows follow the plan's mode
+		return nil, a.cap.preview(*req.Plan)
 	case "start":
 		if req.Plan == nil {
 			return nil, errors.New("no plan")

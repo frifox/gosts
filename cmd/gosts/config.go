@@ -87,6 +87,10 @@ type Motion struct {
 type Plan struct {
 	Photos   int `toml:"Photos"`
 	SettleMS int `toml:"SettleMS"` // wait after arriving, before the shot
+	// Moving takes the photos without stopping: the rig keeps moving along
+	// one smooth spiral and each photo is taken as it passes its shot (needs
+	// a fast shutter). Otherwise the rig stops and settles for each photo.
+	Moving bool `toml:"Moving"`
 }
 
 func defaultConfig() Config {

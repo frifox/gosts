@@ -184,6 +184,25 @@ function benchy() {
   return benchyGeo;
 }
 
+// ---------------------------------------------------------------- the camera's path
+// makePath: the path through the shots in shooting order, as elevation and
+// azimuth. at(i, f) is the point at fraction f of the hop from shot i to i+1.
+// Azimuth is unwrapped (each hop the short way), so a spiral keeps turning.
+// Stopping shots go straight from shot to shot; moving shots follow a smooth
+// curve through them (Catmull-Rom), with no sharp corners.
+function makePath(list, smooth) {
+  const e = list.map((s) => s.elevation), az = [list[0]?.azimuth ?? 0];
+  for (let i = 1; i < list.length; i++) az.push(az[i - 1] + (((list[i].azimuth - list[i - 1].azimuth + 540) % 360) - 180));
+  const n = list.length;
+  const cr = (p0, p1, p2, p3, t) => 0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+  function at(i, f) {
+    if (!smooth) return { e: e[i] + (e[i + 1] - e[i]) * f, az: az[i] + (az[i + 1] - az[i]) * f };
+    const a = Math.max(0, i - 1), b = i, c = i + 1, d = Math.min(n - 1, i + 2);
+    return { e: cr(e[a], e[b], e[c], e[d], f), az: cr(az[a], az[b], az[c], az[d], f) };
+  }
+  return { at, smooth, n };
+}
+
 // ---------------------------------------------------------------- scene
 export function createRig(container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -325,7 +344,7 @@ export function createRig(container) {
 
     // Shots: rebuild when the plan changes, recolour as they're taken.
     const list = shots || [];
-    const key = list.map((s) => `${s.elevation},${s.azimuth}`).join(";");
+    const key = (u.smooth ? "smooth:" : "") + list.map((s) => `${s.elevation},${s.azimuth}`).join(";");
     if (key !== rig.shotKey) {
       rig.shotKey = key;
       if (rig.shotMesh) { rig.shotGroup.remove(rig.shotMesh); rig.shotMesh.geometry.dispose(); }
@@ -335,7 +354,8 @@ export function createRig(container) {
       if (rig.pathLine) { rig.shotGroup.remove(rig.pathLine); rig.pathLine.geometry.dispose(); rig.pathLine = null; }
       if (list.length > 1) {
         const pts = [];
-        for (let i = 0; i + 1 < list.length; i++) for (let k = 0; k < 12; k++) pts.push(hopPos(list[i], list[i + 1], k / 12));
+        const path = makePath(list, !!u.smooth);
+        for (let i = 0; i + 1 < list.length; i++) for (let k = 0; k < 12; k++) { const q = path.at(i, k / 12); pts.push(shotPos(q.e, q.az)); }
         pts.push(shotPos(list[list.length - 1].elevation, list[list.length - 1].azimuth));
         rig.pathLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
           new THREE.LineBasicMaterial({ color: 0x8fb1ff, transparent: true, opacity: 0.16, depthWrite: false }));
@@ -415,7 +435,19 @@ export function createRig(container) {
   // while the swing tilts the camera to each elevation.
   const PREVIEW_SPEED = 90; // degrees per second, along the path
   const TRAIL_N = 160;
-  function startPreview(shots) {
+  // hopAngle: the angle (degrees) the camera turns through round the object
+  // on hop i of a path.
+  function hopAngle(path, i) {
+    const pos = (f) => { const q = path.at(i, f); return shotPos(q.e, q.az); };
+    let sum = 0, prev = pos(0);
+    for (let k = 1; k <= 16; k++) {
+      const p = pos(k / 16);
+      sum += prev.angleTo(p);
+      prev = p;
+    }
+    return sum * 180 / Math.PI;
+  }
+  function startPreview(shots, smooth) {
     stopPreview();
     if (!shots || shots.length < 2) return Promise.resolve();
     const ball = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 16), new THREE.MeshBasicMaterial({ color: 0x8fb1ff }));
@@ -427,11 +459,12 @@ export function createRig(container) {
     // Each hop takes its path angle / PREVIEW_SPEED; times[i] is when the
     // ball leaves shot i.
     const times = [0];
-    for (let i = 0; i + 1 < shots.length; i++) times.push(times[i] + Math.max(0.05, hopAngle(shots[i], shots[i + 1]) / PREVIEW_SPEED));
+    const path = makePath(shots, !!smooth);
+    for (let i = 0; i + 1 < shots.length; i++) times.push(times[i] + Math.max(0.05, hopAngle(path, i) / PREVIEW_SPEED));
     const tail = 5 * times[times.length - 1] / (shots.length - 1);
     let done;
     const finished = new Promise((r) => (done = r));
-    pv = { shots, times, tail, t: 0, ball, trail, history: [], done, consumed: 0 };
+    pv = { shots, path, times, tail, t: 0, ball, trail, history: [], done, consumed: 0 };
     return finished;
   }
   function stopPreview() {
@@ -443,35 +476,15 @@ export function createRig(container) {
     update(last);
     done();
   }
-  // hopPos: the camera between shots a and b at fraction f of the hop:
-  // elevation and azimuth change together (azimuth the short way), as the rig
-  // moves.
-  function hopPos(a, b, f) {
-    const da = ((b.azimuth - a.azimuth + 540) % 360) - 180;
-    return shotPos(a.elevation + (b.elevation - a.elevation) * f, a.azimuth + da * f);
-  }
-  // hopAngle: the angle (degrees) the camera turns through, round the object,
-  // along that path.
-  function hopAngle(a, b) {
-    let sum = 0, prev = hopPos(a, b, 0);
-    for (let k = 1; k <= 16; k++) {
-      const p = hopPos(a, b, k / 16);
-      sum += prev.angleTo(p);
-      prev = p;
-    }
-    return sum * 180 / Math.PI;
-  }
-  // previewState: the elevation and azimuth after t seconds (easing in and
-  // out of each shot like the servos).
+  // previewState: the elevation and azimuth after t seconds. Stopping shots
+  // ease in and out of each shot like the servos; moving shots keep going.
   function previewState(t) {
     const ts = pv.times;
     let i = 0;
     while (i < ts.length - 2 && t >= ts[i + 1]) i++;
     let f = Math.min(1, Math.max(0, (t - ts[i]) / (ts[i + 1] - ts[i])));
-    f = f * f * (3 - 2 * f);
-    const a = pv.shots[i], b = pv.shots[i + 1];
-    const da = ((b.azimuth - a.azimuth + 540) % 360) - 180;
-    return { e: a.elevation + (b.elevation - a.elevation) * f, az: a.azimuth + da * f };
+    if (!pv.path.smooth) f = f * f * (3 - 2 * f);
+    return pv.path.at(i, f);
   }
   const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color(), accent = new THREE.Color(0x5b8cff);
   function previewTick(dt) {

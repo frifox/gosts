@@ -225,7 +225,8 @@ leader, mirrored; #11 elevation follower; #12 azimuth), the speed, and switches
 the rig's servos to multi-turn so moves never take the long way round.
 
 The page has the controls on the left (live elevation/azimuth with Go, Stop and Torque, and a
-**capture plan**: just the number of photos, with Start, Pause and Stop) and a live perspective view
+**capture plan**: the number of photos, the settle time, and **Moving Shots**, with Start, Pause and
+Stop) and a live perspective view
 of the rig on the right (a 3D model rendered with [three.js](https://threejs.org): 2020 extrusions, the
 ST3215s, the Sony A6600 with its ring flash, and [#3DBenchy](https://www.3dbenchy.com) (CC0) as the
 object; bundled in the binary, so no internet is needed), with
@@ -234,7 +235,11 @@ capture as the rig does it: the camera tilts while the turntable turns the objec
 and a fading trail with it. The photos are spread as evenly as possible over the part of the sphere round the object the
 camera can reach (the min/max elevation in Rig config, which keeps the frame clear of the posts), on a
 golden-angle spiral, and taken in rows of similar elevation, each row in azimuth order with
-alternating direction, so the arm moves little and the platform never unwinds a whole turn. Camera control (Sony A6600 over USB, with live preview) is next; for
+alternating direction, so the arm moves little and the platform never unwinds a whole turn. With
+**Moving Shots** (for a fast shutter) the rig doesn't stop: the same shots are taken along one smooth
+rising spiral, the platform turning one way while the camera climbs, each photo as the rig passes its
+shot (within 1°), both axes timed to arrive together; a long spiral first winds the platform back so
+its servo stays within its multi-turn range. Camera control (Sony A6600 over USB, with live preview) is next; for
 now each shot waits for the rig to settle and records where it really is.
 
 The **Rig config** card (collapsed by default, below Rig) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
