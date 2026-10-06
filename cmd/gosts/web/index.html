@@ -489,9 +489,10 @@ $("previewBtn").onclick = () => {
   $("previewBtn").textContent = "Stop";
   // At the end the rig goes to 0°/0°, as after a capture (and the view with it).
   const home = () => {
-    if (!state.server?.connected || state.cap?.running) return;
+    if (!state.server?.connected || state.cap?.running) return null;
     setControls(0, 0); state.editing = false;
     act("move", { elevation: 0, azimuth: 0 });
+    return { e: 0, az: 0 };
   };
   window.rig3d.startPreview(shots, $("pMoving").checked, home).then(() => ($("previewBtn").textContent = "Preview FF"));
 };

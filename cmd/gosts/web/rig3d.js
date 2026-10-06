@@ -562,7 +562,8 @@ export function createRig(container) {
     geo.setDrawRange(0, Math.max(0, n - 1) * TUBE_R * 6);
     geo.attributes.position.needsUpdate = geo.attributes.color.needsUpdate = true;
   }
-  // onEnd is called as the camera leaves the last shot to return.
+  // onEnd is called as the camera leaves the last shot to return; if it sends
+  // the rig somewhere it returns that pose ({e, az}), and the view goes there.
   function startPreview(shots, smooth, onEnd) {
     stopPreview();
     if (cv?.ended) { dropComet(cv); cv = null; update(last); } // a finished capture's fading trail
@@ -661,11 +662,12 @@ export function createRig(container) {
     const end = pv.times[pv.times.length - 1];
     const t = Math.min(pv.t, end);
     if (pv.t > end + HOLD) {
-      // The camera returns to the rig's real pose (and stays with it), which
-      // onEnd sends to 0°/0°; the ball goes, the trail carries on below.
-      if (!pv.ended) { pv.ended = true; pv.onEnd?.(); }
+      // The camera returns: straight to where onEnd sends the rig (0°/0°),
+      // or else to the rig's real pose. The ball goes, the trail carries on
+      // below.
+      if (!pv.ended) { pv.ended = true; pv.home = pv.onEnd?.() || null; }
       pv.ball.visible = false;
-      glide(previewState(end), livePose(), (pv.t - end - HOLD) / BACK);
+      glide(previewState(end), pv.home || livePose(), (pv.t - end - HOLD) / BACK);
     } else {
       // The turntable side (object, sphere, tail) turns to the azimuth; the
       // ball, placed in that turning frame, ends up on the camera's fixed arc.
@@ -692,7 +694,10 @@ export function createRig(container) {
     // catches up with the last shot at the same pace.
     if (pv.t <= end) record(pv, t, pv.ball.position);
     drawTrail(pv, pv.t, pv.tail);
-    if (pv.t >= end + HOLD + BACK && !pv.history.length) stopPreview();
+    // The end: back, the trail run out, and the rig where it was sent (so
+    // the view, showing the rig again, doesn't jump; at most 15 s).
+    const there = (q, h) => Math.abs(q.e - h.e) < 1 && Math.abs(((q.az - h.az) % 360 + 540) % 360 - 180) < 1;
+    if (pv.t >= end + HOLD + BACK && !pv.history.length && (!pv.home || there(livePose(), pv.home) || pv.t > end + HOLD + BACK + 15)) stopPreview();
   }
 
   // ---------------------------------------------------------------- capture
