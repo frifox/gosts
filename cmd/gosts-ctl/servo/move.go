@@ -13,8 +13,8 @@ var turnWindow = [2]int{gosts.CenterPosition - gosts.StepsPerRev, gosts.CenterPo
 
 // Move runs a move whose goal depends on the servo's state, read fresh here:
 // "angle" goes to req.Degrees (as the console shows angles) the short way
-// round (multi-turn mode), "jog" moves req.Position steps from the present
-// position. ids are the servos to move, leader first (one servo, or a
+// round (multi-turn mode), "jog" moves req.Position steps from the current
+// target (see jogBase). ids are the servos to move, leader first (one servo, or a
 // group's members); the leader decides the goal. It returns the goal.
 //
 // Both use the servo's absolute position: in multi-turn mode the reported
@@ -24,11 +24,11 @@ func (c *Controller) Move(bus *gosts.Bus, req internal.Request, ids []uint8) (in
 	var goal int
 	var err error
 	if req.Type == "jog" {
-		var cur int
-		if cur, err = lead.AbsolutePosition(); err != nil {
+		var base int
+		if base, err = c.jogBase(lead); err != nil {
 			return 0, err
 		}
-		goal = cur + req.Position
+		goal = base + req.Position
 	} else {
 		// req.Degrees is the angle as the console shows it: the servo's
 		// reading minus the virtual 0°. Converted here, so a page with
@@ -42,4 +42,28 @@ func (c *Controller) Move(bus *gosts.Bus, req internal.Request, ids []uint8) (in
 		return goal, bus.Group(ids...).MoveTo(goal, req.Speed, req.Acc)
 	}
 	return goal, lead.MoveTo(goal, req.Speed, req.Acc)
+}
+
+// jogBase is where a jog counts from: the current target (the goal, or with
+// weight compensation the target behind the corrected goal), so repeated
+// jogs add up exactly however far the arm sags or lags. With torque off the
+// goal may be stale (e.g. 0 after a power dip), so it counts from the arm.
+func (c *Controller) jogBase(sv *gosts.Servo) (int, error) {
+	on, err := sv.TorqueEnabled()
+	if err != nil {
+		return 0, err
+	}
+	if !on {
+		return sv.AbsolutePosition()
+	}
+	goal, err := sv.Goal()
+	if err != nil {
+		return 0, err
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if st := c.comp[sv.ID()]; st != nil && st.known && st.commanded == goal {
+		return st.target, nil
+	}
+	return goal, nil
 }

@@ -78,3 +78,46 @@ func TestWeightComp(t *testing.T) {
 		t.Fatal("torque switched on")
 	}
 }
+
+func TestJogFromTarget(t *testing.T) {
+	cfg, _, _ := internal.LoadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	bus, _ := gosts.NewBus(servosim.NewPort(1))
+	c := New(cfg, nopNotifier{})
+	sv := bus.Servo(1)
+	sv.MoveTo(2000, 0, 0)
+	jog := func(steps int) int {
+		g, err := c.Move(bus, internal.Request{Type: "jog", Position: steps}, []uint8{1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return g
+	}
+	// Quick jogs add up from the target, wherever the arm is meanwhile.
+	if g := jog(100); g != 2100 {
+		t.Fatal("first jog", g)
+	}
+	if g := jog(100); g != 2200 {
+		t.Fatal("second jog", g)
+	}
+
+	// With weight compensation the corrected goal is past the target: jogs
+	// count from the target.
+	c.SetWeightComp(bus, []uint8{1}, true)
+	for i := 0; i < 50; i++ {
+		g, _ := sv.Goal()
+		c.WeightComp(bus, map[string]internal.ServoState{"1": {Feedback: gosts.Feedback{Position: g - 20}}}, func(uint8) bool { return false })
+	}
+	if g, _ := sv.Goal(); g <= 2200 {
+		t.Fatal("no correction", g)
+	}
+	if g := jog(-200); g != 2000 {
+		t.Fatal("jog with compensation", g)
+	}
+
+	// Torque off: the goal may be stale, so jogs count from the arm.
+	sv.EnableTorque(false)
+	pos, _ := sv.AbsolutePosition()
+	if g := jog(10); g != pos+10 {
+		t.Fatal("jog with torque off", g, pos)
+	}
+}
