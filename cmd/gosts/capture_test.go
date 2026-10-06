@@ -3,6 +3,8 @@ package main
 import (
 	"math"
 	"testing"
+
+	"github.com/frifox/gosts"
 )
 
 func TestPlanShots(t *testing.T) {
@@ -72,5 +74,27 @@ func TestAngles(t *testing.T) {
 	}
 	if a := wrap180(270); a != -90 {
 		t.Fatal(a)
+	}
+}
+
+func TestSimStartPosition(t *testing.T) {
+	ro := defaultConfig().Roles // leader mirrored
+	bus, err := gosts.NewBus(newSim(ro))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bus.SetMirrored(ro.ElevationLeader, ro.LeaderMirrored)
+	for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower} {
+		f, err := bus.Servo(id).Feedback()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if e := elevationOf(f.Position, ro); math.Abs(e-simElevation) > 0.2 {
+			t.Fatalf("servo %d starts at elevation %.1f", id, e)
+		}
+	}
+	f, _ := bus.Servo(ro.Azimuth).Feedback()
+	if a := azimuthOf(f.Position, ro); math.Abs(a-simAzimuth) > 0.2 {
+		t.Fatalf("platform starts at azimuth %.1f", a)
 	}
 }

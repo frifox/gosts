@@ -68,7 +68,7 @@ func (r *rig) connect(ctx context.Context, port string, baud int) error {
 	var bus *gosts.Bus
 	var err error
 	if port == simPort {
-		bus, err = gosts.NewBus(servosim.NewPort(10, 11, 12))
+		bus, err = gosts.NewBus(newSim(r.cfg.get().Roles))
 	} else {
 		bus, err = gosts.Open(port, baud)
 	}
@@ -84,6 +84,32 @@ func (r *rig) connect(ctx context.Context, port string, baud int) error {
 	r.mu.Unlock()
 	r.logf("info", "connected to %s", port)
 	return r.scan(ctx)
+}
+
+// Simulator start: the camera at elevation 20°, the platform at azimuth 0°.
+const simElevation, simAzimuth = 20, 0
+
+// newSim makes a simulated board with the role servos at the simulator's
+// start position (mirroring and inversion applied, as on the real rig).
+func newSim(ro Roles) *servosim.Port {
+	ids := []uint8{10, 11, 12}
+	for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
+		if !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+	p := servosim.NewPort(ids...)
+	physical := func(deg float64, invert, mirrored bool) int {
+		s := stepsFor(deg, invert) // logical
+		if mirrored {
+			s = 2*gosts.CenterPosition - s
+		}
+		return (s%gosts.StepsPerRev + gosts.StepsPerRev) % gosts.StepsPerRev
+	}
+	p.SetPosition(ro.ElevationLeader, physical(simElevation, ro.InvertElevation, ro.LeaderMirrored))
+	p.SetPosition(ro.ElevationFollower, physical(simElevation, ro.InvertElevation, ro.FollowerMirrored))
+	p.SetPosition(ro.Azimuth, physical(simAzimuth, ro.InvertAzimuth, false))
+	return p
 }
 
 func (r *rig) disconnect() {

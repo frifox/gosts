@@ -41,6 +41,20 @@ func NewPort(ids ...uint8) *Port {
 	return p
 }
 
+// SetPosition puts servo id at pos (physical steps, as the encoder reads it
+// with no offset), holding there; NewPort starts each servo at a random
+// position.
+func (p *Port) SetPosition(id uint8, pos int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, s := range p.servos {
+		if s.mem[5] == id {
+			s.pos, s.vel, s.mvel = float64(pos), 0, 0
+			put16(s.mem[:], 42, uint16(pos)) // goal: stay here
+		}
+	}
+}
+
 // factoryMem is the factory memory table (sts3215_memory_table.xlsx).
 func factoryMem(id uint8) [71]byte {
 	var m [71]byte
