@@ -490,9 +490,10 @@ export function createRig(container) {
   const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color(), accent = new THREE.Color(0x5b8cff);
   // The preview starts with the swing and platform taking LEAD seconds to go
   // from where the rig physically is to the first shot. After the last shot
-  // the ball holds for HOLD seconds while the trail shrinks into it, then the
-  // swing and platform take BACK seconds to return to the rig's pose; then the
-  // preview ends.
+  // the camera holds there for HOLD seconds, then the swing and platform take
+  // BACK seconds to return to the rig's pose. The trail keeps catching up with
+  // the last shot at its own pace meanwhile, even once the camera has gone;
+  // the preview ends when the camera is back and the trail has run out.
   const LEAD = 1, HOLD = 2, BACK = 1;
   // glide eases from pose `from` to `to` (elevation, azimuth the short way).
   function glide(from, to, f) {
@@ -521,19 +522,20 @@ export function createRig(container) {
     pv.ball.visible = true;
     pv.t = pv.clock - LEAD; // time along the path
     const end = pv.times[pv.times.length - 1], TAIL = pv.tail;
-    if (pv.t > end + HOLD) { // returning to the rig's real pose
-      if (pv.t >= end + HOLD + BACK) return stopPreview();
-      pv.ball.visible = pv.trail.visible = false;
-      glide(previewState(end), livePose(), (pv.t - end - HOLD) / BACK);
-      return;
-    }
     const t = Math.min(pv.t, end);
-    // The turntable side (object, sphere, tail) turns to the azimuth; the ball,
-    // placed in that turning frame, ends up on the camera's fixed arc.
-    const st = previewState(t);
-    setPose(st.e, st.az);
-    const p = shotPos(st.e, st.az);
-    pv.ball.position.copy(p);
+    if (pv.t > end + HOLD) {
+      // The camera returns to the rig's real pose (and stays with it); the
+      // ball goes, the trail carries on below.
+      pv.ball.visible = false;
+      glide(previewState(end), livePose(), (pv.t - end - HOLD) / BACK);
+    } else {
+      // The turntable side (object, sphere, tail) turns to the azimuth; the
+      // ball, placed in that turning frame, ends up on the camera's fixed arc.
+      const st = previewState(t);
+      setPose(st.e, st.az);
+      pv.ball.position.copy(shotPos(st.e, st.az));
+    }
+    const p = pv.ball.position;
     // Dots the ball has reached are consumed: hidden until the preview ends
     // (update() puts them back).
     const mesh = rig.shotMesh;
@@ -545,17 +547,18 @@ export function createRig(container) {
       }
       if (changed) mesh.instanceMatrix.needsUpdate = true;
     }
+    // The trail: recorded while moving; afterwards it keeps ageing, so it
+    // catches up with the last shot at the same pace.
     if (pv.t <= end) pv.history.push({ t, p: p.clone() });
-    // The tail's length: TAIL while moving, shrinking to nothing over the
-    // hold, so it catches up with the ball.
-    const tail = pv.t <= end ? TAIL : TAIL * Math.max(0, 1 - (pv.t - end) / HOLD);
-    while (pv.history.length && pv.history[0].t < t - tail) pv.history.shift();
+    const now = pv.t;
+    while (pv.history.length && pv.history[0].t < now - TAIL) pv.history.shift();
+    if (now >= end + HOLD + BACK && !pv.history.length) return stopPreview();
     // Tail: evenly spread over the history, fading (darker = more
     // transparent with additive blending) and thinning towards its end.
     const h = pv.history, n = Math.min(TRAIL_N, h.length);
     for (let k = 0; k < n; k++) {
       const e = h[Math.floor((k / n) * h.length)];
-      const age = Math.min(1, (t - e.t) / TAIL); // 0 = new, 1 = end of the tail
+      const age = Math.min(1, (now - e.t) / TAIL); // 0 = new, 1 = end of the tail
       const s = 1 - age * 0.85;
       tmpM.makeScale(s, s, s).setPosition(e.p);
       pv.trail.setMatrixAt(k, tmpM);
