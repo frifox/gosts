@@ -654,7 +654,7 @@ export function createRig(container) {
   // ball goes and the tail runs out; then the dots come back, taken ones green.
   function startCapture() {
     stopPreview();
-    cv = { ...makeComet(), clock: 0, index: last.index ?? 0, shotAt: [0], tail: 2, dist: 0, moving: 0 };
+    cv = { ...makeComet(), clock: 0, index: last.index ?? 0, shotAt: [], tail: 2, dist: 0, moving: 0 };
   }
   function captureShots(u) {
     if ((u.index ?? 0) > cv.index) {
@@ -672,6 +672,9 @@ export function createRig(container) {
     if (running) {
       const q = livePose();
       cv.ball.position.copy(shotPos(q.e, q.az));
+    }
+    // The tail starts at the first shot (as shown: the view runs DELAY behind).
+    if (running && cv.shotAt.length && cv.clock >= cv.shotAt[0] + DELAY / 1000) {
       // Normal: the average speed so far (path length over time).
       const prev = cv.history[cv.history.length - 1];
       if (prev && cv.clock > prev.t) { cv.dist += prev.p.angleTo(cv.ball.position) * 180 / Math.PI; cv.moving += cv.clock - prev.t; }
