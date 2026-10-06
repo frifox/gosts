@@ -235,7 +235,7 @@ capture as the rig does it: the camera tilts while the turntable turns the objec
 and a fading trail with it, coloured by the camera's speed against the path's average (neutral at normal, amber to coral up to 2×, blue down to ½×),
 with a speed key showing the speed now in °/s. Each photo pops its dot and fires the ring flash lightly. A running capture looks the same but follows the real rig (telemetry, smoothed), each
 shot's dot going as its photo is taken; when it ends the trail runs out and the dots return, taken ones green. The photos are spread as evenly as possible over the part of the sphere round the object the
-camera can reach (the min/max elevation in Params, which keeps the frame clear of the posts), on a
+camera can reach (the min/max elevation in Configure, which keeps the frame clear of the posts), on a
 golden-angle spiral, and taken in rows of similar elevation, each row in azimuth order with
 alternating direction, so the arm moves little and the platform never unwinds a whole turn. With
 **Moving Shots** (for a fast shutter) the rig doesn't stop: the same shots are taken along one smooth
@@ -247,7 +247,7 @@ the other way instead (the same shots, mirrored), so spirals are limited to 7 tu
 When the last photo is taken the rig returns to 0°/0° the short way (less than a turn) and stops. Camera control (Sony A6600 over USB, with live preview) is next; for
 now each shot waits for the rig to settle and records where it really is.
 
-The **Params** card (collapsed by default, below Rig) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
+The **Configure** card (collapsed by default, below Control) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
 X/Y, the camera's offset along the arms, the turntable's height (turntable Z), the object's height (object Z, the model is scaled to it); the defaults draw the rig to scale)
 and the min/max elevation the camera may reach (default −45° to 80°).
 The view has 3D, Front (looking at the camera through the object), Side (along the tilt axis) and Top

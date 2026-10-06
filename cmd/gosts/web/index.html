@@ -170,7 +170,7 @@ td.mono { font-family: var(--mono); }
     </section>
 
     <section class="card" id="rigCard">
-      <h2>Rig <span class="spacer"></span>
+      <h2>Control <span class="spacer"></span>
         <label class="switch" style="text-transform:none;letter-spacing:0;font-weight:400"><input type="checkbox" id="torque"><span class="track"></span><span>Torque</span></label>
       </h2>
       <div class="card-body">
@@ -193,7 +193,7 @@ td.mono { font-family: var(--mono); }
     </section>
 
     <section class="card collapsed" id="rigCfgCard">
-      <h2 class="toggle" id="rigCfgToggle" title="The rig's measurements, for the 3D view">Params</h2>
+      <h2 class="toggle" id="rigCfgToggle" title="The rig's measurements, for the 3D view">Configure</h2>
       <div class="card-body">
         <div class="grid4">
           <label title="Base frame, along the sides that carry the posts">Base X<input type="number" id="dBaseX" step="10"></label>
@@ -383,7 +383,7 @@ function onState(m) {
   // Motion limits for the elevation controls.
   for (const id of ["elev"]) { $(id).min = c.Motion.ElevationMin; $(id).max = c.Motion.ElevationMax; }
   if (!state.planLoaded) { loadPlan(c.Plan); state.planLoaded = true; }
-  // Params: show the saved measurements unless they are being edited.
+  // Configure: show the saved measurements unless they are being edited.
   const prev = state.lastDims, form = { ...formDims(), ...formLimits() };
   if (!prev || Object.keys(prev).every((k) => form[k] === prev[k])) fillDims(c.Rig, c.Motion);
   state.lastDims = { ...c.Rig, ElevationMin: c.Motion.ElevationMin, ElevationMax: c.Motion.ElevationMax };
@@ -452,7 +452,7 @@ function loadPlan(p) {
   $("pSettle").disabled = !!p.Moving;
 }
 // The points are spread evenly over the sphere between the elevation limits
-// in Params; the server lays them out and the rig view shows them.
+// in Configure; the server lays them out and the rig view shows them.
 function renderLayout() {
   const m = state.cap, c = state.server?.config;
   if (!m || !c || !m.total) { $("pLayout").textContent = ""; return; }
@@ -460,7 +460,7 @@ function renderLayout() {
     ? `taken without stopping along one smooth spiral of ${m.rows} turn${m.rows > 1 ? "s" : ""}`
     : `taken in ${m.rows} row${m.rows > 1 ? "s" : ""}, stopping for each`;
   $("pLayout").textContent = `${m.total} photos spread evenly round the object, about ${m.spacing.toFixed(0)}° apart, ` +
-    `between ${c.Motion.ElevationMin}° and ${c.Motion.ElevationMax}° elevation (the range in Params), ${how}.`;
+    `between ${c.Motion.ElevationMin}° and ${c.Motion.ElevationMax}° elevation (the range in Configure), ${how}.`;
 }
 let planTimer = null;
 for (const id of ["pPhotos", "pSettle", "pMoving"]) {
