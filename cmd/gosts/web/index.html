@@ -148,7 +148,7 @@ td.mono { font-family: var(--mono); }
     </section>
 
     <section class="card">
-      <h2>Capture plan</h2>
+      <h2>Capture</h2>
       <div class="card-body">
         <div class="plan-row">
           <label>Photos<input type="number" id="pPhotos" min="1" max="2000" value="60"></label>
@@ -193,7 +193,7 @@ td.mono { font-family: var(--mono); }
     </section>
 
     <section class="card collapsed" id="rigCfgCard">
-      <h2 class="toggle" id="rigCfgToggle" title="The rig's measurements, for the 3D view">Rig config</h2>
+      <h2 class="toggle" id="rigCfgToggle" title="The rig's measurements, for the 3D view">Params</h2>
       <div class="card-body">
         <div class="grid4">
           <label title="Base frame, along the sides that carry the posts">Base X<input type="number" id="dBaseX" step="10"></label>
@@ -383,7 +383,7 @@ function onState(m) {
   // Motion limits for the elevation controls.
   for (const id of ["elev"]) { $(id).min = c.Motion.ElevationMin; $(id).max = c.Motion.ElevationMax; }
   if (!state.planLoaded) { loadPlan(c.Plan); state.planLoaded = true; }
-  // Rig config: show the saved measurements unless they are being edited.
+  // Params: show the saved measurements unless they are being edited.
   const prev = state.lastDims, form = { ...formDims(), ...formLimits() };
   if (!prev || Object.keys(prev).every((k) => form[k] === prev[k])) fillDims(c.Rig, c.Motion);
   state.lastDims = { ...c.Rig, ElevationMin: c.Motion.ElevationMin, ElevationMax: c.Motion.ElevationMax };
@@ -443,7 +443,7 @@ function onTelemetry(m) {
   draw();
 }
 
-// ---------------------------------------------------------------- capture plan
+// ---------------------------------------------------------------- capture
 function planFromForm() {
   return { Photos: Number($("pPhotos").value), SettleMS: Number($("pSettle").value), Moving: $("pMoving").checked };
 }
@@ -452,7 +452,7 @@ function loadPlan(p) {
   $("pSettle").disabled = !!p.Moving;
 }
 // The points are spread evenly over the sphere between the elevation limits
-// in Rig config; the server lays them out and the rig view shows them.
+// in Params; the server lays them out and the rig view shows them.
 function renderLayout() {
   const m = state.cap, c = state.server?.config;
   if (!m || !c || !m.total) { $("pLayout").textContent = ""; return; }
@@ -460,7 +460,7 @@ function renderLayout() {
     ? `taken without stopping along one smooth spiral of ${m.rows} turn${m.rows > 1 ? "s" : ""}`
     : `taken in ${m.rows} row${m.rows > 1 ? "s" : ""}, stopping for each`;
   $("pLayout").textContent = `${m.total} photos spread evenly round the object, about ${m.spacing.toFixed(0)}° apart, ` +
-    `between ${c.Motion.ElevationMin}° and ${c.Motion.ElevationMax}° elevation (the range in Rig config), ${how}.`;
+    `between ${c.Motion.ElevationMin}° and ${c.Motion.ElevationMax}° elevation (the range in Params), ${how}.`;
 }
 let planTimer = null;
 for (const id of ["pPhotos", "pSettle", "pMoving"]) {
@@ -535,7 +535,7 @@ $("sSave").onclick = async () => {
   } catch (e) { $("setupErr").textContent = e.message; }
 };
 
-// ---------------------------------------------------------------- rig config (measurements)
+// ---------------------------------------------------------------- params (measurements)
 const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "TurntableZ", "ObjectZ"];
 const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 400, ObjectZ: 100 };
 // The card also holds the elevation limits (kept with the motion settings).
