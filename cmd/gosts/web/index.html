@@ -154,7 +154,6 @@ td.mono { font-family: var(--mono); }
           <label title="How long the rig waits after arriving, before each photo (not used with Moving Shots)">Settle (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
           <label class="switch" title="Take the photos without stopping: the rig keeps moving along one smooth spiral and each photo is taken as it passes its shot. Needs a fast shutter speed."><input type="checkbox" id="pMoving"><span class="track"></span><span>Moving Shots</span></label>
         </div>
-        <p class="hint" id="pLayout"></p>
         <div class="row" style="margin-top:12px">
           <button class="btn" id="previewBtn" title="Show the camera's path through the planned shots">Preview</button>
           <span class="spacer"></span>
@@ -164,7 +163,6 @@ td.mono { font-family: var(--mono); }
         </div>
         <div class="progress big"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div>
         <p class="hint" id="capNote"></p>
-        <p class="hint">Camera: not connected yet: each shot only waits for the rig to settle and records where it is. Sony A6600 support comes next.</p>
       </div>
     </section>
 
@@ -387,7 +385,6 @@ function onState(m) {
   if (!prev || Object.keys(prev).every((k) => form[k] === prev[k])) fillDims(c.Rig, c.Motion);
   state.lastDims = { ...c.Rig, ElevationMin: c.Motion.ElevationMin, ElevationMax: c.Motion.ElevationMax };
   dimsChanged();
-  renderLayout();
   if (!$("setupModal").hidden) fillSetup();
   draw();
 }
@@ -450,17 +447,6 @@ function loadPlan(p) {
   $("pPhotos").value = p.Photos; $("pSettle").value = p.SettleMS; $("pMoving").checked = !!p.Moving;
   $("pSettle").disabled = !!p.Moving;
 }
-// The points are spread evenly over the sphere between the elevation limits
-// in Configure; the server lays them out and the rig view shows them.
-function renderLayout() {
-  const m = state.cap, c = state.server?.config;
-  if (!m || !c || !m.total) { $("pLayout").textContent = ""; return; }
-  const how = c.Plan.Moving
-    ? `taken without stopping along one smooth spiral of ${m.rows} turn${m.rows > 1 ? "s" : ""}`
-    : `taken in ${m.rows} row${m.rows > 1 ? "s" : ""}, stopping for each`;
-  $("pLayout").textContent = `${m.total} photos spread evenly round the object, about ${m.spacing.toFixed(0)}° apart, ` +
-    `between ${c.Motion.ElevationMin}° and ${c.Motion.ElevationMax}° elevation (the range in Configure), ${how}.`;
-}
 let planTimer = null;
 for (const id of ["pPhotos", "pSettle", "pMoving"]) {
   $(id).addEventListener(id === "pMoving" ? "change" : "input", () => {
@@ -496,7 +482,6 @@ function onCapture(m) {
   $("abortBtn").disabled = !m.running;
   for (const id of ["pPhotos", "pMoving"]) $(id).disabled = m.running;
   $("pSettle").disabled = m.running || $("pMoving").checked;
-  renderLayout();
   $("capNote").textContent = m.running ? (m.paused ? "Paused." : `Shot ${Math.min(m.index + 1, m.total)} of ${m.total}…`) : m.note;
   draw();
 }
