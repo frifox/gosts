@@ -11,7 +11,7 @@ const P = 20; // 2020 profile size
 
 // Default measurements (mm), as in gosts' config: seen from above, X along
 // the base sides that carry the posts, Y along the tilt axis, Z up.
-export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 300 };
+export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 300, ObjectZ: 100 };
 
 const rad = (d) => d * Math.PI / 180;
 
@@ -159,15 +159,17 @@ function a6600() {
 }
 
 // ---------------------------------------------------------------- the object
-// #3DBenchy (3DBenchy.com, CC0 1.0), shown 3× life size (about 180 mm long)
-// on the turntable: Z-up in the file, so turned Y-up, centred, standing on 0.
-const BENCHY_SCALE = 3;
+// #3DBenchy (3DBenchy.com, CC0 1.0) on the turntable, scaled to the rig's
+// ObjectZ height: Z-up in the file, so turned Y-up, centred, standing on 0,
+// 1 mm tall (scaled per use).
 let benchyGeo = null;
 function benchy() {
   if (!benchyGeo) {
     benchyGeo = new STLLoader().loadAsync("./models/3dbenchy.stl").then((g) => {
       g.rotateX(-Math.PI / 2);
-      g.scale(BENCHY_SCALE, BENCHY_SCALE, BENCHY_SCALE);
+      g.computeBoundingBox();
+      const h = g.boundingBox.max.y - g.boundingBox.min.y;
+      g.scale(1 / h, 1 / h, 1 / h);
       g.computeBoundingBox();
       const b = g.boundingBox;
       g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
@@ -276,6 +278,7 @@ export function createRig(container) {
     turn.add(box(18, 2, 6, new THREE.MeshStandardMaterial({ color: 0x5b8cff, emissive: 0x1a2a55 }), discR - 14, 1, 0));
     benchy().then((geo) => {
       const obj = new THREE.Mesh(geo, mat.object);
+      obj.scale.setScalar(d.ObjectZ); // proportionally, to the object's height
       obj.castShadow = obj.receiveShadow = true;
       turn.add(obj);
     });
@@ -290,7 +293,7 @@ export function createRig(container) {
 
     rig = { d, root, tilt, turn, camera, sight, sightGeo, shotGroup, nextRing, shotMesh: null, shotKey: "",
       orbit: barX - d.CameraOffset + 40, // camera (lens) distance from the tilt axis
-      objectCentre: V(0, d.TurntableZ + 70, 0), // about the middle of Benchy
+      objectCentre: V(0, d.TurntableZ + d.ObjectZ / 2, 0), // the object's middle
       target: V(0, (pivotY + d.TurntableZ) / 2, 0) };
   }
 

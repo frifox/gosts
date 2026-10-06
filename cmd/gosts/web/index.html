@@ -181,7 +181,8 @@ td.mono { font-family: var(--mono); }
           <label title="Swing bar length (camera bar)">Swing Y<input type="number" id="dSwingY" step="10"></label>
           <label title="Post height">Post Z<input type="number" id="dPostZ" step="10"></label>
           <label title="Turntable height">Turntable Z<input type="number" id="dTurntableZ" step="10"></label>
-          <label title="Camera position along the arms: + towards the object" class="span2">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
+          <label title="Camera position along the arms: + towards the object">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
+          <label title="Object height (the model is scaled proportionally)">Object Z<input type="number" id="dObjectZ" step="10"></label>
           <label class="span2">Min elevation °<input type="number" id="dElevMin" step="1"></label>
           <label class="span2">Max elevation °<input type="number" id="dElevMax" step="1"></label>
         </div>
@@ -489,8 +490,8 @@ $("sSave").onclick = async () => {
 };
 
 // ---------------------------------------------------------------- rig config (measurements)
-const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "TurntableZ"];
-const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 300 };
+const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "TurntableZ", "ObjectZ"];
+const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 300, ObjectZ: 100 };
 // The card also holds the elevation limits (kept with the motion settings).
 const LIMITS_DEFAULT = { ElevationMin: -45, ElevationMax: 80 };
 const formDims = () => Object.fromEntries(DIMS.map((k) => [k, Number($("d" + k).value)]));

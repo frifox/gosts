@@ -236,7 +236,7 @@ alternating direction, so the arm moves little and the platform never unwinds a 
 now each shot waits for the rig to settle and records where it really is.
 
 The **Rig config** card (collapsed by default, below Rig) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
-X/Y, the camera's offset along the arms, the turntable's height (turntable Z); the defaults draw the rig to scale)
+X/Y, the camera's offset along the arms, the turntable's height (turntable Z), the object's height (object Z, the model is scaled to it); the defaults draw the rig to scale)
 and the min/max elevation the camera may reach (default −45° to 80°).
 The view has 3D, Front (looking at the camera through the object), Side (along the tilt axis) and Top
 presets.

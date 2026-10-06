@@ -35,6 +35,7 @@ type Rig struct {
 	SwingY       float64 `toml:"SwingY"`       // tilting frame: bar length (camera bar)
 	CameraOffset float64 `toml:"CameraOffset"` // camera from the camera bar; + towards the object
 	TurntableZ   float64 `toml:"TurntableZ"`   // turntable top height
+	ObjectZ      float64 `toml:"ObjectZ"`      // object height (the 3D view scales the model to it)
 }
 
 // check reports a measurement that can't be drawn.
@@ -44,7 +45,7 @@ func (r Rig) check() error {
 		v, lo, hi float64
 	}{{"base X", r.BaseX, 100, 3000}, {"base Y", r.BaseY, 100, 3000}, {"post Z", r.PostZ, 50, 3000},
 		{"swing X", r.SwingX, 50, 3000}, {"swing Y", r.SwingY, 50, 3000}, {"camera offset", r.CameraOffset, -500, 500},
-		{"turntable Z", r.TurntableZ, 0, 3000}} {
+		{"turntable Z", r.TurntableZ, 0, 3000}, {"object Z", r.ObjectZ, 10, 2000}} {
 		if v.v < v.lo || v.v > v.hi {
 			return fmt.Errorf("%s must be %g–%g mm", v.name, v.lo, v.hi)
 		}
@@ -94,7 +95,7 @@ func defaultConfig() Config {
 		Roles:      Roles{ElevationLeader: 10, ElevationFollower: 11, Azimuth: 12, LeaderMirrored: true},
 		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80, MultiTurn: true},
 		Plan:       Plan{Photos: 60, SettleMS: 800},
-		Rig:        Rig{BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 300},
+		Rig:        Rig{BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 300, ObjectZ: 100},
 	}
 }
 
