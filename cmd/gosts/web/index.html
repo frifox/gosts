@@ -434,7 +434,7 @@ function onTelemetry(m) {
   const r = state.server?.config.Roles;
   const rows = Object.entries(m.servos).map(([id, s]) => {
     const ang = s.error ? "–" : `${(((s.pos * 360 / 4096) + 180) % 360 - 180).toFixed(1)}°`;
-    const st = s.error ? `<span style="color:var(--bad)">${s.error}</span>` : s.status !== "ok" ? `<span style="color:var(--warn)">${s.status}</span>` : s.moving ? "moving" : "";
+    const st = s.error ? `<span style="color:var(--bad)">${s.error}</span>` : s.status !== "ok" ? `<span style="color:var(--warn)">${s.status}</span>` : s.moving ? "moving" : "–";
     return `<tr><td class="mono">#${id}</td><td>${s.role}</td><td class="mono">${ang}</td><td class="mono">${s.error ? "–" : s.load.toFixed(0) + "%"}</td><td class="mono">${s.error ? "–" : s.volt.toFixed(1)}</td><td title="${s.error || (s.status !== "ok" ? s.status : "")}">${st}</td></tr>`;
   });
   $("servoRows").innerHTML = rows.join("");
