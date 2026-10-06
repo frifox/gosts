@@ -336,7 +336,10 @@ export function createRig(container) {
     const { shots, index, running } = u;
     addSample(u);
     // The swing and platform are posed every frame (see the animation loop).
-    if (running && !cv) startCapture();
+    // Each capture has its own trail: a new one drops what's left of the last.
+    const capturing = running && (index ?? 0) < (shots?.length ?? 0);
+    if (cv && capturing && cv.ended) { dropComet(cv); cv = null; }
+    if (capturing && !cv) startCapture();
     if (cv) captureShots(u);
 
     // Shots: rebuild when the plan changes, recolour as they're taken.
@@ -506,7 +509,7 @@ export function createRig(container) {
     const c = pv || cv, h = c?.history;
     if (!h?.length || !(c.normal > 0)) return null;
     const v = h[h.length - 1].v;
-    return { v, normal: c.normal, x: speedX(v, c.normal), moving: c === pv ? pv.t <= pv.times[pv.times.length - 1] : !!last.running };
+    return { v, normal: c.normal, x: speedX(v, c.normal), moving: c === pv ? pv.t <= pv.times[pv.times.length - 1] : !(cv.ended && cv.clock >= cv.endAt) };
   }
   // drawTrail: the tail at time `now`, through the history younger than
   // `tail` seconds (evenly sampled, ending at the newest point), fading
@@ -542,7 +545,7 @@ export function createRig(container) {
   }
   function startPreview(shots, smooth) {
     stopPreview();
-    if (cv && !last.running) { dropComet(cv); cv = null; update(last); } // a finished capture's fading trail
+    if (cv?.ended) { dropComet(cv); cv = null; update(last); } // a finished capture's fading trail
     if (!shots || shots.length < 2 || cv) return Promise.resolve();
     rig.nextRing.visible = false;
     // Each hop takes its path angle / PREVIEW_SPEED; times[i] is when the
@@ -671,13 +674,17 @@ export function createRig(container) {
   // During a capture the view looks like the preview, but follows the real
   // rig: the ball is where the camera really is, its tail is where it really
   // went, and each shot's dot goes once the photo is taken. The tail is about
-  // 5 shots long (in time, from the recent pace). When the capture ends the
-  // ball goes and the tail runs out; then the dots come back, taken ones green.
+  // 5 shots long (in time, from the recent pace), and only drawn between
+  // the first shot and the last: not on the way to the first or back home.
+  // When the last photo is taken (or the capture stops) the ball goes and the
+  // tail runs out; then the dots come back, taken ones green.
   function startCapture() {
     stopPreview();
     cv = { ...makeComet(), clock: 0, index: last.index ?? 0, shotAt: [], tail: 2, dist: 0, moving: 0 };
   }
   function captureShots(u) {
+    // Ended: the last photo taken, or stopped. The view runs DELAY behind.
+    if (!cv.ended && (!u.running || (u.index ?? 0) >= (u.shots?.length ?? 0))) { cv.ended = true; cv.endAt = cv.clock + DELAY / 1000; }
     if ((u.index ?? 0) > cv.index) {
       cv.index = u.index;
       cv.shotAt.push(cv.clock);
@@ -688,7 +695,7 @@ export function createRig(container) {
   function captureTick(dt) {
     if (!cv) return;
     cv.clock += dt;
-    const running = !!last.running;
+    const running = !(cv.ended && cv.clock >= cv.endAt); // moving through this capture's shots
     cv.ball.visible = running;
     if (running) {
       const q = livePose();
