@@ -393,10 +393,11 @@ export function createRig(container) {
   resize();
   setDims(DEFAULT_RIG);
   // ---------------------------------------------------------------- path preview
-  // A ball flies through the shots in shooting order (about 1 s per hop,
-  // along the camera's real path over the sphere) with a fading comet tail
-  // about 5 hops long. The swing and camera are hidden meanwhile.
-  const HOP = 1.0, TAIL = 5 * HOP, TRAIL_N = 160;
+  // A ball flies through the shots in shooting order, along the camera's real
+  // path over the sphere at PREVIEW_SPEED, with a fading comet tail about 5
+  // hops long. The swing and camera are hidden meanwhile.
+  const PREVIEW_SPEED = 45; // degrees per second, along the path
+  const TRAIL_N = 160;
   function startPreview(shots) {
     stopPreview();
     if (!shots || shots.length < 2) return Promise.resolve();
@@ -406,9 +407,14 @@ export function createRig(container) {
     trail.count = 0;
     rig.shotGroup.add(ball, trail);
     rig.tilt.visible = rig.sight.visible = rig.nextRing.visible = false;
+    // Each hop takes its path angle / PREVIEW_SPEED; times[i] is when the
+    // ball leaves shot i.
+    const times = [0];
+    for (let i = 0; i + 1 < shots.length; i++) times.push(times[i] + Math.max(0.05, hopAngle(shots[i], shots[i + 1]) / PREVIEW_SPEED));
+    const tail = 5 * times[times.length - 1] / (shots.length - 1);
     let done;
     const finished = new Promise((r) => (done = r));
-    pv = { shots, t: 0, ball, trail, history: [], done };
+    pv = { shots, times, tail, t: 0, ball, trail, history: [], done };
     return finished;
   }
   function stopPreview() {
@@ -421,23 +427,40 @@ export function createRig(container) {
     update(last);
     done();
   }
-  // Where the ball is after t seconds: between shot i and i+1, elevation and
-  // azimuth change together (azimuth the short way), as the rig moves.
-  function previewPos(shots, t) {
-    const i = Math.min(Math.floor(t / HOP), shots.length - 2), f = Math.min(1, t / HOP - i);
-    const a = shots[i], b = shots[i + 1];
-    let da = b.azimuth - a.azimuth;
-    da = ((da + 540) % 360) - 180;
-    const ease = f * f * (3 - 2 * f); // starts and stops like the servos
-    return shotPos(a.elevation + (b.elevation - a.elevation) * ease, a.azimuth + da * ease);
+  // hopPos: the camera between shots a and b at fraction f of the hop:
+  // elevation and azimuth change together (azimuth the short way), as the rig
+  // moves.
+  function hopPos(a, b, f) {
+    const da = ((b.azimuth - a.azimuth + 540) % 360) - 180;
+    return shotPos(a.elevation + (b.elevation - a.elevation) * f, a.azimuth + da * f);
+  }
+  // hopAngle: the angle (degrees) the camera turns through, round the object,
+  // along that path.
+  function hopAngle(a, b) {
+    let sum = 0, prev = hopPos(a, b, 0);
+    for (let k = 1; k <= 16; k++) {
+      const p = hopPos(a, b, k / 16);
+      sum += prev.angleTo(p);
+      prev = p;
+    }
+    return sum * 180 / Math.PI;
+  }
+  // Where the ball is after t seconds (easing in and out of each shot like
+  // the servos).
+  function previewPos(t) {
+    const ts = pv.times;
+    let i = 0;
+    while (i < ts.length - 2 && t >= ts[i + 1]) i++;
+    const f = Math.min(1, Math.max(0, (t - ts[i]) / (ts[i + 1] - ts[i])));
+    return hopPos(pv.shots[i], pv.shots[i + 1], f * f * (3 - 2 * f));
   }
   const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color(), accent = new THREE.Color(0x5b8cff);
   function previewTick(dt) {
     if (!pv) return;
     pv.t += dt;
-    const end = (pv.shots.length - 1) * HOP;
+    const end = pv.times[pv.times.length - 1], TAIL = pv.tail;
     const t = Math.min(pv.t, end);
-    const p = previewPos(pv.shots, t);
+    const p = previewPos(t);
     pv.ball.position.copy(p);
     pv.history.push({ t, p: p.clone() });
     while (pv.history.length && pv.history[0].t < t - TAIL) pv.history.shift();
