@@ -465,12 +465,25 @@ $("startBtn").onclick = () => { stopPreview(); $("capNote").textContent = ""; ac
 // Preview: the camera's path through the planned shots, animated in the rig
 // view. The button reads Stop while it plays.
 function stopPreview() { window.rig3d?.stopPreview(); }
+// previewLabel: "Preview" with about how much faster than the real capture
+// the preview plays (the server's estimate of the capture against the
+// preview's length).
+let plCache = { key: "", pd: 0 };
+function previewLabel() {
+  const m = state.cap, moving = !!state.server?.config.Plan.Moving;
+  const key = `${moving}:${m?.shots?.length}:${JSON.stringify(m?.shots?.[0])}:${JSON.stringify(m?.shots?.at(-1))}`;
+  if (key !== plCache.key || !plCache.pd) plCache = { key, pd: window.rig3d?.previewDuration(m?.shots, moving) || 0 };
+  const pd = plCache.pd;
+  if (!m?.estimate || !pd) return "Preview";
+  const x = m.estimate / pd;
+  return `Preview ${x >= 10 ? Math.round(x) : Math.max(1, Math.round(x * 10) / 10)}x`;
+}
 $("previewBtn").onclick = () => {
   if (window.rig3d?.previewing()) return stopPreview();
   const shots = state.cap?.shots || [];
   if (shots.length < 2 || !window.rig3d) return;
   $("previewBtn").textContent = "Stop";
-  window.rig3d.startPreview(shots, $("pMoving").checked).then(() => ($("previewBtn").textContent = "Preview"));
+  window.rig3d.startPreview(shots, $("pMoving").checked).then(() => ($("previewBtn").textContent = previewLabel()));
 };
 $("pauseBtn").onclick = () => act("pause", { on: !state.cap?.paused });
 $("abortBtn").onclick = () => act("stop");
@@ -570,6 +583,7 @@ $("dSave").onclick = async () => {
 
 // ---------------------------------------------------------------- live rig (3D: see rig3d.js)
 function draw() {
+  if (!window.rig3d?.previewing()) $("previewBtn").textContent = previewLabel();
   const t = state.tele, cap = state.cap;
   if (!dimsEdited()) window.rig3d?.setDims(savedDims()); // while editing, the fields are shown
   const live = t && t.elevation !== null && t.elevation !== undefined;

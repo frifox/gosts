@@ -230,7 +230,8 @@ Stop) and a live perspective view
 of the rig on the right (a 3D model rendered with [three.js](https://threejs.org): 2020 extrusions, the
 ST3215s, the Sony A6600 with its ring flash, and [#3DBenchy](https://www.3dbenchy.com) (CC0) as the
 object; bundled in the binary, so no internet is needed), with
-every planned shot turning with the platform and turning green once taken; **Preview** animates the
+every planned shot turning with the platform and turning green once taken; **Preview** (labelled with about how much faster than the real capture it plays, e.g. "Preview 5.5x", from
+the server's estimate of the capture's time) animates the
 capture as the rig does it: the camera tilts while the turntable turns the object, the sphere of shots
 and a fading trail with it, coloured by the camera's speed against the path's average (neutral at normal, amber to coral up to 2×, blue down to ½×),
 with a speed key showing the speed now in °/s. Each photo pops its dot and fires the ring flash lightly. A running capture looks the same but follows the real rig (telemetry, smoothed), each

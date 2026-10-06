@@ -101,6 +101,37 @@ func spiralOrder(pts []shot, turns int, z0, z1 float64) []shot {
 	return out
 }
 
+// estimate is about how long the shots take (s), from the first: along the
+// smooth path for moving shots (as spiral runs it), or for each shot a move
+// at the servos' speed and acceleration, the wait for the rig to stop, and
+// the settle time.
+func estimate(shots []shot, p Plan, m Motion) float64 {
+	if len(shots) < 2 || m.Speed <= 0 || m.Acc <= 0 {
+		return 0
+	}
+	maxRate := float64(m.Speed) / stepsPerDegree
+	accel := float64(m.Acc) * 100 / stepsPerDegree
+	clamp := func(e float64) float64 { return math.Max(m.ElevationMin, math.Min(m.ElevationMax, e)) }
+	if p.Moving {
+		es, as := make([]float64, len(shots)), make([]float64, len(shots))
+		for i, s := range shots {
+			es[i], as[i] = clamp(s.Elevation), s.Azimuth
+		}
+		return newTrajectory(es, as, maxRate, accel/2).duration()
+	}
+	t := 0.0
+	for i := 1; i < len(shots); i++ {
+		d := math.Max(math.Abs(clamp(shots[i].Elevation)-clamp(shots[i-1].Elevation)), math.Abs(wrap180(shots[i].Azimuth-shots[i-1].Azimuth)))
+		if d >= maxRate*maxRate/accel { // reaches full speed
+			t += d/maxRate + maxRate/accel
+		} else {
+			t += 2 * math.Sqrt(d/accel)
+		}
+		t += 0.2 + float64(p.SettleMS)/1000 // stopping, then settling
+	}
+	return t
+}
+
 func rad(d float64) float64    { return d * math.Pi / 180 }
 func deg(r float64) float64    { return r * 180 / math.Pi }
 func round1(v float64) float64 { return math.Round(v*10) / 10 }
@@ -121,26 +152,28 @@ type capture struct {
 	started time.Time
 	rows    int
 	spacing float64
+	est     float64 // about how long the shots take (s), from the first
 }
 
 type captureMsg struct {
-	Type    string  `json:"type"` // "capture"
-	Running bool    `json:"running"`
-	Paused  bool    `json:"paused"`
-	Index   int     `json:"index"`
-	Total   int     `json:"total"`
-	Shots   []shot  `json:"shots"`
-	Note    string  `json:"note"`
-	Elapsed float64 `json:"elapsed"` // s
-	Rows    int     `json:"rows"`
-	Spacing float64 `json:"spacing"` // degrees between neighbouring shots
+	Type     string  `json:"type"` // "capture"
+	Running  bool    `json:"running"`
+	Paused   bool    `json:"paused"`
+	Index    int     `json:"index"`
+	Total    int     `json:"total"`
+	Shots    []shot  `json:"shots"`
+	Note     string  `json:"note"`
+	Elapsed  float64 `json:"elapsed"` // s
+	Rows     int     `json:"rows"`
+	Spacing  float64 `json:"spacing"`  // degrees between neighbouring shots
+	Estimate float64 `json:"estimate"` // about how long the shots take (s), from the first
 }
 
 func (c *capture) msg() captureMsg {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	m := captureMsg{Type: "capture", Running: c.running, Paused: c.paused, Index: c.index, Total: len(c.shots),
-		Shots: append([]shot(nil), c.shots...), Note: c.note, Rows: c.rows, Spacing: c.spacing}
+		Shots: append([]shot(nil), c.shots...), Note: c.note, Rows: c.rows, Spacing: c.spacing, Estimate: c.est}
 	if c.running {
 		m.Elapsed = time.Since(c.started).Seconds()
 	}
@@ -161,6 +194,7 @@ func (c *capture) preview(p Plan) error {
 		return errors.New("a capture is running")
 	}
 	c.shots, c.index, c.note, c.rows, c.spacing = shots, 0, "", rows, spacing
+	c.est = estimate(shots, p, c.rig.cfg.get().Motion)
 	c.mu.Unlock()
 	c.send()
 	return nil
@@ -203,6 +237,7 @@ func (c *capture) start(p Plan) error {
 	}
 	c.shots, c.index, c.running, c.paused, c.cancel = shots, 0, true, false, cancel
 	c.rows, c.spacing = rows, spacing
+	c.est = estimate(shots, p, c.rig.cfg.get().Motion)
 	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
 	c.mu.Unlock()
 	how := fmt.Sprintf("in %d rows, stopping for each", rows)
