@@ -44,7 +44,7 @@ header .sub { color: var(--muted); font-size: 12px; }
 .card.collapsed > .card-body { display: none; }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .row:first-child { margin-top: 0; }
-.field { display: grid; grid-template-columns: 96px 1fr 76px; gap: 8px; align-items: center; margin-top: 8px; }
+.field { display: grid; grid-template-columns: 96px 1fr 76px auto; gap: 8px; align-items: center; margin-top: 8px; }
 .field label { color: var(--muted); font-size: 13px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
 .grid2 label, .grid4 label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
@@ -157,14 +157,11 @@ td.mono { font-family: var(--mono); }
           <div class="tile"><div class="k">Elevation</div><div class="v" id="rElev">–</div></div>
           <div class="tile"><div class="k">Azimuth</div><div class="v" id="rAzim">–</div></div>
         </div>
-        <div class="field"><label>Elevation</label><input type="range" id="elev" min="-30" max="90" step="0.5" value="0"><input type="number" id="elevNum" step="0.5" value="0"></div>
-        <div class="field"><label>Azimuth</label><input type="range" id="azim" min="-180" max="180" step="1" value="0"><input type="number" id="azimNum" step="1" value="0"></div>
+        <div class="field"><label>Elevation</label><input type="range" id="elev" min="-30" max="90" step="0.5" value="0"><input type="number" id="elevNum" step="0.5" value="0"><button class="btn small" id="elevZero" title="Move the elevation to 0° (camera level with the object)">Go 0°</button></div>
+        <div class="field"><label>Azimuth</label><input type="range" id="azim" min="-180" max="180" step="1" value="0"><input type="number" id="azimNum" step="1" value="0"><button class="btn small" id="azimZero" title="Turn the platform to 0°">Go 0°</button></div>
         <div class="row" style="margin-top:10px">
           <button class="btn primary" id="goBtn">Go</button>
           <button class="btn" id="stopBtn">Stop</button>
-          <span class="spacer"></span>
-          <button class="btn small" id="levelBtn" title="Camera level with the object">Level</button>
-          <button class="btn small" id="homeBtn" title="Elevation 0°, azimuth 0°">Home</button>
         </div>
         <table style="margin-top:12px">
           <thead><tr><th>Servo</th><th>Role</th><th>Angle</th><th>Load</th><th>V</th><th>°C</th><th></th></tr></thead>
@@ -383,8 +380,9 @@ function goTo(e = Number($("elevNum").value), a = Number($("azimNum").value)) {
 }
 $("goBtn").onclick = () => goTo();
 $("stopBtn").onclick = () => act("stop");
-$("levelBtn").onclick = () => { setControls(0, null); goTo(0, Number($("azimNum").value)); };
-$("homeBtn").onclick = () => { setControls(0, 0); goTo(0, 0); };
+// Go 0°: move one axis to 0°, leaving the other where it is.
+$("elevZero").onclick = () => { setControls(0, null); state.editing = false; act("move", { elevation: 0 }); };
+$("azimZero").onclick = () => { setControls(null, 0); state.editing = false; act("move", { azimuth: 0 }); };
 $("torque").onchange = (e) => act("torque", { on: e.target.checked });
 function setControls(e, a) {
   if (e !== null && e !== undefined) { $("elev").value = $("elevNum").value = (+e).toFixed(1); }
