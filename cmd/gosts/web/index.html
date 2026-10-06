@@ -154,14 +154,14 @@ td.mono { font-family: var(--mono); }
           <label title="How long the rig waits after arriving, before each photo (not used with Moving Shots)">Settle (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
           <label class="switch" title="Take the photos without stopping: the rig keeps moving along one smooth spiral and each photo is taken as it passes its shot. Needs a fast shutter speed."><input type="checkbox" id="pMoving"><span class="track"></span><span>Moving Shots</span></label>
         </div>
-        <div class="row" style="margin-top:12px">
+        <div class="progress big" style="margin-top:12px"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div>
+        <div class="row" style="margin-top:10px">
           <button class="btn" id="previewBtn" title="Show the camera's path through the planned shots">Preview</button>
           <span class="spacer"></span>
           <button class="btn danger" id="abortBtn" disabled>Stop</button>
           <button class="btn" id="pauseBtn" disabled>Pause</button>
           <button class="btn primary" id="startBtn">Start</button>
         </div>
-        <div class="progress big"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div>
         <p class="hint" id="capNote"></p>
       </div>
     </section>
