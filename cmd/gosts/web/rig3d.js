@@ -454,7 +454,7 @@ export function createRig(container) {
     const ball = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 16), new THREE.MeshBasicMaterial({ color: 0x8fb1ff }));
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(TRAIL_N * TUBE_R * 3), 3).setUsage(THREE.DynamicDrawUsage));
-    geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(TRAIL_N * TUBE_R * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(TRAIL_N * TUBE_R * 4), 4).setUsage(THREE.DynamicDrawUsage)); // RGBA
     const idx = [];
     for (let k = 0; k + 1 < TRAIL_N; k++) for (let j = 0; j < TUBE_R; j++) {
       const a = k * TUBE_R + j, b = k * TUBE_R + (j + 1) % TUBE_R, c = a + TUBE_R, d = b + TUBE_R;
@@ -463,7 +463,7 @@ export function createRig(container) {
     geo.setIndex(idx);
     geo.setDrawRange(0, 0);
     const trail = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true,
-      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      depthWrite: false, side: THREE.DoubleSide }));
     trail.frustumCulled = false;
     ball.visible = false;
     rig.shotGroup.add(ball, trail);
@@ -491,7 +491,7 @@ export function createRig(container) {
   }
   // drawTrail: the tail at time `now`, through the history younger than
   // `tail` seconds (evenly sampled, ending at the newest point), fading
-  // (darker = more transparent with additive blending) and thinning.
+  // (more transparent) and thinning towards its end.
   const tN = V(0, 0, 0), tB = V(0, 0, 0), tT = V(0, 0, 0), tQ = V(0, 0, 0);
   function drawTrail(c, now, tail) {
     while (c.history.length && c.history[0].t < now - tail) c.history.shift();
@@ -509,12 +509,13 @@ export function createRig(container) {
       tN.normalize();
       tB.crossVectors(tT, tN);
       const r = 3.2 * (1 - age * 0.8);
-      speedColor(tmpC, e.v, c.normal).multiplyScalar(Math.pow(1 - age, 1.6) * 0.9);
+      speedColor(tmpC, e.v, c.normal);
+      const alpha = Math.pow(1 - age, 1.6) * 0.9;
       for (let j = 0; j < TUBE_R; j++) {
-        const a = (j / TUBE_R) * Math.PI * 2, o = (k * TUBE_R + j) * 3;
+        const a = (j / TUBE_R) * Math.PI * 2, o = (k * TUBE_R + j) * 3, q = (k * TUBE_R + j) * 4;
         tQ.copy(e.p).addScaledVector(tN, Math.cos(a) * r).addScaledVector(tB, Math.sin(a) * r);
         pos[o] = tQ.x; pos[o + 1] = tQ.y; pos[o + 2] = tQ.z;
-        col[o] = tmpC.r; col[o + 1] = tmpC.g; col[o + 2] = tmpC.b;
+        col[q] = tmpC.r; col[q + 1] = tmpC.g; col[q + 2] = tmpC.b; col[q + 3] = alpha;
       }
     }
     geo.setDrawRange(0, Math.max(0, n - 1) * TUBE_R * 6);
