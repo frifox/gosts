@@ -560,11 +560,11 @@ export function createRig(container) {
   const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color();
   // The preview starts with the swing and platform taking LEAD seconds to go
   // from where the rig physically is to the first shot. After the last shot
-  // the camera holds there for HOLD seconds, then the swing and platform take
+  // the camera holds there for HOLD seconds (none), then the swing and platform take
   // BACK seconds to return to the rig's pose. The trail keeps catching up with
   // the last shot at its own pace meanwhile, even once the camera has gone;
   // the preview ends when the camera is back and the trail has run out.
-  const LEAD = 1, HOLD = 1, BACK = 1;
+  const LEAD = 1, HOLD = 0, BACK = 1;
   // glide eases from pose `from` to `to` (elevation, azimuth the short way).
   function glide(from, to, f) {
     f = Math.min(1, Math.max(0, f));
