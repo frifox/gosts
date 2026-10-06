@@ -50,6 +50,8 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .grid2 label, .grid4 label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
 .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 8px; }
 .grid4 .span2 { grid-column: span 2; }
+.mini { border: 0; background: none; padding: 0 2px; color: var(--accent); font: inherit; font-size: 13px; line-height: 1; cursor: pointer; vertical-align: -1px; }
+.mini:hover { text-decoration: underline; }
 input[type=number], select { width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: 13px var(--mono); }
 input[type=range] { width: 100%; accent-color: var(--accent); }
 .btn { border: 1px solid var(--border); background: var(--panel-2); color: var(--text); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
@@ -180,7 +182,7 @@ td.mono { font-family: var(--mono); }
           <label title="Swing arm length">Swing X<input type="number" id="dSwingX" step="10"></label>
           <label title="Swing bar length (camera bar)">Swing Y<input type="number" id="dSwingY" step="10"></label>
           <label title="Post height">Post Z<input type="number" id="dPostZ" step="10"></label>
-          <label title="Turntable height">Turntable Z<input type="number" id="dTurntableZ" step="10"></label>
+          <label title="Turntable height"><span style="white-space:nowrap">Turntable Z <button class="mini" id="dTurntableAuto" title="Auto: the height that puts the object's middle on the tilt axis, where the camera points" aria-label="Auto turntable height">⌖</button></span><input type="number" id="dTurntableZ" step="10"></label>
           <label title="Camera position along the arms: + towards the object">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
           <label title="Object height (the model is scaled proportionally)">Object Z<input type="number" id="dObjectZ" step="10"></label>
           <label class="span2">Min elevation °<input type="number" id="dElevMin" step="1"></label>
@@ -255,8 +257,9 @@ td.mono { font-family: var(--mono); }
 
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 <script type="module">
-import { createRig } from "./rig3d.js";
+import { createRig, pivotHeight } from "./rig3d.js";
 window.rig3d = createRig(document.getElementById("rig"));
+window.rig3dPivot = pivotHeight;
 draw();
 </script>
 <script>
@@ -519,6 +522,17 @@ $("rigCfgToggle").onclick = () => {
   try { localStorage.setItem("rigCfgOpen", open ? "1" : "0"); } catch {}
 };
 $("dDefaults").onclick = () => fillDims(DIMS_DEFAULT, LIMITS_DEFAULT);
+// Turntable Z auto: the object's middle on the tilt axis (the centre of the
+// camera's orbit, where it points), so it's centred in every shot.
+$("dTurntableAuto").onclick = (e) => {
+  e.preventDefault();
+  const d = formDims();
+  const z = Math.round(window.rig3dPivot(d) - d.ObjectZ / 2);
+  if (z < 0) { $("rigErr").textContent = "The object is too tall to centre on the tilt axis: raise post Z or lower object Z."; return; }
+  $("rigErr").textContent = "";
+  $("dTurntableZ").value = z;
+  dimsChanged();
+};
 $("dRevert").onclick = () => { $("rigErr").textContent = ""; fillDims(savedDims(), savedLimits()); };
 $("dSave").onclick = async () => {
   $("rigErr").textContent = "";

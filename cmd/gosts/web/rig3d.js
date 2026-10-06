@@ -9,6 +9,10 @@ import { STLLoader } from "./vendor/STLLoader.js";
 
 const P = 20; // 2020 profile size
 
+// pivotHeight is the tilt axis' height (mm): on top of the posts, through
+// the servo horns. The camera orbits it and looks at it.
+export const pivotHeight = (d) => P + d.PostZ + 30;
+
 // Default measurements (mm), as in gosts' config: seen from above, X along
 // the base sides that carry the posts, Y along the tilt axis, Z up.
 export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 300, ObjectZ: 100 };
@@ -232,7 +236,7 @@ export function createRig(container) {
     const root = new THREE.Group();
     scene.add(root);
     const postY = d.BaseY / 2 - P / 2;         // post centres
-    const pivotY = P + d.PostZ + 30;           // servo horn axis height
+    const pivotY = pivotHeight(d);             // servo horn axis height
     const armZ = d.SwingY / 2 - P / 2;         // swing arm centres
     const barX = d.SwingX / 2 - P / 2;         // camera bar distance from the axis
 
