@@ -428,7 +428,7 @@ export function createRig(container) {
   // PREVIEW_SPEED, as the rig really does it: the camera only tilts
   // (elevation) while the turntable turns the object (azimuth). So the ball
   // stays on the camera's arc, and the turntable, the object, the sphere of
-  // shots and the ball's fading comet tail (about 5 hops long) turn together,
+  // shots and the ball's fading tail (about 5 hops long) turn together,
   // while the swing tilts the camera to each elevation.
   const PREVIEW_SPEED = 90; // degrees per second, along the path
   const TRAIL_N = 160;
@@ -444,38 +444,81 @@ export function createRig(container) {
     }
     return sum * 180 / Math.PI;
   }
-  // A comet: the ball (where the camera is) and its fading tail, in the
-  // turntable's frame so they turn with the platform.
+  // A comet: the ball (where the camera is) and its tail, in the turntable's
+  // frame so they turn with the platform. The tail is a thin tube along the
+  // camera's recent path, coloured by the camera's speed there against the
+  // path's average (normal): green at normal, towards red when faster and
+  // blue when slower; it fades and thins towards its end.
+  const TUBE_R = 6; // sides of the tube
   function makeComet() {
     const ball = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 16), new THREE.MeshBasicMaterial({ color: 0x8fb1ff }));
-    const trail = new THREE.InstancedMesh(new THREE.SphereGeometry(4.5, 10, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), TRAIL_N);
-    trail.count = 0;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(TRAIL_N * TUBE_R * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(TRAIL_N * TUBE_R * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    const idx = [];
+    for (let k = 0; k + 1 < TRAIL_N; k++) for (let j = 0; j < TUBE_R; j++) {
+      const a = k * TUBE_R + j, b = k * TUBE_R + (j + 1) % TUBE_R, c = a + TUBE_R, d = b + TUBE_R;
+      idx.push(a, c, b, b, c, d);
+    }
+    geo.setIndex(idx);
+    geo.setDrawRange(0, 0);
+    const trail = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    trail.frustumCulled = false;
     ball.visible = false;
     rig.shotGroup.add(ball, trail);
-    return { ball, trail, history: [] };
+    return { ball, trail, history: [], normal: 0 };
   }
   function dropComet(c) {
     rig.shotGroup.remove(c.ball, c.trail);
     c.ball.geometry.dispose(); c.trail.geometry.dispose();
   }
-  // drawTrail: the tail at time `now`, evenly spread over the history (points
-  // younger than `tail` seconds), fading (darker = more transparent with
-  // additive blending) and thinning towards its end.
+  // record adds where the ball is at time t to the tail, with the camera's
+  // speed round the object (degrees per second, smoothed over ~0.15 s).
+  function record(c, t, p) {
+    const h = c.history, prev = h[h.length - 1];
+    let v = prev ? prev.v : c.normal;
+    if (prev && t > prev.t) v += (prev.p.angleTo(p) * 180 / Math.PI / (t - prev.t) - v) * Math.min(1, (t - prev.t) / 0.15);
+    else if (prev) return;
+    h.push({ t, p: p.clone(), v });
+    return v;
+  }
+  // speedColor: green at the normal speed, red at 1.5× or more, blue at
+  // 2/3 or less (on a log scale, so faster and slower look alike).
+  function speedColor(out, v, normal) {
+    const x = normal > 0 ? Math.max(-1, Math.min(1, Math.log(Math.max(v, 1e-3) / normal) / Math.log(1.5))) : 0;
+    return out.setHSL((x >= 0 ? 120 - 120 * x : 120 - 100 * x) / 360, 1, 0.5);
+  }
+  // drawTrail: the tail at time `now`, through the history younger than
+  // `tail` seconds (evenly sampled, ending at the newest point), fading
+  // (darker = more transparent with additive blending) and thinning.
+  const tN = V(0, 0, 0), tB = V(0, 0, 0), tT = V(0, 0, 0), tQ = V(0, 0, 0);
   function drawTrail(c, now, tail) {
     while (c.history.length && c.history[0].t < now - tail) c.history.shift();
     const h = c.history, n = Math.min(TRAIL_N, h.length);
+    const geo = c.trail.geometry, pos = geo.attributes.position.array, col = geo.attributes.color.array;
+    const pts = [];
+    for (let k = 0; k < n; k++) pts.push(h[n < 2 ? 0 : Math.round((k / (n - 1)) * (h.length - 1))]);
     for (let k = 0; k < n; k++) {
-      const e = h[Math.floor((k / n) * h.length)];
-      const age = Math.min(1, Math.max(0, (now - e.t) / tail)); // 0 = new, 1 = end of the tail
-      const s = 1 - age * 0.85;
-      tmpM.makeScale(s, s, s).setPosition(e.p);
-      c.trail.setMatrixAt(k, tmpM);
-      c.trail.setColorAt(k, tmpC.copy(accent).multiplyScalar(Math.pow(1 - age, 1.6) * 0.9));
+      const e = pts[k], age = Math.min(1, Math.max(0, (now - e.t) / tail)); // 0 = new, 1 = end of the tail
+      tT.subVectors(pts[Math.min(n - 1, k + 1)].p, pts[Math.max(0, k - 1)].p);
+      if (tT.lengthSq() < 1e-9) tT.set(0, 1, 0);
+      tT.normalize();
+      tN.copy(e.p).normalize().cross(tT); // across the path, on the sphere
+      if (tN.lengthSq() < 1e-9) tN.set(1, 0, 0).cross(tT);
+      tN.normalize();
+      tB.crossVectors(tT, tN);
+      const r = 3.2 * (1 - age * 0.8);
+      speedColor(tmpC, e.v, c.normal).multiplyScalar(Math.pow(1 - age, 1.6) * 0.9);
+      for (let j = 0; j < TUBE_R; j++) {
+        const a = (j / TUBE_R) * Math.PI * 2, o = (k * TUBE_R + j) * 3;
+        tQ.copy(e.p).addScaledVector(tN, Math.cos(a) * r).addScaledVector(tB, Math.sin(a) * r);
+        pos[o] = tQ.x; pos[o + 1] = tQ.y; pos[o + 2] = tQ.z;
+        col[o] = tmpC.r; col[o + 1] = tmpC.g; col[o + 2] = tmpC.b;
+      }
     }
-    c.trail.count = n;
-    c.trail.instanceMatrix.needsUpdate = true;
-    if (c.trail.instanceColor) c.trail.instanceColor.needsUpdate = true;
+    geo.setDrawRange(0, Math.max(0, n - 1) * TUBE_R * 6);
+    geo.attributes.position.needsUpdate = geo.attributes.color.needsUpdate = true;
   }
   function startPreview(shots, smooth) {
     stopPreview();
@@ -490,6 +533,9 @@ export function createRig(container) {
     let done;
     const finished = new Promise((r) => (done = r));
     pv = { ...makeComet(), shots, path, times, tail, t: 0, clock: 0, done, consumed: 0 };
+    let total = 0;
+    for (let i = 0; i + 1 < shots.length; i++) total += hopAngle(path, i);
+    pv.normal = total / times[times.length - 1]; // the average speed along the path
     return finished;
   }
   function stopPreview() {
@@ -510,7 +556,7 @@ export function createRig(container) {
     if (!pv.path.smooth) f = f * f * (3 - 2 * f);
     return pv.path.at(i, f);
   }
-  const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color(), accent = new THREE.Color(0x5b8cff);
+  const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color();
   // The preview starts with the swing and platform taking LEAD seconds to go
   // from where the rig physically is to the first shot. After the last shot
   // the camera holds there for HOLD seconds, then the swing and platform take
@@ -595,7 +641,7 @@ export function createRig(container) {
     }
     // The trail: recorded while moving; afterwards it keeps ageing, so it
     // catches up with the last shot at the same pace.
-    if (pv.t <= end) pv.history.push({ t, p: pv.ball.position.clone() });
+    if (pv.t <= end) record(pv, t, pv.ball.position);
     drawTrail(pv, pv.t, pv.tail);
     if (pv.t >= end + HOLD + BACK && !pv.history.length) stopPreview();
   }
@@ -608,7 +654,7 @@ export function createRig(container) {
   // ball goes and the tail runs out; then the dots come back, taken ones green.
   function startCapture() {
     stopPreview();
-    cv = { ...makeComet(), clock: 0, index: last.index ?? 0, shotAt: [0], tail: 2 };
+    cv = { ...makeComet(), clock: 0, index: last.index ?? 0, shotAt: [0], tail: 2, dist: 0, moving: 0 };
   }
   function captureShots(u) {
     if ((u.index ?? 0) > cv.index) {
@@ -626,7 +672,11 @@ export function createRig(container) {
     if (running) {
       const q = livePose();
       cv.ball.position.copy(shotPos(q.e, q.az));
-      cv.history.push({ t: cv.clock, p: cv.ball.position.clone() });
+      // Normal: the average speed so far (path length over time).
+      const prev = cv.history[cv.history.length - 1];
+      if (prev && cv.clock > prev.t) { cv.dist += prev.p.angleTo(cv.ball.position) * 180 / Math.PI; cv.moving += cv.clock - prev.t; }
+      if (cv.moving > 0.5) cv.normal = cv.dist / cv.moving;
+      record(cv, cv.clock, cv.ball.position);
     }
     drawTrail(cv, cv.clock, cv.tail);
     if (!running && !cv.history.length) {

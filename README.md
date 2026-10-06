@@ -232,7 +232,7 @@ ST3215s, the Sony A6600 with its ring flash, and [#3DBenchy](https://www.3dbench
 object; bundled in the binary, so no internet is needed), with
 every planned shot turning with the platform and turning green once taken; **Preview** animates the
 capture as the rig does it: the camera tilts while the turntable turns the object, the sphere of shots
-and a fading trail with it. A running capture looks the same but follows the real rig (telemetry, smoothed), each
+and a fading trail with it, coloured by the camera's speed against the path's average (green; red faster, blue slower). A running capture looks the same but follows the real rig (telemetry, smoothed), each
 shot's dot going as its photo is taken; when it ends the trail runs out and the dots return, taken ones green. The photos are spread as evenly as possible over the part of the sphere round the object the
 camera can reach (the min/max elevation in Rig config, which keeps the frame clear of the posts), on a
 golden-angle spiral, and taken in rows of similar elevation, each row in azimuth order with
