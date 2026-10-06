@@ -349,6 +349,7 @@ function onState(m) {
   state.server = m;
   const c = m.config, r = c.Roles;
   $("connectCard").hidden = m.connected;
+  if (!m.connected) state.controlsSet = false; // refill from the rig after the next connect
   if (!m.connected) setPill("bus", false, "no board");
   else if (m.scanning) setPill("bus", false, `scanning ${m.port}…`, true);
   else {
@@ -396,7 +397,14 @@ function onTelemetry(m) {
   state.tele = m;
   $("rElev").innerHTML = $("oElev").innerHTML = fmt(m.elevation);
   $("rAzim").innerHTML = $("oAzim").innerHTML = fmt(m.azimuth);
-  if (!state.editing && m.target && document.activeElement?.tagName !== "INPUT") setControls(m.target[0], m.target[1]);
+  const typing = document.activeElement?.tagName === "INPUT";
+  if (!state.editing && m.target && !typing) setControls(m.target[0], m.target[1]);
+  // Until the first move there is no target: start the fields at where the
+  // rig is (once per connection, so they don't fight the user).
+  if (!m.target && !state.controlsSet && m.elevation !== null && m.azimuth !== null && !typing) {
+    setControls(m.elevation, m.azimuth);
+    state.controlsSet = true;
+  }
   const r = state.server?.config.Roles;
   const rows = Object.entries(m.servos).map(([id, s]) => {
     const ang = s.error ? "–" : `${(((s.pos * 360 / 4096) + 180) % 360 - 180).toFixed(1)}°`;
