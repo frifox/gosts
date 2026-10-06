@@ -92,7 +92,7 @@ func defaultConfig() Config {
 	return Config{
 		ListenAddr: ":8081",
 		Roles:      Roles{ElevationLeader: 10, ElevationFollower: 11, Azimuth: 12, LeaderMirrored: true},
-		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -30, ElevationMax: 90, MultiTurn: true},
+		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80, MultiTurn: true},
 		Plan:       Plan{Photos: 60, SettleMS: 800},
 		Rig:        Rig{BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, PlatformZ: 300},
 	}

@@ -221,7 +221,7 @@ gosts -sim                          # simulated rig, no hardware needed
 Set up and calibrate the servos with gosts-ctl first (IDs, tuning, and "Set 0° to" so elevation 0° is
 the camera level with the object and azimuth 0° is the platform's front); the two programs can't use
 the serial port at the same time. In gosts, **Setup** assigns the roles (by default #10 elevation
-leader, mirrored; #11 elevation follower; #12 azimuth), the speed, the elevation range, and switches
+leader, mirrored; #11 elevation follower; #12 azimuth), the speed, and switches
 the rig's servos to multi-turn so moves never take the long way round.
 
 The page has the controls on the left (live elevation/azimuth with Go, Stop and Torque, and a
@@ -229,13 +229,14 @@ The page has the controls on the left (live elevation/azimuth with Go, Stop and 
 of the rig on the right (a 3D model rendered with [three.js](https://threejs.org): 2020 extrusions, the
 ST3215s, the Sony A6600 with its ring flash; bundled in the binary, so no internet is needed), with
 every planned shot turning with the platform and turning green once taken. The photos are spread as evenly as possible over the part of the sphere round the object the
-camera can reach (the elevation range in Setup, which keeps the frame clear of the posts), on a
+camera can reach (the min/max elevation in Rig config, which keeps the frame clear of the posts), on a
 golden-angle spiral, and taken in rows of similar elevation, each row in azimuth order with
 alternating direction, so the arm moves little and the platform never unwinds a whole turn. Camera control (Sony A6600 over USB, with live preview) is next; for
 now each shot waits for the rig to settle and records where it really is.
 
 The **Rig config** card (collapsed by default, below Rig) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
-X/Y, the camera's offset along the arms, the turntable's height); the defaults draw the rig to scale.
+X/Y, the camera's offset along the arms, the turntable's height; the defaults draw the rig to scale)
+and the min/max elevation the camera may reach (default −45° to 80°).
 The view has 3D, Front (looking at the camera through the object), Side (along the tilt axis) and Top
 presets.
 

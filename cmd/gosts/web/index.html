@@ -154,7 +154,7 @@ td.mono { font-family: var(--mono); }
     <section class="card collapsed" id="rigCfgCard">
       <h2 class="toggle" id="rigCfgToggle" title="The rig's measurements, for the 3D view">Rig config</h2>
       <div class="card-body">
-        <p class="hint" style="margin-top:0">In mm, seen from above: X along the base sides that carry the posts (the direction the swing arms point), Y along the tilt axis, Z up. Only the 3D view uses them; it follows the fields as you type.</p>
+        <p class="hint" style="margin-top:0">Measurements in mm, seen from above: X along the base sides that carry the posts (the direction the swing arms point), Y along the tilt axis, Z up. The 3D view follows the fields as you type.</p>
         <div class="grid2" style="margin-top:10px">
           <label>Base X<input type="number" id="dBaseX" step="10"></label>
           <label>Base Y<input type="number" id="dBaseY" step="10"></label>
@@ -163,8 +163,11 @@ td.mono { font-family: var(--mono); }
           <label>Swing X (arm length)<input type="number" id="dSwingX" step="10"></label>
           <label>Swing Y (bar length)<input type="number" id="dSwingY" step="10"></label>
           <label>Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
+          <span></span>
+          <label>Min elevation °<input type="number" id="dElevMin" step="1"></label>
+          <label>Max elevation °<input type="number" id="dElevMax" step="1"></label>
         </div>
-        <p class="hint">Camera X offset: where the camera sits along the arms from the camera bar; + is towards the object, − away from it.</p>
+        <p class="hint">Camera X offset: where the camera sits along the arms from the camera bar; + is towards the object, − away from it. Min/max elevation: the camera never goes outside this range (keep it clear of the posts and base); the capture plan spreads its photos over it.</p>
         <div class="err" id="rigErr"></div>
         <div class="row" style="margin-top:10px">
           <button class="btn small" id="dDefaults">Defaults</button>
@@ -238,8 +241,6 @@ td.mono { font-family: var(--mono); }
       <div class="grid2" style="margin-top:12px">
         <label>Speed (step/s)<input type="number" id="sSpeed" min="50" max="3400" step="50"></label>
         <label>Acceleration (100 step/s²)<input type="number" id="sAcc" min="1" max="254"></label>
-        <label>Lowest elevation °<input type="number" id="sEMin" step="1"></label>
-        <label>Highest elevation °<input type="number" id="sEMax" step="1"></label>
       </div>
       <div class="row" style="margin-top:10px"><label class="switch"><input type="checkbox" id="sMulti"><span class="track"></span><span>Enable multi-turn on the rig's servos (recommended)</span></label></div>
       <p class="hint">In single-turn mode a move across a servo's 0/360° point goes the long way, nearly a full turn, which could swing the frame into the posts. With this on, the three servos are switched to multi-turn when gosts connects, so every move takes the short way.</p>
@@ -358,9 +359,9 @@ function onState(m) {
   for (const id of ["elev"]) { $(id).min = c.Motion.ElevationMin; $(id).max = c.Motion.ElevationMax; }
   if (!state.planLoaded) { loadPlan(c.Plan); state.planLoaded = true; }
   // Rig config: show the saved measurements unless they are being edited.
-  const prev = state.lastDims, form = formDims();
-  if (!prev || DIMS.every((k) => form[k] === prev[k])) fillDims(c.Rig);
-  state.lastDims = { ...c.Rig };
+  const prev = state.lastDims, form = { ...formDims(), ...formLimits() };
+  if (!prev || Object.keys(prev).every((k) => form[k] === prev[k])) fillDims(c.Rig, c.Motion);
+  state.lastDims = { ...c.Rig, ElevationMin: c.Motion.ElevationMin, ElevationMax: c.Motion.ElevationMax };
   dimsChanged();
   renderLayout();
   if (!$("setupModal").hidden) fillSetup();
@@ -417,12 +418,12 @@ function loadPlan(p) {
   $("pPhotos").value = p.Photos; $("pSettle").value = p.SettleMS;
 }
 // The points are spread evenly over the sphere between the elevation limits
-// in Setup; the server lays them out and the rig view shows them.
+// in Rig config; the server lays them out and the rig view shows them.
 function renderLayout() {
   const m = state.cap, c = state.server?.config;
   if (!m || !c || !m.total) { $("pLayout").textContent = ""; return; }
   $("pLayout").textContent = `${m.total} photos spread evenly round the object, about ${m.spacing.toFixed(0)}° apart, ` +
-    `between ${c.Motion.ElevationMin}° and ${c.Motion.ElevationMax}° elevation (the range in Setup), taken in ${m.rows} row${m.rows > 1 ? "s" : ""}.`;
+    `between ${c.Motion.ElevationMin}° and ${c.Motion.ElevationMax}° elevation (the range in Rig config), taken in ${m.rows} row${m.rows > 1 ? "s" : ""}.`;
 }
 let planTimer = null;
 for (const id of ["pPhotos", "pSettle"]) {
@@ -465,7 +466,7 @@ function fillSetup() {
   $("sLeaderMir").checked = r.LeaderMirrored; $("sFollowerMir").checked = r.FollowerMirrored;
   $("sInvE").checked = r.InvertElevation; $("sInvA").checked = r.InvertAzimuth;
   $("sMulti").checked = c.Motion.MultiTurn;
-  $("sSpeed").value = c.Motion.Speed; $("sAcc").value = c.Motion.Acc; $("sEMin").value = c.Motion.ElevationMin; $("sEMax").value = c.Motion.ElevationMax;
+  $("sSpeed").value = c.Motion.Speed; $("sAcc").value = c.Motion.Acc;
   $("sFound").textContent = m.connected ? (m.found.length ? m.found.map((id) => "#" + id).join(" ") : "none") : "no board connected";
 }
 $("sScan").onclick = () => act("scan", {}, $("setupErr"));
@@ -474,7 +475,7 @@ $("sSave").onclick = async () => {
   $("setupErr").textContent = "";
   const roles = { ElevationLeader: +$("sLeader").value, ElevationFollower: +$("sFollower").value, Azimuth: +$("sAzim").value,
     LeaderMirrored: $("sLeaderMir").checked, FollowerMirrored: $("sFollowerMir").checked, InvertElevation: $("sInvE").checked, InvertAzimuth: $("sInvA").checked };
-  const motion = { Speed: +$("sSpeed").value, Acc: +$("sAcc").value, ElevationMin: +$("sEMin").value, ElevationMax: +$("sEMax").value, MultiTurn: $("sMulti").checked };
+  const motion = { ...state.server.config.Motion, Speed: +$("sSpeed").value, Acc: +$("sAcc").value, MultiTurn: $("sMulti").checked };
   try {
     await send("roles", { roles });
     await send("motion", { motion });
@@ -485,28 +486,40 @@ $("sSave").onclick = async () => {
 // ---------------------------------------------------------------- rig config (measurements)
 const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "PlatformZ"];
 const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, PlatformZ: 300 };
+// The card also holds the elevation limits (kept with the motion settings).
+const LIMITS_DEFAULT = { ElevationMin: -45, ElevationMax: 80 };
 const formDims = () => Object.fromEntries(DIMS.map((k) => [k, Number($("d" + k).value)]));
+const formLimits = () => ({ ElevationMin: Number($("dElevMin").value), ElevationMax: Number($("dElevMax").value) });
 const savedDims = () => state.server?.config.Rig || DIMS_DEFAULT;
-const dimsEdited = () => DIMS.some((k) => formDims()[k] !== savedDims()[k]);
-function fillDims(d) { for (const k of DIMS) $("d" + k).value = d[k]; dimsChanged(); }
+const savedLimits = () => state.server ? { ElevationMin: state.server.config.Motion.ElevationMin, ElevationMax: state.server.config.Motion.ElevationMax } : LIMITS_DEFAULT;
+const dimsEdited = () => DIMS.some((k) => formDims()[k] !== savedDims()[k]) ||
+  formLimits().ElevationMin !== savedLimits().ElevationMin || formLimits().ElevationMax !== savedLimits().ElevationMax;
+function fillDims(d, lim) {
+  for (const k of DIMS) $("d" + k).value = d[k];
+  if (lim) { $("dElevMin").value = lim.ElevationMin; $("dElevMax").value = lim.ElevationMax; }
+  dimsChanged();
+}
 // dimsChanged previews the fields in the 3D view and enables Save/Revert.
 function dimsChanged() {
   const d = formDims(), edited = dimsEdited();
   $("dSave").disabled = $("dRevert").disabled = !edited;
   if (DIMS.every((k) => Number.isFinite(d[k])) && d.BaseX > 0 && d.BaseY > 0 && d.SwingX > 0 && d.SwingY > 0) window.rig3d?.setDims(d);
 }
-for (const k of DIMS) $("d" + k).addEventListener("input", dimsChanged);
+for (const id of [...DIMS.map((k) => "d" + k), "dElevMin", "dElevMax"]) $(id).addEventListener("input", dimsChanged);
 // The card starts collapsed; each window remembers whether it was left open.
 try { if (localStorage.getItem("rigCfgOpen") === "1") $("rigCfgCard").classList.remove("collapsed"); } catch {}
 $("rigCfgToggle").onclick = () => {
   const open = !$("rigCfgCard").classList.toggle("collapsed");
   try { localStorage.setItem("rigCfgOpen", open ? "1" : "0"); } catch {}
 };
-$("dDefaults").onclick = () => fillDims(DIMS_DEFAULT);
-$("dRevert").onclick = () => { $("rigErr").textContent = ""; fillDims(savedDims()); };
+$("dDefaults").onclick = () => fillDims(DIMS_DEFAULT, LIMITS_DEFAULT);
+$("dRevert").onclick = () => { $("rigErr").textContent = ""; fillDims(savedDims(), savedLimits()); };
 $("dSave").onclick = async () => {
   $("rigErr").textContent = "";
-  try { await send("rig", { rig: formDims() }); } catch (e) { $("rigErr").textContent = e.message; }
+  try {
+    await send("rig", { rig: formDims() });
+    await send("motion", { motion: { ...state.server.config.Motion, ...formLimits() } });
+  } catch (e) { $("rigErr").textContent = e.message; }
 };
 
 // ---------------------------------------------------------------- live rig (3D: see rig3d.js)

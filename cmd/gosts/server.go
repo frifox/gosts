@@ -103,8 +103,11 @@ func (a *app) exec(req request) (any, error) {
 			return nil, errors.New("no motion settings")
 		}
 		m := *req.Motion
-		if m.Speed < 0 || m.Speed > 3400 || m.Acc < 0 || m.Acc > 254 || m.ElevationMin >= m.ElevationMax {
-			return nil, errors.New("invalid motion settings")
+		if m.Speed < 0 || m.Speed > 3400 || m.Acc < 0 || m.Acc > 254 {
+			return nil, errors.New("invalid speed or acceleration")
+		}
+		if m.ElevationMin < -90 || m.ElevationMax > 90 || m.ElevationMin >= m.ElevationMax {
+			return nil, errors.New("elevation limits must be within -90°…90°, min below max")
 		}
 		err := a.cfg.update(func(c *Config) { c.Motion = m })
 		if err == nil {
