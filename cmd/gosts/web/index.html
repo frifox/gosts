@@ -125,6 +125,27 @@ td.mono { font-family: var(--mono); }
       </div>
     </section>
 
+    <section class="card">
+      <h2>Capture plan</h2>
+      <div class="card-body">
+        <div class="grid2">
+          <label>Photos<input type="number" id="pPhotos" min="1" max="2000" value="60"></label>
+          <label>Settle before shot (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
+        </div>
+        <p class="hint" id="pLayout"></p>
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary" id="startBtn">Start</button>
+          <button class="btn" id="pauseBtn" disabled>Pause</button>
+          <button class="btn danger" id="abortBtn" disabled>Stop</button>
+          <span class="spacer"></span>
+          <span class="hint" id="capCount" style="margin:0"></span>
+        </div>
+        <div class="progress"><div class="bar" id="capBar"></div></div>
+        <p class="hint" id="capNote"></p>
+        <p class="hint">Camera: not connected yet: each shot only waits for the rig to settle and records where it is. Sony A6600 support comes next.</p>
+      </div>
+    </section>
+
     <section class="card" id="rigCard">
       <h2>Rig <span class="spacer"></span>
         <label class="switch" style="text-transform:none;letter-spacing:0;font-weight:400"><input type="checkbox" id="torque"><span class="track"></span><span>Torque</span></label>
@@ -175,27 +196,6 @@ td.mono { font-family: var(--mono); }
           <button class="btn" id="dRevert" disabled>Revert</button>
           <button class="btn primary" id="dSave" disabled>Save</button>
         </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Capture plan</h2>
-      <div class="card-body">
-        <div class="grid2">
-          <label>Photos<input type="number" id="pPhotos" min="1" max="2000" value="60"></label>
-          <label>Settle before shot (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
-        </div>
-        <p class="hint" id="pLayout"></p>
-        <div class="row" style="margin-top:12px">
-          <button class="btn primary" id="startBtn">Start</button>
-          <button class="btn" id="pauseBtn" disabled>Pause</button>
-          <button class="btn danger" id="abortBtn" disabled>Stop</button>
-          <span class="spacer"></span>
-          <span class="hint" id="capCount" style="margin:0"></span>
-        </div>
-        <div class="progress"><div class="bar" id="capBar"></div></div>
-        <p class="hint" id="capNote"></p>
-        <p class="hint">Camera: not connected yet: each shot only waits for the rig to settle and records where it is. Sony A6600 support comes next.</p>
       </div>
     </section>
 
