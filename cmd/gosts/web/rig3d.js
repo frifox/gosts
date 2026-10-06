@@ -558,25 +558,16 @@ export function createRig(container) {
     geo.setDrawRange(0, Math.max(0, n - 1) * TUBE_R * 6);
     geo.attributes.position.needsUpdate = geo.attributes.color.needsUpdate = true;
   }
-  // pathTimes: when the preview's ball leaves each shot (s), each hop taking
-  // its path angle / PREVIEW_SPEED.
-  function pathTimes(path) {
-    const times = [0];
-    for (let i = 0; i + 1 < path.n; i++) times.push(times[i] + Math.max(0.05, hopAngle(path, i) / PREVIEW_SPEED));
-    return times;
-  }
-  // previewDuration: how long the preview takes along the shots (s), from the
-  // first (without the lead-in and the return).
-  function previewDuration(shots, smooth) {
-    if (!rig || !shots || shots.length < 2) return 0;
-    return pathTimes(makePath(shots, !!smooth)).at(-1);
-  }
   function startPreview(shots, smooth) {
     stopPreview();
     if (cv?.ended) { dropComet(cv); cv = null; update(last); } // a finished capture's fading trail
     if (!shots || shots.length < 2 || cv) return Promise.resolve();
     rig.nextRing.visible = false;
-    const path = makePath(shots, !!smooth), times = pathTimes(path);
+    // Each hop takes its path angle / PREVIEW_SPEED; times[i] is when the
+    // ball leaves shot i.
+    const times = [0];
+    const path = makePath(shots, !!smooth);
+    for (let i = 0; i + 1 < shots.length; i++) times.push(times[i] + Math.max(0.05, hopAngle(path, i) / PREVIEW_SPEED));
     const tail = 5 * times[times.length - 1] / (shots.length - 1);
     let done;
     const finished = new Promise((r) => (done = r));
@@ -797,5 +788,5 @@ export function createRig(container) {
     const v = cam.position.clone().sub(t).divideScalar(far);
     return { x: +v.x.toFixed(2), y: +v.y.toFixed(2), z: +v.z.toFixed(2) };
   }
-  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, speed, previewDuration };
+  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, speed };
 }
