@@ -102,6 +102,9 @@ func (a *app) exec(req request) (any, error) {
 			return nil, errors.New("invalid motion settings")
 		}
 		err := a.cfg.update(func(c *Config) { c.Motion = m })
+		if err == nil {
+			_ = a.cap.preview(a.cfg.get().Plan) // the plan follows the elevation range
+		}
 		if err == nil && m.MultiTurn {
 			a.rig.mu.Lock()
 			found := append([]uint8(nil), a.rig.found...)

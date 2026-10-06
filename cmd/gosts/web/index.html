@@ -148,13 +148,10 @@ td.mono { font-family: var(--mono); }
       <h2>Capture plan</h2>
       <div class="card-body">
         <div class="grid2">
-          <label>Rings (elevations)<input type="number" id="pRings" min="1" max="20" value="3"></label>
-          <label>Photos per ring<input type="number" id="pPer" min="1" max="360" value="24"></label>
-          <label>Lowest ring °<input type="number" id="pFrom" step="1" value="0"></label>
-          <label>Highest ring °<input type="number" id="pTo" step="1" value="60"></label>
+          <label>Photos<input type="number" id="pPhotos" min="1" max="2000" value="60"></label>
           <label>Settle before shot (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
-          <label>Total<input type="text" id="pTotal" readonly class="mono" style="padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text)"></label>
         </div>
+        <p class="hint" id="pLayout"></p>
         <div class="row" style="margin-top:12px">
           <button class="btn primary" id="startBtn">Start</button>
           <button class="btn" id="pauseBtn" disabled>Pause</button>
@@ -322,6 +319,7 @@ function onState(m) {
   // Motion limits for the elevation controls.
   for (const id of ["elev"]) { $(id).min = c.Motion.ElevationMin; $(id).max = c.Motion.ElevationMax; }
   if (!state.planLoaded) { loadPlan(c.Plan); state.planLoaded = true; }
+  renderLayout();
   if (!$("setupModal").hidden) fillSetup();
   draw();
 }
@@ -370,21 +368,22 @@ function onTelemetry(m) {
 
 // ---------------------------------------------------------------- capture plan
 function planFromForm() {
-  return { Rings: Number($("pRings").value), PerRing: Number($("pPer").value), ElevationFrom: Number($("pFrom").value),
-    ElevationTo: Number($("pTo").value), SettleMS: Number($("pSettle").value) };
+  return { Photos: Number($("pPhotos").value), SettleMS: Number($("pSettle").value) };
 }
 function loadPlan(p) {
-  $("pRings").value = p.Rings; $("pPer").value = p.PerRing; $("pFrom").value = p.ElevationFrom; $("pTo").value = p.ElevationTo; $("pSettle").value = p.SettleMS;
-  updateTotal();
+  $("pPhotos").value = p.Photos; $("pSettle").value = p.SettleMS;
 }
-function updateTotal() {
-  const p = planFromForm();
-  $("pTotal").value = `${p.Rings * p.PerRing} photos`;
+// The points are spread evenly over the sphere between the elevation limits
+// in Setup; the server lays them out and the rig view shows them.
+function renderLayout() {
+  const m = state.cap, c = state.server?.config;
+  if (!m || !c || !m.total) { $("pLayout").textContent = ""; return; }
+  $("pLayout").textContent = `${m.total} photos spread evenly round the object, about ${m.spacing.toFixed(0)}° apart, ` +
+    `between ${c.Motion.ElevationMin}° and ${c.Motion.ElevationMax}° elevation (the range in Setup), taken in ${m.rows} row${m.rows > 1 ? "s" : ""}.`;
 }
 let planTimer = null;
-for (const id of ["pRings", "pPer", "pFrom", "pTo", "pSettle"]) {
+for (const id of ["pPhotos", "pSettle"]) {
   $(id).addEventListener("input", () => {
-    updateTotal();
     clearTimeout(planTimer);
     planTimer = setTimeout(() => { if (!state.cap?.running) act("plan", { plan: planFromForm() }, $("capNote")); }, 300);
   });
@@ -401,7 +400,8 @@ function onCapture(m) {
   $("pauseBtn").disabled = !m.running;
   $("pauseBtn").textContent = m.paused ? "Resume" : "Pause";
   $("abortBtn").disabled = !m.running;
-  for (const id of ["pRings", "pPer", "pFrom", "pTo", "pSettle"]) $(id).disabled = m.running;
+  for (const id of ["pPhotos", "pSettle"]) $(id).disabled = m.running;
+  renderLayout();
   $("capNote").textContent = m.running ? (m.paused ? "Paused." : `Shot ${Math.min(m.index + 1, m.total)} of ${m.total}…`) : m.note;
   draw();
 }

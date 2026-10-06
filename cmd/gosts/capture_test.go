@@ -1,27 +1,63 @@
 package main
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestPlanShots(t *testing.T) {
-	shots, err := planShots(Plan{Rings: 3, ElevationFrom: 0, ElevationTo: 60, PerRing: 4})
-	if err != nil || len(shots) != 12 {
-		t.Fatal(len(shots), err)
-	}
-	want := []struct{ e, a float64 }{
-		{0, 0}, {0, 90}, {0, -180}, {0, -90}, // ring 1 round one way
-		{30, -90}, {30, -180}, {30, 90}, {30, 0}, // ring 2 back, no full unwind
-		{60, 0}, {60, 90}, {60, -180}, {60, -90},
-	}
-	for i, w := range want {
-		if shots[i].Elevation != w.e || shots[i].Azimuth != w.a {
-			t.Fatalf("shot %d: %+v, want %v", i, shots[i], w)
+	m := Motion{ElevationMin: -30, ElevationMax: 90}
+	for _, n := range []int{1, 7, 60, 250} {
+		shots, rows, spacing, err := planShots(Plan{Photos: n}, m)
+		if err != nil || len(shots) != n {
+			t.Fatal(n, len(shots), err)
+		}
+		// All inside the range.
+		for _, s := range shots {
+			if s.Elevation < -30 || s.Elevation > 90 {
+				t.Fatalf("n=%d: %+v outside the range", n, s)
+			}
+		}
+		// Even: every point's nearest neighbour is about one spacing away.
+		if n >= 7 {
+			pos := func(s shot) [3]float64 {
+				e, a := rad(s.Elevation), rad(s.Azimuth)
+				return [3]float64{math.Cos(e) * math.Cos(a), math.Cos(e) * math.Sin(a), math.Sin(e)}
+			}
+			lo, hi := math.Inf(1), 0.0
+			for i, a := range shots {
+				best := math.Inf(1)
+				for j, b := range shots {
+					if i != j {
+						pa, pb := pos(a), pos(b)
+						d := deg(math.Acos(math.Min(1, pa[0]*pb[0]+pa[1]*pb[1]+pa[2]*pb[2])))
+						best = math.Min(best, d)
+					}
+				}
+				lo, hi = math.Min(lo, best), math.Max(hi, best)
+			}
+			t.Logf("n=%d rows=%d spacing %.1f°: nearest neighbours %.1f°…%.1f°", n, rows, spacing, lo, hi)
+			if lo < 0.5*spacing || hi > 1.6*spacing {
+				t.Fatalf("n=%d: uneven: nearest neighbours %.1f°…%.1f° for a spacing of %.1f°", n, lo, hi, spacing)
+			}
+		}
+		// Order: rows go up in elevation, alternating azimuth direction.
+		for i := 1; i < n; i++ {
+			a, b := shots[i-1], shots[i]
+			if a.Ring == b.Ring {
+				if dir := b.Azimuth - a.Azimuth; (a.Ring%2 == 0) != (dir >= 0) {
+					t.Fatalf("n=%d: row %d not in azimuth order at %d", n, a.Ring, i)
+				}
+			} else if b.Ring != a.Ring+1 {
+				t.Fatalf("n=%d: rows out of order", n)
+			}
 		}
 	}
-	if _, err := planShots(Plan{Rings: 0, PerRing: 4}); err == nil {
-		t.Fatal("0 rings accepted")
+	if _, _, _, err := planShots(Plan{Photos: 0}, m); err == nil {
+		t.Fatal("0 photos accepted")
 	}
-	if one, _ := planShots(Plan{Rings: 1, ElevationFrom: 20, ElevationTo: 80, PerRing: 2}); one[0].Elevation != 20 {
-		t.Fatal("a single ring should be at the lowest elevation", one[0])
+	if _, _, _, err := planShots(Plan{Photos: 10}, Motion{ElevationMin: 40, ElevationMax: 10}); err == nil {
+		t.Fatal("empty range accepted")
 	}
 }
 

@@ -49,14 +49,11 @@ type Motion struct {
 	MultiTurn bool `toml:"MultiTurn"`
 }
 
-// Plan is a capture: rings of photos at evenly spaced elevations, each ring
-// all the way round the object.
+// Plan is a capture: Photos points spread evenly over the part of the sphere
+// round the object that the camera can reach (Motion's elevation range).
 type Plan struct {
-	Rings         int     `toml:"Rings"`         // elevation levels
-	ElevationFrom float64 `toml:"ElevationFrom"` // degrees, first ring
-	ElevationTo   float64 `toml:"ElevationTo"`   // degrees, last ring
-	PerRing       int     `toml:"PerRing"`       // photos per ring (azimuth steps)
-	SettleMS      int     `toml:"SettleMS"`      // wait after arriving, before the shot
+	Photos   int `toml:"Photos"`
+	SettleMS int `toml:"SettleMS"` // wait after arriving, before the shot
 }
 
 func defaultConfig() Config {
@@ -64,7 +61,7 @@ func defaultConfig() Config {
 		ListenAddr: ":8081",
 		Roles:      Roles{ElevationLeader: 10, ElevationFollower: 11, Azimuth: 12, LeaderMirrored: true},
 		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -30, ElevationMax: 90, MultiTurn: true},
-		Plan:       Plan{Rings: 3, ElevationFrom: 0, ElevationTo: 60, PerRing: 24, SettleMS: 800},
+		Plan:       Plan{Photos: 60, SettleMS: 800},
 	}
 }
 

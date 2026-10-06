@@ -225,10 +225,12 @@ leader, mirrored; #11 elevation follower; #12 azimuth), the speed, the elevation
 the rig's servos to multi-turn so moves never take the long way round.
 
 The page has the controls on the left (live elevation/azimuth with Go, Stop and Torque, and a
-**capture plan**: rings of photos at evenly spaced elevations, all the way round the object, with
-Start, Pause and Stop) and a live perspective view of the rig on the right, with every planned shot
-turning with the platform and turning green once taken. Rings alternate direction so the platform
-never unwinds a whole turn. Camera control (Sony A6600 over USB, with live preview) is next; for
+**capture plan**: just the number of photos, with Start, Pause and Stop) and a live perspective view
+of the rig on the right, with every planned shot turning with the platform and turning green once
+taken. The photos are spread as evenly as possible over the part of the sphere round the object the
+camera can reach (the elevation range in Setup, which keeps the frame clear of the posts), on a
+golden-angle spiral, and taken in rows of similar elevation, each row in azimuth order with
+alternating direction, so the arm moves little and the platform never unwinds a whole turn. Camera control (Sony A6600 over USB, with live preview) is next; for
 now each shot waits for the rig to settle and records where it really is.
 
 Settings are kept in `gosts/config.toml` in the user's config directory (`-config` to change).

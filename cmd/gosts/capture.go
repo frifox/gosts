@@ -1,16 +1,19 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"slices"
 	"sync"
 	"time"
 )
 
 // shot is one planned photo.
 type shot struct {
-	Ring      int     `json:"ring"`
+	Ring      int     `json:"ring"` // row of similar elevation, in shooting order
 	Elevation float64 `json:"elevation"`
 	Azimuth   float64 `json:"azimuth"`
 	Done      bool    `json:"done"`
@@ -20,29 +23,57 @@ type shot struct {
 	ActualAzimuth   float64 `json:"actualAzimuth,omitempty"`
 }
 
-// planShots lays out the shots: rings at evenly spaced elevations, each
-// evenly round the object. Rings alternate direction so the platform never
-// unwinds a whole turn between them.
-func planShots(p Plan) ([]shot, error) {
-	if p.Rings < 1 || p.Rings > 20 || p.PerRing < 1 || p.PerRing > 360 {
-		return nil, errors.New("rings must be 1–20 and photos per ring 1–360")
+// planShots spreads p.Photos points as evenly as possible over the band of
+// the sphere round the object between m's elevation limits (so the camera
+// stays clear of the posts and base), and orders them for shooting.
+//
+// Placement is a Fibonacci (golden angle) spiral restricted to the band:
+// heights on the sphere (sin of the elevation) are evenly spaced, which gives
+// every point the same area, and each point turns by the golden angle from
+// the previous one, so no direction lines up. The points are then taken in
+// rows of similar elevation (so the heavy arm moves little), each row in
+// azimuth order, alternating direction so the platform never unwinds a whole
+// turn. spacing is the typical angle between neighbouring points.
+func planShots(p Plan, m Motion) (shots []shot, rows int, spacing float64, err error) {
+	if p.Photos < 1 || p.Photos > 2000 {
+		return nil, 0, 0, errors.New("photos must be 1–2000")
 	}
-	var out []shot
-	for r := 0; r < p.Rings; r++ {
-		e := p.ElevationFrom
-		if p.Rings > 1 {
-			e += (p.ElevationTo - p.ElevationFrom) * float64(r) / float64(p.Rings-1)
-		}
-		for i := 0; i < p.PerRing; i++ {
-			k := i
+	lo, hi := math.Max(-90, m.ElevationMin), math.Min(90, m.ElevationMax)
+	if lo >= hi {
+		return nil, 0, 0, errors.New("the elevation range in Setup is empty")
+	}
+	n := p.Photos
+	z0, z1 := math.Sin(rad(lo)), math.Sin(rad(hi))
+	golden := math.Pi * (3 - math.Sqrt(5)) // ≈137.5°
+	pts := make([]shot, n)
+	for i := range pts {
+		z := z0 + (z1-z0)*(float64(i)+0.5)/float64(n)
+		pts[i] = shot{Elevation: round1(deg(math.Asin(z))), Azimuth: round1(wrap180(deg(float64(i) * golden)))}
+	}
+	// Spacing: the band's area (2π·Δz on a unit sphere) shared by n points.
+	area := 2 * math.Pi * (z1 - z0)
+	spacing = deg(math.Sqrt(area / float64(n)))
+	// Rows: as many as the band's height holds at that spacing.
+	rows = max(1, min(n, int(math.Round((hi-lo)/spacing))))
+	slices.SortStableFunc(pts, func(a, b shot) int { return cmp.Compare(a.Elevation, b.Elevation) })
+	for r := 0; r < rows; r++ {
+		row := pts[r*n/rows : (r+1)*n/rows]
+		slices.SortStableFunc(row, func(a, b shot) int {
 			if r%2 == 1 {
-				k = p.PerRing - 1 - i
+				return cmp.Compare(b.Azimuth, a.Azimuth)
 			}
-			out = append(out, shot{Ring: r, Elevation: e, Azimuth: wrap180(360 * float64(k) / float64(p.PerRing))})
+			return cmp.Compare(a.Azimuth, b.Azimuth)
+		})
+		for k := range row {
+			row[k].Ring = r
 		}
 	}
-	return out, nil
+	return pts, rows, spacing, nil
 }
+
+func rad(d float64) float64    { return d * math.Pi / 180 }
+func deg(r float64) float64    { return r * 180 / math.Pi }
+func round1(v float64) float64 { return math.Round(v*10) / 10 }
 
 // capture runs a plan.
 type capture struct {
@@ -58,6 +89,8 @@ type capture struct {
 	cancel  context.CancelFunc
 	resume  chan struct{}
 	started time.Time
+	rows    int
+	spacing float64
 }
 
 type captureMsg struct {
@@ -69,13 +102,15 @@ type captureMsg struct {
 	Shots   []shot  `json:"shots"`
 	Note    string  `json:"note"`
 	Elapsed float64 `json:"elapsed"` // s
+	Rows    int     `json:"rows"`
+	Spacing float64 `json:"spacing"` // degrees between neighbouring shots
 }
 
 func (c *capture) msg() captureMsg {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	m := captureMsg{Type: "capture", Running: c.running, Paused: c.paused, Index: c.index, Total: len(c.shots),
-		Shots: append([]shot(nil), c.shots...), Note: c.note}
+		Shots: append([]shot(nil), c.shots...), Note: c.note, Rows: c.rows, Spacing: c.spacing}
 	if c.running {
 		m.Elapsed = time.Since(c.started).Seconds()
 	}
@@ -86,7 +121,7 @@ func (c *capture) send() { c.out(c.msg()) }
 
 // preview lays out a plan without running it (for the rig view).
 func (c *capture) preview(p Plan) error {
-	shots, err := planShots(p)
+	shots, rows, spacing, err := planShots(p, c.rig.cfg.get().Motion)
 	if err != nil {
 		return err
 	}
@@ -95,7 +130,7 @@ func (c *capture) preview(p Plan) error {
 		c.mu.Unlock()
 		return errors.New("a capture is running")
 	}
-	c.shots, c.index, c.note = shots, 0, ""
+	c.shots, c.index, c.note, c.rows, c.spacing = shots, 0, "", rows, spacing
 	c.mu.Unlock()
 	c.send()
 	return nil
@@ -106,7 +141,7 @@ func (c *capture) start(p Plan) error {
 	if _, err := c.rig.ready(); err != nil {
 		return err
 	}
-	shots, err := planShots(p)
+	shots, rows, spacing, err := planShots(p, c.rig.cfg.get().Motion)
 	if err != nil {
 		return err
 	}
@@ -118,9 +153,10 @@ func (c *capture) start(p Plan) error {
 		return errors.New("a capture is already running")
 	}
 	c.shots, c.index, c.running, c.paused, c.cancel = shots, 0, true, false, cancel
+	c.rows, c.spacing = rows, spacing
 	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
 	c.mu.Unlock()
-	c.rig.logf("info", "capture started: %d photos (%d rings × %d)", len(shots), p.Rings, p.PerRing)
+	c.rig.logf("info", "capture started: %d photos in %d rows, about %.0f° apart", len(shots), rows, spacing)
 	c.send()
 	go c.run(ctx, p)
 	return nil
