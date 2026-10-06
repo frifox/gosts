@@ -186,8 +186,8 @@ td.mono { font-family: var(--mono); }
           <button class="btn primary" id="goBtn">Go</button>
         </div>
         <table class="servos" style="margin-top:12px">
-          <colgroup><col style="width:12%"><col style="width:30%"><col style="width:14%"><col style="width:10%"><col style="width:8%"><col style="width:8%"><col style="width:18%"></colgroup>
-          <thead><tr><th>Servo</th><th>Role</th><th>Angle</th><th>Load</th><th>V</th><th>°C</th><th></th></tr></thead>
+          <colgroup><col style="width:13%"><col style="width:32%"><col style="width:15%"><col style="width:11%"><col style="width:9%"><col style="width:20%"></colgroup>
+          <thead><tr><th>Servo</th><th>Role</th><th>Angle</th><th>Load</th><th>V</th><th></th></tr></thead>
           <tbody id="servoRows"></tbody>
         </table>
         <p class="hint" id="spreadHint"></p>
@@ -435,7 +435,7 @@ function onTelemetry(m) {
   const rows = Object.entries(m.servos).map(([id, s]) => {
     const ang = s.error ? "–" : `${(((s.pos * 360 / 4096) + 180) % 360 - 180).toFixed(1)}°`;
     const st = s.error ? `<span style="color:var(--bad)">${s.error}</span>` : s.status !== "ok" ? `<span style="color:var(--warn)">${s.status}</span>` : s.moving ? "moving" : "";
-    return `<tr><td class="mono">#${id}</td><td>${s.role}</td><td class="mono">${ang}</td><td class="mono">${s.error ? "–" : s.load.toFixed(0) + "%"}</td><td class="mono">${s.error ? "–" : s.volt.toFixed(1)}</td><td class="mono">${s.error ? "–" : s.temp}</td><td title="${s.error || (s.status !== "ok" ? s.status : "")}">${st}</td></tr>`;
+    return `<tr><td class="mono">#${id}</td><td>${s.role}</td><td class="mono">${ang}</td><td class="mono">${s.error ? "–" : s.load.toFixed(0) + "%"}</td><td class="mono">${s.error ? "–" : s.volt.toFixed(1)}</td><td title="${s.error || (s.status !== "ok" ? s.status : "")}">${st}</td></tr>`;
   });
   $("servoRows").innerHTML = rows.join("");
   const tq = Object.values(m.servos).filter((s) => !s.error).map((s) => s.torque);
