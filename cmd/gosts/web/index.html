@@ -47,7 +47,9 @@ header .sub { color: var(--muted); font-size: 12px; }
 .field { display: grid; grid-template-columns: 96px 1fr 76px; gap: 8px; align-items: center; margin-top: 8px; }
 .field label { color: var(--muted); font-size: 13px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-.grid2 label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
+.grid2 label, .grid4 label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 8px; }
+.grid4 .span2 { grid-column: span 2; }
 input[type=number], select { width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: 13px var(--mono); }
 input[type=range] { width: 100%; accent-color: var(--accent); }
 .btn { border: 1px solid var(--border); background: var(--panel-2); color: var(--text); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
@@ -176,19 +178,18 @@ td.mono { font-family: var(--mono); }
       <h2 class="toggle" id="rigCfgToggle" title="The rig's measurements, for the 3D view">Rig config</h2>
       <div class="card-body">
         <p class="hint" style="margin-top:0">Measurements in mm, seen from above: X along the base sides that carry the posts (the direction the swing arms point), Y along the tilt axis, Z up. The 3D view follows the fields as you type.</p>
-        <div class="grid2" style="margin-top:10px">
-          <label>Base X<input type="number" id="dBaseX" step="10"></label>
-          <label>Base Y<input type="number" id="dBaseY" step="10"></label>
-          <label>Post Z (post height)<input type="number" id="dPostZ" step="10"></label>
-          <label>Platform Z (turntable height)<input type="number" id="dPlatformZ" step="10"></label>
-          <label>Swing X (arm length)<input type="number" id="dSwingX" step="10"></label>
-          <label>Swing Y (bar length)<input type="number" id="dSwingY" step="10"></label>
-          <label>Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
-          <span></span>
-          <label>Min elevation °<input type="number" id="dElevMin" step="1"></label>
-          <label>Max elevation °<input type="number" id="dElevMax" step="1"></label>
+        <div class="grid4" style="margin-top:10px">
+          <label title="Base frame, along the sides that carry the posts">Base X<input type="number" id="dBaseX" step="10"></label>
+          <label title="Base frame, along the tilt axis">Base Y<input type="number" id="dBaseY" step="10"></label>
+          <label title="Swing arm length">Swing X<input type="number" id="dSwingX" step="10"></label>
+          <label title="Swing bar length (camera bar)">Swing Y<input type="number" id="dSwingY" step="10"></label>
+          <label title="Post height">Post Z<input type="number" id="dPostZ" step="10"></label>
+          <label title="Turntable height">Platform Z<input type="number" id="dPlatformZ" step="10"></label>
+          <label title="Camera position along the arms: + towards the object" class="span2">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
+          <label class="span2">Min elevation °<input type="number" id="dElevMin" step="1"></label>
+          <label class="span2">Max elevation °<input type="number" id="dElevMax" step="1"></label>
         </div>
-        <p class="hint">Camera X offset: where the camera sits along the arms from the camera bar; + is towards the object, − away from it. Min/max elevation: the camera never goes outside this range (keep it clear of the posts and base); the capture plan spreads its photos over it.</p>
+        <p class="hint">Base X/Y: the base frame; swing X/Y: the tilting frame's arms and bars; post Z: post height; platform Z: turntable height. Camera X offset: where the camera sits along the arms from the camera bar; + is towards the object, − away from it. Min/max elevation: the camera never goes outside this range (keep it clear of the posts and base); the capture plan spreads its photos over it.</p>
         <div class="err" id="rigErr"></div>
         <div class="row" style="margin-top:10px">
           <button class="btn small" id="dDefaults">Defaults</button>
