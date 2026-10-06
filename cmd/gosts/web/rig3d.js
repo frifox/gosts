@@ -154,8 +154,12 @@ function a6600() {
   const fx = D / 2 + 6 + 52 + 6;
   const housing = new THREE.Mesh(new THREE.TorusGeometry(48, 9, 20, 64), mat.flashBody);
   housing.rotation.y = Math.PI / 2; housing.position.set(fx, ly, lz); housing.castShadow = true; g.add(housing);
-  const diffuser = new THREE.Mesh(new THREE.RingGeometry(40, 56, 64), mat.flash);
+  const diffuser = new THREE.Mesh(new THREE.RingGeometry(40, 56, 64), mat.flash.clone()); // own material: it flashes
   diffuser.rotation.y = Math.PI / 2; diffuser.position.set(fx + 9.2, ly, lz); g.add(diffuser);
+  // The flash's light (off until a photo; see flashTick).
+  const light = new THREE.PointLight(0xfff6e8, 0, 1400, 0);
+  light.position.set(fx + 30, ly, lz); g.add(light);
+  g.userData.flash = { mat: diffuser.material, light };
   // Its controller on the hot shoe.
   g.add(box(30, 26, 44, mat.flashBody, 2, H / 2 + 17, -10, 3));
   g.userData.lensFront = new THREE.Vector3(fx + 10, ly, lz);
@@ -317,7 +321,17 @@ export function createRig(container) {
     nextRing.visible = false;
     shotGroup.add(nextRing);
 
-    rig = { d, root, tilt, turn, camera, sight, sightGeo, shotGroup, nextRing, shotMesh: null, shotKey: "",
+    // Dot flashes (see flashTick): a few glowing spheres, reused.
+    const pops = [];
+    for (let k = 0; k < 6; k++) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12),
+        new THREE.MeshBasicMaterial({ color: 0xfff6e8, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+      m.visible = false;
+      shotGroup.add(m);
+      pops.push({ m, age: Infinity });
+    }
+
+    rig = { d, root, tilt, turn, camera, sight, sightGeo, shotGroup, nextRing, shotMesh: null, shotKey: "", pops, shotR: 5,
       orbit: barX - d.CameraOffset + 40, // camera (lens) distance from the tilt axis
       objectCentre: V(0, d.TurntableZ + d.ObjectZ / 2, 0), // the object's middle
       target: V(0, (pivotY + d.TurntableZ) / 2, 0) };
@@ -362,7 +376,7 @@ export function createRig(container) {
         rig.shotGroup.add(rig.pathLine);
       }
       if (list.length) {
-        const r = Math.max(3, Math.min(7, 110 / Math.sqrt(list.length)));
+        const r = rig.shotR = Math.max(3, Math.min(7, 110 / Math.sqrt(list.length)));
         rig.shotMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(r, 16, 12),
           new THREE.MeshStandardMaterial({ roughness: 0.4, transparent: true, opacity: 0.85 }), list.length);
         rig.shotGroup.add(rig.shotMesh);
@@ -661,7 +675,11 @@ export function createRig(container) {
         mesh.setMatrixAt(pv.consumed++, tmpM.makeScale(0, 0, 0));
         changed = true;
       }
-      if (changed) mesh.instanceMatrix.needsUpdate = true;
+      if (changed) {
+        mesh.instanceMatrix.needsUpdate = true;
+        const s = pv.shots[pv.consumed - 1];
+        flash(shotPos(s.elevation, s.azimuth)); // the photo
+      }
     }
     // The trail: recorded while moving; afterwards it keeps ageing, so it
     // catches up with the last shot at the same pace.
@@ -680,12 +698,14 @@ export function createRig(container) {
   // tail runs out; then the dots come back, taken ones green.
   function startCapture() {
     stopPreview();
-    cv = { ...makeComet(), clock: 0, index: last.index ?? 0, shotAt: [], tail: 2, dist: 0, moving: 0 };
+    cv = { ...makeComet(), clock: 0, index: last.index ?? 0, shotAt: [], tail: 2, dist: 0, moving: 0, flashes: [] };
   }
   function captureShots(u) {
     // Ended: the last photo taken, or stopped. The view runs DELAY behind.
     if (!cv.ended && (!u.running || (u.index ?? 0) >= (u.shots?.length ?? 0))) { cv.ended = true; cv.endAt = cv.clock + DELAY / 1000; }
     if ((u.index ?? 0) > cv.index) {
+      const s = u.shots?.[u.index - 1];
+      if (s) cv.flashes.push({ at: cv.clock + DELAY / 1000, p: shotPos(s.actualElevation ?? s.elevation, s.actualAzimuth ?? s.azimuth) });
       cv.index = u.index;
       cv.shotAt.push(cv.clock);
       const at = cv.shotAt.slice(-6);
@@ -695,6 +715,8 @@ export function createRig(container) {
   function captureTick(dt) {
     if (!cv) return;
     cv.clock += dt;
+    // Photos taken show as the view catches up (it runs DELAY behind).
+    while (cv.flashes.length && cv.clock >= cv.flashes[0].at) flash(cv.flashes.shift().p);
     const running = !(cv.ended && cv.clock >= cv.endAt); // moving through this capture's shots
     cv.ball.visible = running;
     if (running) {
@@ -717,12 +739,44 @@ export function createRig(container) {
     }
   }
 
+  // ---------------------------------------------------------------- photo flash
+  // When a photo is taken its dot pops (a glow that swells and fades) and
+  // the ring flash fires lightly: the diffuser glows and briefly lights the
+  // scene from the camera.
+  const POP = 0.45, FLASH = 0.3; // s
+  let flashAge = Infinity;
+  const flashBase = new THREE.Color(0x2a2d33), flashHot = new THREE.Color(0xfff6e8);
+  function flash(p) {
+    const pop = rig.pops.reduce((a, b) => (b.age > a.age ? b : a)); // the oldest
+    pop.age = 0;
+    pop.m.position.copy(p);
+    pop.m.visible = true;
+    flashAge = 0;
+  }
+  function flashTick(dt) {
+    for (const pop of rig.pops) {
+      if (pop.age >= POP) { pop.m.visible = false; continue; }
+      pop.age += dt;
+      const f = Math.min(1, pop.age / POP);
+      pop.m.scale.setScalar(rig.shotR * (1 + 2 * Math.sqrt(f)));
+      pop.m.material.opacity = 0.85 * (1 - f) * (1 - f);
+    }
+    const fl = rig.camera.userData.flash;
+    if (flashAge > FLASH) { fl.light.intensity = 0; fl.mat.emissive.copy(flashBase); return; }
+    flashAge += dt;
+    // A quick rise, then an exponential-ish fall.
+    const k = flashAge < 0.03 ? flashAge / 0.03 : Math.pow(1 - Math.min(1, (flashAge - 0.03) / (FLASH - 0.03)), 2);
+    fl.light.intensity = 1.2 * k;
+    fl.mat.emissive.copy(flashBase).lerp(flashHot, k);
+  }
+
   const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
     const dt = Math.min(clock.getDelta(), 0.1);
     if (!pv) { const q = livePose(); setPose(q.e, q.az); } // during a preview the preview poses the rig
     previewTick(dt);
     captureTick(dt);
+    flashTick(dt);
     controls.update();
     renderer.render(scene, cam);
   });
