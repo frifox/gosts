@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gosts rig</title>
+<style>
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --panel-2: #f8f9fb; --border: #e2e5ea;
+  --text: #1c2330; --muted: #6b7484; --accent: #2f6fed; --accent-weak: #2f6fed1f;
+  --ok: #1f9d55; --warn: #c27c0e; --bad: #d64545;
+  --frame: #8a93a3; --frame-2: #b6bdc8; --cam: #2f6fed; --weight: #6b7484; --object: #c27c0e;
+  --pending: #b6bdc8; --done: #1f9d55; --shadow: 0 1px 2px rgba(16,24,40,.06);
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1218; --panel: #171b23; --panel-2: #1d222c; --border: #2a303c;
+    --text: #e6e9ef; --muted: #8b93a3; --accent: #5b8cff; --accent-weak: #5b8cff26;
+    --ok: #3ccf7a; --warn: #f0a742; --bad: #ff6b6b;
+    --frame: #7d8698; --frame-2: #4b5363; --cam: #5b8cff; --weight: #8b93a3; --object: #f0a742;
+    --pending: #4b5363; --done: #3ccf7a; --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; }
+header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
+header h1 { font-size: 15px; margin: 0; font-weight: 650; }
+header .sub { color: var(--muted); font-size: 12px; }
+.spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; background: var(--panel-2); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
+.dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); }
+.layout { flex: 1; display: grid; grid-template-columns: minmax(340px, 430px) 1fr; gap: 14px; padding: 14px; min-height: 0; }
+.left { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; min-height: 0; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+.card > h2 { margin: 0; padding: 10px 14px; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+.card-body { padding: 12px 14px; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.row:first-child { margin-top: 0; }
+.field { display: grid; grid-template-columns: 96px 1fr 76px; gap: 8px; align-items: center; margin-top: 8px; }
+.field label { color: var(--muted); font-size: 13px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.grid2 label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
+input[type=number], select { width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: 13px var(--mono); }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.btn { border: 1px solid var(--border); background: var(--panel-2); color: var(--text); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger { color: var(--bad); }
+.btn.small { padding: 3px 9px; font-size: 12px; }
+.switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.switch input { display: none; }
+.switch .track { width: 34px; height: 20px; border-radius: 10px; background: var(--border); position: relative; transition: background .15s; }
+.switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+.switch input:checked + .track { background: var(--ok); }
+.switch input:checked + .track::after { left: 16px; }
+.hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+.err { color: var(--bad); font-size: 12px; margin-top: 6px; min-height: 0; }
+.mono { font-family: var(--mono); }
+.readout { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tile { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+.tile .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.tile .v { font: 600 20px var(--mono); margin-top: 2px; }
+.tile .v small { font-size: 12px; color: var(--muted); font-weight: 400; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; }
+td.mono { font-family: var(--mono); }
+.progress { height: 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-top: 10px; }
+.progress .bar { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.ports { display: flex; flex-direction: column; gap: 6px; }
+.port { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; background: var(--panel-2); }
+.port.sel { border-color: var(--accent); background: var(--accent-weak); }
+.port .name { font-family: var(--mono); font-size: 12px; }
+.port .detail { color: var(--muted); font-size: 12px; }
+.badge { font-size: 11px; border-radius: 6px; padding: 1px 6px; background: var(--accent-weak); color: var(--accent); }
+#log { font: 12px var(--mono); max-height: 120px; overflow-y: auto; }
+#log div { padding: 1px 0; }
+#log .error { color: var(--bad); }
+.view { position: relative; min-height: 0; display: flex; flex-direction: column; }
+.view .card-body { flex: 1; position: relative; padding: 0; min-height: 300px; }
+#rig { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+#rig.drag { cursor: grabbing; }
+.overlay { position: absolute; left: 12px; top: 12px; display: flex; gap: 8px; pointer-events: none; }
+.overlay .tile { background: color-mix(in srgb, var(--panel) 85%, transparent); }
+.legend { position: absolute; left: 12px; bottom: 10px; display: flex; gap: 12px; font-size: 12px; color: var(--muted); pointer-events: none; }
+.legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; background: var(--c); }
+.views { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-left: auto; text-transform: none; letter-spacing: 0; }
+.views button { border: 0; background: transparent; color: var(--muted); padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.views button.active { background: var(--accent); color: #fff; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+.modal { width: min(520px, 100%); max-height: 100%; overflow-y: auto; }
+[hidden] { display: none !important; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .view .card-body { min-height: 420px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>gosts</h1><span class="sub">photogrammetry rig</span>
+  <span class="spacer"></span>
+  <span class="pill"><span class="dot" id="wsDot"></span><span id="wsText">connecting…</span></span>
+  <span class="pill"><span class="dot" id="busDot"></span><span id="busText">no board</span></span>
+  <button class="btn small" id="setupBtn">Setup…</button>
+</header>
+
+<div class="layout">
+  <div class="left">
+    <section class="card" id="connectCard">
+      <h2>Driver board <span class="spacer"></span><button class="btn small" id="refreshPorts">Refresh</button></h2>
+      <div class="card-body">
+        <div class="ports" id="ports"><div class="hint">Looking for serial ports…</div></div>
+        <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="connectBtn" disabled>Connect</button></div>
+        <p class="hint">Close gosts-ctl first: only one program can use the serial port.</p>
+        <div class="err" id="connectErr"></div>
+      </div>
+    </section>
+
+    <section class="card" id="rigCard">
+      <h2>Rig <span class="spacer"></span>
+        <label class="switch" style="text-transform:none;letter-spacing:0;font-weight:400"><input type="checkbox" id="torque"><span class="track"></span><span>Torque</span></label>
+      </h2>
+      <div class="card-body">
+        <div class="readout">
+          <div class="tile"><div class="k">Elevation</div><div class="v" id="rElev">–</div></div>
+          <div class="tile"><div class="k">Azimuth</div><div class="v" id="rAzim">–</div></div>
+        </div>
+        <div class="field"><label>Elevation</label><input type="range" id="elev" min="-30" max="90" step="0.5" value="0"><input type="number" id="elevNum" step="0.5" value="0"></div>
+        <div class="field"><label>Azimuth</label><input type="range" id="azim" min="-180" max="180" step="1" value="0"><input type="number" id="azimNum" step="1" value="0"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn primary" id="goBtn">Go</button>
+          <button class="btn" id="stopBtn">Stop</button>
+          <span class="spacer"></span>
+          <button class="btn small" id="levelBtn" title="Camera level with the object">Level</button>
+          <button class="btn small" id="homeBtn" title="Elevation 0°, azimuth 0°">Home</button>
+        </div>
+        <table style="margin-top:12px">
+          <thead><tr><th>Servo</th><th>Role</th><th>Angle</th><th>Load</th><th>V</th><th>°C</th><th></th></tr></thead>
+          <tbody id="servoRows"></tbody>
+        </table>
+        <p class="hint" id="spreadHint"></p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Capture plan</h2>
+      <div class="card-body">
+        <div class="grid2">
+          <label>Rings (elevations)<input type="number" id="pRings" min="1" max="20" value="3"></label>
+          <label>Photos per ring<input type="number" id="pPer" min="1" max="360" value="24"></label>
+          <label>Lowest ring °<input type="number" id="pFrom" step="1" value="0"></label>
+          <label>Highest ring °<input type="number" id="pTo" step="1" value="60"></label>
+          <label>Settle before shot (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
+          <label>Total<input type="text" id="pTotal" readonly class="mono" style="padding:5px 8px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text)"></label>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary" id="startBtn">Start</button>
+          <button class="btn" id="pauseBtn" disabled>Pause</button>
+          <button class="btn danger" id="abortBtn" disabled>Stop</button>
+          <span class="spacer"></span>
+          <span class="hint" id="capCount" style="margin:0"></span>
+        </div>
+        <div class="progress"><div class="bar" id="capBar"></div></div>
+        <p class="hint" id="capNote"></p>
+        <p class="hint">Camera: not connected yet: each shot only waits for the rig to settle and records where it is. Sony A6600 support comes next.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Log</h2>
+      <div class="card-body"><div id="log"></div></div>
+    </section>
+  </div>
+
+  <section class="card view">
+    <h2>Live rig <span class="views" id="views">
+      <button data-v="3d" class="active">3D</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button>
+    </span></h2>
+    <div class="card-body">
+      <canvas id="rig"></canvas>
+      <div class="overlay">
+        <div class="tile"><div class="k">Elevation</div><div class="v" id="oElev">–</div></div>
+        <div class="tile"><div class="k">Azimuth</div><div class="v" id="oAzim">–</div></div>
+      </div>
+      <div class="legend">
+        <span style="--c:var(--cam)">camera</span><span style="--c:var(--pending)">planned shot</span><span style="--c:var(--done)">taken</span><span style="--c:var(--accent)">next</span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="modal-backdrop" id="setupModal" hidden>
+  <div class="modal card" role="dialog" aria-modal="true">
+    <h2>Setup</h2>
+    <div class="card-body">
+      <div class="grid2">
+        <label>Elevation leader<select id="sLeader"></select></label>
+        <label class="switch" style="flex-direction:row;align-self:end"><input type="checkbox" id="sLeaderMir"><span class="track"></span><span>Mirrored</span></label>
+        <label>Elevation follower<select id="sFollower"></select></label>
+        <label class="switch" style="flex-direction:row;align-self:end"><input type="checkbox" id="sFollowerMir"><span class="track"></span><span>Mirrored</span></label>
+        <label>Azimuth platform<select id="sAzim"></select></label>
+        <span></span>
+        <label class="switch" style="flex-direction:row"><input type="checkbox" id="sInvE"><span class="track"></span><span>Invert elevation</span></label>
+        <label class="switch" style="flex-direction:row"><input type="checkbox" id="sInvA"><span class="track"></span><span>Invert azimuth</span></label>
+      </div>
+      <p class="hint">The two top servos move together as one group, the leader deciding the goal. Mark the servo that faces its partner as mirrored, so the same command tilts both the same way. Elevation 0° is the camera level with the object (the servos' own 0°, set with gosts-ctl → Set 0° to), positive is up; invert if it goes the wrong way. Azimuth 0° is the platform's own 0°.</p>
+      <div class="grid2" style="margin-top:12px">
+        <label>Speed (step/s)<input type="number" id="sSpeed" min="50" max="3400" step="50"></label>
+        <label>Acceleration (100 step/s²)<input type="number" id="sAcc" min="1" max="254"></label>
+        <label>Lowest elevation °<input type="number" id="sEMin" step="1"></label>
+        <label>Highest elevation °<input type="number" id="sEMax" step="1"></label>
+      </div>
+      <div class="row" style="margin-top:10px"><label class="switch"><input type="checkbox" id="sMulti"><span class="track"></span><span>Enable multi-turn on the rig's servos (recommended)</span></label></div>
+      <p class="hint">In single-turn mode a move across a servo's 0/360° point goes the long way, nearly a full turn, which could swing the frame into the posts. With this on, the three servos are switched to multi-turn when gosts connects, so every move takes the short way.</p>
+      <p class="hint">Found on the bus: <span id="sFound" class="mono">–</span> <button class="btn small" id="sScan">Scan again</button></p>
+      <div class="err" id="setupErr"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn small" id="sDisconnect">Disconnect board</button>
+        <span class="spacer"></span>
+        <button class="btn" id="sCancel">Cancel</button>
+        <button class="btn primary" id="sSave">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { server: null, cap: null, tele: null, view: { yaw: -0.75, pitch: 0.42, zoom: 1 }, selectedPort: null, ports: [] };
+
+// ---------------------------------------------------------------- websocket
+let ws, seq = 0;
+const pending = new Map();
+function connectWS() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onopen = () => { setPill("ws", true, "ws connected"); send("ports").then(renderPorts).catch(() => {}); };
+  ws.onclose = () => {
+    setPill("ws", false, "ws disconnected");
+    for (const p of pending.values()) p.reject(new Error("disconnected"));
+    pending.clear();
+    setTimeout(connectWS, 1000);
+  };
+  ws.onmessage = (e) => onMessage(JSON.parse(e.data));
+}
+function send(type, payload = {}) {
+  return new Promise((resolve, reject) => {
+    if (!ws || ws.readyState !== 1) return reject(new Error("not connected to gosts"));
+    const s = ++seq;
+    pending.set(s, { resolve, reject });
+    ws.send(JSON.stringify({ seq: s, type, ...payload }));
+  });
+}
+async function act(type, payload, errEl) {
+  try { return await send(type, payload); }
+  catch (e) { if (errEl) errEl.textContent = e.message; else log(e.message, "error"); return undefined; }
+}
+function onMessage(m) {
+  switch (m.type) {
+    case "result": {
+      const p = pending.get(m.seq);
+      if (!p) return;
+      pending.delete(m.seq);
+      m.ok ? p.resolve(m.data) : p.reject(new Error(m.error));
+      break;
+    }
+    case "state": onState(m); break;
+    case "telemetry": onTelemetry(m); break;
+    case "capture": onCapture(m); break;
+    case "log": log(m.message, m.level); break;
+  }
+}
+function setPill(which, ok, text, warn) {
+  $(which + "Dot").className = "dot" + (ok ? " ok" : warn ? " warn" : "");
+  $(which + "Text").textContent = text;
+}
+function log(msg, level = "info") {
+  const d = document.createElement("div");
+  d.className = level;
+  d.textContent = `${new Date().toLocaleTimeString()} ${msg}`;
+  $("log").prepend(d);
+  while ($("log").childElementCount > 200) $("log").lastChild.remove();
+}
+
+// ---------------------------------------------------------------- board
+function renderPorts(ports) {
+  state.ports = ports || [];
+  const el = $("ports");
+  const items = [...state.ports.map((p) => ({ name: p.name, detail: p.detail, likely: p.likely })), { name: "sim", detail: "Simulated rig (servos 10, 11, 12)", sim: true }];
+  if (!state.selectedPort) state.selectedPort = (items.find((p) => p.likely) || {}).name || null;
+  el.innerHTML = "";
+  for (const p of items) {
+    const d = document.createElement("div");
+    d.className = "port" + (p.name === state.selectedPort ? " sel" : "");
+    d.innerHTML = `<span class="name"></span><span class="detail"></span>${p.likely ? '<span class="badge">likely adapter</span>' : ""}`;
+    d.querySelector(".name").textContent = p.sim ? "Simulator" : p.name;
+    d.querySelector(".detail").textContent = p.detail || "";
+    d.onclick = () => { state.selectedPort = p.name; renderPorts(state.ports); };
+    el.appendChild(d);
+  }
+  $("connectBtn").disabled = !state.selectedPort;
+}
+$("refreshPorts").onclick = () => send("ports").then(renderPorts).catch((e) => ($("connectErr").textContent = e.message));
+$("connectBtn").onclick = async () => {
+  $("connectErr").textContent = "";
+  $("connectBtn").disabled = true;
+  await act("connect", { port: state.selectedPort, baud: 1000000 }, $("connectErr"));
+  $("connectBtn").disabled = false;
+};
+
+function onState(m) {
+  state.server = m;
+  const c = m.config, r = c.Roles;
+  $("connectCard").hidden = m.connected;
+  if (!m.connected) setPill("bus", false, "no board");
+  else if (m.scanning) setPill("bus", false, `scanning ${m.port}…`, true);
+  else {
+    const missing = [r.ElevationLeader, r.ElevationFollower, r.Azimuth].filter((id) => !m.found.includes(id));
+    setPill("bus", !missing.length, missing.length ? `missing servo ${missing.join(", ")}` : `${m.port === "sim" ? "simulator" : m.port}`, !!missing.length);
+  }
+  // Motion limits for the elevation controls.
+  for (const id of ["elev"]) { $(id).min = c.Motion.ElevationMin; $(id).max = c.Motion.ElevationMax; }
+  if (!state.planLoaded) { loadPlan(c.Plan); state.planLoaded = true; }
+  if (!$("setupModal").hidden) fillSetup();
+  draw();
+}
+
+// ---------------------------------------------------------------- rig controls
+function pair(id, onCommit) {
+  const r = $(id), n = $(id + "Num");
+  r.oninput = () => { n.value = r.value; state.editing = true; };
+  n.oninput = () => { r.value = n.value; state.editing = true; };
+  n.onkeydown = (e) => { if (e.key === "Enter") onCommit(); };
+}
+pair("elev", () => goTo());
+pair("azim", () => goTo());
+function goTo(e = Number($("elevNum").value), a = Number($("azimNum").value)) {
+  state.editing = false;
+  act("move", { elevation: e, azimuth: a });
+}
+$("goBtn").onclick = () => goTo();
+$("stopBtn").onclick = () => act("stop");
+$("levelBtn").onclick = () => { setControls(0, null); goTo(0, Number($("azimNum").value)); };
+$("homeBtn").onclick = () => { setControls(0, 0); goTo(0, 0); };
+$("torque").onchange = (e) => act("torque", { on: e.target.checked });
+function setControls(e, a) {
+  if (e !== null && e !== undefined) { $("elev").value = $("elevNum").value = (+e).toFixed(1); }
+  if (a !== null && a !== undefined) { $("azim").value = $("azimNum").value = Math.round(a); }
+}
+const fmt = (d) => d === null || d === undefined ? "–" : `${d.toFixed(1)}<small>°</small>`;
+
+function onTelemetry(m) {
+  state.tele = m;
+  $("rElev").innerHTML = $("oElev").innerHTML = fmt(m.elevation);
+  $("rAzim").innerHTML = $("oAzim").innerHTML = fmt(m.azimuth);
+  if (!state.editing && m.target && document.activeElement?.tagName !== "INPUT") setControls(m.target[0], m.target[1]);
+  const r = state.server?.config.Roles;
+  const rows = Object.entries(m.servos).map(([id, s]) => {
+    const ang = s.error ? "–" : `${(((s.pos * 360 / 4096) + 180) % 360 - 180).toFixed(1)}°`;
+    const st = s.error ? `<span style="color:var(--bad)">${s.error}</span>` : s.status !== "ok" ? `<span style="color:var(--warn)">${s.status}</span>` : s.moving ? "moving" : "";
+    return `<tr><td class="mono">#${id}</td><td>${s.role}</td><td class="mono">${ang}</td><td class="mono">${s.error ? "–" : s.load.toFixed(0) + "%"}</td><td class="mono">${s.error ? "–" : s.volt.toFixed(1)}</td><td class="mono">${s.error ? "–" : s.temp}</td><td>${st}</td></tr>`;
+  });
+  $("servoRows").innerHTML = rows.join("");
+  const tq = Object.values(m.servos).filter((s) => !s.error).map((s) => s.torque);
+  if (document.activeElement !== $("torque")) { $("torque").checked = tq.length > 0 && tq.every(Boolean); $("torque").indeterminate = tq.some(Boolean) && !tq.every(Boolean); }
+  $("spreadHint").textContent = m.spread > 2 ? `The two elevation servos disagree by ${m.spread.toFixed(1)}°: align them in gosts-ctl (group → Align to leader).` : "";
+  draw();
+}
+
+// ---------------------------------------------------------------- capture plan
+function planFromForm() {
+  return { Rings: Number($("pRings").value), PerRing: Number($("pPer").value), ElevationFrom: Number($("pFrom").value),
+    ElevationTo: Number($("pTo").value), SettleMS: Number($("pSettle").value) };
+}
+function loadPlan(p) {
+  $("pRings").value = p.Rings; $("pPer").value = p.PerRing; $("pFrom").value = p.ElevationFrom; $("pTo").value = p.ElevationTo; $("pSettle").value = p.SettleMS;
+  updateTotal();
+}
+function updateTotal() {
+  const p = planFromForm();
+  $("pTotal").value = `${p.Rings * p.PerRing} photos`;
+}
+let planTimer = null;
+for (const id of ["pRings", "pPer", "pFrom", "pTo", "pSettle"]) {
+  $(id).addEventListener("input", () => {
+    updateTotal();
+    clearTimeout(planTimer);
+    planTimer = setTimeout(() => { if (!state.cap?.running) act("plan", { plan: planFromForm() }, $("capNote")); }, 300);
+  });
+}
+$("startBtn").onclick = () => { $("capNote").textContent = ""; act("start", { plan: planFromForm() }, $("capNote")); };
+$("pauseBtn").onclick = () => act("pause", { on: !state.cap?.paused });
+$("abortBtn").onclick = () => act("stop");
+function onCapture(m) {
+  state.cap = m;
+  const done = m.shots.filter((s) => s.done).length;
+  $("capBar").style.width = m.total ? `${100 * done / m.total}%` : "0";
+  $("capCount").textContent = m.total ? `${done} / ${m.total}` + (m.running ? ` · ${Math.round(m.elapsed)} s` : "") : "";
+  $("startBtn").disabled = m.running;
+  $("pauseBtn").disabled = !m.running;
+  $("pauseBtn").textContent = m.paused ? "Resume" : "Pause";
+  $("abortBtn").disabled = !m.running;
+  for (const id of ["pRings", "pPer", "pFrom", "pTo", "pSettle"]) $(id).disabled = m.running;
+  $("capNote").textContent = m.running ? (m.paused ? "Paused." : `Shot ${Math.min(m.index + 1, m.total)} of ${m.total}…`) : m.note;
+  draw();
+}
+
+// ---------------------------------------------------------------- setup
+$("setupBtn").onclick = () => { fillSetup(); $("setupErr").textContent = ""; $("setupModal").hidden = false; };
+$("sCancel").onclick = () => ($("setupModal").hidden = true);
+function fillSetup() {
+  const m = state.server;
+  if (!m) return;
+  const c = m.config, r = c.Roles;
+  const ids = [...new Set([...m.found, r.ElevationLeader, r.ElevationFollower, r.Azimuth])].sort((a, b) => a - b);
+  for (const [sel, v] of [["sLeader", r.ElevationLeader], ["sFollower", r.ElevationFollower], ["sAzim", r.Azimuth]]) {
+    if (document.activeElement === $(sel)) continue;
+    $(sel).innerHTML = ids.map((id) => `<option value="${id}">#${id}${m.found.includes(id) ? "" : " (not found)"}</option>`).join("");
+    $(sel).value = v;
+  }
+  $("sLeaderMir").checked = r.LeaderMirrored; $("sFollowerMir").checked = r.FollowerMirrored;
+  $("sInvE").checked = r.InvertElevation; $("sInvA").checked = r.InvertAzimuth;
+  $("sMulti").checked = c.Motion.MultiTurn;
+  $("sSpeed").value = c.Motion.Speed; $("sAcc").value = c.Motion.Acc; $("sEMin").value = c.Motion.ElevationMin; $("sEMax").value = c.Motion.ElevationMax;
+  $("sFound").textContent = m.connected ? (m.found.length ? m.found.map((id) => "#" + id).join(" ") : "none") : "no board connected";
+}
+$("sScan").onclick = () => act("scan", {}, $("setupErr"));
+$("sDisconnect").onclick = async () => { await act("disconnect", {}, $("setupErr")); $("setupModal").hidden = true; send("ports").then(renderPorts).catch(() => {}); };
+$("sSave").onclick = async () => {
+  $("setupErr").textContent = "";
+  const roles = { ElevationLeader: +$("sLeader").value, ElevationFollower: +$("sFollower").value, Azimuth: +$("sAzim").value,
+    LeaderMirrored: $("sLeaderMir").checked, FollowerMirrored: $("sFollowerMir").checked, InvertElevation: $("sInvE").checked, InvertAzimuth: $("sInvA").checked };
+  const motion = { Speed: +$("sSpeed").value, Acc: +$("sAcc").value, ElevationMin: +$("sEMin").value, ElevationMax: +$("sEMax").value, MultiTurn: $("sMulti").checked };
+  try {
+    await send("roles", { roles });
+    await send("motion", { motion });
+    $("setupModal").hidden = true;
+  } catch (e) { $("setupErr").textContent = e.message; }
+};
+
+// ---------------------------------------------------------------- live rig (3D)
+// Rig geometry in mm: x along the base's 600 mm sides, y across (500 mm),
+// z up; the origin is the middle of the base on the floor.
+const RIG = {
+  baseX: 600, baseY: 500,       // 2020 base frame
+  post: 600,                     // vertical posts, in the middle of the 600 mm sides (x = 0, y = ±250)
+  armLen: 600, armGap: 450,      // tilting frame: 600 mm arms joined by 450 mm bars
+  platformZ: 330, platformR: 120, // turntable (height and radius are estimates)
+  objectH: 230,
+};
+const PIVOT = [0, 0, RIG.post];
+
+const cssv = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const rad = (d) => d * Math.PI / 180;
+function rotZ(p, a) { const c = Math.cos(a), s = Math.sin(a); return [p[0] * c - p[1] * s, p[0] * s + p[1] * c, p[2]]; }
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+
+// Camera position at elevation e: the camera end of the frame, on the -x side
+// at 0° (looking at the object along +x), straight above the object at +90°.
+const camDir = (e) => [-Math.cos(rad(e)), 0, Math.sin(rad(e))];
+
+let geo; // projection of the current frame
+// EYE is the viewer's distance from the middle of the rig (mm): a
+// perspective view, as from a camera that far away.
+const EYE = 2200;
+function project(p) {
+  const v = state.view, cy = Math.cos(v.yaw), sy = Math.sin(v.yaw), cp = Math.cos(v.pitch), sp = Math.sin(v.pitch);
+  const x = p[0] * cy - p[1] * sy, y = p[0] * sy + p[1] * cy, z = p[2] - 380;
+  // The viewer looks from (0, cp, sp) in rotated coordinates (from the front,
+  // above for a positive pitch); depth is the distance away from it.
+  const d = -(y * cp + z * sp);
+  const k = geo.k * EYE / (EYE + d);
+  return { x: geo.cx + x * k, y: geo.cy - (z * cp - y * sp) * k, d };
+}
+
+function draw() {
+  const cv = $("rig"), dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (!w || !h) return;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  geo = { cx: w / 2, cy: h / 2 + 10, k: Math.min(w, h) / 1150 * state.view.zoom };
+
+  const t = state.tele;
+  const elev = t?.elevation ?? null, azim = t?.azimuth ?? null;
+  const e = elev ?? 0, a = azim ?? 0, live = elev !== null;
+  const col = { frame: cssv("--frame"), frame2: cssv("--frame-2"), cam: cssv("--cam"), weight: cssv("--weight"), obj: cssv("--object"),
+    pending: cssv("--pending"), done: cssv("--done"), next: cssv("--accent"), muted: cssv("--muted"), text: cssv("--text") };
+  const items = []; // painter's algorithm: far first
+  const line = (p, q, color, width, dash) => { const A = project(p), B = project(q); items.push({ d: (A.d + B.d) / 2, f: () => {
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash || []); ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke(); ctx.setLineDash([]); } }); };
+  const dot = (p, r, fill, stroke) => { const A = project(p); items.push({ d: A.d, f: () => {
+    ctx.beginPath(); ctx.arc(A.x, A.y, r, 0, 2 * Math.PI); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); } } }); };
+  const poly = (pts, fill, stroke) => { const P = pts.map(project); items.push({ d: P.reduce((s, q) => s + q.d, 0) / P.length, f: () => {
+    ctx.beginPath(); P.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.stroke(); } } }); };
+  const box = (c, sx, sy, sz, color) => { // axis-aligned, as edges
+    const hx = sx / 2, hy = sy / 2, hz = sz / 2;
+    const v = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]].map((s) => [c[0] + s[0] * hx, c[1] + s[1] * hy, c[2] + s[2] * hz]);
+    for (const [i, j] of [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]]) line(v[i], v[j], color, 1.5);
+  };
+
+  // Floor grid and base frame.
+  const bx = RIG.baseX / 2, by = RIG.baseY / 2;
+  // The floor goes under everything (not depth-sorted).
+  const fl = [[-bx - 60, -by - 60, 0], [bx + 60, -by - 60, 0], [bx + 60, by + 60, 0], [-bx - 60, by + 60, 0]].map(project);
+  ctx.beginPath(); fl.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath();
+  ctx.fillStyle = cssv("--panel-2"); ctx.fill();
+  for (const [p, q] of [[[-bx, -by, 0], [bx, -by, 0]], [[bx, -by, 0], [bx, by, 0]], [[bx, by, 0], [-bx, by, 0]], [[-bx, by, 0], [-bx, -by, 0]]]) line(p, q, col.frame, 5);
+  // Posts and servos.
+  for (const sy of [-1, 1]) {
+    line([0, sy * by, 0], [0, sy * by, RIG.post], col.frame, 5);
+    box([0, sy * by, RIG.post], 40, 30, 45, col.frame);
+  }
+  line([0, -by, RIG.post], [0, by, RIG.post], col.frame2, 1, [4, 4]); // tilt axis
+
+  // Turntable, its front mark, and the object.
+  const segs = 36, tz = RIG.platformZ;
+  line([0, 0, 0], [0, 0, tz], col.frame2, 4);
+  const disc = [];
+  for (let i = 0; i < segs; i++) { const ang = 2 * Math.PI * i / segs; disc.push([Math.cos(ang) * RIG.platformR, Math.sin(ang) * RIG.platformR, tz]); }
+  poly(disc, cssv("--accent-weak"), col.frame);
+  line([0, 0, tz + 1], rotZ([RIG.platformR, 0, tz + 1], rad(a)), col.next, 3); // azimuth 0° mark
+  box([0, 0, tz + RIG.objectH / 2], 90, 90, RIG.objectH, col.obj);
+
+  // Planned shots, on the camera's orbit, turning with the platform: a shot
+  // taken at azimuth s sits where the camera will be relative to the object.
+  const cap = state.cap;
+  if (cap?.shots?.length) {
+    const r = RIG.armLen / 2;
+    cap.shots.forEach((s, i) => {
+      const p = add(PIVOT, mul(rotZ(camDir(s.done ? s.actualElevation ?? s.elevation : s.elevation), rad(a - (s.done ? s.actualAzimuth ?? s.azimuth : s.azimuth))), r));
+      const next = cap.running && i === cap.index;
+      dot(p, next ? 5 : 3.2, s.done ? col.done : next ? null : col.pending, next ? col.next : null);
+    });
+  }
+
+  // Target ghost.
+  if (t?.target && live && Math.abs(t.target[0] - e) > 1) {
+    const g = camDir(t.target[0]), r = RIG.armLen / 2;
+    line(add(PIVOT, mul(g, -r)), add(PIVOT, mul(g, r)), col.next, 1.5, [6, 5]);
+  }
+
+  // Tilting frame: two 600 mm arms joined by 450 mm bars, camera and weights.
+  const d = camDir(e), r = RIG.armLen / 2, gy = RIG.armGap / 2;
+  const frameCol = live ? col.frame : col.muted;
+  const camEnd = add(PIVOT, mul(d, r)), wEnd = add(PIVOT, mul(d, -r));
+  for (const sy of [-1, 1]) line(add(camEnd, [0, sy * gy, 0]), add(wEnd, [0, sy * gy, 0]), frameCol, 5);
+  line(add(camEnd, [0, -gy, 0]), add(camEnd, [0, gy, 0]), frameCol, 5);
+  line(add(wEnd, [0, -gy, 0]), add(wEnd, [0, gy, 0]), frameCol, 5);
+  box(add(wEnd, mul(d, -25)), 50, 120, 50, col.weight);
+  // Camera body facing the object, with its line of sight.
+  const look = mul(d, -1);
+  const camC = add(camEnd, mul(look, 40));
+  box(camC, 70, 120, 75, col.cam);
+  line(add(camC, mul(look, 45)), add(camC, mul(look, 95)), col.cam, 6);
+  line(add(camC, mul(look, 95)), add(PIVOT, mul(look, -60)), col.cam, 1, [3, 5]);
+
+  items.sort((p, q) => q.d - p.d).forEach((it) => it.f());
+
+  if (!live) {
+    ctx.fillStyle = col.muted; ctx.font = "13px -apple-system, sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(state.server?.connected ? "waiting for the servos…" : "no board connected: showing the rig at 0°", w / 2, h - 40);
+  }
+}
+
+// View: drag to turn, wheel to zoom, presets.
+(() => {
+  const cv = $("rig");
+  let drag = null;
+  cv.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, yaw: state.view.yaw, pitch: state.view.pitch }; cv.classList.add("drag"); cv.setPointerCapture(e.pointerId); setView(null); });
+  cv.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    state.view.yaw = drag.yaw + (e.clientX - drag.x) * 0.01;
+    state.view.pitch = Math.max(-0.2, Math.min(Math.PI / 2, drag.pitch + (e.clientY - drag.y) * 0.01));
+    draw();
+  });
+  const end = () => { drag = null; cv.classList.remove("drag"); };
+  cv.addEventListener("pointerup", end);
+  cv.addEventListener("pointercancel", end);
+  cv.addEventListener("wheel", (e) => { e.preventDefault(); state.view.zoom = Math.max(0.5, Math.min(3, state.view.zoom * (e.deltaY < 0 ? 1.1 : 0.9))); draw(); }, { passive: false });
+})();
+const VIEWS = { "3d": [-0.75, 0.42], front: [0, 0], side: [-Math.PI / 2, 0], top: [0, Math.PI / 2] };
+function setView(v) {
+  document.querySelectorAll("#views button").forEach((b) => b.classList.toggle("active", b.dataset.v === v));
+  if (v) { [state.view.yaw, state.view.pitch] = VIEWS[v]; draw(); }
+}
+$("views").addEventListener("click", (e) => { if (e.target.dataset.v) setView(e.target.dataset.v); });
+new ResizeObserver(draw).observe($("rig"));
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+
+connectWS();
+draw();
+</script>
+</body>
+</html>

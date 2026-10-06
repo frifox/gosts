@@ -204,6 +204,35 @@ gosts-ctl adds `github.com/gorilla/websocket` and `github.com/BurntSushi/toml` t
 library packages don't import them. Listing USB port details uses cgo on macOS (the Xcode command
 line tools).
 
+## gosts: photogrammetry rig
+
+[`cmd/gosts`](cmd/gosts) drives a photogrammetry rig built from 2020 extrusions: a 600×500 mm base with a
+600 mm post in the middle of each long side, an ST3215 on top of each post tilting a 600×450 mm frame
+(camera on one 450 mm bar, counterweight on the other) for the camera's **elevation**, and a third
+ST3215 turning the platform under the object for the **azimuth**.
+
+```bash
+go install github.com/frifox/gosts/cmd/gosts@latest
+
+gosts                               # pick the board in the browser (http://localhost:8081)
+gosts -sim                          # simulated rig, no hardware needed
+```
+
+Set up and calibrate the servos with gosts-ctl first (IDs, tuning, and "Set 0° to" so elevation 0° is
+the camera level with the object and azimuth 0° is the platform's front); the two programs can't use
+the serial port at the same time. In gosts, **Setup** assigns the roles (by default #10 elevation
+leader, mirrored; #11 elevation follower; #12 azimuth), the speed, the elevation range, and switches
+the rig's servos to multi-turn so moves never take the long way round.
+
+The page has the controls on the left (live elevation/azimuth with Go, Stop and Torque, and a
+**capture plan**: rings of photos at evenly spaced elevations, all the way round the object, with
+Start, Pause and Stop) and a live perspective view of the rig on the right, with every planned shot
+turning with the platform and turning green once taken. Rings alternate direction so the platform
+never unwinds a whole turn. Camera control (Sony A6600 over USB, with live preview) is next; for
+now each shot waits for the rig to settle and records where it really is.
+
+Settings are kept in `gosts/config.toml` in the user's config directory (`-config` to change).
+
 ## Platform notes
 
 - **Adapter**: set the jumper on the Bus Servo Adapter (A) to the USB/PC position.
