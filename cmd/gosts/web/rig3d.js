@@ -361,5 +361,12 @@ export function createRig(container) {
   resize();
   setDims(DEFAULT_RIG);
   renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, cam); });
-  return { update, setView, setDims };
+  // getView reports where the viewer is, relative to the rig's centre, as
+  // fractions of the preset distance (used to pick the presets).
+  function getView() {
+    const d = rig.d, t = rig.target, far = Math.max(d.BaseX, d.BaseY, d.PostZ + 300) * 2.6;
+    const v = cam.position.clone().sub(t).divideScalar(far);
+    return { x: +v.x.toFixed(2), y: +v.y.toFixed(2), z: +v.z.toFixed(2) };
+  }
+  return { update, setView, setDims, getView };
 }
