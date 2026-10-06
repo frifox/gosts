@@ -81,6 +81,8 @@ th { color: var(--muted); font-weight: 500; }
 td.mono { font-family: var(--mono); }
 .progress { height: 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-top: 10px; }
 .progress .bar { height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.progress.big { height: 22px; position: relative; border-radius: 7px; }
+.progress.big .label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 12px var(--mono); color: var(--text); text-shadow: 0 0 3px var(--panel); }
 .ports { display: flex; flex-direction: column; gap: 6px; }
 .port { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; background: var(--panel-2); }
 .port.sel { border-color: var(--accent); background: var(--accent-weak); }
@@ -143,9 +145,9 @@ td.mono { font-family: var(--mono); }
           <button class="btn" id="pauseBtn" disabled>Pause</button>
           <button class="btn danger" id="abortBtn" disabled>Stop</button>
           <span class="spacer"></span>
-          <span class="hint" id="capCount" style="margin:0"></span>
+          <button class="btn" id="previewBtn" title="Show the camera's path through the planned shots">Preview</button>
         </div>
-        <div class="progress"><div class="bar" id="capBar"></div></div>
+        <div class="progress big"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div>
         <p class="hint" id="capNote"></p>
         <p class="hint">Camera: not connected yet: each shot only waits for the rig to settle and records where it is. Sony A6600 support comes next.</p>
       </div>
@@ -438,11 +440,22 @@ function renderLayout() {
 let planTimer = null;
 for (const id of ["pPhotos", "pSettle"]) {
   $(id).addEventListener("input", () => {
+    if (id === "pPhotos") stopPreview(); // the path changes
     clearTimeout(planTimer);
     planTimer = setTimeout(() => { if (!state.cap?.running) act("plan", { plan: planFromForm() }, $("capNote")); }, 300);
   });
 }
-$("startBtn").onclick = () => { $("capNote").textContent = ""; act("start", { plan: planFromForm() }, $("capNote")); };
+$("startBtn").onclick = () => { stopPreview(); $("capNote").textContent = ""; act("start", { plan: planFromForm() }, $("capNote")); };
+// Preview: the camera's path through the planned shots, animated in the rig
+// view. The button reads Stop while it plays.
+function stopPreview() { window.rig3d?.stopPreview(); }
+$("previewBtn").onclick = () => {
+  if (window.rig3d?.previewing()) return stopPreview();
+  const shots = state.cap?.shots || [];
+  if (shots.length < 2 || !window.rig3d) return;
+  $("previewBtn").textContent = "Stop";
+  window.rig3d.startPreview(shots).then(() => ($("previewBtn").textContent = "Preview"));
+};
 $("pauseBtn").onclick = () => act("pause", { on: !state.cap?.paused });
 $("abortBtn").onclick = () => act("stop");
 function onCapture(m) {
@@ -451,6 +464,8 @@ function onCapture(m) {
   $("capBar").style.width = m.total ? `${100 * done / m.total}%` : "0";
   $("capCount").textContent = m.total ? `${done} / ${m.total}` + (m.running ? ` · ${Math.round(m.elapsed)} s` : "") : "";
   $("startBtn").disabled = m.running;
+  $("previewBtn").disabled = m.running || m.shots.length < 2;
+  if (m.running) stopPreview();
   $("pauseBtn").disabled = !m.running;
   $("pauseBtn").textContent = m.paused ? "Resume" : "Pause";
   $("abortBtn").disabled = !m.running;

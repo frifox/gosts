@@ -228,6 +228,7 @@ export function createRig(container) {
   const shotColors = { pending: new THREE.Color(0x8a93a3), done: new THREE.Color(0x3ccf7a) };
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   let rig = null;       // the built rig: parts that move, and its measurements
+  let pv = null;        // running path preview (see startPreview)
   let last = {};        // last update, re-applied after a rebuild
 
   // build makes the rig from measurements (three.js: x = X, y = Z up, z = Y).
@@ -346,7 +347,7 @@ export function createRig(container) {
       if (rig.shotMesh.instanceColor) rig.shotMesh.instanceColor.needsUpdate = true;
     }
     const next = running && list[index];
-    rig.nextRing.visible = !!next;
+    rig.nextRing.visible = !!next && !pv;
     if (next) {
       rig.nextRing.position.copy(shotPos(next.elevation, next.azimuth));
       rig.nextRing.lookAt(V(0, 0, 0)); // face the object
@@ -358,6 +359,7 @@ export function createRig(container) {
     const dims = { ...DEFAULT_RIG, ...(d || {}) };
     if (rig && JSON.stringify(rig.d) === JSON.stringify(dims)) return;
     const first = !rig;
+    stopPreview();
     build(dims);
     controls.target.copy(rig.target);
     if (first) setView("3d");
@@ -390,7 +392,78 @@ export function createRig(container) {
   new ResizeObserver(resize).observe(container);
   resize();
   setDims(DEFAULT_RIG);
-  renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, cam); });
+  // ---------------------------------------------------------------- path preview
+  // A ball flies through the shots in shooting order (about 1 s per hop,
+  // along the camera's real path over the sphere) with a fading comet tail
+  // about 5 hops long. The swing and camera are hidden meanwhile.
+  const HOP = 1.0, TAIL = 5 * HOP, TRAIL_N = 160;
+  function startPreview(shots) {
+    stopPreview();
+    if (!shots || shots.length < 2) return Promise.resolve();
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 16), new THREE.MeshBasicMaterial({ color: 0x8fb1ff }));
+    const trail = new THREE.InstancedMesh(new THREE.SphereGeometry(4.5, 10, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), TRAIL_N);
+    trail.count = 0;
+    rig.shotGroup.add(ball, trail);
+    rig.tilt.visible = rig.sight.visible = rig.nextRing.visible = false;
+    let done;
+    const finished = new Promise((r) => (done = r));
+    pv = { shots, t: 0, ball, trail, history: [], done };
+    return finished;
+  }
+  function stopPreview() {
+    if (!pv) return;
+    rig.shotGroup.remove(pv.ball, pv.trail);
+    pv.ball.geometry.dispose(); pv.trail.geometry.dispose();
+    rig.tilt.visible = rig.sight.visible = true;
+    const done = pv.done;
+    pv = null;
+    update(last);
+    done();
+  }
+  // Where the ball is after t seconds: between shot i and i+1, elevation and
+  // azimuth change together (azimuth the short way), as the rig moves.
+  function previewPos(shots, t) {
+    const i = Math.min(Math.floor(t / HOP), shots.length - 2), f = Math.min(1, t / HOP - i);
+    const a = shots[i], b = shots[i + 1];
+    let da = b.azimuth - a.azimuth;
+    da = ((da + 540) % 360) - 180;
+    const ease = f * f * (3 - 2 * f); // starts and stops like the servos
+    return shotPos(a.elevation + (b.elevation - a.elevation) * ease, a.azimuth + da * ease);
+  }
+  const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color(), accent = new THREE.Color(0x5b8cff);
+  function previewTick(dt) {
+    if (!pv) return;
+    pv.t += dt;
+    const end = (pv.shots.length - 1) * HOP;
+    const t = Math.min(pv.t, end);
+    const p = previewPos(pv.shots, t);
+    pv.ball.position.copy(p);
+    pv.history.push({ t, p: p.clone() });
+    while (pv.history.length && pv.history[0].t < t - TAIL) pv.history.shift();
+    // Tail: evenly spread over the history, fading (darker = more
+    // transparent with additive blending) and thinning towards its end.
+    const h = pv.history, n = Math.min(TRAIL_N, h.length);
+    for (let k = 0; k < n; k++) {
+      const e = h[Math.floor((k / n) * h.length)];
+      const age = (t - e.t) / TAIL; // 0 = new, 1 = end of the tail
+      const s = 1 - age * 0.85;
+      tmpM.makeScale(s, s, s).setPosition(e.p);
+      pv.trail.setMatrixAt(k, tmpM);
+      pv.trail.setColorAt(k, tmpC.copy(accent).multiplyScalar(Math.pow(1 - age, 1.6) * 0.9));
+    }
+    pv.trail.count = n;
+    pv.trail.instanceMatrix.needsUpdate = true;
+    if (pv.trail.instanceColor) pv.trail.instanceColor.needsUpdate = true;
+    if (pv.t >= end + TAIL * 0.6) stopPreview(); // let the tail fade a little, then end
+  }
+
+  const clock = new THREE.Clock();
+  renderer.setAnimationLoop(() => {
+    previewTick(Math.min(clock.getDelta(), 0.1));
+    controls.update();
+    renderer.render(scene, cam);
+  });
   // getView reports where the viewer is, relative to the rig's centre, as
   // fractions of the preset distance (used to pick the presets).
   function getView() {
@@ -398,5 +471,5 @@ export function createRig(container) {
     const v = cam.position.clone().sub(t).divideScalar(far);
     return { x: +v.x.toFixed(2), y: +v.y.toFixed(2), z: +v.z.toFixed(2) };
   }
-  return { update, setView, setDims, getView };
+  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv };
 }

@@ -229,7 +229,8 @@ The page has the controls on the left (live elevation/azimuth with Go, Stop and 
 of the rig on the right (a 3D model rendered with [three.js](https://threejs.org): 2020 extrusions, the
 ST3215s, the Sony A6600 with its ring flash, and [#3DBenchy](https://www.3dbenchy.com) (CC0) as the
 object; bundled in the binary, so no internet is needed), with
-every planned shot turning with the platform and turning green once taken. The photos are spread as evenly as possible over the part of the sphere round the object the
+every planned shot turning with the platform and turning green once taken; **Preview** animates the
+camera's path through the shots, with a fading trail. The photos are spread as evenly as possible over the part of the sphere round the object the
 camera can reach (the min/max elevation in Rig config, which keeps the frame clear of the posts), on a
 golden-angle spiral, and taken in rows of similar elevation, each row in azimuth order with
 alternating direction, so the arm moves little and the platform never unwinds a whole turn. Camera control (Sony A6600 over USB, with live preview) is next; for
