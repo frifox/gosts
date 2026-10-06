@@ -42,6 +42,7 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .card.collapsed > h2.toggle::before { transform: rotate(-90deg); }
 .card.collapsed > h2 { border-bottom: 0; }
 .card.collapsed > .card-body { display: none; }
+.card.view.collapsed { align-self: start; }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .row:first-child { margin-top: 0; }
 .field { display: grid; grid-template-columns: 96px 1fr 76px auto; gap: 8px; align-items: center; margin-top: 8px; }
@@ -147,7 +148,7 @@ td.mono { font-family: var(--mono); }
       </div>
     </section>
 
-    <section class="card">
+    <section class="card" id="captureCard">
       <h2>Capture</h2>
       <div class="card-body">
         <div class="plan-row">
@@ -192,8 +193,8 @@ td.mono { font-family: var(--mono); }
       </div>
     </section>
 
-    <section class="card collapsed" id="rigCfgCard">
-      <h2 class="toggle" id="rigCfgToggle" title="The rig's measurements, for the 3D view">Configure</h2>
+    <section class="card" id="rigCfgCard">
+      <h2 title="The rig's measurements, for the 3D view">Configure</h2>
       <div class="card-body">
         <div class="grid4">
           <label title="Base frame, along the sides that carry the posts">Base X<input type="number" id="dBaseX" step="10"></label>
@@ -217,13 +218,13 @@ td.mono { font-family: var(--mono); }
       </div>
     </section>
 
-    <section class="card">
+    <section class="card" id="logCard">
       <h2>Log</h2>
       <div class="card-body"><div id="log"></div></div>
     </section>
   </div>
 
-  <section class="card view">
+  <section class="card view" id="viewCard">
     <h2>Live rig <span class="views" id="views">
       <button data-v="3d" class="active">3D</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button>
     </span></h2>
@@ -558,12 +559,6 @@ function dimsChanged() {
   if (DIMS.every((k) => Number.isFinite(d[k])) && d.BaseX > 0 && d.BaseY > 0 && d.SwingX > 0 && d.SwingY > 0) window.rig3d?.setDims(d);
 }
 for (const id of [...DIMS.map((k) => "d" + k), "dElevMin", "dElevMax"]) $(id).addEventListener("input", dimsChanged);
-// The card starts collapsed; each window remembers whether it was left open.
-try { if (localStorage.getItem("rigCfgOpen") === "1") $("rigCfgCard").classList.remove("collapsed"); } catch {}
-$("rigCfgToggle").onclick = () => {
-  const open = !$("rigCfgCard").classList.toggle("collapsed");
-  try { localStorage.setItem("rigCfgOpen", open ? "1" : "0"); } catch {}
-};
 $("dDefaults").onclick = () => fillDims(DIMS_DEFAULT, LIMITS_DEFAULT);
 // Turntable Z auto: the object's middle on the tilt axis (the centre of the
 // camera's orbit, where it points), so it's centred in every shot.
@@ -610,6 +605,23 @@ let skLast = 0;
   $("skMark").style.left = `${(s.x + 1) * 50}%`;
   $("skMark").style.opacity = s.moving ? 1 : 0.3;
 })(0);
+// Cards fold by their title (not by the buttons and switches in it). All
+// start open; each window remembers which were folded.
+(function cards() {
+  let folded = {};
+  try { folded = JSON.parse(localStorage.getItem("foldedCards") || "{}") || {}; } catch {}
+  for (const card of document.querySelectorAll(".layout .card[id]")) {
+    const h = card.querySelector(":scope > h2");
+    h.classList.add("toggle");
+    card.classList.toggle("collapsed", !!folded[card.id]);
+    h.addEventListener("click", (e) => {
+      if (e.target.closest("button, label, input, select, .views")) return;
+      folded[card.id] = card.classList.toggle("collapsed");
+      if (!folded[card.id]) delete folded[card.id];
+      try { localStorage.setItem("foldedCards", JSON.stringify(folded)); } catch {}
+    });
+  }
+})();
 function setView(v) {
   document.querySelectorAll("#views button").forEach((b) => b.classList.toggle("active", b.dataset.v === v));
   window.rig3d?.setView(v);

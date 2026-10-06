@@ -247,7 +247,7 @@ the other way instead (the same shots, mirrored), so spirals are limited to 7 tu
 When the last photo is taken the rig returns to 0°/0° the short way (less than a turn) and stops. Camera control (Sony A6600 over USB, with live preview) is next; for
 now each shot waits for the rig to settle and records where it really is.
 
-The **Configure** card (collapsed by default, below Control) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
+The **Configure** card (below Control; like every card it folds by its title, each window remembering which are folded) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
 X/Y, the camera's offset along the arms, the turntable's height (turntable Z), the object's height (object Z, the model is scaled to it); the defaults draw the rig to scale)
 and the min/max elevation the camera may reach (default −45° to 80°).
 The view has 3D, Front (looking at the camera through the object), Side (along the tilt axis) and Top
