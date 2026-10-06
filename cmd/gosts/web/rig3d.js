@@ -415,13 +415,13 @@ export function createRig(container) {
   }
 
   // ---------------------------------------------------------------- views
-  // Front looks at the camera through the object (from +X); side looks along
+  // Front looks at the object from behind the camera (from -X); side looks along
   // the tilt axis (from +Y), the swing moving in the picture; top has the
   // camera on the left.
   function setView(name) {
     const d = rig.d, t = rig.target;
     const far = Math.max(d.BaseX, d.BaseY, d.PostZ + 300) * 2.6;
-    const v = { "3d": [far * 0.7, t.y + far * 0.43, far * 0.54], front: [far, t.y, 0], side: [0, t.y, far], top: [0, far * 1.1, 1] }[name] || null;
+    const v = { "3d": [far * 0.7, t.y + far * 0.43, far * 0.54], front: [-far, t.y, 0], side: [0, t.y, far], top: [0, far * 1.1, 1] }[name] || null;
     if (!v) return;
     cam.position.set(v[0], v[1], v[2]);
     controls.target.copy(t);
