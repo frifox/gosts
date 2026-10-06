@@ -285,6 +285,9 @@ func spiralTurns(shots []shot) float64 {
 }
 
 func (c *capture) loop(ctx context.Context, p Plan) error {
+	if p.Moving {
+		return c.spiral(ctx)
+	}
 	for {
 		c.mu.Lock()
 		if c.index >= len(c.shots) {
@@ -302,38 +305,100 @@ func (c *capture) loop(ctx context.Context, p Plan) error {
 			}
 			continue
 		}
-		if p.Moving {
-			// Head for the shot with both axes arriving together, and take
-			// the photo as the rig passes it: no stop, no settle.
-			if err := c.rig.moveThrough(ctx, sh.Elevation, sh.Azimuth); err != nil {
-				return err
+		e, a := sh.Elevation, sh.Azimuth
+		if err := c.rig.moveTo(&e, &a); err != nil {
+			return err
+		}
+		if err := c.rig.waitStill(ctx); err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(p.SettleMS) * time.Millisecond):
+		}
+		c.photo()
+	}
+}
+
+// photo takes the next shot. The camera isn't connected yet, so the shot is
+// only recorded with where the rig really is (read fresh: moving shots are
+// taken in motion).
+func (c *capture) photo() {
+	ae, aa := c.rig.where()
+	if fe, fa, err := c.rig.angles(); err == nil {
+		ae, aa = fe, fa
+	}
+	c.mu.Lock()
+	c.shots[c.index].Done = true
+	c.shots[c.index].ActualElevation, c.shots[c.index].ActualAzimuth = ae, aa
+	c.index++
+	c.mu.Unlock()
+	c.send()
+}
+
+// spiral takes moving shots: the rig goes to the first shot, then runs
+// without stopping along the smooth curve through all of them (the one the
+// preview shows), each photo taken as the path passes its shot. After a
+// pause it carries on from where it stopped, along a curve through the
+// shots left.
+func (c *capture) spiral(ctx context.Context) error {
+	m := c.rig.cfg.get().Motion
+	// The servos' limits: speed, and acceleration kept to half the
+	// configured one so the speed changes gently.
+	maxRate := float64(m.Speed) / stepsPerDegree
+	accel := float64(m.Acc) * 100 / stepsPerDegree / 2
+	for {
+		c.mu.Lock()
+		idx, left := c.index, append([]shot(nil), c.shots[c.index:]...)
+		paused, resume := c.paused, c.resume
+		c.mu.Unlock()
+		if len(left) == 0 {
+			return nil
+		}
+		if paused {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-resume:
 			}
-		} else {
-			e, a := sh.Elevation, sh.Azimuth
+			continue
+		}
+		var es, as []float64
+		first := 0 // the point that is shot idx
+		if idx == 0 {
+			e, a := left[0].Elevation, left[0].Azimuth
 			if err := c.rig.moveTo(&e, &a); err != nil {
 				return err
 			}
 			if err := c.rig.waitStill(ctx); err != nil {
 				return err
 			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(time.Duration(p.SettleMS) * time.Millisecond):
+		} else { // resuming: from where the rig is
+			e, a, err := c.rig.angles()
+			if err != nil {
+				return err
 			}
+			es, as, first = []float64{e}, []float64{a}, 1
 		}
-		// The photo: the camera isn't connected yet, so the shot is only
-		// recorded with where the rig really is.
-		ae, aa := c.rig.where()
-		if fe, fa, err := c.rig.angles(); err == nil { // fresh: moving shots are taken in motion
-			ae, aa = fe, fa
+		for _, s := range left {
+			es = append(es, math.Max(m.ElevationMin, math.Min(m.ElevationMax, s.Elevation)))
+			as = append(as, s.Azimuth)
 		}
-		c.mu.Lock()
-		c.shots[c.index].Done = true
-		c.shots[c.index].ActualElevation, c.shots[c.index].ActualAzimuth = ae, aa
-		c.index++
-		c.mu.Unlock()
-		c.send()
+		tr := newTrajectory(es, as, maxRate, accel)
+		err := c.rig.follow(ctx, tr, func(k int) {
+			if k >= first {
+				c.photo()
+			}
+		}, func() bool {
+			c.mu.Lock()
+			defer c.mu.Unlock()
+			return c.paused
+		})
+		if errors.Is(err, errPaused) {
+			continue
+		}
+		return err
 	}
 }
 

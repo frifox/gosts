@@ -305,10 +305,6 @@ func (r *rig) moveToAt(elevation, azimuth *float64, speedE, speedA int) error {
 	})
 }
 
-// passTolerance is how close (degrees, both axes) a moving shot counts as
-// reached: the photo is taken then and the rig heads straight on.
-const passTolerance = 1.0
-
 // angles reads the rig's elevation and azimuth now (not the last telemetry).
 func (r *rig) angles() (e, a float64, err error) {
 	ro, err := r.ready()
@@ -328,53 +324,6 @@ func (r *rig) angles() (e, a float64, err error) {
 		return nil
 	})
 	return e, a, err
-}
-
-// moveThrough heads for a shot with both axes arriving together (each at the
-// speed its share of the move needs, the larger at the configured speed), and
-// returns once the rig is within passTolerance of it, still moving. If it
-// stops short instead (a heavy arm sags), it returns when it has stopped.
-func (r *rig) moveThrough(ctx context.Context, elevation, azimuth float64) error {
-	e0, a0, err := r.angles()
-	if err != nil {
-		return err
-	}
-	c := r.cfg.get().Motion
-	elevation = math.Max(c.ElevationMin, math.Min(c.ElevationMax, elevation))
-	de, da := math.Abs(elevation-e0), math.Abs(wrap180(azimuth-a0))
-	long := math.Max(math.Max(de, da), 0.1)
-	speedFor := func(d float64) int { return max(30, int(float64(c.Speed)*d/long)) }
-	if err := r.moveToAt(&elevation, &azimuth, speedFor(de), speedFor(da)); err != nil {
-		return err
-	}
-	deadline := time.Now().Add(30 * time.Second)
-	still := 0
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(20 * time.Millisecond):
-		}
-		e, a, err := r.angles()
-		if err != nil {
-			return err
-		}
-		if math.Abs(e-elevation) <= passTolerance && math.Abs(wrap180(a-azimuth)) <= passTolerance {
-			return nil
-		}
-		// Stopped short of it: take the photo where it is.
-		if pe, pa := e, a; math.Abs(pe-e0) < 0.05 && math.Abs(wrap180(pa-a0)) < 0.05 {
-			if still++; still > 25 {
-				return nil
-			}
-		} else {
-			still = 0
-		}
-		e0, a0 = e, a
-		if time.Now().After(deadline) {
-			return errors.New("the rig didn't reach the shot within 30 s")
-		}
-	}
 }
 
 // platformTurns is where the platform is, in turns from where its servo

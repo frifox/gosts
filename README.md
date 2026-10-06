@@ -239,8 +239,9 @@ camera can reach (the min/max elevation in Rig config, which keeps the frame cle
 golden-angle spiral, and taken in rows of similar elevation, each row in azimuth order with
 alternating direction, so the arm moves little and the platform never unwinds a whole turn. With
 **Moving Shots** (for a fast shutter) the rig doesn't stop: the same shots are taken along one smooth
-rising spiral, the platform turning one way while the camera climbs, each photo as the rig passes its
-shot (within 1°), both axes timed to arrive together; the platform is never unwound: if a spiral
+rising spiral, the platform turning one way while the camera climbs: the rig follows the same smooth curve
+the preview draws (goals streamed ~30 times a second just ahead of it, corrected for how far it trails, within
+the servos' speed and with gentle acceleration), each photo taken as the path passes its shot; the platform is never unwound: if a spiral
 wouldn't stay within its servo's multi-turn range (about ±7.5 turns from power-up) from where it is, it turns
 the other way instead (the same shots, mirrored), so spirals are limited to 7 turns (about 90 photos).
 When the last photo is taken the rig returns to 0°/0° the short way (less than a turn) and stops. Camera control (Sony A6600 over USB, with live preview) is next; for

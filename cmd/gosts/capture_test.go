@@ -133,3 +133,31 @@ func TestSpiralOrder(t *testing.T) {
 		t.Fatal("not a rising spiral", shots[0].Elevation, shots[len(shots)-1].Elevation)
 	}
 }
+
+func TestTrajectory(t *testing.T) {
+	e := []float64{0, 10, 20, 30}
+	a := []float64{170, -170, -150, -130} // crosses ±180 the short way
+	tr := newTrajectory(e, a, 50, 100)
+	if d := tr.duration(); d <= 0 {
+		t.Fatalf("duration %v", d)
+	}
+	// It passes each point, at rest at the ends, never over the axis speed.
+	for i := range e {
+		ge, ga := tr.at(tr.pointT[i])
+		if math.Abs(ge-e[i]) > 1e-6 || math.Abs(wrap180(ga-a[i])) > 1e-6 {
+			t.Errorf("point %d: at %v,%v, want %v,%v", i, ge, ga, e[i], a[i])
+		}
+	}
+	for k := 1; k < len(tr.t); k++ {
+		dt := tr.t[k] - tr.t[k-1]
+		if dt <= 0 {
+			continue
+		}
+		if r := math.Max(math.Abs(tr.e[k]-tr.e[k-1]), math.Abs(tr.a[k]-tr.a[k-1])) / dt; r > 50*1.001 {
+			t.Fatalf("sample %d: %v°/s, over 50", k, r)
+		}
+	}
+	if math.Abs(tr.a[len(tr.a)-1]-(170+60)) > 1e-6 {
+		t.Errorf("azimuth not unwrapped: ends at %v", tr.a[len(tr.a)-1])
+	}
+}
