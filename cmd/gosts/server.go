@@ -64,6 +64,7 @@ type request struct {
 	Roles     *Roles   `json:"roles"`
 	Motion    *Motion  `json:"motion"`
 	Plan      *Plan    `json:"plan"`
+	Rig       *Rig     `json:"rig"`
 }
 
 type resultMsg struct {
@@ -140,6 +141,16 @@ func (a *app) exec(req request) (any, error) {
 			return nil, err
 		}
 		return nil, a.cap.start(*req.Plan)
+	case "rig": // measurements for the 3D view
+		if req.Rig == nil {
+			return nil, errors.New("no measurements")
+		}
+		if err := req.Rig.check(); err != nil {
+			return nil, err
+		}
+		err := a.cfg.update(func(c *Config) { c.Rig = *req.Rig })
+		a.rig.sendState()
+		return nil, err
 	case "pause":
 		return nil, a.cap.pause(req.On)
 	}

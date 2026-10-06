@@ -6,19 +6,11 @@
 import * as THREE from "three";
 import { OrbitControls } from "./vendor/OrbitControls.js";
 
-// Rig dimensions (mm).
-const RIG = {
-  baseX: 600, baseZ: 500,   // base frame, outer
-  post: 600,                // vertical posts, in the middle of the 600 mm sides
-  armLen: 600, barLen: 450, // tilting frame: 600 mm arms joined by 450 mm bars
-  platformY: 330,           // turntable top (estimate)
-  platformR: 120,
-};
-const P = 20;                       // 2020 profile size
-const POST_Z = RIG.baseZ / 2 - P / 2;  // post centres
-const PIVOT_Y = P + RIG.post + 30;  // servo horn axis height
-const ARM_Z = RIG.barLen / 2 - P / 2;  // arm centres in the tilting frame
-const ORBIT = RIG.armLen / 2 - P / 2;  // camera bar distance from the axis
+const P = 20; // 2020 profile size
+
+// Default measurements (mm), as in gosts' config: seen from above, X along
+// the base sides that carry the posts, Y along the tilt axis, Z up.
+export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, PlatformZ: 300 };
 
 const rad = (d) => d * Math.PI / 180;
 
@@ -177,11 +169,9 @@ export function createRig(container) {
 
   const scene = new THREE.Scene();
   const cam = new THREE.PerspectiveCamera(40, 1, 10, 20000);
-  const target = new THREE.Vector3(0, 360, 0);
   const controls = new OrbitControls(cam, renderer.domElement);
-  controls.target.copy(target);
   controls.enableDamping = true;
-  controls.minDistance = 500;
+  controls.minDistance = 300;
   controls.maxDistance = 6000;
   controls.maxPolarAngle = Math.PI * 0.55;
 
@@ -208,124 +198,155 @@ export function createRig(container) {
   grid.material.opacity = 0.12; grid.material.transparent = true;
   scene.add(grid);
 
-  // Base frame: 600 mm long sides, 460 mm short sides between them.
-  const bx = RIG.baseX / 2, bz = RIG.baseZ / 2 - P / 2, y0 = P / 2;
+  const shotColors = { pending: new THREE.Color(0x8a93a3), done: new THREE.Color(0x3ccf7a) };
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
-  scene.add(profile(V(-bx, y0, -bz), V(bx, y0, -bz)));
-  scene.add(profile(V(-bx, y0, bz), V(bx, y0, bz)));
-  scene.add(profile(V(-bx + P / 2, y0, -bz + P / 2), V(-bx + P / 2, y0, bz - P / 2)));
-  scene.add(profile(V(bx - P / 2, y0, -bz + P / 2), V(bx - P / 2, y0, bz - P / 2)));
-  // Posts in the middle of the long sides, a servo on each, horns facing in.
-  for (const s of [-1, 1]) {
-    scene.add(profile(V(0, P, s * POST_Z), V(0, P + RIG.post, s * POST_Z)));
-    const sv = st3215();
-    sv.position.set(0, PIVOT_Y, s * POST_Z);
-    if (s < 0) sv.rotation.y = Math.PI; // horn towards the middle
-    scene.add(sv);
+  let rig = null;       // the built rig: parts that move, and its measurements
+  let last = {};        // last update, re-applied after a rebuild
+
+  // build makes the rig from measurements (three.js: x = X, y = Z up, z = Y).
+  function build(d) {
+    if (rig) scene.remove(rig.root);
+    const root = new THREE.Group();
+    scene.add(root);
+    const postY = d.BaseY / 2 - P / 2;         // post centres
+    const pivotY = P + d.PostZ + 30;           // servo horn axis height
+    const armZ = d.SwingY / 2 - P / 2;         // swing arm centres
+    const barX = d.SwingX / 2 - P / 2;         // camera bar distance from the axis
+
+    // Base frame: the X sides full length, the Y sides between them.
+    const bx = d.BaseX / 2, by = d.BaseY / 2 - P / 2, y0 = P / 2;
+    root.add(profile(V(-bx, y0, -by), V(bx, y0, -by)));
+    root.add(profile(V(-bx, y0, by), V(bx, y0, by)));
+    root.add(profile(V(-bx + P / 2, y0, -by + P / 2), V(-bx + P / 2, y0, by - P / 2)));
+    root.add(profile(V(bx - P / 2, y0, -by + P / 2), V(bx - P / 2, y0, by - P / 2)));
+    // Posts in the middle of the X sides, a servo on each, horns facing in.
+    for (const s of [-1, 1]) {
+      root.add(profile(V(0, P, s * postY), V(0, P + d.PostZ, s * postY)));
+      const sv = st3215();
+      sv.position.set(0, pivotY, s * postY);
+      if (s < 0) sv.rotation.y = Math.PI; // horn towards the middle
+      root.add(sv);
+    }
+
+    // Swing (tilting frame): turns about the axis through the servo horns.
+    const tilt = new THREE.Group();
+    tilt.position.set(0, pivotY, 0);
+    root.add(tilt);
+    const ax = d.SwingX / 2;
+    for (const s of [-1, 1]) tilt.add(profile(V(-ax, 0, s * armZ), V(ax, 0, s * armZ)));
+    for (const s of [-1, 1]) tilt.add(profile(V(s * barX, 0, -armZ + P / 2), V(s * barX, 0, armZ - P / 2)));
+    // The camera sits on the middle of the -X bar, looking at the axis,
+    // CameraOffset along the arms (+ towards the object).
+    const camera = a6600();
+    camera.position.set(-barX + d.CameraOffset, P / 2 + 34, 0);
+    tilt.add(camera);
+    const sightGeo = new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), V(0, 0, 0)]);
+    const sight = new THREE.Line(sightGeo, new THREE.LineDashedMaterial({ color: 0x5b8cff, dashSize: 14, gapSize: 10, transparent: true, opacity: 0.7 }));
+    root.add(sight);
+
+    // Turntable on a pedestal, with a 0° mark and a placeholder object.
+    const pedH = Math.max(1, d.PlatformZ - P - 12);
+    const ped = cylinder(28, pedH, mat.alu); ped.position.set(0, P + pedH / 2, 0); root.add(ped);
+    const turn = new THREE.Group();
+    turn.position.set(0, d.PlatformZ, 0);
+    root.add(turn);
+    const discR = Math.min(120, d.BaseY / 2 - 40);
+    const disc = cylinder(discR, 12, mat.table, "y", 64); disc.position.y = -6; turn.add(disc);
+    turn.add(box(18, 2, 6, new THREE.MeshStandardMaterial({ color: 0x5b8cff, emissive: 0x1a2a55 }), discR - 14, 1, 0));
+    const objGeo = new THREE.LatheGeometry([[0, 0], [52, 0], [58, 18], [46, 70], [30, 120], [40, 170], [44, 200], [36, 230], [0, 236]].map(([x, y]) => new THREE.Vector2(x, y)), 64);
+    const obj = new THREE.Mesh(objGeo, mat.object);
+    obj.castShadow = obj.receiveShadow = true;
+    turn.add(obj);
+
+    // Shots: spheres where the camera will be, turning with the platform.
+    const shotGroup = new THREE.Group();
+    shotGroup.position.set(0, pivotY, 0);
+    root.add(shotGroup);
+    const nextRing = new THREE.Mesh(new THREE.TorusGeometry(11, 2, 12, 32), new THREE.MeshBasicMaterial({ color: 0x5b8cff }));
+    nextRing.visible = false;
+    shotGroup.add(nextRing);
+
+    rig = { d, root, tilt, turn, camera, sight, sightGeo, shotGroup, nextRing, shotMesh: null, shotKey: "",
+      orbit: barX - d.CameraOffset + 40, // camera (lens) distance from the tilt axis
+      objectCentre: V(0, d.PlatformZ + 118, 0), target: V(0, (pivotY + d.PlatformZ) / 2, 0) };
   }
 
-  // Tilting frame: rotates about z through the servo horns.
-  const tilt = new THREE.Group();
-  tilt.position.set(0, PIVOT_Y, 0);
-  scene.add(tilt);
-  const ax = RIG.armLen / 2;
-  for (const s of [-1, 1]) tilt.add(profile(V(-ax, 0, s * ARM_Z), V(ax, 0, s * ARM_Z)));
-  for (const s of [-1, 1]) tilt.add(profile(V(s * (ax - P / 2), 0, -ARM_Z + P / 2), V(s * (ax - P / 2), 0, ARM_Z - P / 2)));
-  // The camera sits on the middle of the -x bar, looking at the axis.
-  const camera = a6600();
-  camera.position.set(-ORBIT + 6, P / 2 + 34, 0);
-  tilt.add(camera);
-  // Line of sight to the middle of the object.
-  const sightGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-  const sight = new THREE.Line(sightGeo, new THREE.LineDashedMaterial({ color: 0x5b8cff, dashSize: 14, gapSize: 10, transparent: true, opacity: 0.7 }));
-  scene.add(sight);
-
-  // Turntable on a pedestal, with a 0° mark and a placeholder object.
-  const ped = cylinder(28, RIG.platformY - P - 10, mat.alu); ped.position.set(0, P + (RIG.platformY - P - 10) / 2, 0); scene.add(ped);
-  const turn = new THREE.Group();
-  turn.position.set(0, RIG.platformY, 0);
-  scene.add(turn);
-  const disc = cylinder(RIG.platformR, 12, mat.table, "y", 64); disc.position.y = -6; turn.add(disc);
-  const mark = box(18, 2, 6, new THREE.MeshStandardMaterial({ color: 0x5b8cff, emissive: 0x1a2a55 }), RIG.platformR - 14, 1, 0);
-  turn.add(mark);
-  const objGeo = new THREE.LatheGeometry([[0, 0], [52, 0], [58, 18], [46, 70], [30, 120], [40, 170], [44, 200], [36, 230], [0, 236]].map(([x, y]) => new THREE.Vector2(x, y)), 64);
-  const obj = new THREE.Mesh(objGeo, mat.object);
-  obj.castShadow = obj.receiveShadow = true;
-  turn.add(obj);
-  const objectCentre = new THREE.Vector3(0, RIG.platformY + 118, 0);
-
-  // Shots: spheres on the camera's orbit, turning with the platform.
-  const shotGroup = new THREE.Group();
-  shotGroup.position.set(0, PIVOT_Y, 0);
-  scene.add(shotGroup);
-  let shotMesh = null;
-  const nextRing = new THREE.Mesh(new THREE.TorusGeometry(11, 2, 12, 32), new THREE.MeshBasicMaterial({ color: 0x5b8cff }));
-  nextRing.visible = false;
-  shotGroup.add(nextRing);
-  const shotColors = { pending: new THREE.Color(0x8a93a3), done: new THREE.Color(0x3ccf7a) };
+  // shotPos: where the camera is, relative to the object, for a shot taken at
+  // elevation e, azimuth a (in the turntable's frame, about the tilt axis).
+  function shotPos(e, a) {
+    const v = V(-Math.cos(rad(e)), Math.sin(rad(e)), 0).multiplyScalar(rig.orbit);
+    return v.applyAxisAngle(V(0, 1, 0), -rad(a));
+  }
 
   // ---------------------------------------------------------------- update
-  let shotKey = "";
-  function update({ elevation, azimuth, shots, index, running }) {
+  function update(u) {
+    last = u;
+    const { elevation, azimuth, shots, index, running } = u;
     const e = elevation ?? 0, a = azimuth ?? 0;
-    tilt.rotation.z = -rad(e);
-    turn.rotation.y = rad(a);
-    shotGroup.rotation.y = rad(a);
-    tilt.updateMatrixWorld(true);
-    const lens = camera.localToWorld(camera.userData.lensFront.clone());
-    sightGeo.setFromPoints([lens, objectCentre]);
-    sight.computeLineDistances();
+    rig.tilt.rotation.z = -rad(e);
+    rig.turn.rotation.y = rad(a);
+    rig.shotGroup.rotation.y = rad(a);
+    rig.tilt.updateMatrixWorld(true);
+    rig.sightGeo.setFromPoints([rig.camera.localToWorld(rig.camera.userData.lensFront.clone()), rig.objectCentre]);
+    rig.sight.computeLineDistances();
 
     // Shots: rebuild when the plan changes, recolour as they're taken.
     const list = shots || [];
     const key = list.map((s) => `${s.elevation},${s.azimuth}`).join(";");
-    if (key !== shotKey) {
-      shotKey = key;
-      if (shotMesh) { shotGroup.remove(shotMesh); shotMesh.geometry.dispose(); }
-      shotMesh = null;
+    if (key !== rig.shotKey) {
+      rig.shotKey = key;
+      if (rig.shotMesh) { rig.shotGroup.remove(rig.shotMesh); rig.shotMesh.geometry.dispose(); }
+      rig.shotMesh = null;
       if (list.length) {
         const r = Math.max(3, Math.min(7, 110 / Math.sqrt(list.length)));
-        shotMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(r, 16, 12),
+        rig.shotMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(r, 16, 12),
           new THREE.MeshStandardMaterial({ roughness: 0.4, transparent: true, opacity: 0.85 }), list.length);
-        shotGroup.add(shotMesh);
+        rig.shotGroup.add(rig.shotMesh);
       }
     }
-    if (shotMesh) {
+    if (rig.shotMesh) {
       const m = new THREE.Matrix4();
       list.forEach((s, i) => {
         const p = shotPos(s.done ? s.actualElevation ?? s.elevation : s.elevation, s.done ? s.actualAzimuth ?? s.azimuth : s.azimuth);
         m.makeTranslation(p.x, p.y, p.z);
-        shotMesh.setMatrixAt(i, m);
-        shotMesh.setColorAt(i, s.done ? shotColors.done : shotColors.pending);
+        rig.shotMesh.setMatrixAt(i, m);
+        rig.shotMesh.setColorAt(i, s.done ? shotColors.done : shotColors.pending);
       });
-      shotMesh.instanceMatrix.needsUpdate = true;
-      if (shotMesh.instanceColor) shotMesh.instanceColor.needsUpdate = true;
+      rig.shotMesh.instanceMatrix.needsUpdate = true;
+      if (rig.shotMesh.instanceColor) rig.shotMesh.instanceColor.needsUpdate = true;
     }
     const next = running && list[index];
-    nextRing.visible = !!next;
+    rig.nextRing.visible = !!next;
     if (next) {
-      const p = shotPos(next.elevation, next.azimuth);
-      nextRing.position.copy(p);
-      nextRing.lookAt(new THREE.Vector3()); // face the object
+      rig.nextRing.position.copy(shotPos(next.elevation, next.azimuth));
+      rig.nextRing.lookAt(V(0, 0, 0)); // face the object
     }
   }
-  // shotPos: where the camera is, relative to the object, for a shot taken at
-  // elevation e, azimuth a (in the turntable's frame, about the tilt axis).
-  function shotPos(e, a) {
-    const v = new THREE.Vector3(-Math.cos(rad(e)), Math.sin(rad(e)), 0).multiplyScalar(ORBIT + 70);
-    return v.applyAxisAngle(new THREE.Vector3(0, 1, 0), -rad(a));
+
+  // setDims rebuilds the rig when its measurements change.
+  function setDims(d) {
+    const dims = { ...DEFAULT_RIG, ...(d || {}) };
+    if (rig && JSON.stringify(rig.d) === JSON.stringify(dims)) return;
+    const first = !rig;
+    build(dims);
+    controls.target.copy(rig.target);
+    if (first) setView("3d");
+    update(last);
   }
 
   // ---------------------------------------------------------------- views
-  const VIEWS = { "3d": [1050, 760, 1150], front: [0, 420, 1750], side: [1750, 420, 0], top: [0, 1900, 1],
-    camera: [-260, 820, 420] }; // close-up of the camera
+  // Front looks at the camera through the object (from +X); side looks along
+  // the tilt axis (from +Y), the swing moving in the picture; top has the
+  // camera on the left.
   function setView(name) {
-    const v = VIEWS[name] || VIEWS["3d"];
+    const d = rig.d, t = rig.target;
+    const far = Math.max(d.BaseX, d.BaseY, d.PostZ + 300) * 2.6;
+    const v = { "3d": [far * 0.6, t.y + far * 0.42, far * 0.66], front: [far, t.y, 0], side: [0, t.y, far], top: [0, far * 1.1, 1] }[name] || null;
+    if (!v) return;
     cam.position.set(v[0], v[1], v[2]);
-    controls.target.copy(name === "camera" ? camera.getWorldPosition(new THREE.Vector3()) : target);
+    controls.target.copy(t);
     controls.update();
   }
-  setView("3d");
 
   function resize() {
     const w = container.clientWidth, h = container.clientHeight;
@@ -338,6 +359,7 @@ export function createRig(container) {
   }
   new ResizeObserver(resize).observe(container);
   resize();
+  setDims(DEFAULT_RIG);
   renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, cam); });
-  return { update, setView };
+  return { update, setView, setDims };
 }

@@ -234,6 +234,11 @@ golden-angle spiral, and taken in rows of similar elevation, each row in azimuth
 alternating direction, so the arm moves little and the platform never unwinds a whole turn. Camera control (Sony A6600 over USB, with live preview) is next; for
 now each shot waits for the rig to settle and records where it really is.
 
+**Rig…** sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
+X/Y, the camera's offset along the arms, the turntable's height); the defaults draw the rig to scale.
+The view has 3D, Front (looking at the camera through the object), Side (along the tilt axis) and Top
+presets.
+
 Settings are kept in `gosts/config.toml` in the user's config directory (`-config` to change).
 
 ## Platform notes

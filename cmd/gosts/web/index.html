@@ -106,6 +106,7 @@ td.mono { font-family: var(--mono); }
   <span class="pill"><span class="dot" id="wsDot"></span><span id="wsText">connecting…</span></span>
   <span class="pill"><span class="dot" id="busDot"></span><span id="busText">no board</span></span>
   <button class="btn small" id="setupBtn">Setup…</button>
+  <button class="btn small" id="rigBtn" title="The rig's measurements, for the 3D view">Rig…</button>
 </header>
 
 <div class="layout">
@@ -175,7 +176,7 @@ td.mono { font-family: var(--mono); }
 
   <section class="card view">
     <h2>Live rig <span class="views" id="views">
-      <button data-v="3d" class="active">3D</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button><button data-v="camera">Camera</button>
+      <button data-v="3d" class="active">3D</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button>
     </span></h2>
     <div class="card-body">
       <div id="rig"></div>
@@ -189,6 +190,32 @@ td.mono { font-family: var(--mono); }
       </div>
     </div>
   </section>
+</div>
+
+<div class="modal-backdrop" id="rigModal" hidden>
+  <div class="modal card" role="dialog" aria-modal="true">
+    <h2>Rig measurements</h2>
+    <div class="card-body">
+      <p class="hint" style="margin-top:0">In mm, seen from above: X along the base sides that carry the posts (the direction the swing arms point), Y along the tilt axis, Z up. Only the 3D view uses them.</p>
+      <div class="grid2" style="margin-top:10px">
+        <label>Base X<input type="number" id="dBaseX" step="10"></label>
+        <label>Base Y<input type="number" id="dBaseY" step="10"></label>
+        <label>Post Z (post height)<input type="number" id="dPostZ" step="10"></label>
+        <label>Platform Z (turntable height)<input type="number" id="dPlatformZ" step="10"></label>
+        <label>Swing X (arm length)<input type="number" id="dSwingX" step="10"></label>
+        <label>Swing Y (bar length)<input type="number" id="dSwingY" step="10"></label>
+        <label>Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
+      </div>
+      <p class="hint">Camera X offset: where the camera sits along the arms from the camera bar; + is towards the object, − away from it.</p>
+      <div class="err" id="rigErr"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn small" id="dDefaults">Defaults</button>
+        <span class="spacer"></span>
+        <button class="btn" id="dCancel">Cancel</button>
+        <button class="btn primary" id="dSave">Save</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal-backdrop" id="setupModal" hidden>
@@ -448,9 +475,28 @@ $("sSave").onclick = async () => {
   } catch (e) { $("setupErr").textContent = e.message; }
 };
 
+// ---------------------------------------------------------------- rig measurements
+const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "PlatformZ"];
+const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, PlatformZ: 300 };
+function fillDims(d) { for (const k of DIMS) $("d" + k).value = d[k]; }
+$("rigBtn").onclick = () => { fillDims(state.server?.config.Rig || DIMS_DEFAULT); $("rigErr").textContent = ""; $("rigModal").hidden = false; };
+$("dCancel").onclick = () => ($("rigModal").hidden = true);
+$("dDefaults").onclick = () => fillDims(DIMS_DEFAULT);
+$("dSave").onclick = async () => {
+  const rig = Object.fromEntries(DIMS.map((k) => [k, Number($("d" + k).value)]));
+  try { await send("rig", { rig }); $("rigModal").hidden = true; } catch (e) { $("rigErr").textContent = e.message; }
+};
+// Live preview while editing: the 3D view follows the fields.
+for (const k of DIMS) $("d" + k).addEventListener("input", () => {
+  const d = Object.fromEntries(DIMS.map((k) => [k, Number($("d" + k).value)]));
+  if (DIMS.every((k) => Number.isFinite(d[k])) && d.BaseX > 0 && d.BaseY > 0 && d.SwingX > 0 && d.SwingY > 0) window.rig3d?.setDims(d);
+});
+$("dCancel").addEventListener("click", () => window.rig3d?.setDims(state.server?.config.Rig));
+
 // ---------------------------------------------------------------- live rig (3D: see rig3d.js)
 function draw() {
   const t = state.tele, cap = state.cap;
+  if ($("rigModal").hidden) window.rig3d?.setDims(state.server?.config.Rig);
   const live = t && t.elevation !== null && t.elevation !== undefined;
   window.rig3d?.update({ elevation: live ? t.elevation : null, azimuth: t?.azimuth ?? null, shots: cap?.shots, index: cap?.index, running: cap?.running });
   $("noData").hidden = live;
