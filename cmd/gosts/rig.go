@@ -377,56 +377,57 @@ func (r *rig) moveThrough(ctx context.Context, elevation, azimuth float64) error
 	}
 }
 
-// prewind turns the platform `turns` whole turns (logical direction: +
-// counts like azimuth) to where it is now, and waits for it. Moving shots use
-// it before a long spiral, so the platform servo stays within its multi-turn
-// goal range (about ±7.5 turns) all the way through.
-func (r *rig) prewind(ctx context.Context, turns int) error {
+// windFor makes sure a spiral of `turns` turns (signed like azimuth)
+// starting at azimuth `first` stays within the platform servo's multi-turn
+// goal range (about ±7.5 turns from where it powered up) all the way: if it
+// wouldn't, the platform is first turned the fewest whole turns that make it
+// fit, and windFor waits for that. It returns the turns wound.
+func (r *rig) windFor(ctx context.Context, first, turns float64) (int, error) {
 	ro, err := r.ready()
 	if err != nil {
-		return err
+		return 0, err
+	}
+	sign := 1
+	if ro.InvertAzimuth {
+		sign = -1
 	}
 	c := r.cfg.get().Motion
+	var wind int
 	err = r.withBus(func(bus *gosts.Bus) error {
 		sv := bus.Servo(ro.Azimuth)
 		cur, err := sv.AbsolutePosition()
 		if err != nil {
 			return err
 		}
-		delta := turns * gosts.StepsPerRev
-		if ro.InvertAzimuth {
-			delta = -delta
+		// In turns, logical direction: where the platform is, and where the
+		// spiral starts (the first shot is reached the short way).
+		p := float64(sign*cur) / gosts.StepsPerRev
+		start := p + wrap180(first-p*360)/360
+		const limit = 30719.0/gosts.StepsPerRev - 0.05
+		lo := math.Ceil(-limit - start - math.Min(0, turns))
+		hi := math.Floor(limit - start - math.Max(0, turns))
+		switch {
+		case lo > hi:
+			return fmt.Errorf("a %.1f-turn spiral doesn't fit the platform servo's range", math.Abs(turns))
+		case lo > 0:
+			wind = int(lo)
+		case hi < 0:
+			wind = int(hi)
+		default:
+			return nil // fits as it is
 		}
-		return sv.MoveTo(cur+delta, c.Speed, uint8(c.Acc))
+		return sv.MoveTo(cur+sign*wind*gosts.StepsPerRev, c.Speed, uint8(c.Acc))
 	})
-	if err != nil {
-		return err
+	if err != nil || wind == 0 {
+		return 0, err
 	}
-	return r.waitStill(ctx)
+	return wind, r.waitStill(ctx)
 }
 
-// home starts the rig back to 0°/0° after a capture. The platform unwinds
-// to its middle turn rather than taking the short way, so the next spiral
-// again has its whole multi-turn range to use.
+// home starts the rig back to 0°/0° after a capture, the short way round.
 func (r *rig) home() error {
-	ro, err := r.ready()
-	if err != nil {
-		return err
-	}
-	zero := 0.0
-	if err := r.moveTo(&zero, nil); err != nil {
-		return err
-	}
-	c := r.cfg.get().Motion
-	return r.withBus(func(bus *gosts.Bus) error {
-		if err := bus.Servo(ro.Azimuth).MoveTo(stepsFor(0, ro.InvertAzimuth), c.Speed, uint8(c.Acc)); err != nil {
-			return fmt.Errorf("azimuth: %w", err)
-		}
-		r.mu.Lock()
-		r.target.azimuth, r.target.set = 0, true
-		r.mu.Unlock()
-		return nil
-	})
+	zero, zeroA := 0.0, 0.0
+	return r.moveTo(&zero, &zeroA)
 }
 
 // waitStill waits until the role servos have stopped moving (or ctx ends).

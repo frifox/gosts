@@ -245,15 +245,16 @@ func spiralTurns(shots []shot) float64 {
 func (c *capture) loop(ctx context.Context, p Plan) error {
 	if p.Moving {
 		c.mu.Lock()
-		turns := spiralTurns(c.shots)
+		turns, first := spiralTurns(c.shots), c.shots[0].Azimuth
 		c.mu.Unlock()
-		// A long spiral would run the platform servo out of turns: wind it
-		// back by half first, so it spirals through its whole range.
-		if wind := int(math.Round(turns / 2)); math.Abs(turns) > 6 && wind != 0 {
-			c.rig.logf("info", "capture: winding the platform back %d turns first (the spiral turns it %.1f times)", abs(wind), math.Abs(turns))
-			if err := c.rig.prewind(ctx, -wind); err != nil {
-				return err
-			}
+		// The spiral must stay within the platform servo's turns: wind the
+		// platform first if it wouldn't (e.g. a long spiral).
+		wind, err := c.rig.windFor(ctx, first, turns)
+		if err != nil {
+			return err
+		}
+		if wind != 0 {
+			c.rig.logf("info", "capture: turned the platform %+d turns first, so the %.1f-turn spiral stays within its servo's range", wind, math.Abs(turns))
 		}
 	}
 	for {
