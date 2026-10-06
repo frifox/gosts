@@ -328,6 +328,17 @@ export function createRig(container) {
       rig.shotKey = key;
       if (rig.shotMesh) { rig.shotGroup.remove(rig.shotMesh); rig.shotMesh.geometry.dispose(); }
       rig.shotMesh = null;
+      // The intended path: a very faint line through the shots in shooting
+      // order, along the curves the camera will take.
+      if (rig.pathLine) { rig.shotGroup.remove(rig.pathLine); rig.pathLine.geometry.dispose(); rig.pathLine = null; }
+      if (list.length > 1) {
+        const pts = [];
+        for (let i = 0; i + 1 < list.length; i++) for (let k = 0; k < 12; k++) pts.push(hopPos(list[i], list[i + 1], k / 12));
+        pts.push(shotPos(list[list.length - 1].elevation, list[list.length - 1].azimuth));
+        rig.pathLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+          new THREE.LineBasicMaterial({ color: 0x8fb1ff, transparent: true, opacity: 0.16, depthWrite: false }));
+        rig.shotGroup.add(rig.pathLine);
+      }
       if (list.length) {
         const r = Math.max(3, Math.min(7, 110 / Math.sqrt(list.length)));
         rig.shotMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(r, 16, 12),
@@ -339,7 +350,8 @@ export function createRig(container) {
       const m = new THREE.Matrix4();
       list.forEach((s, i) => {
         const p = shotPos(s.done ? s.actualElevation ?? s.elevation : s.elevation, s.done ? s.actualAzimuth ?? s.azimuth : s.azimuth);
-        m.makeTranslation(p.x, p.y, p.z);
+        if (pv && i < pv.consumed) m.makeScale(0, 0, 0); // consumed by the path preview
+        else m.makeTranslation(p.x, p.y, p.z);
         rig.shotMesh.setMatrixAt(i, m);
         rig.shotMesh.setColorAt(i, s.done ? shotColors.done : shotColors.pending);
       });
@@ -414,7 +426,7 @@ export function createRig(container) {
     const tail = 5 * times[times.length - 1] / (shots.length - 1);
     let done;
     const finished = new Promise((r) => (done = r));
-    pv = { shots, times, tail, t: 0, ball, trail, history: [], done };
+    pv = { shots, times, tail, t: 0, ball, trail, history: [], done, consumed: 0 };
     return finished;
   }
   function stopPreview() {
@@ -462,6 +474,17 @@ export function createRig(container) {
     const t = Math.min(pv.t, end);
     const p = previewPos(t);
     pv.ball.position.copy(p);
+    // Dots the ball has reached are consumed: hidden until the preview ends
+    // (update() puts them back).
+    const mesh = rig.shotMesh;
+    if (mesh && mesh.count === pv.shots.length) {
+      let changed = false;
+      while (pv.consumed < pv.times.length && t >= pv.times[pv.consumed]) {
+        mesh.setMatrixAt(pv.consumed++, tmpM.makeScale(0, 0, 0));
+        changed = true;
+      }
+      if (changed) mesh.instanceMatrix.needsUpdate = true;
+    }
     pv.history.push({ t, p: p.clone() });
     while (pv.history.length && pv.history[0].t < t - TAIL) pv.history.shift();
     // Tail: evenly spread over the history, fading (darker = more
