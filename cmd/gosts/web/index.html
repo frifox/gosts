@@ -510,7 +510,7 @@ $("sSave").onclick = async () => {
 
 // ---------------------------------------------------------------- rig config (measurements)
 const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "TurntableZ", "ObjectZ"];
-const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 300, ObjectZ: 100 };
+const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 400, ObjectZ: 100 };
 // The card also holds the elevation limits (kept with the motion settings).
 const LIMITS_DEFAULT = { ElevationMin: -45, ElevationMax: 80 };
 const formDims = () => Object.fromEntries(DIMS.map((k) => [k, Number($("d" + k).value)]));

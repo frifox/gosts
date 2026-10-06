@@ -15,7 +15,7 @@ export const pivotHeight = (d) => P + d.PostZ + 30;
 
 // Default measurements (mm), as in gosts' config: seen from above, X along
 // the base sides that carry the posts, Y along the tilt axis, Z up.
-export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 300, ObjectZ: 100 };
+export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 400, ObjectZ: 100 };
 
 const rad = (d) => d * Math.PI / 180;
 
@@ -314,14 +314,14 @@ export function createRig(container) {
     last = u;
     const { elevation, azimuth, shots, index, running } = u;
     const e = elevation ?? 0, a = azimuth ?? 0;
-    rig.tilt.rotation.z = -rad(e);
-    if (!pv) { // during a path preview the preview turns the platform
+    if (!pv) { // during a path preview the preview moves the swing and platform
+      rig.tilt.rotation.z = -rad(e);
       rig.turn.rotation.y = rad(a);
       rig.shotGroup.rotation.y = rad(a);
+      rig.tilt.updateMatrixWorld(true);
+      rig.sightGeo.setFromPoints([rig.camera.localToWorld(rig.camera.userData.lensFront.clone()), rig.objectCentre]);
+      rig.sight.computeLineDistances();
     }
-    rig.tilt.updateMatrixWorld(true);
-    rig.sightGeo.setFromPoints([rig.camera.localToWorld(rig.camera.userData.lensFront.clone()), rig.objectCentre]);
-    rig.sight.computeLineDistances();
 
     // Shots: rebuild when the plan changes, recolour as they're taken.
     const list = shots || [];
@@ -411,8 +411,8 @@ export function createRig(container) {
   // PREVIEW_SPEED, as the rig really does it: the camera only tilts
   // (elevation) while the turntable turns the object (azimuth). So the ball
   // stays on the camera's arc, and the turntable, the object, the sphere of
-  // shots and the ball's fading comet tail (about 5 hops long) turn together.
-  // The swing and camera are hidden meanwhile.
+  // shots and the ball's fading comet tail (about 5 hops long) turn together,
+  // while the swing tilts the camera to each elevation.
   const PREVIEW_SPEED = 90; // degrees per second, along the path
   const TRAIL_N = 160;
   function startPreview(shots) {
@@ -423,7 +423,7 @@ export function createRig(container) {
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), TRAIL_N);
     trail.count = 0;
     rig.shotGroup.add(ball, trail);
-    rig.tilt.visible = rig.sight.visible = rig.nextRing.visible = false;
+    rig.nextRing.visible = false;
     // Each hop takes its path angle / PREVIEW_SPEED; times[i] is when the
     // ball leaves shot i.
     const times = [0];
@@ -438,7 +438,6 @@ export function createRig(container) {
     if (!pv) return;
     rig.shotGroup.remove(pv.ball, pv.trail);
     pv.ball.geometry.dispose(); pv.trail.geometry.dispose();
-    rig.tilt.visible = rig.sight.visible = true;
     const done = pv.done;
     pv = null;
     update(last);
@@ -484,6 +483,10 @@ export function createRig(container) {
     // placed in that turning frame, ends up on the camera's fixed arc.
     const st = previewState(t);
     rig.turn.rotation.y = rig.shotGroup.rotation.y = rad(st.az);
+    rig.tilt.rotation.z = -rad(st.e); // the swing tilts the camera to the elevation
+    rig.tilt.updateMatrixWorld(true);
+    rig.sightGeo.setFromPoints([rig.camera.localToWorld(rig.camera.userData.lensFront.clone()), rig.objectCentre]);
+    rig.sight.computeLineDistances();
     const p = shotPos(st.e, st.az);
     pv.ball.position.copy(p);
     // Dots the ball has reached are consumed: hidden until the preview ends
