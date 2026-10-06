@@ -81,6 +81,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .tile .v small { font-size: 12px; color: var(--muted); font-weight: 400; }
 table { width: 100%; border-collapse: collapse; font-size: 12px; }
 th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+/* Servo table: fixed columns, so the status ("moving") coming and going doesn't shift them. */
+table.servos { table-layout: fixed; }
+table.servos td { overflow: hidden; text-overflow: ellipsis; }
 th { color: var(--muted); font-weight: 500; }
 td.mono { font-family: var(--mono); }
 .progress { height: 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-top: 10px; }
@@ -182,7 +185,8 @@ td.mono { font-family: var(--mono); }
           <button class="btn" id="stopBtn">Stop</button>
           <button class="btn primary" id="goBtn">Go</button>
         </div>
-        <table style="margin-top:12px">
+        <table class="servos" style="margin-top:12px">
+          <colgroup><col style="width:12%"><col style="width:30%"><col style="width:14%"><col style="width:10%"><col style="width:8%"><col style="width:8%"><col style="width:18%"></colgroup>
           <thead><tr><th>Servo</th><th>Role</th><th>Angle</th><th>Load</th><th>V</th><th>°C</th><th></th></tr></thead>
           <tbody id="servoRows"></tbody>
         </table>
@@ -431,7 +435,7 @@ function onTelemetry(m) {
   const rows = Object.entries(m.servos).map(([id, s]) => {
     const ang = s.error ? "–" : `${(((s.pos * 360 / 4096) + 180) % 360 - 180).toFixed(1)}°`;
     const st = s.error ? `<span style="color:var(--bad)">${s.error}</span>` : s.status !== "ok" ? `<span style="color:var(--warn)">${s.status}</span>` : s.moving ? "moving" : "";
-    return `<tr><td class="mono">#${id}</td><td>${s.role}</td><td class="mono">${ang}</td><td class="mono">${s.error ? "–" : s.load.toFixed(0) + "%"}</td><td class="mono">${s.error ? "–" : s.volt.toFixed(1)}</td><td class="mono">${s.error ? "–" : s.temp}</td><td>${st}</td></tr>`;
+    return `<tr><td class="mono">#${id}</td><td>${s.role}</td><td class="mono">${ang}</td><td class="mono">${s.error ? "–" : s.load.toFixed(0) + "%"}</td><td class="mono">${s.error ? "–" : s.volt.toFixed(1)}</td><td class="mono">${s.error ? "–" : s.temp}</td><td title="${s.error || (s.status !== "ok" ? s.status : "")}">${st}</td></tr>`;
   });
   $("servoRows").innerHTML = rows.join("");
   const tq = Object.values(m.servos).filter((s) => !s.error).map((s) => s.torque);
