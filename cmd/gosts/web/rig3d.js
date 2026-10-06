@@ -446,10 +446,11 @@ export function createRig(container) {
   // PREVIEW_SPEED, as the rig really does it: the camera only tilts
   // (elevation) while the turntable turns the object (azimuth). So the ball
   // stays on the camera's arc, and the turntable, the object, the sphere of
-  // shots and the ball's fading tail (about 5 hops long) turn together,
+  // shots and the ball's fading tail (TAIL seconds long) turn together,
   // while the swing tilts the camera to each elevation.
   const PREVIEW_SPEED = 90; // degrees per second, along the path
   const TRAIL_N = 160;
+  const TAIL = 5; // s of motion the tail shows, whatever the number of shots
   // hopAngle: the angle (degrees) the camera turns through round the object
   // on hop i of a path.
   function hopAngle(path, i) {
@@ -568,7 +569,7 @@ export function createRig(container) {
     const times = [0];
     const path = makePath(shots, !!smooth);
     for (let i = 0; i + 1 < shots.length; i++) times.push(times[i] + Math.max(0.05, hopAngle(path, i) / PREVIEW_SPEED));
-    const tail = 5 * times[times.length - 1] / (shots.length - 1);
+    const tail = TAIL;
     let done;
     const finished = new Promise((r) => (done = r));
     pv = { ...makeComet(), shots, path, times, tail, t: 0, clock: 0, done, consumed: 0 };
@@ -692,14 +693,14 @@ export function createRig(container) {
   // ---------------------------------------------------------------- capture
   // During a capture the view looks like the preview, but follows the real
   // rig: the ball is where the camera really is, its tail is where it really
-  // went, and each shot's dot goes once the photo is taken. The tail is about
-  // 5 shots long (in time, from the recent pace), and only drawn between
+  // went, and each shot's dot goes once the photo is taken. The tail is TAIL
+  // seconds long, and only drawn between
   // the first shot and the last: not on the way to the first or back home.
   // When the last photo is taken (or the capture stops) the ball goes and the
   // tail runs out; then the dots come back, taken ones green.
   function startCapture() {
     stopPreview();
-    cv = { ...makeComet(), clock: 0, index: last.index ?? 0, shotAt: [], tail: 2, dist: 0, moving: 0, flashes: [] };
+    cv = { ...makeComet(), clock: 0, index: last.index ?? 0, shotAt: [], tail: TAIL, dist: 0, moving: 0, flashes: [] };
   }
   function captureShots(u) {
     // Ended: the last photo taken, or stopped. The view runs DELAY behind.
@@ -709,8 +710,6 @@ export function createRig(container) {
       if (s) cv.flashes.push({ at: cv.clock + DELAY / 1000, p: shotPos(s.actualElevation ?? s.elevation, s.actualAzimuth ?? s.azimuth) });
       cv.index = u.index;
       cv.shotAt.push(cv.clock);
-      const at = cv.shotAt.slice(-6);
-      if (at.length > 1) cv.tail = Math.max(0.5, 5 * (at[at.length - 1] - at[0]) / (at.length - 1));
     }
   }
   function captureTick(dt) {
