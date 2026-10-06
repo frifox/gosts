@@ -487,7 +487,7 @@ function onCapture(m) {
   $("abortBtn").disabled = !m.running;
   for (const id of ["pPhotos", "pMoving"]) $(id).disabled = m.running;
   $("pSettle").disabled = m.running || $("pMoving").checked;
-  $("capNote").textContent = m.running ? (m.paused ? "Paused." : `Shot ${Math.min(m.index + 1, m.total)} of ${m.total}…`) : m.note;
+  $("capNote").textContent = m.running ? (m.paused ? "Paused." : "") : m.note; // progress: the bar
   draw();
 }
 
