@@ -315,8 +315,10 @@ export function createRig(container) {
     const { elevation, azimuth, shots, index, running } = u;
     const e = elevation ?? 0, a = azimuth ?? 0;
     rig.tilt.rotation.z = -rad(e);
-    rig.turn.rotation.y = rad(a);
-    rig.shotGroup.rotation.y = rad(a);
+    if (!pv) { // during a path preview the preview turns the platform
+      rig.turn.rotation.y = rad(a);
+      rig.shotGroup.rotation.y = rad(a);
+    }
     rig.tilt.updateMatrixWorld(true);
     rig.sightGeo.setFromPoints([rig.camera.localToWorld(rig.camera.userData.lensFront.clone()), rig.objectCentre]);
     rig.sight.computeLineDistances();
@@ -405,9 +407,12 @@ export function createRig(container) {
   resize();
   setDims(DEFAULT_RIG);
   // ---------------------------------------------------------------- path preview
-  // A ball flies through the shots in shooting order, along the camera's real
-  // path over the sphere at PREVIEW_SPEED, with a fading comet tail about 5
-  // hops long. The swing and camera are hidden meanwhile.
+  // A ball shows the camera going through the shots in shooting order at
+  // PREVIEW_SPEED, as the rig really does it: the camera only tilts
+  // (elevation) while the turntable turns the object (azimuth). So the ball
+  // stays on the camera's arc, and the turntable, the object, the sphere of
+  // shots and the ball's fading comet tail (about 5 hops long) turn together.
+  // The swing and camera are hidden meanwhile.
   const PREVIEW_SPEED = 90; // degrees per second, along the path
   const TRAIL_N = 160;
   function startPreview(shots) {
@@ -457,14 +462,17 @@ export function createRig(container) {
     }
     return sum * 180 / Math.PI;
   }
-  // Where the ball is after t seconds (easing in and out of each shot like
-  // the servos).
-  function previewPos(t) {
+  // previewState: the elevation and azimuth after t seconds (easing in and
+  // out of each shot like the servos).
+  function previewState(t) {
     const ts = pv.times;
     let i = 0;
     while (i < ts.length - 2 && t >= ts[i + 1]) i++;
-    const f = Math.min(1, Math.max(0, (t - ts[i]) / (ts[i + 1] - ts[i])));
-    return hopPos(pv.shots[i], pv.shots[i + 1], f * f * (3 - 2 * f));
+    let f = Math.min(1, Math.max(0, (t - ts[i]) / (ts[i + 1] - ts[i])));
+    f = f * f * (3 - 2 * f);
+    const a = pv.shots[i], b = pv.shots[i + 1];
+    const da = ((b.azimuth - a.azimuth + 540) % 360) - 180;
+    return { e: a.elevation + (b.elevation - a.elevation) * f, az: a.azimuth + da * f };
   }
   const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color(), accent = new THREE.Color(0x5b8cff);
   function previewTick(dt) {
@@ -472,7 +480,11 @@ export function createRig(container) {
     pv.t += dt;
     const end = pv.times[pv.times.length - 1], TAIL = pv.tail;
     const t = Math.min(pv.t, end);
-    const p = previewPos(t);
+    // The turntable side (object, sphere, tail) turns to the azimuth; the ball,
+    // placed in that turning frame, ends up on the camera's fixed arc.
+    const st = previewState(t);
+    rig.turn.rotation.y = rig.shotGroup.rotation.y = rad(st.az);
+    const p = shotPos(st.e, st.az);
     pv.ball.position.copy(p);
     // Dots the ball has reached are consumed: hidden until the preview ends
     // (update() puts them back).
