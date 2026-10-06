@@ -475,6 +475,40 @@ td .num { width: 90px; padding: 3px 6px; }
       </div>
     </section>
 
+    <section class="card group-only" id="healthCard" hidden>
+      <h2>Group health <span class="spacer"></span><span id="healthBadge" class="chip">–</span></h2>
+      <div class="card-body">
+        <div class="health-grid">
+          <div class="tile"><div class="k">Spread</div><div class="v" id="hSpread">–</div></div>
+          <div class="tile"><div class="k">Opposing load</div><div class="v" id="hFight">–</div></div>
+        </div>
+        <p class="hint" id="hProblem"></p>
+        <hr class="sep">
+        <div class="field"><label>Max spread</label><input type="range" id="gSpread" min="1" max="200" value="20"><input class="num" type="number" id="gSpreadNum" value="20"></div>
+        <div class="field"><label>Max opposing load %</label><input type="range" id="gFight" min="5" max="100" value="30"><input class="num" type="number" id="gFightNum" value="30"></div>
+        <div class="row">
+          <span>When members fight</span>
+          <select id="gOnFight" class="num" style="width:auto;font-family:inherit">
+            <option value="warn">Warn only</option>
+            <option value="torque-off">Turn torque off</option>
+          </select>
+          <span class="spacer"></span>
+          <button class="btn" id="gSaveLimits">Save limits</button>
+        </div>
+        <p class="hint">Spread is the largest difference between the members' positions. Members "fight" when one pushes one way and another pushes back, which strains a shared axis. Turning torque off releases the whole group, so make sure the load can't fall.</p>
+        <hr class="sep">
+        <div class="row">
+          <button class="btn" id="gAlign" title="Move every member slowly to the leader's position">Align to leader</button>
+          <button class="btn" id="gAutoTune" title="Tune the whole group together by test moves">Auto-tune group…</button>
+          <button class="btn" id="gCopyTuning" title="Copy PID, dead zones and protection from the leader to the other members (saved)">Copy tuning from leader</button>
+        </div>
+        <p class="hint">Align before turning Torque Lock on if the members were moved by hand. For members that should agree exactly, set 0° in the same pose first (Setup → Set 0° to → Current position).</p>
+      </div>
+    </section>
+
+    </div>
+
+    <div class="col">
     <section class="card group-only" id="gSetupCard" hidden>
       <h2>Setup</h2>
       <div class="card-body">
@@ -531,39 +565,6 @@ td .num { width: 90px; padding: 3px 6px; }
         <p class="hint">New servos ship with ID 1. Connect one at a time when changing IDs.</p>
         <hr class="sep">
         <div class="row"><button class="btn" id="cfgBtn">Reload registers</button></div>
-      </div>
-    </section>
-    </div>
-
-    <div class="col">
-    <section class="card group-only" id="healthCard" hidden>
-      <h2>Group health <span class="spacer"></span><span id="healthBadge" class="chip">–</span></h2>
-      <div class="card-body">
-        <div class="health-grid">
-          <div class="tile"><div class="k">Spread</div><div class="v" id="hSpread">–</div></div>
-          <div class="tile"><div class="k">Opposing load</div><div class="v" id="hFight">–</div></div>
-        </div>
-        <p class="hint" id="hProblem"></p>
-        <hr class="sep">
-        <div class="field"><label>Max spread</label><input type="range" id="gSpread" min="1" max="200" value="20"><input class="num" type="number" id="gSpreadNum" value="20"></div>
-        <div class="field"><label>Max opposing load %</label><input type="range" id="gFight" min="5" max="100" value="30"><input class="num" type="number" id="gFightNum" value="30"></div>
-        <div class="row">
-          <span>When members fight</span>
-          <select id="gOnFight" class="num" style="width:auto;font-family:inherit">
-            <option value="warn">Warn only</option>
-            <option value="torque-off">Turn torque off</option>
-          </select>
-          <span class="spacer"></span>
-          <button class="btn" id="gSaveLimits">Save limits</button>
-        </div>
-        <p class="hint">Spread is the largest difference between the members' positions. Members "fight" when one pushes one way and another pushes back, which strains a shared axis. Turning torque off releases the whole group, so make sure the load can't fall.</p>
-        <hr class="sep">
-        <div class="row">
-          <button class="btn" id="gAlign" title="Move every member slowly to the leader's position">Align to leader</button>
-          <button class="btn" id="gAutoTune" title="Tune the whole group together by test moves">Auto-tune group…</button>
-          <button class="btn" id="gCopyTuning" title="Copy PID, dead zones and protection from the leader to the other members (saved)">Copy tuning from leader</button>
-        </div>
-        <p class="hint">Align before turning Torque Lock on if the members were moved by hand. For members that should agree exactly, set 0° in the same pose first (Setup → Set 0° to → Current position).</p>
       </div>
     </section>
 
