@@ -244,7 +244,7 @@ the preview draws (goals streamed ~30 times a second just ahead of it, corrected
 the servos' speed and with gentle acceleration), each photo taken as the path passes its shot; the platform is never unwound: if a spiral
 wouldn't stay within its servo's multi-turn range (about ±7.5 turns from power-up) from where it is, it turns
 the other way instead (the same shots, mirrored), so spirals are limited to 7 turns (about 90 photos).
-When the last photo is taken the rig returns to 0°/0° the short way (less than a turn) and stops. Camera control (Sony A6600 over USB, with live preview) is next; for
+When the last photo is taken (or a preview reaches its last shot, if a board is connected) the rig returns to 0°/0° the short way (less than a turn) and stops. Camera control (Sony A6600 over USB, with live preview) is next; for
 now each shot waits for the rig to settle and records where it really is.
 
 The **Configure** card (below Control; like every card it folds by its title, each window remembering which are folded) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing

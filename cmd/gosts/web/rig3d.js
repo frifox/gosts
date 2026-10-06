@@ -559,7 +559,8 @@ export function createRig(container) {
     geo.setDrawRange(0, Math.max(0, n - 1) * TUBE_R * 6);
     geo.attributes.position.needsUpdate = geo.attributes.color.needsUpdate = true;
   }
-  function startPreview(shots, smooth) {
+  // onEnd is called as the camera leaves the last shot to return.
+  function startPreview(shots, smooth, onEnd) {
     stopPreview();
     if (cv?.ended) { dropComet(cv); cv = null; update(last); } // a finished capture's fading trail
     if (!shots || shots.length < 2 || cv) return Promise.resolve();
@@ -572,7 +573,7 @@ export function createRig(container) {
     const tail = TAIL;
     let done;
     const finished = new Promise((r) => (done = r));
-    pv = { ...makeComet(), shots, path, times, tail, t: 0, clock: 0, done, consumed: 0 };
+    pv = { ...makeComet(), shots, path, times, tail, t: 0, clock: 0, done, consumed: 0, onEnd };
     let total = 0;
     for (let i = 0; i + 1 < shots.length; i++) total += hopAngle(path, i);
     pv.normal = total / times[times.length - 1]; // the average speed along the path
@@ -657,8 +658,9 @@ export function createRig(container) {
     const end = pv.times[pv.times.length - 1];
     const t = Math.min(pv.t, end);
     if (pv.t > end + HOLD) {
-      // The camera returns to the rig's real pose (and stays with it); the
-      // ball goes, the trail carries on below.
+      // The camera returns to the rig's real pose (and stays with it), which
+      // onEnd sends to 0°/0°; the ball goes, the trail carries on below.
+      if (!pv.ended) { pv.ended = true; pv.onEnd?.(); }
       pv.ball.visible = false;
       glide(previewState(end), livePose(), (pv.t - end - HOLD) / BACK);
     } else {
