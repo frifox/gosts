@@ -249,6 +249,8 @@ export function createRig(container) {
   let rig = null;       // the built rig: parts that move, and its measurements
   let pv = null;        // running path preview (see startPreview)
   let last = {};        // last update, re-applied after a rebuild
+  let cv = null;        // running capture's comet (see captureTick)
+  let samples = [];     // recent telemetry poses, for smooth motion (see livePose)
 
   // build makes the rig from measurements (three.js: x = X, y = Z up, z = Y).
   function build(d) {
@@ -331,16 +333,11 @@ export function createRig(container) {
   // ---------------------------------------------------------------- update
   function update(u) {
     last = u;
-    const { elevation, azimuth, shots, index, running } = u;
-    const e = elevation ?? 0, a = azimuth ?? 0;
-    if (!pv) { // during a path preview the preview moves the swing and platform
-      rig.tilt.rotation.z = -rad(e);
-      rig.turn.rotation.y = rad(a);
-      rig.shotGroup.rotation.y = rad(a);
-      rig.tilt.updateMatrixWorld(true);
-      rig.sightGeo.setFromPoints([rig.camera.localToWorld(rig.camera.userData.lensFront.clone()), rig.objectCentre]);
-      rig.sight.computeLineDistances();
-    }
+    const { shots, index, running } = u;
+    addSample(u);
+    // The swing and platform are posed every frame (see the animation loop).
+    if (running && !cv) startCapture();
+    if (cv) captureShots(u);
 
     // Shots: rebuild when the plan changes, recolour as they're taken.
     const list = shots || [];
@@ -372,7 +369,7 @@ export function createRig(container) {
       const m = new THREE.Matrix4();
       list.forEach((s, i) => {
         const p = shotPos(s.done ? s.actualElevation ?? s.elevation : s.elevation, s.done ? s.actualAzimuth ?? s.azimuth : s.azimuth);
-        if (pv && i < pv.consumed) m.makeScale(0, 0, 0); // consumed by the path preview
+        if ((pv && i < pv.consumed) || (cv && s.done)) m.makeScale(0, 0, 0); // consumed by the path preview or capture
         else m.makeTranslation(p.x, p.y, p.z);
         rig.shotMesh.setMatrixAt(i, m);
         rig.shotMesh.setColorAt(i, s.done ? shotColors.done : shotColors.pending);
@@ -381,7 +378,7 @@ export function createRig(container) {
       if (rig.shotMesh.instanceColor) rig.shotMesh.instanceColor.needsUpdate = true;
     }
     const next = running && list[index];
-    rig.nextRing.visible = !!next && !pv;
+    rig.nextRing.visible = !!next && !pv && !cv;
     if (next) {
       rig.nextRing.position.copy(shotPos(next.elevation, next.azimuth));
       rig.nextRing.lookAt(V(0, 0, 0)); // face the object
@@ -447,14 +444,42 @@ export function createRig(container) {
     }
     return sum * 180 / Math.PI;
   }
-  function startPreview(shots, smooth) {
-    stopPreview();
-    if (!shots || shots.length < 2) return Promise.resolve();
+  // A comet: the ball (where the camera is) and its fading tail, in the
+  // turntable's frame so they turn with the platform.
+  function makeComet() {
     const ball = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 16), new THREE.MeshBasicMaterial({ color: 0x8fb1ff }));
     const trail = new THREE.InstancedMesh(new THREE.SphereGeometry(4.5, 10, 8),
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), TRAIL_N);
     trail.count = 0;
+    ball.visible = false;
     rig.shotGroup.add(ball, trail);
+    return { ball, trail, history: [] };
+  }
+  function dropComet(c) {
+    rig.shotGroup.remove(c.ball, c.trail);
+    c.ball.geometry.dispose(); c.trail.geometry.dispose();
+  }
+  // drawTrail: the tail at time `now`, evenly spread over the history (points
+  // younger than `tail` seconds), fading (darker = more transparent with
+  // additive blending) and thinning towards its end.
+  function drawTrail(c, now, tail) {
+    while (c.history.length && c.history[0].t < now - tail) c.history.shift();
+    const h = c.history, n = Math.min(TRAIL_N, h.length);
+    for (let k = 0; k < n; k++) {
+      const e = h[Math.floor((k / n) * h.length)];
+      const age = Math.min(1, Math.max(0, (now - e.t) / tail)); // 0 = new, 1 = end of the tail
+      const s = 1 - age * 0.85;
+      tmpM.makeScale(s, s, s).setPosition(e.p);
+      c.trail.setMatrixAt(k, tmpM);
+      c.trail.setColorAt(k, tmpC.copy(accent).multiplyScalar(Math.pow(1 - age, 1.6) * 0.9));
+    }
+    c.trail.count = n;
+    c.trail.instanceMatrix.needsUpdate = true;
+    if (c.trail.instanceColor) c.trail.instanceColor.needsUpdate = true;
+  }
+  function startPreview(shots, smooth) {
+    stopPreview();
+    if (!shots || shots.length < 2 || cv) return Promise.resolve();
     rig.nextRing.visible = false;
     // Each hop takes its path angle / PREVIEW_SPEED; times[i] is when the
     // ball leaves shot i.
@@ -464,14 +489,12 @@ export function createRig(container) {
     const tail = 5 * times[times.length - 1] / (shots.length - 1);
     let done;
     const finished = new Promise((r) => (done = r));
-    pv = { shots, path, times, tail, t: 0, clock: 0, ball, trail, history: [], done, consumed: 0 };
-    ball.visible = false; // until the lead-in reaches the first shot
+    pv = { ...makeComet(), shots, path, times, tail, t: 0, clock: 0, done, consumed: 0 };
     return finished;
   }
   function stopPreview() {
     if (!pv) return;
-    rig.shotGroup.remove(pv.ball, pv.trail);
-    pv.ball.geometry.dispose(); pv.trail.geometry.dispose();
+    dropComet(pv);
     const done = pv.done;
     pv = null;
     update(last);
@@ -502,7 +525,31 @@ export function createRig(container) {
     const daz = ((to.az - from.az) % 360 + 540) % 360 - 180;
     setPose(from.e + (to.e - from.e) * f, from.az + daz * f);
   }
-  const livePose = () => ({ e: last.elevation ?? 0, az: last.azimuth ?? 0 });
+
+  // ---------------------------------------------------------------- live pose
+  // Telemetry comes ~10 times a second; the view plays it back DELAY behind,
+  // interpolating between frames, so the rig moves smoothly as it really does.
+  const DELAY = 150; // ms
+  function addSample(u) {
+    if (u.elevation === null || u.elevation === undefined) { samples = []; return; }
+    const tm = u.time ?? performance.now();
+    if (samples.length && tm <= samples[samples.length - 1].tm) return; // not a new frame
+    samples.push({ tm, at: performance.now(), e: u.elevation, az: u.azimuth ?? 0 });
+    if (samples.length > 20) samples.shift();
+  }
+  function livePose() {
+    const n = samples.length;
+    if (!n) return { e: last.elevation ?? 0, az: last.azimuth ?? 0 };
+    const b = samples[n - 1];
+    const tm = b.tm + (performance.now() - b.at) - DELAY; // telemetry time now shown
+    if (tm >= b.tm || n < 2) return { e: b.e, az: b.az };
+    let i = n - 1;
+    while (i > 0 && samples[i - 1].tm > tm) i--;
+    if (i === 0) return { e: samples[0].e, az: samples[0].az };
+    const a = samples[i - 1], c = samples[i], f = (tm - a.tm) / (c.tm - a.tm);
+    const daz = ((c.az - a.az) % 360 + 540) % 360 - 180;
+    return { e: a.e + (c.e - a.e) * f, az: a.az + daz * f };
+  }
   // setPose puts the swing and platform at elevation e, azimuth az.
   function setPose(e, az) {
     rig.turn.rotation.y = rig.shotGroup.rotation.y = rad(az);
@@ -521,7 +568,7 @@ export function createRig(container) {
     }
     pv.ball.visible = true;
     pv.t = pv.clock - LEAD; // time along the path
-    const end = pv.times[pv.times.length - 1], TAIL = pv.tail;
+    const end = pv.times[pv.times.length - 1];
     const t = Math.min(pv.t, end);
     if (pv.t > end + HOLD) {
       // The camera returns to the rig's real pose (and stays with it); the
@@ -535,7 +582,6 @@ export function createRig(container) {
       setPose(st.e, st.az);
       pv.ball.position.copy(shotPos(st.e, st.az));
     }
-    const p = pv.ball.position;
     // Dots the ball has reached are consumed: hidden until the preview ends
     // (update() puts them back).
     const mesh = rig.shotMesh;
@@ -549,29 +595,53 @@ export function createRig(container) {
     }
     // The trail: recorded while moving; afterwards it keeps ageing, so it
     // catches up with the last shot at the same pace.
-    if (pv.t <= end) pv.history.push({ t, p: p.clone() });
-    const now = pv.t;
-    while (pv.history.length && pv.history[0].t < now - TAIL) pv.history.shift();
-    if (now >= end + HOLD + BACK && !pv.history.length) return stopPreview();
-    // Tail: evenly spread over the history, fading (darker = more
-    // transparent with additive blending) and thinning towards its end.
-    const h = pv.history, n = Math.min(TRAIL_N, h.length);
-    for (let k = 0; k < n; k++) {
-      const e = h[Math.floor((k / n) * h.length)];
-      const age = Math.min(1, (now - e.t) / TAIL); // 0 = new, 1 = end of the tail
-      const s = 1 - age * 0.85;
-      tmpM.makeScale(s, s, s).setPosition(e.p);
-      pv.trail.setMatrixAt(k, tmpM);
-      pv.trail.setColorAt(k, tmpC.copy(accent).multiplyScalar(Math.pow(1 - age, 1.6) * 0.9));
+    if (pv.t <= end) pv.history.push({ t, p: pv.ball.position.clone() });
+    drawTrail(pv, pv.t, pv.tail);
+    if (pv.t >= end + HOLD + BACK && !pv.history.length) stopPreview();
+  }
+
+  // ---------------------------------------------------------------- capture
+  // During a capture the view looks like the preview, but follows the real
+  // rig: the ball is where the camera really is, its tail is where it really
+  // went, and each shot's dot goes once the photo is taken. The tail is about
+  // 5 shots long (in time, from the recent pace). When the capture ends the
+  // ball goes and the tail runs out; then the dots come back, taken ones green.
+  function startCapture() {
+    stopPreview();
+    cv = { ...makeComet(), clock: 0, index: last.index ?? 0, shotAt: [0], tail: 2 };
+  }
+  function captureShots(u) {
+    if ((u.index ?? 0) > cv.index) {
+      cv.index = u.index;
+      cv.shotAt.push(cv.clock);
+      const at = cv.shotAt.slice(-6);
+      if (at.length > 1) cv.tail = Math.max(0.5, 5 * (at[at.length - 1] - at[0]) / (at.length - 1));
     }
-    pv.trail.count = n;
-    pv.trail.instanceMatrix.needsUpdate = true;
-    if (pv.trail.instanceColor) pv.trail.instanceColor.needsUpdate = true;
+  }
+  function captureTick(dt) {
+    if (!cv) return;
+    cv.clock += dt;
+    const running = !!last.running;
+    cv.ball.visible = running;
+    if (running) {
+      const q = livePose();
+      cv.ball.position.copy(shotPos(q.e, q.az));
+      cv.history.push({ t: cv.clock, p: cv.ball.position.clone() });
+    }
+    drawTrail(cv, cv.clock, cv.tail);
+    if (!running && !cv.history.length) {
+      dropComet(cv);
+      cv = null;
+      update(last); // the dots come back
+    }
   }
 
   const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
-    previewTick(Math.min(clock.getDelta(), 0.1));
+    const dt = Math.min(clock.getDelta(), 0.1);
+    if (!pv) { const q = livePose(); setPose(q.e, q.az); } // during a preview the preview poses the rig
+    previewTick(dt);
+    captureTick(dt);
     controls.update();
     renderer.render(scene, cam);
   });

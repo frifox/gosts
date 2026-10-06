@@ -575,7 +575,7 @@ function draw() {
   const t = state.tele, cap = state.cap;
   if (!dimsEdited()) window.rig3d?.setDims(savedDims()); // while editing, the fields are shown
   const live = t && t.elevation !== null && t.elevation !== undefined;
-  window.rig3d?.update({ elevation: live ? t.elevation : null, azimuth: t?.azimuth ?? null, shots: cap?.shots, index: cap?.index, running: cap?.running,
+  window.rig3d?.update({ elevation: live ? t.elevation : null, azimuth: t?.azimuth ?? null, time: t?.time, shots: cap?.shots, index: cap?.index, running: cap?.running,
     smooth: !!state.server?.config.Plan.Moving });
   $("noData").hidden = live;
   $("noData").textContent = state.server?.connected ? "waiting for the servos…" : "no board connected: showing the rig at 0°";
