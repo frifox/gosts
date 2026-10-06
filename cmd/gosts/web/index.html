@@ -184,12 +184,12 @@ td.mono { font-family: var(--mono); }
           <label title="Swing arm length">Swing X<input type="number" id="dSwingX" step="10"></label>
           <label title="Swing bar length (camera bar)">Swing Y<input type="number" id="dSwingY" step="10"></label>
           <label title="Post height">Post Z<input type="number" id="dPostZ" step="10"></label>
-          <label title="Turntable height">Platform Z<input type="number" id="dPlatformZ" step="10"></label>
+          <label title="Turntable height">Turntable Z<input type="number" id="dTurntableZ" step="10"></label>
           <label title="Camera position along the arms: + towards the object" class="span2">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
           <label class="span2">Min elevation °<input type="number" id="dElevMin" step="1"></label>
           <label class="span2">Max elevation °<input type="number" id="dElevMax" step="1"></label>
         </div>
-        <p class="hint">Base X/Y: the base frame; swing X/Y: the tilting frame's arms and bars; post Z: post height; platform Z: turntable height. Camera X offset: where the camera sits along the arms from the camera bar; + is towards the object, − away from it. Min/max elevation: the camera never goes outside this range (keep it clear of the posts and base); the capture plan spreads its photos over it.</p>
+        <p class="hint">Base X/Y: the base frame; swing X/Y: the tilting frame's arms and bars; post Z: post height; turntable Z: turntable height. Camera X offset: where the camera sits along the arms from the camera bar; + is towards the object, − away from it. Min/max elevation: the camera never goes outside this range (keep it clear of the posts and base); the capture plan spreads its photos over it.</p>
         <div class="err" id="rigErr"></div>
         <div class="row" style="margin-top:10px">
           <button class="btn small" id="dDefaults">Defaults</button>
@@ -493,8 +493,8 @@ $("sSave").onclick = async () => {
 };
 
 // ---------------------------------------------------------------- rig config (measurements)
-const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "PlatformZ"];
-const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, PlatformZ: 300 };
+const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "TurntableZ"];
+const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 300 };
 // The card also holds the elevation limits (kept with the motion settings).
 const LIMITS_DEFAULT = { ElevationMin: -45, ElevationMax: 80 };
 const formDims = () => Object.fromEntries(DIMS.map((k) => [k, Number($("d" + k).value)]));

@@ -10,7 +10,7 @@ const P = 20; // 2020 profile size
 
 // Default measurements (mm), as in gosts' config: seen from above, X along
 // the base sides that carry the posts, Y along the tilt axis, Z up.
-export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, PlatformZ: 300 };
+export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 300 };
 
 const rad = (d) => d * Math.PI / 180;
 
@@ -245,10 +245,10 @@ export function createRig(container) {
     root.add(sight);
 
     // Turntable on a pedestal, with a 0° mark and a placeholder object.
-    const pedH = Math.max(1, d.PlatformZ - P - 12);
+    const pedH = Math.max(1, d.TurntableZ - P - 12);
     const ped = cylinder(28, pedH, mat.alu); ped.position.set(0, P + pedH / 2, 0); root.add(ped);
     const turn = new THREE.Group();
-    turn.position.set(0, d.PlatformZ, 0);
+    turn.position.set(0, d.TurntableZ, 0);
     root.add(turn);
     const discR = Math.min(120, d.BaseY / 2 - 40);
     const disc = cylinder(discR, 12, mat.table, "y", 64); disc.position.y = -6; turn.add(disc);
@@ -268,7 +268,7 @@ export function createRig(container) {
 
     rig = { d, root, tilt, turn, camera, sight, sightGeo, shotGroup, nextRing, shotMesh: null, shotKey: "",
       orbit: barX - d.CameraOffset + 40, // camera (lens) distance from the tilt axis
-      objectCentre: V(0, d.PlatformZ + 118, 0), target: V(0, (pivotY + d.PlatformZ) / 2, 0) };
+      objectCentre: V(0, d.TurntableZ + 118, 0), target: V(0, (pivotY + d.TurntableZ) / 2, 0) };
   }
 
   // shotPos: where the camera is, relative to the object, for a shot taken at
