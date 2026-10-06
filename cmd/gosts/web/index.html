@@ -10,7 +10,7 @@
   --text: #1c2330; --muted: #6b7484; --accent: #2f6fed; --accent-weak: #2f6fed1f;
   --ok: #1f9d55; --warn: #c27c0e; --bad: #d64545;
   --frame: #8a93a3; --frame-2: #b6bdc8; --cam: #2f6fed; --weight: #6b7484; --object: #c27c0e;
-  --pending: #b6bdc8; --done: #1f9d55; --shadow: 0 1px 2px rgba(16,24,40,.06);
+  --pending: #b6bdc8; --done: #1f9d55; --trail-mid: #4a5262; --shadow: 0 1px 2px rgba(16,24,40,.06);
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
@@ -19,7 +19,7 @@
     --text: #e6e9ef; --muted: #8b93a3; --accent: #5b8cff; --accent-weak: #5b8cff26;
     --ok: #3ccf7a; --warn: #f0a742; --bad: #ff6b6b;
     --frame: #7d8698; --frame-2: #4b5363; --cam: #5b8cff; --weight: #8b93a3; --object: #f0a742;
-    --pending: #4b5363; --done: #3ccf7a; --shadow: none;
+    --pending: #4b5363; --done: #3ccf7a; --trail-mid: #e6e9ef; --shadow: none;
   }
 }
 * { box-sizing: border-box; }
@@ -106,6 +106,16 @@ td.mono { font-family: var(--mono); }
 .overlay { position: absolute; left: 12px; top: 12px; display: flex; gap: 8px; pointer-events: none; }
 .overlay .tile { background: color-mix(in srgb, var(--panel) 85%, transparent); }
 .legend { position: absolute; left: 12px; bottom: 10px; display: flex; gap: 12px; font-size: 12px; color: var(--muted); pointer-events: none; }
+/* Trail speed key (colours as in rig3d.js speedColor): ½× … normal … 2×, log scale. */
+.speedkey { position: absolute; right: 12px; bottom: 10px; width: 210px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 85%, transparent); font-size: 11px; color: var(--muted); pointer-events: none; }
+.speedkey .sk-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.speedkey .sk-head b { font: 600 13px var(--mono); color: var(--text); }
+.speedkey .sk-bar { position: relative; height: 8px; border-radius: 4px;
+  background: linear-gradient(90deg, #4c9be8, var(--trail-mid) 50%, #f2a03d 75%, #e8553c); }
+.speedkey .sk-bar i { position: absolute; top: -3px; width: 3px; height: 14px; margin-left: -1.5px; border-radius: 2px; background: var(--text);
+  box-shadow: 0 0 0 1.5px var(--panel); transition: left .1s linear; }
+.speedkey .sk-labels { display: flex; justify-content: space-between; margin-top: 4px; }
 .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; background: var(--c); }
 .views { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-left: auto; text-transform: none; letter-spacing: 0; }
 .views button { border: 0; background: transparent; color: var(--muted); padding: 3px 10px; font-size: 12px; cursor: pointer; }
@@ -223,6 +233,11 @@ td.mono { font-family: var(--mono); }
       <div class="overlay">
         <div class="tile"><div class="k">Elevation</div><div class="v" id="oElev">–</div></div>
         <div class="tile"><div class="k">Azimuth</div><div class="v" id="oAzim">–</div></div>
+      </div>
+      <div class="speedkey" id="speedKey" hidden>
+        <div class="sk-head"><span>Camera speed</span><b id="skNow">–</b></div>
+        <div class="sk-bar"><i id="skMark"></i></div>
+        <div class="sk-labels"><span>½×</span><span id="skNormal">normal</span><span>2×</span></div>
       </div>
       <div class="legend">
         <span style="--c:var(--pending)">planned shot</span><span style="--c:var(--done)">taken</span><span style="--c:var(--accent)">next</span>
@@ -580,6 +595,21 @@ function draw() {
   $("noData").hidden = live;
   $("noData").textContent = state.server?.connected ? "waiting for the servos…" : "no board connected: showing the rig at 0°";
 }
+// The trail's speed key: shown while there's a trail, the marker at the
+// camera's speed now against the path's average.
+let skLast = 0;
+(function speedKey(ts) {
+  requestAnimationFrame(speedKey);
+  if (ts - skLast < 100) return;
+  skLast = ts;
+  const s = window.rig3d?.speed();
+  $("speedKey").hidden = !s;
+  if (!s) return;
+  $("skNormal").textContent = `normal ${Math.round(s.normal)}°/s`;
+  $("skNow").textContent = s.moving ? `${Math.round(s.v)}°/s` : "–";
+  $("skMark").style.left = `${(s.x + 1) * 50}%`;
+  $("skMark").style.opacity = s.moving ? 1 : 0.3;
+})(0);
 function setView(v) {
   document.querySelectorAll("#views button").forEach((b) => b.classList.toggle("active", b.dataset.v === v));
   window.rig3d?.setView(v);

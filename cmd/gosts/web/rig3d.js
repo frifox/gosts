@@ -447,8 +447,9 @@ export function createRig(container) {
   // A comet: the ball (where the camera is) and its tail, in the turntable's
   // frame so they turn with the platform. The tail is a thin tube along the
   // camera's recent path, coloured by the camera's speed there against the
-  // path's average (normal): green at normal, towards red when faster and
-  // blue when slower; it fades and thins towards its end.
+  // path's average (normal): neutral at normal, warming to amber and coral
+  // when faster, cooling to blue when slower; it fades and thins towards its
+  // end.
   const TUBE_R = 6; // sides of the tube
   function makeComet() {
     const ball = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 16), new THREE.MeshBasicMaterial({ color: 0x8fb1ff }));
@@ -483,11 +484,29 @@ export function createRig(container) {
     h.push({ t, p: p.clone(), v });
     return v;
   }
-  // speedColor: green at the normal speed, red at 1.5× or more, blue at
-  // 2/3 or less (on a log scale, so faster and slower look alike).
+  // speedColor: a diverging scale of even brightness, on a log scale so
+  // faster and slower look alike: blue at half the normal speed or less,
+  // neutral at normal, amber at 1.4×, coral at twice or more. The neutral
+  // suits the theme (light on dark, slate on light); the legend in the page
+  // uses the same stops (SPEED_STOPS).
+  const dark = matchMedia("(prefers-color-scheme: dark)");
+  const SPEED_STOPS = { slow: 0x4c9be8, normal: [0xe6e9ef, 0x4a5262], fast: 0xf2a03d, fastest: 0xe8553c };
+  const sc = { slow: new THREE.Color(SPEED_STOPS.slow), fast: new THREE.Color(SPEED_STOPS.fast), fastest: new THREE.Color(SPEED_STOPS.fastest),
+    normal: [new THREE.Color(SPEED_STOPS.normal[0]), new THREE.Color(SPEED_STOPS.normal[1])] };
+  const speedX = (v, normal) => normal > 0 ? Math.max(-1, Math.min(1, Math.log2(Math.max(v, 1e-3) / normal))) : 0;
   function speedColor(out, v, normal) {
-    const x = normal > 0 ? Math.max(-1, Math.min(1, Math.log(Math.max(v, 1e-3) / normal) / Math.log(1.5))) : 0;
-    return out.setHSL((x >= 0 ? 120 - 120 * x : 120 - 100 * x) / 360, 1, 0.5);
+    const x = speedX(v, normal), mid = sc.normal[dark.matches ? 0 : 1];
+    if (x < 0) return out.copy(mid).lerp(sc.slow, -x);
+    if (x < 0.5) return out.copy(mid).lerp(sc.fast, x / 0.5);
+    return out.copy(sc.fast).lerp(sc.fastest, (x - 0.5) / 0.5);
+  }
+  // speed: the camera's speed now and the normal (degrees per second), for
+  // the legend; null when there's no trail.
+  function speed() {
+    const c = pv || cv, h = c?.history;
+    if (!h?.length || !(c.normal > 0)) return null;
+    const v = h[h.length - 1].v;
+    return { v, normal: c.normal, x: speedX(v, c.normal), moving: c === pv ? pv.t <= pv.times[pv.times.length - 1] : !!last.running };
   }
   // drawTrail: the tail at time `now`, through the history younger than
   // `tail` seconds (evenly sampled, ending at the newest point), fading
@@ -523,6 +542,7 @@ export function createRig(container) {
   }
   function startPreview(shots, smooth) {
     stopPreview();
+    if (cv && !last.running) { dropComet(cv); cv = null; update(last); } // a finished capture's fading trail
     if (!shots || shots.length < 2 || cv) return Promise.resolve();
     rig.nextRing.visible = false;
     // Each hop takes its path angle / PREVIEW_SPEED; times[i] is when the
@@ -706,5 +726,5 @@ export function createRig(container) {
     const v = cam.position.clone().sub(t).divideScalar(far);
     return { x: +v.x.toFixed(2), y: +v.y.toFixed(2), z: +v.z.toFixed(2) };
   }
-  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv };
+  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, speed };
 }
