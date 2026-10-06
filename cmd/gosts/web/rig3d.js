@@ -464,7 +464,8 @@ export function createRig(container) {
     const tail = 5 * times[times.length - 1] / (shots.length - 1);
     let done;
     const finished = new Promise((r) => (done = r));
-    pv = { shots, path, times, tail, t: 0, ball, trail, history: [], done, consumed: 0 };
+    pv = { shots, path, times, tail, t: 0, clock: 0, ball, trail, history: [], done, consumed: 0 };
+    ball.visible = false; // until the lead-in reaches the first shot
     return finished;
   }
   function stopPreview() {
@@ -487,10 +488,20 @@ export function createRig(container) {
     return pv.path.at(i, f);
   }
   const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color(), accent = new THREE.Color(0x5b8cff);
-  // After the last shot: the ball holds for HOLD seconds while the trail
-  // shrinks into it, then the swing and platform take BACK seconds to return
-  // to where the rig physically is; then the preview ends.
-  const HOLD = 2, BACK = 1;
+  // The preview starts with the swing and platform taking LEAD seconds to go
+  // from where the rig physically is to the first shot. After the last shot
+  // the ball holds for HOLD seconds while the trail shrinks into it, then the
+  // swing and platform take BACK seconds to return to the rig's pose; then the
+  // preview ends.
+  const LEAD = 1, HOLD = 2, BACK = 1;
+  // glide eases from pose `from` to `to` (elevation, azimuth the short way).
+  function glide(from, to, f) {
+    f = Math.min(1, Math.max(0, f));
+    f = f * f * (3 - 2 * f);
+    const daz = ((to.az - from.az) % 360 + 540) % 360 - 180;
+    setPose(from.e + (to.e - from.e) * f, from.az + daz * f);
+  }
+  const livePose = () => ({ e: last.elevation ?? 0, az: last.azimuth ?? 0 });
   // setPose puts the swing and platform at elevation e, azimuth az.
   function setPose(e, az) {
     rig.turn.rotation.y = rig.shotGroup.rotation.y = rad(az);
@@ -501,17 +512,19 @@ export function createRig(container) {
   }
   function previewTick(dt) {
     if (!pv) return;
-    pv.t += dt;
+    pv.clock += dt;
+    if (pv.clock < LEAD) { // from the rig's pose to the first shot
+      pv.ball.visible = false;
+      glide(livePose(), previewState(0), pv.clock / LEAD);
+      return;
+    }
+    pv.ball.visible = true;
+    pv.t = pv.clock - LEAD; // time along the path
     const end = pv.times[pv.times.length - 1], TAIL = pv.tail;
     if (pv.t > end + HOLD) { // returning to the rig's real pose
       if (pv.t >= end + HOLD + BACK) return stopPreview();
       pv.ball.visible = pv.trail.visible = false;
-      const from = previewState(end);
-      const to = { e: last.elevation ?? 0, az: last.azimuth ?? 0 };
-      let f = (pv.t - end - HOLD) / BACK;
-      f = f * f * (3 - 2 * f);
-      const daz = ((to.az - from.az) % 360 + 540) % 360 - 180; // the short way
-      setPose(from.e + (to.e - from.e) * f, from.az + daz * f);
+      glide(previewState(end), livePose(), (pv.t - end - HOLD) / BACK);
       return;
     }
     const t = Math.min(pv.t, end);
