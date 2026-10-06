@@ -38,8 +38,6 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .card > h2 { margin: 0; padding: 10px 14px; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
 .card-body { padding: 12px 14px; }
 .card > h2.toggle { cursor: pointer; user-select: none; }
-.card > h2.toggle::before { content: "▾"; font-size: 11px; transition: transform .15s; }
-.card.collapsed > h2.toggle::before { transform: rotate(-90deg); }
 .card.collapsed > h2 { border-bottom: 0; }
 .card.collapsed > .card-body { display: none; }
 .card.view.collapsed { align-self: start; }
