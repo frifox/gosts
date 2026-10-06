@@ -494,7 +494,7 @@ export function createRig(container) {
   // BACK seconds to return to the rig's pose. The trail keeps catching up with
   // the last shot at its own pace meanwhile, even once the camera has gone;
   // the preview ends when the camera is back and the trail has run out.
-  const LEAD = 1, HOLD = 2, BACK = 1;
+  const LEAD = 1, HOLD = 1, BACK = 1;
   // glide eases from pose `from` to `to` (elevation, azimuth the short way).
   function glide(from, to, f) {
     f = Math.min(1, Math.max(0, f));
