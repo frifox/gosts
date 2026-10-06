@@ -175,6 +175,7 @@ function benchy() {
   if (!benchyGeo) {
     benchyGeo = new STLLoader().loadAsync("./models/3dbenchy.stl").then((g) => {
       g.rotateX(-Math.PI / 2);
+      g.rotateY(Math.PI / 2); // a quarter turn anticlockwise (from above): bow to the left in the Front view
       g.computeBoundingBox();
       const h = g.boundingBox.max.y - g.boundingBox.min.y;
       g.scale(1 / h, 1 / h, 1 / h);
