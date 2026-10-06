@@ -178,8 +178,9 @@ td.mono { font-family: var(--mono); }
         <div class="field"><label>Elevation</label><input type="range" id="elev" min="-30" max="90" step="0.5" value="0"><input type="number" id="elevNum" step="0.5" value="0.0"><button class="btn small" id="elevZero" title="Move the elevation to 0° (camera level with the object)">Go 0°</button></div>
         <div class="field"><label>Azimuth</label><input type="range" id="azim" min="-180" max="180" step="0.5" value="0"><input type="number" id="azimNum" step="0.5" value="0.0"><button class="btn small" id="azimZero" title="Turn the platform to 0°">Go 0°</button></div>
         <div class="row" style="margin-top:10px">
-          <button class="btn primary" id="goBtn">Go</button>
+          <span class="spacer"></span>
           <button class="btn" id="stopBtn">Stop</button>
+          <button class="btn primary" id="goBtn">Go</button>
         </div>
         <table style="margin-top:12px">
           <thead><tr><th>Servo</th><th>Role</th><th>Angle</th><th>Load</th><th>V</th><th>°C</th><th></th></tr></thead>
