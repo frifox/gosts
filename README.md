@@ -248,7 +248,7 @@ When the last photo is taken (or a preview reaches its last shot, if a board is 
 now each shot waits for the rig to settle and records where it really is.
 
 The **Configure** card (below Control; like every card it folds by its title, each window remembering which are folded) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
-X/Y, the camera's offset along the arms (camera X) and up/down from the bar (camera Z, default 0), the turntable's height (turntable Z), the object's height (object Z, the model is scaled to it); the defaults draw the rig to scale)
+X/Y, the camera's offset along the arms (camera X) and up/down from the bar (camera Z, default 0), the turntable's height (turntable Z), the object's height (object height, the model is scaled to it); the defaults draw the rig to scale)
 and the min/max elevation the camera may reach (default −45° to 80°).
 The view has 3D, Front (from behind the camera, looking at the object), Side (along the tilt axis) and Top
 presets.

@@ -206,7 +206,8 @@ td.mono { font-family: var(--mono); }
           <label title="Turntable height"><span class="label-head">Turntable Z<button class="mini" id="dTurntableAuto" title="Auto: the height that puts the object's middle on the tilt axis, where the camera points" aria-label="Auto turntable height">⌖</button></span><input type="number" id="dTurntableZ" step="10"></label>
           <label title="Camera position along the arms: + towards the object">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
           <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z offset<input type="number" id="dCameraZ" step="5"></label>
-          <label title="Object height (the model is scaled proportionally)">Object Z<input type="number" id="dObjectZ" step="10"></label>
+          <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label>
+          <span></span>
           <label>Min elevation °<input type="number" id="dElevMin" step="1"></label>
           <label>Max elevation °<input type="number" id="dElevMax" step="1"></label>
         </div>
@@ -561,7 +562,7 @@ $("dTurntableAuto").onclick = (e) => {
   e.preventDefault();
   const d = formDims();
   const z = Math.round(window.rig3dPivot(d) - d.ObjectZ / 2);
-  if (z < 0) { $("rigErr").textContent = "The object is too tall to centre on the tilt axis: raise post Z or lower object Z."; return; }
+  if (z < 0) { $("rigErr").textContent = "The object is too tall to centre on the tilt axis: raise post Z or lower the object height."; return; }
   $("rigErr").textContent = "";
   $("dTurntableZ").value = z;
   dimsChanged();
