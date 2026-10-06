@@ -405,6 +405,30 @@ func (r *rig) prewind(ctx context.Context, turns int) error {
 	return r.waitStill(ctx)
 }
 
+// home starts the rig back to 0°/0° after a capture. The platform unwinds
+// to its middle turn rather than taking the short way, so the next spiral
+// again has its whole multi-turn range to use.
+func (r *rig) home() error {
+	ro, err := r.ready()
+	if err != nil {
+		return err
+	}
+	zero := 0.0
+	if err := r.moveTo(&zero, nil); err != nil {
+		return err
+	}
+	c := r.cfg.get().Motion
+	return r.withBus(func(bus *gosts.Bus) error {
+		if err := bus.Servo(ro.Azimuth).MoveTo(stepsFor(0, ro.InvertAzimuth), c.Speed, uint8(c.Acc)); err != nil {
+			return fmt.Errorf("azimuth: %w", err)
+		}
+		r.mu.Lock()
+		r.target.azimuth, r.target.set = 0, true
+		r.mu.Unlock()
+		return nil
+	})
+}
+
 // waitStill waits until the role servos have stopped moving (or ctx ends).
 // A heavy arm may stop a little short of its goal, so "stopped" rather than
 // "on target" is what counts; the shot records where it really is.

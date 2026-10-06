@@ -241,7 +241,8 @@ alternating direction, so the arm moves little and the platform never unwinds a 
 **Moving Shots** (for a fast shutter) the rig doesn't stop: the same shots are taken along one smooth
 rising spiral, the platform turning one way while the camera climbs, each photo as the rig passes its
 shot (within 1°), both axes timed to arrive together; a long spiral first winds the platform back so
-its servo stays within its multi-turn range. Camera control (Sony A6600 over USB, with live preview) is next; for
+its servo stays within its multi-turn range. When the last photo is taken the rig returns to 0°/0°, the
+platform unwinding to its starting turn so the next spiral has its whole range again. Camera control (Sony A6600 over USB, with live preview) is next; for
 now each shot waits for the rig to settle and records where it really is.
 
 The **Rig config** card (collapsed by default, below Rig) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing

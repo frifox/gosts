@@ -201,6 +201,12 @@ func (c *capture) start(p Plan) error {
 
 func (c *capture) run(ctx context.Context, p Plan) {
 	err := c.loop(ctx, p)
+	if err == nil { // all taken: back to 0°/0°
+		c.rig.logf("info", "capture: all photos taken, returning to 0°/0°")
+		if herr := c.rig.home(); herr != nil {
+			c.rig.logf("error", "capture: couldn't return to 0°/0°: %v", herr)
+		}
+	}
 	c.mu.Lock()
 	c.running, c.paused, c.cancel = false, false, nil
 	done := c.index
