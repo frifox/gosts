@@ -408,7 +408,7 @@ export function createRig(container) {
   // A ball flies through the shots in shooting order, along the camera's real
   // path over the sphere at PREVIEW_SPEED, with a fading comet tail about 5
   // hops long. The swing and camera are hidden meanwhile.
-  const PREVIEW_SPEED = 45; // degrees per second, along the path
+  const PREVIEW_SPEED = 90; // degrees per second, along the path
   const TRAIL_N = 160;
   function startPreview(shots) {
     stopPreview();
