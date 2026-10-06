@@ -398,9 +398,9 @@ td .num { width: 90px; padding: 3px 6px; }
           <option value="1000">1 s</option><option value="5000">5 s</option><option value="15000">15 s</option><option value="30000" selected>30 s</option>
         </select>)</span>
         <div class="tabs" id="chartTabs">
-          <button data-k="position" class="active">Position</button>
+          <button data-k="load" class="active">Load</button>
+          <button data-k="position">Position</button>
           <button data-k="speed">Speed</button>
-          <button data-k="load">Load</button>
           <button data-k="voltage">Voltage</button>
           <button data-k="current">Current</button>
           <button data-k="temperature">Temp</button>
@@ -748,7 +748,7 @@ const STEPS = 4096, DEG = 360 / STEPS, HISTORY_MS = 30000;
 const STATUS_BITS = [["voltage", 1], ["sensor", 2], ["temperature", 4], ["current", 8], ["angle", 16], ["overload", 32]];
 
 const state = {
-  ids: [], selected: null, fb: {}, hist: {}, cfg: {}, chartKey: "position",
+  ids: [], selected: null, fb: {}, hist: {}, cfg: {}, chartKey: "load",
   frames: [], seq: 0, pending: new Map(), ws: null,
 };
 
