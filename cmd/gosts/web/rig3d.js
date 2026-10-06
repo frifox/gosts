@@ -5,6 +5,7 @@
 // through the two servos on top of the posts; the turntable turns about y.
 import * as THREE from "three";
 import { OrbitControls } from "./vendor/OrbitControls.js";
+import { STLLoader } from "./vendor/STLLoader.js";
 
 const P = 20; // 2020 profile size
 
@@ -157,6 +158,26 @@ function a6600() {
   return g;
 }
 
+// ---------------------------------------------------------------- the object
+// #3DBenchy (3DBenchy.com, CC0 1.0), shown 3× life size (about 180 mm long)
+// on the turntable: Z-up in the file, so turned Y-up, centred, standing on 0.
+const BENCHY_SCALE = 3;
+let benchyGeo = null;
+function benchy() {
+  if (!benchyGeo) {
+    benchyGeo = new STLLoader().loadAsync("./models/3dbenchy.stl").then((g) => {
+      g.rotateX(-Math.PI / 2);
+      g.scale(BENCHY_SCALE, BENCHY_SCALE, BENCHY_SCALE);
+      g.computeBoundingBox();
+      const b = g.boundingBox;
+      g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+      g.computeVertexNormals();
+      return g;
+    });
+  }
+  return benchyGeo;
+}
+
 // ---------------------------------------------------------------- scene
 export function createRig(container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -244,19 +265,20 @@ export function createRig(container) {
     const sight = new THREE.Line(sightGeo, new THREE.LineDashedMaterial({ color: 0x5b8cff, dashSize: 14, gapSize: 10, transparent: true, opacity: 0.7 }));
     root.add(sight);
 
-    // Turntable on a pedestal, with a 0° mark and a placeholder object.
+    // Turntable on a thin post (10 mm), with a 0° mark and the object: #3DBenchy.
     const pedH = Math.max(1, d.TurntableZ - P - 12);
-    const ped = cylinder(28, pedH, mat.alu); ped.position.set(0, P + pedH / 2, 0); root.add(ped);
+    const ped = cylinder(5, pedH, mat.alu, "y", 24); ped.position.set(0, P + pedH / 2, 0); root.add(ped);
     const turn = new THREE.Group();
     turn.position.set(0, d.TurntableZ, 0);
     root.add(turn);
     const discR = Math.min(120, d.BaseY / 2 - 40);
     const disc = cylinder(discR, 12, mat.table, "y", 64); disc.position.y = -6; turn.add(disc);
     turn.add(box(18, 2, 6, new THREE.MeshStandardMaterial({ color: 0x5b8cff, emissive: 0x1a2a55 }), discR - 14, 1, 0));
-    const objGeo = new THREE.LatheGeometry([[0, 0], [52, 0], [58, 18], [46, 70], [30, 120], [40, 170], [44, 200], [36, 230], [0, 236]].map(([x, y]) => new THREE.Vector2(x, y)), 64);
-    const obj = new THREE.Mesh(objGeo, mat.object);
-    obj.castShadow = obj.receiveShadow = true;
-    turn.add(obj);
+    benchy().then((geo) => {
+      const obj = new THREE.Mesh(geo, mat.object);
+      obj.castShadow = obj.receiveShadow = true;
+      turn.add(obj);
+    });
 
     // Shots: spheres where the camera will be, turning with the platform.
     const shotGroup = new THREE.Group();
@@ -268,7 +290,8 @@ export function createRig(container) {
 
     rig = { d, root, tilt, turn, camera, sight, sightGeo, shotGroup, nextRing, shotMesh: null, shotKey: "",
       orbit: barX - d.CameraOffset + 40, // camera (lens) distance from the tilt axis
-      objectCentre: V(0, d.TurntableZ + 118, 0), target: V(0, (pivotY + d.TurntableZ) / 2, 0) };
+      objectCentre: V(0, d.TurntableZ + 70, 0), // about the middle of Benchy
+      target: V(0, (pivotY + d.TurntableZ) / 2, 0) };
   }
 
   // shotPos: where the camera is, relative to the object, for a shot taken at

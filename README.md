@@ -227,7 +227,8 @@ the rig's servos to multi-turn so moves never take the long way round.
 The page has the controls on the left (live elevation/azimuth with Go, Stop and Torque, and a
 **capture plan**: just the number of photos, with Start, Pause and Stop) and a live perspective view
 of the rig on the right (a 3D model rendered with [three.js](https://threejs.org): 2020 extrusions, the
-ST3215s, the Sony A6600 with its ring flash; bundled in the binary, so no internet is needed), with
+ST3215s, the Sony A6600 with its ring flash, and [#3DBenchy](https://www.3dbenchy.com) (CC0) as the
+object; bundled in the binary, so no internet is needed), with
 every planned shot turning with the platform and turning green once taken. The photos are spread as evenly as possible over the part of the sphere round the object the
 camera can reach (the min/max elevation in Rig config, which keeps the frame clear of the posts), on a
 golden-angle spiral, and taken in rows of similar elevation, each row in azimuth order with
