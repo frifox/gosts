@@ -175,8 +175,24 @@ func (c *capture) start(p Plan) error {
 	if err != nil {
 		return err
 	}
-	if t := math.Abs(spiralTurns(shots)); p.Moving && t > maxSpiralTurns {
-		return fmt.Errorf("moving shots: %d photos make a %.0f-turn spiral, more than the platform servo can turn in one go (%d): use fewer photos, or stop for each shot", len(shots), t, maxSpiralTurns)
+	if p.Moving {
+		if t := math.Abs(spiralTurns(shots)); t > maxSpiralTurns {
+			return fmt.Errorf("moving shots: %d photos make a %.0f-turn spiral, more than the platform servo can turn in one go (%d): use fewer photos, or stop for each shot", len(shots), t, maxSpiralTurns)
+		}
+		// The platform isn't unwound between captures: if the spiral
+		// wouldn't stay within its servo's turns from where it is, it turns
+		// the other way instead (the same shots, mirrored).
+		at, err := c.rig.platformTurns()
+		if err != nil {
+			return err
+		}
+		if !spiralFits(at, shots) {
+			c.rig.logf("info", "capture: the platform is %.1f turns round, so the spiral turns the other way this time", at)
+			shots = mirrored(shots)
+			if !spiralFits(at, shots) {
+				return fmt.Errorf("moving shots: the %.1f-turn spiral doesn't fit the platform servo's remaining turns either way (it's %.1f turns round): use fewer photos, or power-cycle the servo", math.Abs(spiralTurns(shots)), at)
+			}
+		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	c.mu.Lock()
@@ -229,8 +245,34 @@ func (c *capture) run(ctx context.Context, p Plan) {
 }
 
 // maxSpiralTurns is the longest moving-shots spiral: the platform servo's
-// goal range is about ±7.5 turns, and the spiral starts pre-wound by half.
-const maxSpiralTurns = 14
+// goals reach about ±7.5 turns from where it powered up, and the platform
+// isn't unwound, so a spiral gets at most one side of that.
+const maxSpiralTurns = 7
+
+// spiralRange is how far (turns) the platform servo's goals reach either way.
+const spiralRange = 30719.0/4096 - 0.05
+
+// spiralFits reports whether the spiral through shots stays within the
+// platform servo's goal range, starting from `at` turns (the first shot is
+// reached the short way).
+func spiralFits(at float64, shots []shot) bool {
+	if len(shots) == 0 {
+		return true
+	}
+	start := at + wrap180(shots[0].Azimuth-at*360)/360
+	end := start + spiralTurns(shots)
+	return math.Abs(start) <= spiralRange && math.Abs(end) <= spiralRange
+}
+
+// mirrored is the same shots with the azimuths mirrored, so the spiral turns
+// the other way.
+func mirrored(shots []shot) []shot {
+	out := append([]shot(nil), shots...)
+	for i := range out {
+		out[i].Azimuth = wrap180(-out[i].Azimuth)
+	}
+	return out
+}
 
 // spiralTurns is how far the platform turns along the shots (in turns,
 // signed like azimuth), each hop the short way.
@@ -243,20 +285,6 @@ func spiralTurns(shots []shot) float64 {
 }
 
 func (c *capture) loop(ctx context.Context, p Plan) error {
-	if p.Moving {
-		c.mu.Lock()
-		turns, first := spiralTurns(c.shots), c.shots[0].Azimuth
-		c.mu.Unlock()
-		// The spiral must stay within the platform servo's turns: wind the
-		// platform first if it wouldn't (e.g. a long spiral).
-		wind, err := c.rig.windFor(ctx, first, turns)
-		if err != nil {
-			return err
-		}
-		if wind != 0 {
-			c.rig.logf("info", "capture: turned the platform %+d turns first, so the %.1f-turn spiral stays within its servo's range", wind, math.Abs(turns))
-		}
-	}
 	for {
 		c.mu.Lock()
 		if c.index >= len(c.shots) {

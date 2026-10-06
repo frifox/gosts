@@ -240,9 +240,10 @@ golden-angle spiral, and taken in rows of similar elevation, each row in azimuth
 alternating direction, so the arm moves little and the platform never unwinds a whole turn. With
 **Moving Shots** (for a fast shutter) the rig doesn't stop: the same shots are taken along one smooth
 rising spiral, the platform turning one way while the camera climbs, each photo as the rig passes its
-shot (within 1°), both axes timed to arrive together; if a spiral wouldn't stay within the platform
-servo's multi-turn range from where it is, the platform first turns the fewest whole turns that make it fit.
-When the last photo is taken the rig returns to 0°/0° the short way (less than a turn). Camera control (Sony A6600 over USB, with live preview) is next; for
+shot (within 1°), both axes timed to arrive together; the platform is never unwound: if a spiral
+wouldn't stay within its servo's multi-turn range (about ±7.5 turns from power-up) from where it is, it turns
+the other way instead (the same shots, mirrored), so spirals are limited to 7 turns (about 90 photos).
+When the last photo is taken the rig returns to 0°/0° the short way (less than a turn) and stops. Camera control (Sony A6600 over USB, with live preview) is next; for
 now each shot waits for the rig to settle and records where it really is.
 
 The **Rig config** card (collapsed by default, below Rig) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing

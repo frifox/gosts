@@ -377,51 +377,24 @@ func (r *rig) moveThrough(ctx context.Context, elevation, azimuth float64) error
 	}
 }
 
-// windFor makes sure a spiral of `turns` turns (signed like azimuth)
-// starting at azimuth `first` stays within the platform servo's multi-turn
-// goal range (about ±7.5 turns from where it powered up) all the way: if it
-// wouldn't, the platform is first turned the fewest whole turns that make it
-// fit, and windFor waits for that. It returns the turns wound.
-func (r *rig) windFor(ctx context.Context, first, turns float64) (int, error) {
+// platformTurns is where the platform is, in turns from where its servo
+// powered up (logical direction: + counts like azimuth). The servo's
+// multi-turn goals reach about ±7.5 turns from there.
+func (r *rig) platformTurns() (float64, error) {
 	ro, err := r.ready()
 	if err != nil {
 		return 0, err
 	}
-	sign := 1
-	if ro.InvertAzimuth {
-		sign = -1
-	}
-	c := r.cfg.get().Motion
-	var wind int
+	var p float64
 	err = r.withBus(func(bus *gosts.Bus) error {
-		sv := bus.Servo(ro.Azimuth)
-		cur, err := sv.AbsolutePosition()
-		if err != nil {
-			return err
+		cur, err := bus.Servo(ro.Azimuth).AbsolutePosition()
+		if ro.InvertAzimuth {
+			cur = -cur
 		}
-		// In turns, logical direction: where the platform is, and where the
-		// spiral starts (the first shot is reached the short way).
-		p := float64(sign*cur) / gosts.StepsPerRev
-		start := p + wrap180(first-p*360)/360
-		const limit = 30719.0/gosts.StepsPerRev - 0.05
-		lo := math.Ceil(-limit - start - math.Min(0, turns))
-		hi := math.Floor(limit - start - math.Max(0, turns))
-		switch {
-		case lo > hi:
-			return fmt.Errorf("a %.1f-turn spiral doesn't fit the platform servo's range", math.Abs(turns))
-		case lo > 0:
-			wind = int(lo)
-		case hi < 0:
-			wind = int(hi)
-		default:
-			return nil // fits as it is
-		}
-		return sv.MoveTo(cur+sign*wind*gosts.StepsPerRev, c.Speed, uint8(c.Acc))
+		p = float64(cur) / gosts.StepsPerRev
+		return err
 	})
-	if err != nil || wind == 0 {
-		return 0, err
-	}
-	return wind, r.waitStill(ctx)
+	return p, err
 }
 
 // home starts the rig back to 0°/0° after a capture, the short way round.
