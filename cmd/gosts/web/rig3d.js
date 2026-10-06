@@ -487,19 +487,38 @@ export function createRig(container) {
     return pv.path.at(i, f);
   }
   const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color(), accent = new THREE.Color(0x5b8cff);
+  // After the last shot: the ball holds for HOLD seconds while the trail
+  // shrinks into it, then the swing and platform take BACK seconds to return
+  // to where the rig physically is; then the preview ends.
+  const HOLD = 2, BACK = 1;
+  // setPose puts the swing and platform at elevation e, azimuth az.
+  function setPose(e, az) {
+    rig.turn.rotation.y = rig.shotGroup.rotation.y = rad(az);
+    rig.tilt.rotation.z = -rad(e);
+    rig.tilt.updateMatrixWorld(true);
+    rig.sightGeo.setFromPoints([rig.camera.localToWorld(rig.camera.userData.lensFront.clone()), rig.objectCentre]);
+    rig.sight.computeLineDistances();
+  }
   function previewTick(dt) {
     if (!pv) return;
     pv.t += dt;
     const end = pv.times[pv.times.length - 1], TAIL = pv.tail;
+    if (pv.t > end + HOLD) { // returning to the rig's real pose
+      if (pv.t >= end + HOLD + BACK) return stopPreview();
+      pv.ball.visible = pv.trail.visible = false;
+      const from = previewState(end);
+      const to = { e: last.elevation ?? 0, az: last.azimuth ?? 0 };
+      let f = (pv.t - end - HOLD) / BACK;
+      f = f * f * (3 - 2 * f);
+      const daz = ((to.az - from.az) % 360 + 540) % 360 - 180; // the short way
+      setPose(from.e + (to.e - from.e) * f, from.az + daz * f);
+      return;
+    }
     const t = Math.min(pv.t, end);
     // The turntable side (object, sphere, tail) turns to the azimuth; the ball,
     // placed in that turning frame, ends up on the camera's fixed arc.
     const st = previewState(t);
-    rig.turn.rotation.y = rig.shotGroup.rotation.y = rad(st.az);
-    rig.tilt.rotation.z = -rad(st.e); // the swing tilts the camera to the elevation
-    rig.tilt.updateMatrixWorld(true);
-    rig.sightGeo.setFromPoints([rig.camera.localToWorld(rig.camera.userData.lensFront.clone()), rig.objectCentre]);
-    rig.sight.computeLineDistances();
+    setPose(st.e, st.az);
     const p = shotPos(st.e, st.az);
     pv.ball.position.copy(p);
     // Dots the ball has reached are consumed: hidden until the preview ends
@@ -513,14 +532,17 @@ export function createRig(container) {
       }
       if (changed) mesh.instanceMatrix.needsUpdate = true;
     }
-    pv.history.push({ t, p: p.clone() });
-    while (pv.history.length && pv.history[0].t < t - TAIL) pv.history.shift();
+    if (pv.t <= end) pv.history.push({ t, p: p.clone() });
+    // The tail's length: TAIL while moving, shrinking to nothing over the
+    // hold, so it catches up with the ball.
+    const tail = pv.t <= end ? TAIL : TAIL * Math.max(0, 1 - (pv.t - end) / HOLD);
+    while (pv.history.length && pv.history[0].t < t - tail) pv.history.shift();
     // Tail: evenly spread over the history, fading (darker = more
     // transparent with additive blending) and thinning towards its end.
     const h = pv.history, n = Math.min(TRAIL_N, h.length);
     for (let k = 0; k < n; k++) {
       const e = h[Math.floor((k / n) * h.length)];
-      const age = (t - e.t) / TAIL; // 0 = new, 1 = end of the tail
+      const age = Math.min(1, (t - e.t) / TAIL); // 0 = new, 1 = end of the tail
       const s = 1 - age * 0.85;
       tmpM.makeScale(s, s, s).setPosition(e.p);
       pv.trail.setMatrixAt(k, tmpM);
@@ -529,7 +551,6 @@ export function createRig(container) {
     pv.trail.count = n;
     pv.trail.instanceMatrix.needsUpdate = true;
     if (pv.trail.instanceColor) pv.trail.instanceColor.needsUpdate = true;
-    if (pv.t >= end + TAIL * 0.6) stopPreview(); // let the tail fade a little, then end
   }
 
   const clock = new THREE.Clock();
