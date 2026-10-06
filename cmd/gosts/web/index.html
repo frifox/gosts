@@ -205,9 +205,10 @@ td.mono { font-family: var(--mono); }
           <label title="Post height">Post Z<input type="number" id="dPostZ" step="10"></label>
           <label title="Turntable height"><span class="label-head">Turntable Z<button class="mini" id="dTurntableAuto" title="Auto: the height that puts the object's middle on the tilt axis, where the camera points" aria-label="Auto turntable height">⌖</button></span><input type="number" id="dTurntableZ" step="10"></label>
           <label title="Camera position along the arms: + towards the object">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
+          <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z offset<input type="number" id="dCameraZ" step="5"></label>
           <label title="Object height (the model is scaled proportionally)">Object Z<input type="number" id="dObjectZ" step="10"></label>
-          <label class="span2">Min elevation °<input type="number" id="dElevMin" step="1"></label>
-          <label class="span2">Max elevation °<input type="number" id="dElevMax" step="1"></label>
+          <label>Min elevation °<input type="number" id="dElevMin" step="1"></label>
+          <label>Max elevation °<input type="number" id="dElevMax" step="1"></label>
         </div>
         <div class="err" id="rigErr"></div>
         <div class="row" style="margin-top:10px">
@@ -531,8 +532,8 @@ $("sSave").onclick = async () => {
 };
 
 // ---------------------------------------------------------------- params (measurements)
-const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "TurntableZ", "ObjectZ"];
-const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 400, ObjectZ: 100 };
+const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "CameraZ", "TurntableZ", "ObjectZ"];
+const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, CameraZ: 0, TurntableZ: 400, ObjectZ: 100 };
 // The card also holds the elevation limits (kept with the motion settings).
 const LIMITS_DEFAULT = { ElevationMin: -45, ElevationMax: 80 };
 const formDims = () => Object.fromEntries(DIMS.map((k) => [k, Number($("d" + k).value)]));

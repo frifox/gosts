@@ -34,6 +34,7 @@ type Rig struct {
 	SwingX       float64 `toml:"SwingX"`       // tilting frame: arm length
 	SwingY       float64 `toml:"SwingY"`       // tilting frame: bar length (camera bar)
 	CameraOffset float64 `toml:"CameraOffset"` // camera from the camera bar; + towards the object
+	CameraZ      float64 `toml:"CameraZ"`      // camera up/down from the camera bar, square to the arms; + up
 	TurntableZ   float64 `toml:"TurntableZ"`   // turntable top height
 	ObjectZ      float64 `toml:"ObjectZ"`      // object height (the 3D view scales the model to it)
 }
@@ -44,7 +45,7 @@ func (r Rig) check() error {
 		name      string
 		v, lo, hi float64
 	}{{"base X", r.BaseX, 100, 3000}, {"base Y", r.BaseY, 100, 3000}, {"post Z", r.PostZ, 50, 3000},
-		{"swing X", r.SwingX, 50, 3000}, {"swing Y", r.SwingY, 50, 3000}, {"camera offset", r.CameraOffset, -500, 500},
+		{"swing X", r.SwingX, 50, 3000}, {"swing Y", r.SwingY, 50, 3000}, {"camera offset", r.CameraOffset, -500, 500}, {"camera Z offset", r.CameraZ, -500, 500},
 		{"turntable Z", r.TurntableZ, 0, 3000}, {"object Z", r.ObjectZ, 10, 2000}} {
 		if v.v < v.lo || v.v > v.hi {
 			return fmt.Errorf("%s must be %g–%g mm", v.name, v.lo, v.hi)

@@ -15,7 +15,7 @@ export const pivotHeight = (d) => P + d.PostZ + 30;
 
 // Default measurements (mm), as in gosts' config: seen from above, X along
 // the base sides that carry the posts, Y along the tilt axis, Z up.
-export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 400, ObjectZ: 100 };
+export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, CameraZ: 0, TurntableZ: 400, ObjectZ: 100 };
 
 const rad = (d) => d * Math.PI / 180;
 
@@ -290,9 +290,10 @@ export function createRig(container) {
     for (const s of [-1, 1]) tilt.add(profile(V(-ax, 0, s * armZ), V(ax, 0, s * armZ)));
     for (const s of [-1, 1]) tilt.add(profile(V(s * barX, 0, -armZ + P / 2), V(s * barX, 0, armZ - P / 2)));
     // The camera sits on the middle of the -X bar, looking at the axis,
-    // CameraOffset along the arms (+ towards the object).
+    // CameraOffset along the arms (+ towards the object), CameraZ square to
+    // them (+ up with the arm level).
     const camera = a6600();
-    camera.position.set(-barX + d.CameraOffset, P / 2 + 34, 0);
+    camera.position.set(-barX + d.CameraOffset, P / 2 + 34 + (d.CameraZ || 0), 0);
     tilt.add(camera);
     const sightGeo = new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), V(0, 0, 0)]);
     const sight = new THREE.Line(sightGeo, new THREE.LineDashedMaterial({ color: 0x5b8cff, dashSize: 14, gapSize: 10, transparent: true, opacity: 0.7 }));
@@ -333,7 +334,8 @@ export function createRig(container) {
     }
 
     rig = { d, root, tilt, turn, camera, sight, sightGeo, shotGroup, nextRing, shotMesh: null, shotKey: "", pops, shotR: 5,
-      orbit: barX - d.CameraOffset + 40, // camera (lens) distance from the tilt axis
+      orbit: barX - d.CameraOffset + 40, // camera (lens) distance from the tilt axis, along the arms
+      lift: d.CameraZ || 0, // and square to them
       objectCentre: V(0, d.TurntableZ + d.ObjectZ / 2, 0), // the object's middle
       target: V(0, (pivotY + d.TurntableZ) / 2, 0) };
   }
@@ -341,7 +343,8 @@ export function createRig(container) {
   // shotPos: where the camera is, relative to the object, for a shot taken at
   // elevation e, azimuth a (in the turntable's frame, about the tilt axis).
   function shotPos(e, a) {
-    const v = V(-Math.cos(rad(e)), Math.sin(rad(e)), 0).multiplyScalar(rig.orbit);
+    const c = Math.cos(rad(e)), s = Math.sin(rad(e)), o = rig.orbit, z = rig.lift;
+    const v = V(-o * c + z * s, o * s + z * c, 0); // the lens, tilted with the swing
     return v.applyAxisAngle(V(0, 1, 0), -rad(a));
   }
 
