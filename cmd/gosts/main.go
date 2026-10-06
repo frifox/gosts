@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -68,10 +69,8 @@ func main() {
 	go a.rig.pollLoop(ctx)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(indexHTML)
-	})
+	site, _ := fs.Sub(webFiles, "web")
+	mux.Handle("/", http.FileServerFS(site))
 	mux.HandleFunc("/ws", a.handleWS)
 	hs := &http.Server{Addr: *addr, Handler: mux}
 	go func() {

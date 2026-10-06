@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	_ "embed"
 	"encoding/json"
 	"errors"
@@ -13,8 +14,11 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-//go:embed web/index.html
-var indexHTML []byte
+// web holds the page and the 3D engine it uses (three.js, MIT licence),
+// embedded so the rig PC needs no internet.
+//
+//go:embed web
+var webFiles embed.FS
 
 func logPrint(msg string) { log.Print(msg) }
 
