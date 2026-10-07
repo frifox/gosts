@@ -161,14 +161,47 @@ func (c *capture) preview(p Plan) error {
 		c.mu.Unlock()
 		return errors.New("a capture is running")
 	}
-	c.shots, c.index, c.note, c.rows, c.spacing = shots, 0, "", rows, spacing
+	note := ""
+	if err := spiralProblem(p, shots); err != nil {
+		note = err.Error() // said now, not only once Start is refused
+	}
+	c.shots, c.index, c.note, c.rows, c.spacing = shots, 0, note, rows, spacing
 	c.mu.Unlock()
 	c.send()
 	return nil
 }
 
-// start runs the plan in the background.
+// spiralProblem says why moving shots can't take these shots: a spiral of
+// more turns than the platform servo can make in one go.
+func spiralProblem(p Plan, shots []shot) error {
+	if !p.Moving {
+		return nil
+	}
+	if t := math.Abs(spiralTurns(shots)); t > maxSpiralTurns {
+		return fmt.Errorf("moving shots: %d photos make a %.0f-turn spiral, more than the platform servo can turn in one go (%d): use fewer photos, or stop for each shot", len(shots), t, maxSpiralTurns)
+	}
+	return nil
+}
+
+// start runs the plan in the background. If it can't, why is the note
+// too (so it stays on the page, not just a moment's error).
 func (c *capture) start(p Plan) error {
+	err := c.begin(p)
+	if err != nil {
+		c.mu.Lock()
+		running := c.running
+		if !running {
+			c.note = err.Error()
+		}
+		c.mu.Unlock()
+		if !running {
+			c.send()
+		}
+	}
+	return err
+}
+
+func (c *capture) begin(p Plan) error {
 	if _, err := c.rig.ready(); err != nil {
 		return err
 	}
@@ -179,10 +212,10 @@ func (c *capture) start(p Plan) error {
 	if err != nil {
 		return err
 	}
+	if err := spiralProblem(p, shots); err != nil {
+		return err
+	}
 	if p.Moving {
-		if t := math.Abs(spiralTurns(shots)); t > maxSpiralTurns {
-			return fmt.Errorf("moving shots: %d photos make a %.0f-turn spiral, more than the platform servo can turn in one go (%d): use fewer photos, or stop for each shot", len(shots), t, maxSpiralTurns)
-		}
 		// The platform isn't unwound between captures: if the spiral
 		// wouldn't stay within its servo's turns from where it is, it turns
 		// the other way instead (the same shots, mirrored).
