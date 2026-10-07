@@ -257,9 +257,13 @@ alternating direction, so the arm moves little and the platform never unwinds a 
 **Moving Shots** (for a fast shutter) the rig doesn't stop: the same shots are taken along one smooth
 rising spiral, the platform turning one way while the camera climbs: the rig follows the same smooth curve
 the preview draws (goals streamed ~30 times a second just ahead of it, corrected for how far it trails, within
-the servos' speed and with gentle acceleration), each photo taken as the path passes its shot; the platform is never unwound: if a spiral
-wouldn't stay within its servo's multi-turn range (about ±7.5 turns from power-up) from where it is, it turns
-the other way instead (the same shots, mirrored), so spirals are limited to 7 turns (about 90 photos).
+the servos' speed and with gentle acceleration), each photo taken as the path passes its shot. The platform servo's multi-turn goals reach only about ±7.5
+turns from where its count started, so a long spiral goes in laps: as far as fits, then the rig stops for a moment
+while the servo's turn count is reset where it is (its calibrate-middle re-references the count; its own zero is
+put back straight after, so the angle reads as before; under a second), and the spiral carries on (any number of
+photos: 400 make a 13-turn spiral, one reset). If a reset can't be confirmed, the platform unwinds instead (whole
+turns back to the same angle, about 176°/s). If the spiral fits turning the other way from where the platform is
+(the same shots, mirrored), it goes that way.
 When the last photo is taken the rig returns to 0°/0° the short way (less than a turn) and stops. A preview
 only moves the view: it never moves the rig or uses the camera. Each photo is
 taken with the connected camera, recording where the rig really is as the shutter goes.

@@ -1643,7 +1643,7 @@ function onCapture(m) {
   $("abortBtn").disabled = !m.running;
   for (const id of ["pPhotos", "pMoving"]) $(id).disabled = m.running;
   $("pSettle").disabled = m.running || $("pMoving").checked;
-  $("capNote").textContent = m.running ? (m.paused ? "Paused." : "") : m.note; // progress: the bar
+  $("capNote").textContent = m.running ? (m.paused ? "Paused." : m.note) : m.note; // progress: the bar (and a note, e.g. unwinding)
   draw();
 }
 

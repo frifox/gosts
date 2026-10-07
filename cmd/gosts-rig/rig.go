@@ -379,6 +379,115 @@ func (r *rig) platformTurns() (float64, error) {
 	return p, err
 }
 
+// resetPlatformTurns starts the platform servo's turn count afresh where
+// it is, without moving it (well under a second): its multi-turn goals
+// reach only about ±7.5 turns from where the count started, so a long
+// moving-shots spiral resets it between laps. The servo's calibrate-middle
+// (its current position made to read 2048) re-references the count; then
+// its own zero (PositionOffset, which that changed) is put back, so the
+// angle reads as before, and its goal set to where it is. Switching it to
+// single-turn and back doesn't reset the count (tried on the rig). Checked:
+// if the platform's angle moved or the count isn't within a turn after, it
+// says so (see unwindPlatform for the slow way).
+func (r *rig) resetPlatformTurns() error {
+	ro, err := r.ready()
+	if err != nil {
+		return err
+	}
+	return r.withBus(func(bus *gosts.Bus) error {
+		sv := bus.Servo(ro.Azimuth)
+		zero, err := sv.Zero()
+		if err != nil {
+			return err
+		}
+		before, err := sv.Position()
+		if err != nil {
+			return err
+		}
+		calErr := sv.CalibrateMiddle()
+		if err := sv.SetZero(zero); err != nil { // the zero back, whatever happened
+			return errors.Join(calErr, fmt.Errorf("putting the platform servo's zero back (%d): %w", zero, err))
+		}
+		if calErr != nil {
+			return calErr
+		}
+		now, err := sv.Position()
+		if err != nil {
+			return err
+		}
+		if err := sv.SetGoal(now); err != nil { // hold it there
+			return err
+		}
+		if z, err := sv.Zero(); err != nil || z != zero {
+			return fmt.Errorf("the platform servo's zero is %d after the reset, not %d (%v)", z, zero, err)
+		}
+		if d := gosts.CircularDiff(now, before); d < -3 || d > 3 {
+			return fmt.Errorf("the platform moved %d steps in the reset", d)
+		}
+		if at, err := sv.AbsolutePosition(); err != nil || at < -gosts.StepsPerRev || at > 2*gosts.StepsPerRev {
+			return fmt.Errorf("the platform servo's count is %d after the reset (%v)", at, err)
+		}
+		return nil
+	})
+}
+
+// unwindPlatform turns the platform whole turns (logical: + like azimuth),
+// back to the same angle: its servo's multi-turn goals reach only about
+// ±7.5 turns from where it powered up (a power cycle is the only reset:
+// switching it to single-turn and back doesn't), so a long moving-shots
+// spiral unwinds it between laps. Briskly (unwindSpeed), at the configured
+// acceleration; it returns once the platform is there.
+func (r *rig) unwindPlatform(ctx context.Context, turns int) error {
+	ro, err := r.ready()
+	if err != nil {
+		return err
+	}
+	acc := uint8(r.cfg.get().Motion.Acc)
+	raw := turns
+	if ro.InvertAzimuth {
+		raw = -raw
+	}
+	var goal int
+	if err := r.withBus(func(bus *gosts.Bus) error {
+		sv := bus.Servo(ro.Azimuth)
+		abs, err := sv.AbsolutePosition()
+		if err != nil {
+			return err
+		}
+		goal = abs + raw*gosts.StepsPerRev
+		return sv.MoveTo(goal, unwindSpeed, acc)
+	}); err != nil {
+		return err
+	}
+	// Till it's there: the turns at unwindSpeed, with time to speed up and
+	// slow down, and some to spare.
+	deadline := time.Now().Add(time.Duration(float64(abs(turns)*gosts.StepsPerRev)/unwindSpeed*float64(time.Second)) + 20*time.Second)
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.Join(ctx.Err(), r.stop())
+		case <-time.After(200 * time.Millisecond):
+		}
+		var at int
+		if err := r.withBus(func(bus *gosts.Bus) error {
+			var err error
+			at, err = bus.Servo(ro.Azimuth).AbsolutePosition()
+			return err
+		}); err != nil {
+			return err
+		}
+		if abs(at-goal) <= 20 {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("unwinding the platform: it's at %d, not %d", at, goal)
+		}
+	}
+}
+
+// unwindSpeed is how fast (steps/s) the platform unwinds: about 176°/s.
+const unwindSpeed = 2000
+
 // home starts the rig back to 0°/0° after a capture, the short way round.
 func (r *rig) home() error {
 	zero, zeroA := 0.0, 0.0

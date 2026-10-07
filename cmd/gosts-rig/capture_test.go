@@ -408,3 +408,79 @@ func TestTorqueOnCatchesTurnOff(t *testing.T) {
 	})
 	t.Log(err)
 }
+
+// TestPlatformTurnsReset: the platform servo wound 2 turns and more has its
+// turn count reset where it is: the same angle, the same zero, under a turn
+// now, and the next move goes the short way.
+func TestPlatformTurnsReset(t *testing.T) {
+	defer func(f func(Roles) *servosim.Port) { newSimPort = f }(newSimPort)
+	newSimPort = func(ro Roles) *servosim.Port {
+		p := servosim.NewPort(ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth)
+		p.SetPosition(ro.ElevationLeader, gosts.CenterPosition)
+		p.SetPosition(ro.ElevationFollower, 0)
+		p.SetPosition(ro.Azimuth, 0)
+		return p
+	}
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	if err := r.torque(true); err != nil {
+		t.Fatal(err)
+	}
+	ro := cfg.get().Roles
+	zero := func() int {
+		var z int
+		r.withBus(func(bus *gosts.Bus) error { z, _ = bus.Servo(ro.Azimuth).Zero(); return nil })
+		return z
+	}
+	z0 := zero()
+	wound := 2*gosts.StepsPerRev + 1000
+	r.withBus(func(bus *gosts.Bus) error { return bus.Servo(ro.Azimuth).MoveTo(wound, 3400, 0) })
+	time.Sleep(4 * time.Second)
+	before, err := r.platformTurns()
+	if err != nil || before < 2 {
+		t.Fatalf("wound %.2f turns (%v), want 2 and more", before, err)
+	}
+	_, a0, _ := r.angles()
+	if err := r.resetPlatformTurns(); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := r.platformTurns()
+	_, a1, _ := r.angles()
+	if after < 0 || after >= 1 || math.Abs(wrap180(a1-a0)) > 0.5 || zero() != z0 {
+		t.Fatalf("after the reset: %.2f turns, azimuth %.1f° (was %.1f°), zero %d (was %d)", after, a1, a0, zero(), z0)
+	}
+	// The next move: the short way, not back the 6 turns.
+	target := wrap180(a1 + 90)
+	if err := r.moveTo(nil, &target); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(3 * time.Second)
+	if turns, _ := r.platformTurns(); turns < 0 || turns > 1.5 {
+		t.Fatalf("after a 90° move the platform is %.2f turns round", turns)
+	}
+}
+
+// TestSpiralFit: a spiral from 6.5 turns round fits till it would pass the
+// servo's range; unwinding from there takes it back near the other end.
+func TestSpiralFit(t *testing.T) {
+	var shots []shot
+	for i := 0; i < 40; i++ { // 40 shots 45° apart: 5 turns, positive
+		shots = append(shots, shot{Azimuth: wrap180(float64(i) * 45)})
+	}
+	if n := spiralFit(0, shots); n != len(shots) {
+		t.Errorf("from 0 turns: %d fit, want all %d", n, len(shots))
+	}
+	if n := spiralFit(6.5, shots); n == 0 || n >= len(shots) {
+		t.Errorf("from 6.5 turns: %d fit, want some, not all", n)
+	}
+	if n := unwindTurns(7.4, 1); n < 14 || n > 15 {
+		t.Errorf("unwinding from 7.4 turns, spiral +: %d turns, want 14", n)
+	}
+}

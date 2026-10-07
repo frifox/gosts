@@ -161,27 +161,13 @@ func (c *capture) preview(p Plan) error {
 		c.mu.Unlock()
 		return errors.New("a capture is running")
 	}
-	note := ""
-	if err := spiralProblem(p, shots); err != nil {
-		note = err.Error() // said now, not only once Start is refused
-	}
-	c.shots, c.index, c.note, c.rows, c.spacing = shots, 0, note, rows, spacing
+	c.shots, c.index, c.note, c.rows, c.spacing = shots, 0, "", rows, spacing
 	c.mu.Unlock()
 	c.send()
 	return nil
 }
 
-// spiralProblem says why moving shots can't take these shots: a spiral of
-// more turns than the platform servo can make in one go.
-func spiralProblem(p Plan, shots []shot) error {
-	if !p.Moving {
-		return nil
-	}
-	if t := math.Abs(spiralTurns(shots)); t > maxSpiralTurns {
-		return fmt.Errorf("moving shots: %d photos make a %.0f-turn spiral, more than the platform servo can turn in one go (%d): use fewer photos, or stop for each shot", len(shots), t, maxSpiralTurns)
-	}
-	return nil
-}
+
 
 // start runs the plan in the background. If it can't, why is the note
 // too (so it stays on the page, not just a moment's error).
@@ -212,23 +198,18 @@ func (c *capture) begin(p Plan) error {
 	if err != nil {
 		return err
 	}
-	if err := spiralProblem(p, shots); err != nil {
-		return err
-	}
 	if p.Moving {
-		// The platform isn't unwound between captures: if the spiral
-		// wouldn't stay within its servo's turns from where it is, it turns
-		// the other way instead (the same shots, mirrored).
+		// The platform isn't unwound between captures: if the spiral would
+		// fit its servo's turns from where it is turning the other way (the
+		// same shots, mirrored), it does, rather than unwind on the way (see
+		// spiral).
 		at, err := c.rig.platformTurns()
 		if err != nil {
 			return err
 		}
-		if !spiralFits(at, shots) {
+		if spiralFit(at, shots) < len(shots) && spiralFit(at, mirrored(shots)) > spiralFit(at, shots) {
 			c.rig.logf("info", "capture: the platform is %.1f turns round, so the spiral turns the other way this time", at)
 			shots = mirrored(shots)
-			if !spiralFits(at, shots) {
-				return fmt.Errorf("moving shots: the %.1f-turn spiral doesn't fit the platform servo's remaining turns either way (it's %.1f turns round): use fewer photos, or power-cycle the servo", math.Abs(spiralTurns(shots)), at)
-			}
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -281,24 +262,28 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	c.send()
 }
 
-// maxSpiralTurns is the longest moving-shots spiral: the platform servo's
-// goals reach about ±7.5 turns from where it powered up, and the platform
-// isn't unwound, so a spiral gets at most one side of that.
-const maxSpiralTurns = 7
-
 // spiralRange is how far (turns) the platform servo's goals reach either way.
 const spiralRange = 30719.0/4096 - 0.05
 
-// spiralFits reports whether the spiral through shots stays within the
-// platform servo's goal range, starting from `at` turns (the first shot is
-// reached the short way).
-func spiralFits(at float64, shots []shot) bool {
-	if len(shots) == 0 {
-		return true
+// spiralFit is how many of shots the spiral can take starting from `at`
+// turns (each reached the short way from the one before; the first from
+// where the platform is), staying within the platform servo's goal range.
+func spiralFit(at float64, shots []shot) int {
+	deg := at * 360
+	for i, s := range shots {
+		deg += wrap180(s.Azimuth - deg)
+		if math.Abs(deg/360) > spiralRange {
+			return i
+		}
 	}
-	start := at + wrap180(shots[0].Azimuth-at*360)/360
-	end := start + spiralTurns(shots)
-	return math.Abs(start) <= spiralRange && math.Abs(end) <= spiralRange
+	return len(shots)
+}
+
+// unwindTurns is how many whole turns to unwind the platform, from `at`
+// turns, before a spiral turning `dir` (+1 or −1): back as far as the
+// servo's range goes, for the longest lap next (0: no room gained).
+func unwindTurns(at float64, dir int) int {
+	return int(math.Floor(float64(dir)*at + spiralRange))
 }
 
 // mirrored is the same shots with the azimuths mirrored, so the spiral turns
@@ -406,6 +391,12 @@ func (c *capture) spiral(ctx context.Context) error {
 	// configured one so the speed changes gently.
 	maxRate := float64(m.Speed) / stepsPerDegree
 	accel := float64(m.Acc) * 100 / stepsPerDegree / 2
+	c.mu.Lock()
+	dir := 1 // which way the spiral turns the platform
+	if spiralTurns(c.shots) < 0 {
+		dir = -1
+	}
+	c.mu.Unlock()
 	for {
 		c.mu.Lock()
 		idx, left := c.index, append([]shot(nil), c.shots[c.index:]...)
@@ -422,6 +413,45 @@ func (c *capture) spiral(ctx context.Context) error {
 			}
 			continue
 		}
+		// The platform servo's goals reach only so far: the spiral goes
+		// as far as fits (a lap), then the platform unwinds whole turns to
+		// the same angle and the spiral carries on from there.
+		at, err := c.rig.platformTurns()
+		if err != nil {
+			return err
+		}
+		fit := spiralFit(at, left)
+		if fit == 0 {
+			// The rig stops; the platform servo's turn count is reset where
+			// it is (quick); if that can't be done, the platform unwinds
+			// instead (slower: whole turns back to the same angle).
+			c.setNote("Resetting the platform's turn count…")
+			if err := c.rig.stop(); err != nil {
+				return err
+			}
+			if err := c.rig.waitStill(ctx); err != nil {
+				return err
+			}
+			rerr := c.rig.resetPlatformTurns()
+			if rerr == nil {
+				c.rig.logf("info", "capture: the platform's turn count reset (it was %.1f turns round), after %d of %d photos", at, idx, idx+len(left))
+				c.setNote("")
+				continue
+			}
+			n := unwindTurns(at, dir)
+			if n < 1 {
+				return fmt.Errorf("the platform is %.1f turns round, its count couldn't be reset (%v), and there's no room to unwind", at, rerr)
+			}
+			c.rig.logf("info", "capture: couldn't reset the platform's turn count (%v): unwinding it %d turns instead", rerr, n)
+			c.setNote(fmt.Sprintf("Unwinding the platform %d turns…", n))
+			err := c.rig.unwindPlatform(ctx, -dir*n)
+			c.setNote("")
+			if err != nil {
+				return err
+			}
+			continue
+		}
+		left = left[:fit]
 		var es, as []float64
 		first := 0 // the point that is shot idx
 		if idx == 0 {
@@ -445,7 +475,7 @@ func (c *capture) spiral(ctx context.Context) error {
 		}
 		// Shots no closer together than the camera can take them.
 		tr := newTrajectory(es, as, maxRate, accel, c.camera.minInterval().Seconds())
-		err := c.rig.follow(ctx, tr, func(k int) error {
+		err = c.rig.follow(ctx, tr, func(k int) error {
 			if k < first {
 				return nil
 			}
@@ -458,8 +488,25 @@ func (c *capture) spiral(ctx context.Context) error {
 		if errors.Is(err, errPaused) {
 			continue
 		}
+		if err == nil { // a lap done: on to the next (after unwinding), if there are shots left
+			c.mu.Lock()
+			more := c.index < len(c.shots)
+			c.mu.Unlock()
+			if more {
+				continue
+			}
+		}
 		return err
 	}
+}
+
+// setNote says something on the page while the capture runs (e.g. that the
+// platform is unwinding); "" clears it.
+func (c *capture) setNote(note string) {
+	c.mu.Lock()
+	c.note = note
+	c.mu.Unlock()
+	c.send()
 }
 
 func (c *capture) pause(on bool) error {

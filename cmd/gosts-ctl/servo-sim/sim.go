@@ -50,7 +50,7 @@ func (p *Port) SetPosition(id uint8, pos int) {
 	for _, s := range p.servos {
 		if s.mem[5] == id {
 			s.pos, s.vel, s.mvel = float64(pos), 0, 0
-			put16(s.mem[:], 42, uint16(pos)) // goal: stay here
+			put16(s.mem[:], 42, toSignMag(pos-s.offset(), 15)) // goal: stay here (goals count after the offset)
 		}
 	}
 }
@@ -212,6 +212,12 @@ func (s *simServo) multiTurn() bool { return get16(s.mem[:], 9) == 0 && get16(s.
 func (s *simServo) write(params []byte) {
 	addr, data := int(params[0]), params[1:]
 	if addr == 40 && len(data) == 1 && data[0] == 128 { // calibrate middle
+		// The multi-turn count starts afresh, from the angle it's at (seen
+		// on an ST3215: it's what resets the count without a power cycle).
+		s.pos = math.Mod(s.pos, 4096)
+		if s.pos < 0 {
+			s.pos += 4096
+		}
 		off := int(math.Round(s.pos)) - 2048
 		put16(s.mem[:], 31, toSignMag(off, 11))
 		put16(s.mem[:], 42, 2048)
