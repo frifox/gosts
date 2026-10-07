@@ -245,6 +245,13 @@ td.mono { font-family: var(--mono); }
         </div>
         <div class="field"><label>Elevation</label><input type="range" id="elev" min="-30" max="90" step="0.5" value="0"><input type="number" id="elevNum" step="0.5" value="0.0"><button class="btn small" id="elevZero" title="Move the elevation to 0° (camera level with the object)">Go 0°</button></div>
         <div class="field"><label>Azimuth</label><input type="range" id="azim" min="-180" max="180" step="0.5" value="0"><input type="number" id="azimNum" step="0.5" value="0.0"><button class="btn small" id="azimZero" title="Turn the platform to 0°">Go 0°</button></div>
+        <!-- How fast the servos move, saved as soon as a value is entered. -->
+        <div class="grid2" style="margin-top:10px">
+          <label title="The servos' top speed">Speed (step/s)<input type="number" id="mSpeed" min="50" max="3400" step="50"></label>
+          <label title="How quickly they speed up and slow down: lower is gentler on the frame">Acceleration (100 step/s²)<input type="number" id="mAcc" min="1" max="254"></label>
+        </div>
+        <p class="hint" id="motionHint"></p>
+        <div class="err" id="motionErr"></div>
         <table class="servos" style="margin-top:12px">
           <colgroup><col style="width:13%"><col style="width:32%"><col style="width:15%"><col style="width:11%"><col style="width:9%"><col style="width:20%"></colgroup>
           <thead><tr><th>Servo</th><th>Role</th><th>Angle</th><th>Load</th><th>V</th><th>Status</th></tr></thead>
@@ -377,10 +384,6 @@ td.mono { font-family: var(--mono); }
         <label class="switch" style="flex-direction:row"><input type="checkbox" id="sInvA"><span class="track"></span><span>Invert azimuth</span></label>
       </div>
       <p class="hint">The two top servos move together as one group, the leader deciding the goal. Mark the servo that faces its partner as mirrored, so the same command tilts both the same way. Elevation 0° is the camera level with the object (the servos' own 0°, set with gosts-ctl → Set 0° to), positive is up; invert if it goes the wrong way. Azimuth 0° is the platform's own 0°.</p>
-      <div class="grid2" style="margin-top:12px">
-        <label>Speed (step/s)<input type="number" id="sSpeed" min="50" max="3400" step="50"></label>
-        <label>Acceleration (100 step/s²)<input type="number" id="sAcc" min="1" max="254"></label>
-      </div>
       <p class="hint">The rig's servos are always switched to multi-turn mode when gosts connects, so every move can take the short way: in single-turn mode a move across a servo's 0/360° point goes the long way, nearly a full turn, which could swing the frame into the posts.</p>
       <p class="hint">Found on the bus: <span id="sFound" class="mono">–</span> <button class="btn small" id="sScan">Scan again</button></p>
       <div class="err" id="setupErr"></div>
@@ -729,9 +732,30 @@ async function simShoot(n) {
   } catch (e) { log(`simulated photo ${n}: ${e.message}`, "error"); }
 }
 
+// Speed and acceleration (Motion card): saved on Enter or leaving a field.
+function motionFields(m) {
+  for (const [id, k] of [["mSpeed", "Speed"], ["mAcc", "Acc"]]) if (document.activeElement !== $(id)) $(id).value = m[k];
+  const deg = 360 / 4096;
+  $("motionHint").textContent = `≈ ${Math.round(m.Speed * deg)}°/s, reached in ${(m.Speed / (m.Acc * 100)).toFixed(2)} s (≈ ${Math.round(m.Acc * 100 * deg)}°/s²)`;
+}
+for (const id of ["mSpeed", "mAcc"]) {
+  const save = async () => {
+    const motion = { ...state.server.config.Motion, Speed: +$("mSpeed").value, Acc: +$("mAcc").value };
+    if (motion.Speed === state.server.config.Motion.Speed && motion.Acc === state.server.config.Motion.Acc) return;
+    $("motionErr").textContent = "";
+    try { await send("motion", { motion }); } catch (e) {
+      $("motionErr").textContent = e.message;
+      $("mSpeed").value = state.server.config.Motion.Speed; $("mAcc").value = state.server.config.Motion.Acc; // back to what's saved
+    }
+  };
+  $(id).addEventListener("change", save);
+  $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
+}
+
 function onState(m) {
   state.server = m;
   const c = m.config, r = c.Roles;
+  motionFields(c.Motion);
   // Motion: the board's port to connect to, or once connected the rig's controls.
   $("connectBody").hidden = $("refreshPorts").hidden = m.connected;
   $("controlBody").hidden = $("torqueSwitch").hidden = !m.connected;
@@ -887,7 +911,6 @@ function fillSetup() {
   }
   $("sLeaderMir").checked = r.LeaderMirrored; $("sFollowerMir").checked = r.FollowerMirrored;
   $("sInvE").checked = r.InvertElevation; $("sInvA").checked = r.InvertAzimuth;
-  $("sSpeed").value = c.Motion.Speed; $("sAcc").value = c.Motion.Acc;
   $("sFound").textContent = m.connected ? (m.found.length ? m.found.map((id) => "#" + id).join(" ") : "none") : "no board connected";
 }
 $("sScan").onclick = () => act("scan", {}, $("setupErr"));
@@ -897,10 +920,8 @@ $("sSave").onclick = async () => {
   $("setupErr").textContent = "";
   const roles = { ElevationLeader: +$("sLeader").value, ElevationFollower: +$("sFollower").value, Azimuth: +$("sAzim").value,
     LeaderMirrored: $("sLeaderMir").checked, FollowerMirrored: $("sFollowerMir").checked, InvertElevation: $("sInvE").checked, InvertAzimuth: $("sInvA").checked };
-  const motion = { ...state.server.config.Motion, Speed: +$("sSpeed").value, Acc: +$("sAcc").value };
   try {
     await send("roles", { roles });
-    await send("motion", { motion });
     $("setupModal").hidden = true;
   } catch (e) { $("setupErr").textContent = e.message; }
 };
