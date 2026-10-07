@@ -1629,12 +1629,45 @@ $("previewBtn").onclick = () => {
 };
 $("pauseBtn").onclick = () => act("pause", { on: !state.cap?.paused });
 $("abortBtn").onclick = () => act("stop");
-function onCapture(m) {
-  state.cap = m;
-  cameraButtons(); // no Take Photo during a capture
+// The capture's progress text: photos done, time so far, and about how long
+// is left, by the pace since the first photo (the move to it isn't the
+// pace; a page opened mid-capture: since the first it saw); counted on
+// between messages.
+function capCount() {
+  const m = state.cap;
+  if (!m) return;
   const done = m.shots.filter((s) => s.done).length;
+  if (!m.total) { $("capCount").textContent = ""; return; }
+  let t = `${done} / ${m.total}`;
+  if (m.running) {
+    const since = m.paused ? 0 : (performance.now() - state.capAt) / 1000;
+    const elapsed = m.elapsed + since;
+    t += ` · ${fmtDur(elapsed)}`;
+    const base = state.capBase; // the first photo this page saw done: the pace is from there
+    if (!m.paused && base && done > base.done && done < m.total) {
+      const per = (m.elapsed - base.elapsed) / (done - base.done);
+      t += ` · about ${fmtDur(Math.max(0, per * (m.total - done) - since))} left`;
+    }
+  }
+  $("capCount").textContent = t;
+}
+// fmtDur: "45 s", "3 min 05 s", "1 h 02 min".
+function fmtDur(sec) {
+  sec = Math.round(sec);
+  if (sec < 60) return `${sec} s`;
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  return h ? `${h} h ${String(m).padStart(2, "0")} min` : `${m} min ${String(s).padStart(2, "0")} s`;
+}
+setInterval(() => { if (state.cap?.running) capCount(); }, 1000);
+function onCapture(m) {
+  const done = m.shots.filter((s) => s.done).length;
+  if (!m.running || done === 0) state.capBase = null;
+  else if (!state.capBase || (state.cap?.paused && !m.paused)) state.capBase = { done, elapsed: m.elapsed }; // (a pause isn't the pace)
+  state.cap = m;
+  state.capAt = performance.now();
+  cameraButtons(); // no Take Photo during a capture
   $("capBar").style.width = m.total ? `${100 * done / m.total}%` : "0";
-  $("capCount").textContent = m.total ? `${done} / ${m.total}` + (m.running ? ` · ${Math.round(m.elapsed)} s` : "") : "";
+  capCount();
   $("startBtn").disabled = m.running;
   $("previewBtn").disabled = m.running || m.shots.length < 2;
   if (m.running) stopPreview();

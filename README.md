@@ -264,7 +264,8 @@ put back straight after, so the angle reads as before; under a second), and the 
 photos: 400 make a 13-turn spiral, one reset). If a reset can't be confirmed, the platform unwinds instead (whole
 turns back to the same angle, about 176°/s). If the spiral fits turning the other way from where the platform is
 (the same shots, mirrored), it goes that way.
-When the last photo is taken the rig returns to 0°/0° the short way (less than a turn) and stops. A preview
+While a capture runs, the bar's text has the photos done, the time so far and about how long is left (by the
+pace since the first photo; a pause doesn't count). When the last photo is taken the rig returns to 0°/0° the short way (less than a turn) and stops. A preview
 only moves the view: it never moves the rig or uses the camera. Each photo is
 taken with the connected camera, recording where the rig really is as the shutter goes.
 
