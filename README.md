@@ -3,9 +3,6 @@
 Go package built to control Waveshare ST3215 servo, but should work with other Waveshare ST and possibly the original Feetech ST servos too.
 Servos are driven by the **Waveshare Bus Servo Adapter (A)** but connecting to servo directly should also work.
 
-<p align="center"><img src="docs/gosts-ctl.jpg" alt="gosts-ctl web console controlling ST3215 servos"><br>
-<em><a href="cmd/gosts-ctl">gosts-ctl</a>, the web console, driving ST3215 servos.</em></p>
-
 ```go
 import "github.com/frifox/gosts"
 

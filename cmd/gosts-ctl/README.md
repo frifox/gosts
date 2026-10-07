@@ -1,4 +1,4 @@
-# gosts-ctl: web console
+# Go ST Servo: Web Console
 
 Set up, tune and drive Waveshare ST3215 servos from the browser. An example app of
 [Go ST Servo](../../README.md).
