@@ -801,11 +801,17 @@ document.addEventListener("keydown", (e) => {
 // ---------------------------------------------------------------- camera config
 // Camera Settings: the camera's settings (each change goes to it at once), and
 // sample shots (off the timeline) to judge them by.
+// Gray Card and Focus sit among the settings (by colour temperature and the
+// focus mode); before the settings are cleared they go back to their parking,
+// or they'd be cleared with them.
+function parkSettingButtons() {
+  $("grayPark").appendChild($("grayBtn"));
+  $("focusPark").appendChild($("focusBtn"));
+}
 function renderSettings(list) {
   queueMicrotask(focusControls); // what the focus mode allows
   state.camSettings = list || [];
-  $("grayPark").appendChild($("grayBtn")); // back to its parking (see rangeSetting)
-  $("focusPark").appendChild($("focusBtn")); // and Focus (see below)
+  parkSettingButtons();
   const box = $("camSettings");
   box.innerHTML = "";
   if (!list?.length) { box.innerHTML = '<div class="hint">This camera has no settings to change here.</div>'; return; }
@@ -989,10 +995,11 @@ function rangeSetting(st, label) {
 }
 async function loadSettings() {
   try { renderSettings(await send("cameraSettings")); }
-  catch (e) { $("camConfigErr").textContent = e.message; $("camSettings").innerHTML = ""; }
+  catch (e) { $("camConfigErr").textContent = e.message; parkSettingButtons(); $("camSettings").innerHTML = ""; }
 }
 function openCamConfig() {
   $("camConfigErr").textContent = "";
+  parkSettingButtons();
   $("camSettings").innerHTML = '<div class="hint">Reading the camera\'s settings…</div>';
   $("camConfigModal").hidden = false;
   sampleButton();
