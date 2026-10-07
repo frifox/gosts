@@ -838,7 +838,8 @@ function shiftLabel(v, ends) {
   return v === 0 ? "0" : `${v < 0 ? ends[0] : ends[1]}${Math.abs(v) / 4}`;
 }
 // shiftSetting: a white balance shift, a slider (one end to the other, 0 in
-// the middle; double-click it for 0) with how far it is beside it.
+// the middle; double-click it for 0) with how far it is beside it, and a
+// button back to 0 (the camera's default).
 function shiftSetting(st, label) {
   const row = document.createElement("div");
   row.className = "setting-row";
@@ -848,7 +849,11 @@ function shiftSetting(st, label) {
   slider.type = "range"; slider.min = st.min; slider.max = st.max; slider.step = st.step; slider.value = st.current;
   slider.className = "shift " + st.key;
   slider.title = `${shiftLabel(st.min, st.ends)} to ${shiftLabel(st.max, st.ends)}; double-click for 0`;
-  const show = () => (out.textContent = shiftLabel(slider.value, st.ends));
+  const reset = document.createElement("button");
+  reset.className = "btn small shift-reset";
+  reset.textContent = "Reset";
+  reset.title = "Back to 0, the camera's default";
+  const show = () => { out.textContent = shiftLabel(slider.value, st.ends); reset.disabled = Number(slider.value) === 0; };
   show();
   let sent = st.current;
   const apply = async () => {
@@ -856,15 +861,15 @@ function shiftSetting(st, label) {
     if (v === sent) return;
     sent = v;
     $("camConfigErr").textContent = "";
-    slider.disabled = true;
+    slider.disabled = reset.disabled = true;
     label.classList.add("setting-busy");
     try { renderSettings(await send("cameraSet", { key: st.key, value: v })); }
     catch (e) { $("camConfigErr").textContent = e.message; loadSettings(); }
   };
   slider.oninput = show;
   slider.onchange = apply;
-  slider.ondblclick = () => { slider.value = 0; show(); apply(); };
-  row.append(out, slider);
+  slider.ondblclick = reset.onclick = (e) => { e.preventDefault(); slider.value = 0; show(); apply(); };
+  row.append(out, slider, reset);
   label.appendChild(row);
   return label;
 }
