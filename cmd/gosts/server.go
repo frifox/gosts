@@ -191,6 +191,22 @@ func (a *app) exec(req request) (any, error) {
 			return nil, err
 		}
 		return a.cameraSettings()
+	case "cameraProbe": // Config: find the choices that really work (the lens's f-stops)
+		if a.cap.msg().Running {
+			return nil, errors.New("a capture is running")
+		}
+		sc, err := a.settingsCam()
+		if err != nil {
+			return nil, err
+		}
+		pc, ok := sc.(proberCamera)
+		if !ok {
+			return nil, errors.New("this camera can't be probed")
+		}
+		if err := pc.Probe(req.Key); err != nil {
+			return nil, err
+		}
+		return a.cameraSettings()
 	case "sampleShot": // Config: a photo to judge the settings by
 		if a.cap.msg().Running {
 			return nil, errors.New("a capture is running")

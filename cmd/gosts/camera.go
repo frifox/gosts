@@ -151,6 +151,7 @@ type simCamera struct {
 	mu       sync.Mutex
 	n        int
 	settings map[string]string // see Settings
+	probed   bool              // the lens's f-stops found (see Probe)
 }
 
 func (s *simCamera) Shoot(ctx context.Context, sh shutter) error {

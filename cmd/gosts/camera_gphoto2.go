@@ -65,8 +65,9 @@ type gphoto2Camera struct {
 	reqs chan gphoto2Req
 	done chan struct{} // closed when the worker has ended
 
-	mu       sync.Mutex
-	fire, dl time.Duration // recently: firing a photo, downloading its JPEG
+	mu        sync.Mutex
+	fire, dl  time.Duration // recently: firing a photo, downloading its JPEG
+	apertures [2]int        // the lens's f-stops, as indexes of the camera's choices (see Probe; [1] 0: not probed)
 }
 
 // gphoto2Req is one thing for the worker: a photo to take, or (development)

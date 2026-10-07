@@ -3,10 +3,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // cameraSetting is one of the camera's settings, for the Config dialog.
@@ -16,6 +18,15 @@ type cameraSetting struct {
 	Current  string   `json:"current"`
 	Choices  []string `json:"choices"`
 	ReadOnly bool     `json:"readOnly"`
+	Probe    bool     `json:"probe,omitempty"`  // the choices the lens has can be found (see proberCamera)
+	Probed   bool     `json:"probed,omitempty"` // and were: Choices are only those
+}
+
+// proberCamera is a camera that can find which of a setting's choices really
+// work (the f-stops the lens has): Probe tries them out, leaves the setting
+// as it was, and Settings offers only those from then on.
+type proberCamera interface {
+	Probe(key string) error
 }
 
 // settingsCamera is a camera whose settings can be read and changed.
@@ -135,8 +146,17 @@ func (g *gphoto2Camera) Settings() ([]cameraSetting, error) {
 			continue // a camera without it: not offered
 		}
 		s := cameraSetting{Key: k.key, Label: k.label, Current: c.current, ReadOnly: c.readOnly}
-		for _, ch := range c.choices {
-			if keepChoice(k.key, ch) || ch == c.current {
+		lo, hi := 0, len(c.choices)-1
+		if k.key == "aperture" {
+			s.Probe = true
+			g.mu.Lock()
+			if g.apertures[1] > 0 { // probed: the lens's range
+				lo, hi, s.Probed = g.apertures[0], g.apertures[1], true
+			}
+			g.mu.Unlock()
+		}
+		for j, ch := range c.choices {
+			if (j >= lo && j <= hi && keepChoice(k.key, ch)) || ch == c.current {
 				s.Choices = append(s.Choices, ch)
 			}
 		}
@@ -174,6 +194,64 @@ func (g *gphoto2Camera) Set(key, value string) error {
 	return nil
 }
 
+// Probe finds the f-stops the lens has. The camera reports every f-stop there
+// is, whatever the lens; but it sets one by stepping the aperture towards it,
+// stopping where the lens does: so asking for the widest and the narrowest
+// there are leaves it at the lens's limits. Then the aperture goes back to
+// where it was. Slow: the camera steps a click at a time (some 30 s).
+func (g *gphoto2Camera) Probe(key string) error {
+	if key != "aperture" {
+		return fmt.Errorf("%s can't be probed", key)
+	}
+	path := gphoto2Settings[key]
+	get := func() (gphoto2Config, error) {
+		outs, err := g.runLines([]string{"get-config " + path})
+		if err != nil {
+			return gphoto2Config{}, err
+		}
+		return parseGphoto2Config(outs[0])
+	}
+	set := func(i int) error {
+		_, err := g.runLines([]string{fmt.Sprintf("set-config-index %s=%d", path, i)})
+		return err
+	}
+	c, err := get()
+	if err != nil {
+		return err
+	}
+	was := slices.Index(c.choices, c.current)
+	limit := func(i int) (int, error) { // where it stops, asked for choice i
+		if err := set(i); err != nil {
+			return 0, err
+		}
+		got, err := get()
+		if err != nil {
+			return 0, err
+		}
+		j := slices.Index(c.choices, got.current)
+		if j < 0 {
+			return 0, fmt.Errorf("the camera's at %q, not one of its choices", got.current)
+		}
+		return j, nil
+	}
+	lo, err1 := limit(0)
+	hi, err2 := limit(len(c.choices) - 1)
+	if was >= 0 {
+		set(was) // back as it was, whatever happened
+	}
+	if err := errors.Join(err1, err2); err != nil {
+		return err
+	}
+	if lo > hi {
+		return fmt.Errorf("odd lens range: %s to %s", c.choices[lo], c.choices[hi])
+	}
+	g.mu.Lock()
+	g.apertures = [2]int{lo, hi}
+	g.mu.Unlock()
+	log.Printf("camera: the lens has %s to %s", c.choices[lo], c.choices[hi])
+	return nil
+}
+
 // ---------------------------------------------------------------- simulator
 
 // simSettingChoices are the simulated camera's settings and choices.
@@ -194,9 +272,33 @@ func (s *simCamera) Settings() ([]cameraSetting, error) {
 	}
 	var ss []cameraSetting
 	for _, k := range settingKeys {
-		ss = append(ss, cameraSetting{Key: k.key, Label: k.label, Current: s.settings[k.key], Choices: simSettingChoices[k.key]})
+		st := cameraSetting{Key: k.key, Label: k.label, Current: s.settings[k.key], Choices: simSettingChoices[k.key]}
+		if k.key == "aperture" {
+			st.Probe, st.Probed = true, s.probed
+			if s.probed {
+				st.Choices = simLens
+			}
+		}
+		ss = append(ss, st)
 	}
 	return ss, nil
+}
+
+// simLens is the simulated camera's lens: f/4 to f/16 (found by Probe).
+var simLens = []string{"f/4", "f/5.6", "f/8", "f/11", "f/16"}
+
+// simProbeTime is how long probing the simulated lens takes.
+var simProbeTime = 3 * time.Second
+
+func (s *simCamera) Probe(key string) error {
+	if key != "aperture" {
+		return fmt.Errorf("%s can't be probed", key)
+	}
+	time.Sleep(simProbeTime) // stepping the aperture, as a real camera would
+	s.mu.Lock()
+	s.probed = true
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *simCamera) Set(key, value string) error {

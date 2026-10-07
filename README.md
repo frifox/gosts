@@ -273,7 +273,9 @@ the page. A camera on JPEG only works the same way; on RAW only no picture would
 system's camera service grabs a camera when it's plugged in (and may open Photos): if taking a photo says
 another program has the camera, quit Photos and Image Capture and run `killall ptpcamerad mscamerad-xpc`.
 **Config** (in the Capture title) opens the camera's settings next to a sample shot: exposure mode (P, A, S,
-M; shutter, f-stop and ISO hold in M), shutter speed, f-stop, ISO, white balance and focus mode, each change
+M; shutter, f-stop and ISO hold in M), shutter speed, f-stop (all there are, until **Detect** next to it finds
+the lens's: the camera steps the aperture to its limits and back, about half a minute), ISO, white balance and
+focus mode, each change
 sent to the camera at once; **Take Sample Shot** takes a photo (kept off the timeline, saved in the batch's
 folder name with `-samples`)
 and shows it with the settings it was taken at, to adjust from. The simulated camera has the same settings,
