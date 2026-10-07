@@ -53,6 +53,33 @@ export const presetKelvin = {
   "Fluorescent: Day White": 5000, "Fluorescent: Daylight": 6500,
 };
 
+// problem is why a card's colour can't be measured ("" if it can).
+export function problem(srgb) {
+  if (Math.max(...srgb) > 250) return "the card's too bright (clipped): darken the exposure and take another sample";
+  if (Math.min(...srgb) < 8) return "the card's too dark: brighten the exposure and take another sample";
+  return "";
+}
+
+// White balance shifts (the camera's A–B and G–M grid), in quarter steps
+// towards B and M. One moves a colour ratio by SHIFT_LN in log terms:
+// measured on the A6600, from samples at each end of both (A7 to B7 took a
+// scene's red/blue from 2.15 to 0.47; G7 to M7 its green/(red·blue)^½ from
+// 2.53 to 0.54: ln of either ≈ 1.53 over 56 quarter steps).
+export const SHIFT_LN = 0.0275;
+
+// shifts are the moves (quarter steps, towards B and M) that make a card
+// whose average colour came out as srgb neutral, from the shifts it was
+// taken with: ab (blue against red: what colour temperature also does) and
+// gm. Not rounded or limited to the camera's steps.
+export function shifts(srgb) {
+  const [r, g, b] = srgb.map(linear);
+  return { ab: Math.log(r / b) / SHIFT_LN, gm: Math.log(g / Math.sqrt(r * b)) / SHIFT_LN };
+}
+
+// castShift is the G–M move (quarter steps towards M) that takes out a cast
+// as balance reports it.
+export const castShift = (cast) => Math.log(1 + cast) / SHIFT_LN;
+
 // balance works out the colour temperature for a card whose average colour
 // came out as srgb ([r, g, b], 0–255) with the camera set to setK kelvin.
 // It returns { kelvin, warmer (true: the light's warmer than setK), cast
@@ -60,8 +87,8 @@ export const presetKelvin = {
 // be trusted, or "") }.
 export function balance(srgb, setK) {
   const [r, g, b] = srgb.map(linear);
-  if (Math.max(...srgb) > 250) return { problem: "the card's too bright (clipped): darken the exposure and take another sample" };
-  if (Math.min(...srgb) < 8) return { problem: "the card's too dark: brighten the exposure and take another sample" };
+  const bad = problem(srgb);
+  if (bad) return { problem: bad };
   const want = (r / b) * rb(setK);
   // f falls as T rises: find T with f(T) = want (from 2000 K: below that a
   // black body's blue is out of sRGB, under 0).

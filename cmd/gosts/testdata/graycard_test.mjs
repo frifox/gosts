@@ -1,4 +1,4 @@
-import { balance, planckRGB, linear } from "../web/graycard.js";
+import { balance, planckRGB, linear, shifts, castShift, SHIFT_LN } from "../web/graycard.js";
 // Synthetic: a card under T_real, the camera set to T_set: rendered
 // (linear) = ill(T_real)/ill(T_set), scaled to mid gray, then to sRGB.
 const toSRGB = (c) => 255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
@@ -23,5 +23,15 @@ console.log(g.cast > 0.05 ? "ok  " : "FAIL", "green cast", g.cast.toFixed(3)); i
 // Clipped / dark.
 for (const [name, rgb] of [["clipped", [255, 240, 230]], ["dark", [5, 6, 7]]]) {
   const r = balance(rgb, 5500); console.log(r.problem ? "ok  " : "FAIL", name, r.problem); if (!r.problem) fail++;
+}
+// Shifts: a card off by known moves (quarter steps) is put back by them:
+// red/blue e^(8k) wants 8 towards B; green/(red·blue)^½ e^(−3k), 3 towards G.
+{
+  const k = SHIFT_LN;
+  const s = shifts([0.18 * Math.exp(4 * k), 0.18 * Math.exp(-3 * k), 0.18 * Math.exp(-4 * k)].map(toSRGB));
+  const ok = Math.abs(s.ab - 8) < 0.2 && Math.abs(s.gm + 3) < 0.2;
+  console.log(ok ? "ok  " : "FAIL", "shifts", s.ab.toFixed(2), s.gm.toFixed(2)); if (!ok) fail++;
+  const c = castShift(Math.exp(5 * k) - 1);
+  console.log(Math.abs(c - 5) < 1e-9 ? "ok  " : "FAIL", "castShift", c.toFixed(3)); if (Math.abs(c - 5) >= 1e-9) fail++;
 }
 process.exit(fail ? 1 : 0);

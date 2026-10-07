@@ -146,6 +146,9 @@ td.mono { font-family: var(--mono); }
 .gray-out { padding: 10px 12px; max-width: 100%; cursor: default; }
 .gray-out .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); vertical-align: -2px; margin-right: 6px; }
 .gray-out .row { margin-top: 8px; }
+.gray-pick { margin-top: 8px; }
+.gray-pick label { display: flex; gap: 6px; align-items: baseline; margin-top: 3px; cursor: pointer; }
+.gray-pick .hint { margin: 0; color: #a9b0bd; }
 .setting-row { display: flex; gap: 6px; align-items: center; }
 .setting-row input.kelvin { width: 84px; flex: none; }
 .setting-row .shift-val { width: 84px; flex: none; font-size: 13px; color: var(--text); text-align: center; }
@@ -1032,37 +1035,94 @@ function cardColour(x, y, w, h) {
   for (let i = 0; i < px.length; i += 4) { sum[0] += px[i]; sum[1] += px[i + 1]; sum[2] += px[i + 2]; }
   return sum.map((v) => v / (n * n));
 }
+// balanceFrom suggests how to make the card neutral, to pick from and apply:
+// amber–blue by the colour temperature (when the sample's white balance is
+// a known one) or by the A–B shift, and green–magenta by the G–M shift
+// (what colour temperature can't do), each from the settings the sample
+// was taken with.
 function balanceFrom(rgb) {
-  const out = $("grayOut"), set = state.sampleSettings || {};
+  const gc = window.graycard, out = $("grayOut"), set = state.sampleSettings || {};
   const wb = set.whitebalance;
-  const setK = wb === "Choose Color Temperature" ? Number(set.colortemp) : window.graycard.presetKelvin[wb];
+  const setK = wb === "Choose Color Temperature" ? Number(set.colortemp) : gc.presetKelvin[wb];
   const swatch = `<span class="swatch" style="background:rgb(${rgb.map(Math.round).join(",")})"></span>`;
   const card = `${swatch}The card: ${rgb.map((v) => Math.round(v)).join(", ")} (red, green, blue).`;
+  const dismiss = `<button class="btn small" id="grayDismiss">Dismiss</button>`;
+  const wire = () => ($("grayDismiss").onclick = () => { out.hidden = true; $("selRect").hidden = true; state.grayRect = null; });
   out.hidden = false;
-  if (!setK) {
-    out.innerHTML = `${card}<br>The sample was taken with white balance on <b>${wb || "?"}</b>, which isn't a known temperature: set a fixed one (Choose Color Temperature is best), take another sample, and measure the card again.`;
+  const bad = gc.problem(rgb);
+  if (bad) { out.innerHTML = `${card}<br>Can't tell: ${bad}.<div class="row">${dismiss}</div>`; wire(); return; }
+  const cs = (key) => (state.camSettings || []).find((x) => x.key === key);
+  const abS = cs("abshift"), gmS = cs("gmshift");
+  const hasAB = !!abS && set.abshift !== undefined, hasGM = !!gmS && set.gmshift !== undefined;
+  // A shift's new value: the sample's moved by d, on the camera's steps, within its range.
+  const shiftTo = (st, from, d) => Math.min(st.max, Math.max(st.min, Math.round((Number(from) + d) / st.step) * st.step));
+  const sh = gc.shifts(rgb);
+  const r = setK ? gc.balance(rgb, setK) : null;
+  const ct = cs("colortemp");
+  const kmin = ct?.min || 2500, kmax = ct?.max || 9900, kstep = ct?.step || 100;
+  const k = r && !r.problem ? Math.min(kmax, Math.max(kmin, Math.round(r.kelvin / kstep) * kstep)) : 0;
+  // The fixes for amber–blue, and the G–M shift that goes with each (the
+  // colour temperature moves green a little too).
+  const opts = [];
+  if (k) opts.push({ id: "k", label: `colour temperature <b>${k} K</b>`, gm: hasGM ? shiftTo(gmS, set.gmshift, gc.castShift(r.cast)) : null });
+  if (hasAB) {
+    const ab = shiftTo(abS, set.abshift, sh.ab);
+    opts.push({ id: "ab", ab, label: `A–B shift <b>${shiftLabel(ab, abS.ends)}</b> <span class="hint">(now ${shiftLabel(set.abshift, abS.ends)}; white balance stays ${wb || "as it is"})</span>`,
+      gm: hasGM ? shiftTo(gmS, set.gmshift, sh.gm) : null });
+  }
+  let head;
+  if (r && !r.problem) {
+    const off = Math.abs(Math.round(r.kelvin) - setK) < kstep ? "matches the" : r.warmer ? "is warmer than the" : "is cooler than the";
+    head = `The light is about <b>${Math.round(r.kelvin / 10) * 10} K</b>: it ${off} ${setK} K the sample was taken at.`;
+  } else if (r?.problem) head = `Can't tell its temperature: ${r.problem}.`;
+  else head = `White balance was on <b>${wb || "?"}</b>, not a known temperature` +
+    (opts.length ? ", so the shifts are the fix" : ": set a fixed one (Choose Color Temperature is best), take another sample, and measure the card again") +
+    (wb === "Automatic" ? " (Automatic changes from shot to shot: a fixed one is steadier)." : ".");
+  if (!opts.length && !hasGM) {
+    const cast = r && !r.problem && Math.abs(r.cast) > 0.03
+      ? `<br><span style="color:var(--warn)">The light also has a ${r.cast > 0 ? "green" : "magenta"} cast (${Math.round(Math.abs(r.cast) * 100)}%), which colour temperature can't correct.</span>` : "";
+    out.innerHTML = `${card}<br>${head}${cast}<div class="row">${dismiss}</div>`;
+    wire();
     return;
   }
-  const r = window.graycard.balance(rgb, setK);
-  if (r.problem) { out.innerHTML = `${card}<br>Can't tell: ${r.problem}.`; return; }
-  const ct = (state.camSettings || []).find((x) => x.key === "colortemp");
-  const min = ct?.min || 2500, max = ct?.max || 9900, step = ct?.step || 100;
-  const k = Math.min(max, Math.max(min, Math.round(r.kelvin / step) * step));
-  const off = Math.abs(Math.round(r.kelvin) - setK) < step ? "matches the" : r.warmer ? "is warmer than the" : "is cooler than the";
-  const cast = Math.abs(r.cast) > 0.03
-    ? `<br><span style="color:var(--warn)">The light also has a ${r.cast > 0 ? "green" : "magenta"} cast (${Math.round(Math.abs(r.cast) * 100)}%), which colour temperature can't correct (a custom white balance on the camera can).</span>`
-    : "";
-  out.innerHTML = `${card}<br>The light is about <b>${Math.round(r.kelvin / 10) * 10} K</b>: it ${off} ${setK} K the sample was taken at.${cast}
-    <div class="row"><button class="btn small primary" id="grayApply">Set ${k} K</button><button class="btn small" id="grayDismiss">Dismiss</button></div>`;
-  $("grayDismiss").onclick = () => { out.hidden = true; $("selRect").hidden = true; state.grayRect = null; };
+  const radios = opts.map((o, i) => `<label><input type="radio" name="grayFix" value="${o.id}"${i ? "" : " checked"}> ${o.label}</label>`).join("");
+  out.innerHTML = `${card}<br>${head}
+    ${opts.length ? `<div class="gray-pick">Amber–blue, fix with:${radios}</div>` : ""}
+    ${hasGM ? `<div class="gray-pick"><label><input type="checkbox" id="grayGM"> Green–magenta: G–M shift <b id="grayGMVal"></b> <span class="hint">(now ${shiftLabel(set.gmshift, gmS.ends)})</span></label></div>` : ""}
+    <div class="row"><button class="btn small primary" id="grayApply">Apply</button>${dismiss}</div>`;
+  wire();
+  const chosen = () => opts.find((o) => o.id === document.querySelector('input[name="grayFix"]:checked')?.value);
+  const gmTo = () => chosen()?.gm ?? (hasGM ? shiftTo(gmS, set.gmshift, sh.gm) : null);
+  const showGM = () => {
+    if (!hasGM) return;
+    const v = gmTo();
+    $("grayGMVal").textContent = shiftLabel(v, gmS.ends);
+    $("grayGM").checked = v !== Number(set.gmshift); // ticked when it'd change
+  };
+  out.querySelectorAll('input[name="grayFix"]').forEach((el) => (el.onchange = showGM));
+  showGM();
   $("grayApply").onclick = async () => {
+    const o = chosen(), gm = hasGM && $("grayGM").checked ? gmTo() : null;
     $("grayApply").disabled = true;
     $("camConfigErr").textContent = "";
+    const done = [];
     try {
-      if ((state.camSettings || []).find((x) => x.key === "whitebalance")?.current !== "Choose Color Temperature")
-        renderSettings(await send("cameraSet", { key: "whitebalance", value: "Choose Color Temperature" }));
-      renderSettings(await send("cameraSet", { key: "colortemp", value: String(k) }));
-      out.innerHTML = `White balance set to ${k} K. Take another sample to check: the card is measured again, the same place.`;
+      if (o?.id === "k") {
+        if (cs("whitebalance")?.current !== "Choose Color Temperature")
+          renderSettings(await send("cameraSet", { key: "whitebalance", value: "Choose Color Temperature" }));
+        renderSettings(await send("cameraSet", { key: "colortemp", value: String(k) }));
+        done.push(`white balance ${k} K`);
+      }
+      if (o?.id === "ab") {
+        renderSettings(await send("cameraSet", { key: "abshift", value: String(o.ab) }));
+        done.push(`A–B ${shiftLabel(o.ab, abS.ends)}`);
+      }
+      if (gm !== null) {
+        renderSettings(await send("cameraSet", { key: "gmshift", value: String(gm) }));
+        done.push(`G–M ${shiftLabel(gm, gmS.ends)}`);
+      }
+      out.innerHTML = `${done.length ? "Set " + done.join(", ") : "Nothing changed"}. Take another sample to check: the card is measured again, the same place.<div class="row">${dismiss}</div>`;
+      wire();
     } catch (e) { $("camConfigErr").textContent = e.message; $("grayApply").disabled = false; }
   };
 }
@@ -1122,16 +1182,23 @@ function cameraButtons() {
 }
 // The simulated camera's picture: the Rig View from the camera, sent back.
 // Every open window renders it; the server keeps the first.
-// The simulated studio light's colour temperature: a simulated photo comes
-// out tinted by it against the camera's white balance (Automatic: right).
-const SIM_LIGHT = 4300;
+// The simulated studio light's colour temperature, and its green cast (in
+// the camera's G–M quarter steps, as some LEDs have): a simulated photo comes
+// out tinted by them against the camera's white balance and its shifts
+// (Automatic: right).
+const SIM_LIGHT = 4300, SIM_GREEN = 6;
 function simGains(settings) {
   const wb = settings?.whitebalance, gc = window.graycard;
-  const setK = wb === "Choose Color Temperature" ? Number(settings.colortemp) : gc?.presetKelvin[wb];
-  if (!gc || !setK || setK === SIM_LIGHT) return null;
+  if (!gc || wb === "Automatic") return null;
+  const setK = wb === "Choose Color Temperature" ? Number(settings.colortemp) : gc.presetKelvin[wb] || SIM_LIGHT;
   const a = gc.planckRGB(SIM_LIGHT), s = gc.planckRGB(setK);
   const g = a.map((v, i) => v / s[i]);
-  return g.map((v) => v / g[1]); // green kept: the brightness stays
+  // The shifts (towards B, M) and the light's cast, as the camera has them (graycard.SHIFT_LN a quarter step).
+  const k = gc.SHIFT_LN, ab = Number(settings.abshift || 0), gm = Number(settings.gmshift || 0);
+  g[0] *= Math.exp(-ab * k / 2); g[2] *= Math.exp(ab * k / 2);
+  g[1] *= Math.exp((SIM_GREEN - gm) * k);
+  const y = 0.2126 * g[0] + 0.7152 * g[1] + 0.0722 * g[2];
+  return g.map((v) => v / y); // the brightness kept
 }
 async function simShoot(n, exposure, settings) {
   try {

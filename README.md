@@ -281,10 +281,13 @@ and focus mode, each change
 sent to the camera at once; **Take Sample Shot** takes a photo (kept off the timeline, saved in the batch's
 folder name with `-samples`)
 and shows it with the settings it was taken at, to adjust from. **Gray Card** (right of the colour temperature slider, in Kelvin mode): drag a rectangle
-inside a gray card in the sample, and the app works out the colour temperature that makes it neutral (from the
-card's average colour and the white balance the sample was taken with; it notes a green or magenta cast Kelvin
-can't fix) and sets it; each new sample is measured again in the same rectangle (till Dismiss or a new one). The simulated camera has the same settings,
-and its sample comes out brighter or darker with them.
+inside a gray card in the sample, and the app works out what makes it neutral, from the card's average colour and
+the settings the sample was taken with, to pick from and **Apply**: amber–blue fixed by the colour temperature (when
+the white balance was a known one) or by the A–B shift, and green–magenta (which colour temperature can't fix) by
+the G–M shift, ticked when it would change (a shift step moves a colour ratio by e^0.0275 a quarter step, measured
+on the A6600); each new sample is measured again in the same rectangle (till Dismiss or a new one). The simulated
+camera has the same settings, and its sample comes out brighter or darker with them, and tinted by its 4300 K,
+slightly green light against its white balance and shifts.
 
 gosts keeps one gphoto2 shell open on the camera: firing the shutter takes about 1.1 s on the A6600 (nothing
 downloaded), and the JPEGs are collected in between, each to its own photo, while the rig moves on. Stopping
