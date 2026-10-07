@@ -109,8 +109,13 @@ func (a *app) exec(req request) (any, error) {
 			return nil, errors.New("no motion settings")
 		}
 		m := *req.Motion
-		if m.Speed < 0 || m.Speed > 3400 || m.Acc < 0 || m.Acc > 254 {
-			return nil, errors.New("invalid speed or acceleration")
+		// 0 would mean the servos' maximum (speed) and no ramp at all
+		// (acceleration): never what a 0 typed here should do.
+		if m.Speed < 50 || m.Speed > 3400 {
+			return nil, errors.New("speed must be 5–298°/s")
+		}
+		if m.Acc < 1 || m.Acc > 254 {
+			return nil, errors.New("acceleration must be 1–254 (×100 step/s²)")
 		}
 		if m.ElevationMin < -90 || m.ElevationMax > 90 || m.ElevationMin >= m.ElevationMax {
 			return nil, errors.New("elevation limits must be within -90°…90°, min below max")

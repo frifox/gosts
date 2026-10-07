@@ -247,7 +247,7 @@ td.mono { font-family: var(--mono); }
         <div class="field"><label>Azimuth</label><input type="range" id="azim" min="-180" max="180" step="0.5" value="0"><input type="number" id="azimNum" step="0.5" value="0.0"><button class="btn small" id="azimZero" title="Turn the platform to 0°">Go 0°</button></div>
         <!-- How fast the servos move, saved as soon as a value is entered. -->
         <div class="grid2" style="margin-top:10px">
-          <label title="The servos' top speed">Speed (step/s)<input type="number" id="mSpeed" min="50" max="3400" step="50"></label>
+          <label title="The servos' top speed">Speed (°/s)<input type="number" id="mSpeed" min="5" max="298" step="1"></label>
           <label title="How quickly they speed up and slow down: lower is gentler on the frame">Acceleration (100 step/s²)<input type="number" id="mAcc" min="1" max="254"></label>
         </div>
         <p class="hint" id="motionHint"></p>
@@ -733,19 +733,26 @@ async function simShoot(n) {
 }
 
 // Speed and acceleration (Motion card): saved on Enter or leaving a field.
+// Speed is entered in °/s; the servos (and the config) count steps/s.
+const STEP_DEG = 360 / 4096;
+const speedDeg = (steps) => Math.round(steps * STEP_DEG);
+const speedSteps = (deg) => Math.round(deg / STEP_DEG);
 function motionFields(m) {
-  for (const [id, k] of [["mSpeed", "Speed"], ["mAcc", "Acc"]]) if (document.activeElement !== $(id)) $(id).value = m[k];
-  const deg = 360 / 4096;
-  $("motionHint").textContent = `≈ ${Math.round(m.Speed * deg)}°/s, reached in ${(m.Speed / (m.Acc * 100)).toFixed(2)} s (≈ ${Math.round(m.Acc * 100 * deg)}°/s²)`;
+  if (document.activeElement !== $("mSpeed")) $("mSpeed").value = speedDeg(m.Speed);
+  if (document.activeElement !== $("mAcc")) $("mAcc").value = m.Acc;
+  $("motionHint").textContent = `Full speed reached in ${(m.Speed / (m.Acc * 100)).toFixed(2)} s (acceleration ≈ ${Math.round(m.Acc * 100 * STEP_DEG)}°/s²)`;
 }
 for (const id of ["mSpeed", "mAcc"]) {
   const save = async () => {
-    const motion = { ...state.server.config.Motion, Speed: +$("mSpeed").value, Acc: +$("mAcc").value };
-    if (motion.Speed === state.server.config.Motion.Speed && motion.Acc === state.server.config.Motion.Acc) return;
+    const saved = state.server.config.Motion;
+    // An unchanged °/s keeps the exact steps/s saved (it may not be a whole number of °/s).
+    const speed = +$("mSpeed").value === speedDeg(saved.Speed) ? saved.Speed : speedSteps(+$("mSpeed").value);
+    const motion = { ...saved, Speed: speed, Acc: +$("mAcc").value };
+    if (motion.Speed === saved.Speed && motion.Acc === saved.Acc) return;
     $("motionErr").textContent = "";
     try { await send("motion", { motion }); } catch (e) {
       $("motionErr").textContent = e.message;
-      $("mSpeed").value = state.server.config.Motion.Speed; $("mAcc").value = state.server.config.Motion.Acc; // back to what's saved
+      $("mSpeed").value = speedDeg(state.server.config.Motion.Speed); $("mAcc").value = state.server.config.Motion.Acc; // back to what's saved
     }
   };
   $(id).addEventListener("change", save);
