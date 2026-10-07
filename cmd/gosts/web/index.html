@@ -148,8 +148,6 @@ td.mono { font-family: var(--mono); }
 .gray-out .row { margin-top: 8px; }
 .gray-out .hint { margin: 0; color: #a9b0bd; }
 .gray-btns { display: flex; flex-wrap: wrap; gap: 6px; }
-.gray-done:empty { display: none; }
-.gray-done { margin-top: 6px !important; }
 .setting-row { display: flex; gap: 6px; align-items: center; }
 .setting-row input.kelvin { width: 84px; flex: none; }
 .setting-row .shift-val { width: 84px; flex: none; font-size: 13px; color: var(--text); text-align: center; }
@@ -1084,12 +1082,10 @@ function balanceFrom(rgb) {
   const kSame = wb === "Choose Color Temperature" && k === setK;
   const btn = (id, text, same) => `<button class="btn small${same ? "" : " primary"}" id="${id}"${same ? " disabled title=\"Already set\"" : ""}>${text}</button>`;
   out.innerHTML = `${card}<br>${head}${cast}
-    <div class="row gray-btns">${k ? btn("graySetK", `Temperature ${k} K`, kSame) : ""}${hasAB ? btn("graySetAB", `Amber–blue ${shiftLabel(ab, abS.ends)}`, ab === Number(set.abshift)) : ""}${hasGM ? btn("graySetGM", `Green–magenta ${shiftLabel(gm, gmS.ends)}`, gm === Number(set.gmshift)) : ""}${dismiss}</div>
-    <div class="gray-done hint" id="grayDone"></div>`;
+    <div class="row gray-btns">${k ? btn("graySetK", `Temperature ${k} K`, kSame) : ""}${hasAB ? btn("graySetAB", `Amber–blue ${shiftLabel(ab, abS.ends)}`, ab === Number(set.abshift)) : ""}${hasGM ? btn("graySetGM", `Green–magenta ${shiftLabel(gm, gmS.ends)}`, gm === Number(set.gmshift)) : ""}${dismiss}</div>`;
   wire();
-  const done = [];
-  // apply sets one, then says so; setting one amber–blue fix greys out the other.
-  const apply = (id, label, steps, other) => {
+  // apply sets one (its button ticked); setting one amber–blue fix greys out the other.
+  const apply = (id, steps, other) => {
     const b = $(id);
     if (!b) return;
     b.onclick = async () => {
@@ -1100,16 +1096,14 @@ function balanceFrom(rgb) {
         b.classList.remove("primary");
         b.textContent = "✓ " + b.textContent;
         if (other && $(other)) { $(other).disabled = true; $(other).classList.remove("primary"); $(other).title = "Amber–blue is fixed already"; }
-        done.push(label);
-        $("grayDone").textContent = `Set ${done.join(", ")}. Take another sample to check: the card is measured again, the same place.`;
       } catch (e) { $("camConfigErr").textContent = e.message; b.disabled = false; }
     };
   };
   const kSteps = [["colortemp", k]];
   if (cs("whitebalance")?.current !== "Choose Color Temperature") kSteps.unshift(["whitebalance", "Choose Color Temperature"]);
-  if (k) apply("graySetK", `white balance ${k} K`, kSteps, "graySetAB");
-  if (hasAB) apply("graySetAB", `A–B ${shiftLabel(ab, abS.ends)}`, [["abshift", ab]], "graySetK");
-  if (hasGM) apply("graySetGM", `G–M ${shiftLabel(gm, gmS.ends)}`, [["gmshift", gm]]);
+  if (k) apply("graySetK", kSteps, "graySetAB");
+  if (hasAB) apply("graySetAB", [["abshift", ab]], "graySetK");
+  if (hasGM) apply("graySetGM", [["gmshift", gm]]);
 }
 
 // The sample full size, in the photo viewer.
