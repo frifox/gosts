@@ -49,6 +49,7 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .grid2 label, .grid4 label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
 .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 8px; }
 .grid4 .span2 { grid-column: span 2; }
+.grid4 label { justify-content: space-between; } /* a label that wraps keeps its input in line with the row's */
 .plan-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px 12px; align-items: end; }
 .plan-row > label:not(.switch) { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
 .plan-row .switch { padding-bottom: 6px; font-size: 13px; white-space: nowrap; }
@@ -339,7 +340,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <label title="Camera position along the arms: + towards the object">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
           <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z offset<input type="number" id="dCameraZ" step="5"></label>
           <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label>
-          <span></span>
+          <label title="Turntable diameter">Turntable Diameter<input type="number" id="dTurntableD" step="10"></label>
           <label>Min elevation °<input type="number" id="dElevMin" step="1"></label>
           <label>Max elevation °<input type="number" id="dElevMax" step="1"></label>
         </div>
@@ -1716,8 +1717,8 @@ $("sSave").onclick = async () => {
 };
 
 // ---------------------------------------------------------------- params (measurements)
-const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "CameraZ", "TurntableZ", "ObjectZ"];
-const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, CameraZ: 0, TurntableZ: 400, ObjectZ: 100 };
+const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "CameraZ", "TurntableZ", "TurntableD", "ObjectZ"];
+const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, CameraZ: 0, TurntableZ: 400, TurntableD: 240, ObjectZ: 100 };
 // The card also holds the elevation limits (kept with the motion settings).
 const LIMITS_DEFAULT = { ElevationMin: -45, ElevationMax: 80 };
 const formDims = () => Object.fromEntries(DIMS.map((k) => [k, Number($("d" + k).value)]));

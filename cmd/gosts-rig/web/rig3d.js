@@ -15,7 +15,7 @@ export const pivotHeight = (d) => P + d.PostZ + 30;
 
 // Default measurements (mm), as in gosts-rig's config: seen from above, X along
 // the base sides that carry the posts, Y along the tilt axis, Z up.
-export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, CameraZ: 0, TurntableZ: 400, ObjectZ: 100 };
+export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, CameraZ: 0, TurntableZ: 400, TurntableD: 240, ObjectZ: 100 };
 
 const rad = (d) => d * Math.PI / 180;
 
@@ -308,7 +308,7 @@ export function createRig(container) {
     const turn = new THREE.Group();
     turn.position.set(0, d.TurntableZ, 0);
     root.add(turn);
-    const discR = Math.min(120, d.BaseY / 2 - 40);
+    const discR = (d.TurntableD || DEFAULT_RIG.TurntableD) / 2;
     const disc = cylinder(discR, 12, mat.table, "y", 64); disc.position.y = -6; turn.add(disc);
     turn.add(box(18, 2, 6, new THREE.MeshStandardMaterial({ color: 0x5b8cff, emissive: 0x1a2a55 }), discR - 14, 1, 0));
     benchy().then((geo) => {

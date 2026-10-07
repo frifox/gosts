@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -482,5 +483,22 @@ func TestSpiralFit(t *testing.T) {
 	}
 	if n := unwindTurns(7.4, 1); n < 14 || n > 15 {
 		t.Errorf("unwinding from 7.4 turns, spiral +: %d turns, want 14", n)
+	}
+}
+
+// TestTurntableDiameterDefault: a config file from before the turntable
+// diameter has the default one.
+func TestTurntableDiameterDefault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	old := "[Rig]\n  BaseX = 600.0\n  BaseY = 500.0\n  PostZ = 400.0\n  SwingX = 600.0\n  SwingY = 450.0\n  CameraOffset = -50.0\n  TurntableZ = 400.0\n  ObjectZ = 100.0\n"
+	if err := os.WriteFile(path, []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := cfg.get().Rig; r.TurntableD != 240 || r.check() != nil {
+		t.Fatalf("turntable diameter %v (%v), want 240", r.TurntableD, r.check())
 	}
 }
