@@ -815,7 +815,8 @@ export function createRig(container) {
   const photoCam = new THREE.PerspectiveCamera(25, 3 / 2, 5, 20000);
   // exposure brightens (>1) or darkens the picture, as a camera's settings
   // would (the simulated camera's shutter, f-stop and ISO).
-  function snapshot(width = 1200, exposure = 1) {
+  // gains tints it, red, green and blue (a white balance set off the light).
+  function snapshot(width = 1200, exposure = 1, gains = null) {
     const height = Math.round(width / photoCam.aspect);
     if (!photoRenderer) {
       photoRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -823,7 +824,7 @@ export function createRig(container) {
       photoRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
       photoRenderer.toneMapping = renderer.toneMapping;
       photoRenderer.outputColorSpace = renderer.outputColorSpace;
-      photoRenderer.setClearColor(0x2a2e36, 1); // a studio backdrop
+      photoRenderer.setClearColor(0x2e2e2e, 1); // a studio backdrop, neutral gray (a stand-in gray card)
     }
     photoRenderer.setSize(width, height, false);
     rig.tilt.updateMatrixWorld(true);
@@ -839,8 +840,24 @@ export function createRig(container) {
     photoRenderer.toneMappingExposure = exposure;
     photoRenderer.render(scene, photoCam);
     for (const o of hide) o.visible = true;
+    let out = photoRenderer.domElement;
+    if (gains) { // in linear light, as a camera's white balance works
+      const c = document.createElement("canvas");
+      c.width = out.width; c.height = out.height;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(out, 0, 0);
+      const img = ctx.getImageData(0, 0, c.width, c.height), px = img.data;
+      const lut = gains.map((g) => Array.from({ length: 256 }, (_, v) => {
+        const lin = v / 255 <= 0.04045 ? v / 255 / 12.92 : Math.pow((v / 255 + 0.055) / 1.055, 2.4);
+        const o = Math.min(1, lin * g);
+        return 255 * (o <= 0.0031308 ? 12.92 * o : 1.055 * Math.pow(o, 1 / 2.4) - 0.055);
+      }));
+      for (let i = 0; i < px.length; i += 4) { px[i] = lut[0][px[i]]; px[i + 1] = lut[1][px[i + 1]]; px[i + 2] = lut[2][px[i + 2]]; }
+      ctx.putImageData(img, 0, 0);
+      out = c;
+    }
     return new Promise((resolve, reject) =>
-      photoRenderer.domElement.toBlob((b) => (b ? resolve(b) : reject(new Error("no picture"))), "image/jpeg", 0.9));
+      out.toBlob((b) => (b ? resolve(b) : reject(new Error("no picture"))), "image/jpeg", 0.9));
   }
 
   // getView reports where the viewer is, relative to the rig's centre, as

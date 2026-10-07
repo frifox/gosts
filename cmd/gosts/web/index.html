@@ -136,6 +136,11 @@ td.mono { font-family: var(--mono); }
 .camcfg-shot.taking::after { content: ""; position: absolute; width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--border);
   border-top-color: var(--accent); animation: spin .8s linear infinite; }
 #sampleCaption { margin-top: 8px; }
+.camcfg-shot.selecting { cursor: crosshair; }
+.sel-rect { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 1px #000, 0 0 0 9999px rgba(0,0,0,.35); pointer-events: none; }
+.gray-out { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); font-size: 13px; }
+.gray-out .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); vertical-align: -2px; margin-right: 6px; }
+.gray-out .row { margin-top: 8px; }
 .setting-row { display: flex; gap: 6px; align-items: center; }
 .camcfg-params label.sub-setting { margin-left: 12px; padding-left: 10px; border-left: 2px solid var(--border); }
 .setting-row input.kelvin { width: 84px; flex: none; }
@@ -402,8 +407,14 @@ td.mono { font-family: var(--mono); }
       </div>
       <div class="camcfg-preview">
         <div class="camcfg-shot" id="sampleBox"><span class="hint" id="sampleNone">No sample shot yet.</span>
-          <img id="sampleImg" alt="The sample shot" hidden></div>
+          <img id="sampleImg" alt="The sample shot" hidden><div class="sel-rect" id="selRect" hidden></div></div>
         <div class="hint mono" id="sampleCaption"></div>
+        <!-- White balance from a gray card in the sample. -->
+        <div class="row" style="margin-top:10px">
+          <button class="btn small" id="grayBtn" disabled title="Drag a rectangle inside a gray card in the sample: the app works out the colour temperature that makes it neutral">Balance from gray card</button>
+          <span class="hint" id="grayHint"></span>
+        </div>
+        <div class="gray-out" id="grayOut" hidden></div>
       </div>
     </div>
   </div>
@@ -452,6 +463,8 @@ td.mono { font-family: var(--mono); }
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 <script type="module">
 import { createRig, pivotHeight } from "./rig3d.js";
+import * as graycard from "./graycard.js";
+window.graycard = graycard;
 window.rig3d = createRig(document.getElementById("rig"));
 window.rig3dPivot = pivotHeight;
 draw();
@@ -508,7 +521,7 @@ function onMessage(m) {
     case "photoFailed": m.sample ? sampleFailed(m.n) : photoGone(m.n); break;
     case "photoDeleted": photoGone(m.n); break;
     case "photos": setPhotos(m.photos); break;
-    case "simShoot": simShoot(m.n, m.exposure); break;
+    case "simShoot": simShoot(m.n, m.exposure, m.settings); break;
     case "log": log(m.message, m.level); break;
   }
 }
@@ -751,6 +764,7 @@ document.addEventListener("keydown", (e) => {
 // Camera Config: the camera's settings (each change goes to it at once), and
 // sample shots (off the timeline) to judge them by.
 function renderSettings(list) {
+  state.camSettings = list || [];
   const box = $("camSettings");
   box.innerHTML = "";
   if (!list?.length) { box.innerHTML = '<div class="hint">This camera has no settings to change here.</div>'; return; }
@@ -859,7 +873,9 @@ $("sampleBtn").onclick = async () => {
 function samplePending(n) { state.samplePending = n; $("sampleBox").classList.add("taking"); }
 function sampleArrived(m) {
   if (m.at < (state.sampleAt || 0)) return; // an older one, late
-  state.sampleShown = m.n; state.sampleAt = m.at;
+  state.sampleShown = m.n; state.sampleAt = m.at; state.sampleSettings = m.settings || {};
+  $("grayBtn").disabled = false;
+  stopSelecting(); $("grayOut").hidden = true;
   $("sampleBox").classList.remove("taking");
   $("sampleImg").src = photoURL(m);
   $("sampleImg").hidden = false;
@@ -870,9 +886,117 @@ function sampleFailed(n) {
   $("sampleBox").classList.remove("taking");
   $("camConfigErr").textContent = `The sample shot didn't come through.`;
 }
+// ---------------------------------------------------------------- gray card
+// Balance from a gray card: drag a rectangle inside the card in the sample;
+// its average colour, and the white balance the sample was taken with, give
+// the colour temperature that makes it neutral (graycard.js). Applied, the
+// white balance goes to Kelvin at that.
+$("grayBtn").onclick = () => {
+  if (state.selecting) return stopSelecting();
+  state.selecting = true;
+  $("sampleBox").classList.add("selecting");
+  $("grayBtn").textContent = "Cancel";
+  $("grayHint").textContent = "Drag a rectangle inside the gray card.";
+  $("grayOut").hidden = true;
+};
+function stopSelecting() {
+  state.selecting = false;
+  $("sampleBox").classList.remove("selecting");
+  $("selRect").hidden = true;
+  $("grayBtn").textContent = "Balance from gray card";
+  $("grayHint").textContent = "";
+}
+// The sample's drawn picture, inside its box (it's fitted, letterboxed).
+function sampleDrawn() {
+  const img = $("sampleImg"), r = img.getBoundingClientRect();
+  const k = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
+  const w = img.naturalWidth * k, h = img.naturalHeight * k;
+  return { x: r.left + (r.width - w) / 2, y: r.top + (r.height - h) / 2, w, h, k };
+}
+let drag = null;
+$("sampleBox").addEventListener("mousedown", (e) => {
+  if (!state.selecting) return;
+  e.preventDefault();
+  const d = sampleDrawn();
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  drag = { d, x0: clamp(e.clientX, d.x, d.x + d.w), y0: clamp(e.clientY, d.y, d.y + d.h), clamp };
+});
+window.addEventListener("mousemove", (e) => {
+  if (!drag) return;
+  const { d, x0, y0, clamp } = drag;
+  const x1 = clamp(e.clientX, d.x, d.x + d.w), y1 = clamp(e.clientY, d.y, d.y + d.h);
+  drag.x1 = x1; drag.y1 = y1;
+  const box = $("sampleBox").getBoundingClientRect(), sr = $("selRect");
+  sr.hidden = false;
+  sr.style.left = `${Math.min(x0, x1) - box.left}px`; sr.style.top = `${Math.min(y0, y1) - box.top}px`;
+  sr.style.width = `${Math.abs(x1 - x0)}px`; sr.style.height = `${Math.abs(y1 - y0)}px`;
+});
+window.addEventListener("mouseup", () => {
+  if (!drag) return;
+  const { d, x0, y0, x1, y1 } = drag;
+  drag = null;
+  state.justSelected = true; setTimeout(() => (state.justSelected = false), 0); // not a click on the sample
+  if (x1 === undefined || Math.abs(x1 - x0) < 4 || Math.abs(y1 - y0) < 4) { $("selRect").hidden = true; return; } // too small
+  // The rectangle in the photo's own pixels.
+  const px = (Math.min(x0, x1) - d.x) / d.k, py = (Math.min(y0, y1) - d.y) / d.k;
+  const pw = Math.abs(x1 - x0) / d.k, ph = Math.abs(y1 - y0) / d.k;
+  balanceFrom(cardColour(px, py, pw, ph));
+  state.selecting = false;
+  $("sampleBox").classList.remove("selecting");
+  $("grayBtn").textContent = "Balance from gray card";
+  $("grayHint").textContent = "";
+});
+// cardColour is the average sRGB colour of a part of the sample (photo pixels).
+function cardColour(x, y, w, h) {
+  const n = 64; // enough pixels to average, without decoding the whole photo
+  const c = document.createElement("canvas");
+  c.width = c.height = n;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage($("sampleImg"), x, y, w, h, 0, 0, n, n);
+  const px = ctx.getImageData(0, 0, n, n).data;
+  const sum = [0, 0, 0];
+  for (let i = 0; i < px.length; i += 4) { sum[0] += px[i]; sum[1] += px[i + 1]; sum[2] += px[i + 2]; }
+  return sum.map((v) => v / (n * n));
+}
+function balanceFrom(rgb) {
+  const out = $("grayOut"), set = state.sampleSettings || {};
+  const wb = set.whitebalance;
+  const setK = wb === "Choose Color Temperature" ? Number(set.colortemp) : window.graycard.presetKelvin[wb];
+  const swatch = `<span class="swatch" style="background:rgb(${rgb.map(Math.round).join(",")})"></span>`;
+  const card = `${swatch}The card: ${rgb.map((v) => Math.round(v)).join(", ")} (red, green, blue).`;
+  out.hidden = false;
+  if (!setK) {
+    out.innerHTML = `${card}<br>The sample was taken with white balance on <b>${wb || "?"}</b>, which isn't a known temperature: set a fixed one (Choose Color Temperature is best), take another sample, and measure the card again.`;
+    return;
+  }
+  const r = window.graycard.balance(rgb, setK);
+  if (r.problem) { out.innerHTML = `${card}<br>Can't tell: ${r.problem}.`; return; }
+  const ct = (state.camSettings || []).find((x) => x.key === "colortemp");
+  const min = ct?.min || 2500, max = ct?.max || 9900, step = ct?.step || 100;
+  const k = Math.min(max, Math.max(min, Math.round(r.kelvin / step) * step));
+  const off = Math.abs(Math.round(r.kelvin) - setK) < step ? "matches the" : r.warmer ? "is warmer than the" : "is cooler than the";
+  const cast = Math.abs(r.cast) > 0.03
+    ? `<br><span style="color:var(--warn)">The light also has a ${r.cast > 0 ? "green" : "magenta"} cast (${Math.round(Math.abs(r.cast) * 100)}%), which colour temperature can't correct (a custom white balance on the camera can).</span>`
+    : "";
+  out.innerHTML = `${card}<br>The light is about <b>${Math.round(r.kelvin / 10) * 10} K</b>: it ${off} ${setK} K the sample was taken at.${cast}
+    <div class="row"><button class="btn small primary" id="grayApply">Set ${k} K</button><button class="btn small" id="grayDismiss">Dismiss</button></div>`;
+  $("grayDismiss").onclick = () => { out.hidden = true; $("selRect").hidden = true; };
+  $("grayApply").onclick = async () => {
+    $("grayApply").disabled = true;
+    $("camConfigErr").textContent = "";
+    try {
+      if ((state.camSettings || []).find((x) => x.key === "whitebalance")?.current !== "Choose Color Temperature")
+        renderSettings(await send("cameraSet", { key: "whitebalance", value: "Choose Color Temperature" }));
+      renderSettings(await send("cameraSet", { key: "colortemp", value: String(k) }));
+      out.innerHTML = `White balance set to ${k} K. Take another sample to check: the card should come out neutral.`;
+      $("selRect").hidden = true;
+    } catch (e) { $("camConfigErr").textContent = e.message; $("grayApply").disabled = false; }
+  };
+}
+
 // The sample full size, in the photo viewer.
 $("sampleBox").onclick = () => {
-  if (!state.sampleShown) return;
+  if (!state.sampleShown || state.selecting || state.justSelected) return;
   $("viewerImg").src = $("sampleImg").src;
   $("viewerCap").textContent = "Sample · " + $("sampleCaption").textContent;
   $("viewerHint").textContent = "  ·  Esc to close";
@@ -925,9 +1049,20 @@ function cameraButtons() {
 }
 // The simulated camera's picture: the Rig View from the camera, sent back.
 // Every open window renders it; the server keeps the first.
-async function simShoot(n, exposure) {
+// The simulated studio light's colour temperature: a simulated photo comes
+// out tinted by it against the camera's white balance (Automatic: right).
+const SIM_LIGHT = 4300;
+function simGains(settings) {
+  const wb = settings?.whitebalance, gc = window.graycard;
+  const setK = wb === "Choose Color Temperature" ? Number(settings.colortemp) : gc?.presetKelvin[wb];
+  if (!gc || !setK || setK === SIM_LIGHT) return null;
+  const a = gc.planckRGB(SIM_LIGHT), s = gc.planckRGB(setK);
+  const g = a.map((v, i) => v / s[i]);
+  return g.map((v) => v / g[1]); // green kept: the brightness stays
+}
+async function simShoot(n, exposure, settings) {
   try {
-    const jpg = await window.rig3d.snapshot(1200, exposure || 1);
+    const jpg = await window.rig3d.snapshot(1200, exposure || 1, simGains(settings));
     await fetch(`/photo/sim?n=${n}`, { method: "POST", body: jpg, headers: { "Content-Type": "image/jpeg" } });
   } catch (e) { log(`simulated photo ${n}: ${e.message}`, "error"); }
 }

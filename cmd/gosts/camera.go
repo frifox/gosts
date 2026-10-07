@@ -49,11 +49,12 @@ type pacedCamera interface {
 
 // photo is one photo taken.
 type photo struct {
-	JPEG    []byte   // to show; the camera's, or a RAW file's preview
-	Files   []string // where the camera's own files were saved, if anywhere
-	At      time.Time
-	Sample  bool   // a sample shot (Config): not on the timeline
-	Caption string // its settings, for a sample
+	JPEG     []byte   // to show; the camera's, or a RAW file's preview
+	Files    []string // where the camera's own files were saved, if anywhere
+	At       time.Time
+	Sample   bool              // a sample shot (Config): not on the timeline
+	Caption  string            // its settings, for a sample
+	Settings map[string]string // and them by key (e.g. for balancing from a gray card)
 }
 
 // photoDir is where real cameras' photos are saved (a folder per batch, see
@@ -259,18 +260,19 @@ func (s *simCamera) Battery() (string, error) { return "100%", nil }
 type cameraConn struct {
 	out func(any)
 
-	mu      sync.Mutex
-	cam     Camera
-	id      string
-	name    string
-	photos  map[int]photo   // by number, those with a picture
-	count   int             // photos taken, numbering them (on across Resets)
-	pending int             // simulated photo waiting for its picture from a page
-	queue   chan queuedShot // photos to take without waiting (see shoot)
-	deleted map[int]bool    // photos deleted (a picture still coming is dropped)
-	samples map[int]string  // sample shots (off the timeline): their captions
-	gen     int             // Resets so far (see generation)
-	battery string          // its battery level, last read (see pollBattery)
+	mu             sync.Mutex
+	cam            Camera
+	id             string
+	name           string
+	photos         map[int]photo             // by number, those with a picture
+	count          int                       // photos taken, numbering them (on across Resets)
+	pending        int                       // simulated photo waiting for its picture from a page
+	queue          chan queuedShot           // photos to take without waiting (see shoot)
+	deleted        map[int]bool              // photos deleted (a picture still coming is dropped)
+	samples        map[int]string            // sample shots (off the timeline): their captions
+	sampleSettings map[int]map[string]string // and settings
+	gen            int                       // Resets so far (see generation)
+	battery        string                    // its battery level, last read (see pollBattery)
 }
 
 // maxPhotos is how many photos the timeline keeps in memory; the oldest go.
@@ -296,6 +298,9 @@ type simShootMsg struct {
 	Type     string  `json:"type"` // "simShoot"
 	N        int     `json:"n"`
 	Exposure float64 `json:"exposure"` // brighter (>1) or darker than normal, from its settings
+	// Its white balance (and colour temperature): the picture is tinted as a
+	// camera set so would tint the simulated studio light.
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // simPictureWait is how long a simulated photo waits for a page's render
@@ -304,11 +309,12 @@ var simPictureWait = 2 * time.Second
 
 // photoMsg tells the page a photo was taken (it fetches /photo/{n}.jpg).
 type photoMsg struct {
-	Type    string `json:"type"` // "photo"
-	N       int    `json:"n"`
-	At      int64  `json:"at"` // ms since 1970
-	Sample  bool   `json:"sample,omitempty"`
-	Caption string `json:"caption,omitempty"`
+	Type     string            `json:"type"` // "photo"
+	N        int               `json:"n"`
+	At       int64             `json:"at"` // ms since 1970
+	Sample   bool              `json:"sample,omitempty"`
+	Caption  string            `json:"caption,omitempty"`
+	Settings map[string]string `json:"settings,omitempty"` // a sample's settings, by key
 }
 
 // cameraMsg tells the page which camera is connected.
@@ -435,9 +441,14 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 		return errNoCamera
 	}
 	caption := ""
+	var settings map[string]string
 	if sc, ok := cam.(settingsCamera); ok && sample {
 		if ss, err := sc.Settings(); err == nil {
 			caption = settingsCaption(ss)
+			settings = map[string]string{}
+			for _, st := range ss {
+				settings[st.Key] = st.Current
+			}
 		}
 	}
 	// The photo's number now, so the page can show a placeholder while the
@@ -450,6 +461,10 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 			c.samples = map[int]string{}
 		}
 		c.samples[n] = caption
+		if c.sampleSettings == nil {
+			c.sampleSettings = map[int]map[string]string{}
+		}
+		c.sampleSettings[n] = settings
 	}
 	c.mu.Unlock()
 	c.out(photoEventMsg{Type: "photoPending", N: n, Sample: sample})
@@ -529,7 +544,15 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 		c.mu.Lock()
 		c.pending = n
 		c.mu.Unlock()
-		c.out(simShootMsg{Type: "simShoot", N: n, Exposure: cam.(*simCamera).exposure()})
+		sim := cam.(*simCamera)
+		var settings map[string]string
+		if ss, err := sim.Settings(); err == nil {
+			settings = map[string]string{}
+			for _, st := range ss {
+				settings[st.Key] = st.Current
+			}
+		}
+		c.out(simShootMsg{Type: "simShoot", N: n, Exposure: sim.exposure(), Settings: settings})
 		gen := c.generation()
 		time.AfterFunc(simPictureWait, func() {
 			if c.current(gen) {
@@ -600,7 +623,7 @@ func (c *cameraConn) picture(n int, p photo) bool {
 		c.photos = map[int]photo{}
 	}
 	if caption, ok := c.samples[n]; ok {
-		p.Sample, p.Caption = true, caption
+		p.Sample, p.Caption, p.Settings = true, caption, c.sampleSettings[n]
 	}
 	c.photos[n] = p
 	for k := range c.photos {
@@ -612,7 +635,7 @@ func (c *cameraConn) picture(n int, p photo) bool {
 		c.pending = 0
 	}
 	c.mu.Unlock()
-	c.out(photoMsg{Type: "photo", N: n, At: p.At.UnixMilli(), Sample: p.Sample, Caption: p.Caption})
+	c.out(photoMsg{Type: "photo", N: n, At: p.At.UnixMilli(), Sample: p.Sample, Caption: p.Caption, Settings: p.Settings})
 	return true
 }
 
@@ -642,7 +665,7 @@ func (c *cameraConn) timeline() photosMsg {
 // 1 again, and a new folder for its files.
 func (c *cameraConn) reset() {
 	c.mu.Lock()
-	c.photos, c.deleted, c.samples = nil, nil, nil
+	c.photos, c.deleted, c.samples, c.sampleSettings = nil, nil, nil, nil
 	c.count, c.pending = 0, 0
 	c.gen++
 	c.mu.Unlock()
