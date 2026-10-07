@@ -18,7 +18,8 @@ type Config struct {
 	ListenAddr string `toml:"ListenAddr"`
 	Port       string `toml:"Port,omitempty"` // serial device connected on startup; empty = pick in the browser
 	Baud       int    `toml:"Baud,omitzero"`
-	Camera     string `toml:"Camera,omitempty"` // camera connected on startup; empty = pick in the browser
+	Camera     string `toml:"Camera,omitempty"`   // camera connected on startup; empty = pick in the browser
+	PhotoDir   string `toml:"PhotoDir,omitempty"` // where real cameras' photos are saved (a folder a day); empty = ~/Pictures/gosts
 	Roles      Roles  `toml:"Roles"`
 	Motion     Motion `toml:"Motion"`
 	Plan       Plan   `toml:"Plan"`

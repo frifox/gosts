@@ -229,7 +229,8 @@ The page has the controls on the left (a **Motion** card that, until a board is 
 ports to connect to, with Refresh; once connected, live elevation/azimuth: the rig moves as a slider is dragged or a value entered, with Stop shown while it moves, and Torque, and a
 **Capture** card that, until a camera is connected, lists the cameras to connect to (for now the
 simulated one, whose photos are the 3D view rendered from the camera on the rig, looking at the
-object; real cameras come next), and once connected has the number of photos, the settle time, and **Moving Shots**, with Start,
+object, and any camera [gphoto2](http://gphoto.org) finds on USB, e.g. a Sony A6600 in PC Remote mode),
+and once connected has the number of photos, the settle time, and **Moving Shots**, with Start,
 Pause and Stop; Setup can disconnect either) and on the right a **Camera** card (a timeline of every photo
 taken, newest on the left, during a capture too; click one to see it full size, ← → to step, Esc to close;
 **Reset**, which clears the timeline, **View All**, every photo in a grid over the whole page where a click
@@ -252,8 +253,14 @@ the servos' speed and with gentle acceleration), each photo taken as the path pa
 wouldn't stay within its servo's multi-turn range (about ±7.5 turns from power-up) from where it is, it turns
 the other way instead (the same shots, mirrored), so spirals are limited to 7 turns (about 90 photos).
 When the last photo is taken (or a preview reaches its last shot, if a board is connected) the rig returns to 0°/0° the short way (less than a turn) and stops. Each photo is
-taken with the connected camera, recording where the rig really is as the shutter goes; drivers for real
-cameras (Sony A6600 over USB, with live preview) are next.
+taken with the connected camera, recording where the rig really is as the shutter goes.
+
+A real camera is driven through gphoto2 (`brew install gphoto2`). Each photo's files (RAW, JPEG, or both)
+are saved in `~/Pictures/gosts/<date>/` (`PhotoDir` in the config file changes it) and left on the camera's
+card too; the page shows the camera's JPEG, or else the full-size preview embedded in the RAW. On macOS the
+system's camera service grabs a camera when it's plugged in (and may open Photos): if taking a photo says
+another program has the camera, quit Photos and Image Capture and run `killall ptpcamerad mscamerad-xpc`.
+A photo takes several seconds (the A6600's 25 MB RAW over USB), which Moving Shots can't wait for yet.
 
 The **Rig Setup** card (below Motion; like every card it folds by its title, each window remembering which are folded) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
 X/Y, the camera's offset along the arms (camera X) and up/down from the bar (camera Z, default 0), the turntable's height (turntable Z), the object's height (object height, the model is scaled to it); the defaults draw the rig to scale)

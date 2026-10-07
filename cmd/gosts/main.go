@@ -53,6 +53,10 @@ func main() {
 	if *camera == "" {
 		*camera = c.Camera
 	}
+	if c.PhotoDir != "" {
+		photoDir = c.PhotoDir
+	}
+	log.Printf("photos: %s", photoDir)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()

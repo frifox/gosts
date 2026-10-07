@@ -9,7 +9,10 @@ import (
 	"image/color"
 	"image/jpeg"
 	"math"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -26,8 +29,21 @@ type Camera interface {
 
 // photo is one photo taken.
 type photo struct {
-	JPEG []byte
-	At   time.Time
+	JPEG  []byte   // to show; the camera's, or a RAW file's preview
+	Files []string // where the camera's own files were saved, if anywhere
+	At    time.Time
+}
+
+// photoDir is where real cameras' photos are saved (a folder a day); main
+// sets it from the config.
+var photoDir = defaultPhotoDir()
+
+func defaultPhotoDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "gosts-photos"
+	}
+	return filepath.Join(home, "Pictures", "gosts")
 }
 
 // cameraInfo is a camera that can be connected, for the page's list.
@@ -40,15 +56,23 @@ type cameraInfo struct {
 // simCameraID selects the simulated camera.
 const simCameraID = "sim"
 
-// listCameras lists the cameras that can be connected.
+// listCameras lists the cameras that can be connected: the simulator, and
+// whatever gphoto2 finds attached over USB right now (the Sony A6600,
+// PTP-connected).
 func listCameras() []cameraInfo {
-	return []cameraInfo{{ID: simCameraID, Name: "Simulator", Detail: "Simulated camera: takes each photo after a short shutter lag, saves nothing"}}
+	cams := []cameraInfo{{ID: simCameraID, Name: "Simulator", Detail: "Simulated camera: takes each photo after a short shutter lag, saves nothing"}}
+	for _, d := range gphoto2Detect() {
+		cams = append(cams, cameraInfo{ID: gphoto2Prefix + d.port, Name: d.model, Detail: "USB, " + d.port + " (gphoto2)"})
+	}
+	return cams
 }
 
 func openCamera(id string) (Camera, string, error) {
-	switch id {
-	case simCameraID:
+	switch {
+	case id == simCameraID:
 		return &simCamera{lag: 30 * time.Millisecond}, "Simulator", nil
+	case strings.HasPrefix(id, gphoto2Prefix):
+		return openGphoto2Camera(strings.TrimPrefix(id, gphoto2Prefix))
 	}
 	return nil, "", fmt.Errorf("no camera %q", id)
 }
