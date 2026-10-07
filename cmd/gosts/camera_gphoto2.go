@@ -209,6 +209,7 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 	type waiting struct {
 		got   func(photo, error)
 		since time.Time
+		dir   string // its batch's folder (as the shutter went)
 	}
 	var queue []waiting // photos taken whose JPEG hasn't come yet, oldest first
 	open := true
@@ -233,7 +234,11 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 				// Not a JPEG (a RAW-only camera, or --keep-raw not honoured):
 				// kept, but it's no photo's picture by itself.
 				if rerr == nil {
-					if path, err := saveUnique(photoDay(), name, data); err == nil {
+					dir := batchFolder()
+					if len(queue) > 0 {
+						dir = queue[0].dir
+					}
+					if path, err := saveUnique(dir, name, data); err == nil {
 						log.Printf("camera: saved %s", path)
 					}
 				}
@@ -250,7 +255,7 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 				continue
 			}
 			p := photo{JPEG: data, At: time.Now()}
-			if path, err := saveUnique(photoDay(), name, data); err == nil {
+			if path, err := saveUnique(w.dir, name, data); err == nil {
 				p.Files = []string{path}
 			} else {
 				log.Printf("camera: saving %s: %v", name, err)
@@ -318,16 +323,9 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			continue
 		}
 		measured(&g.fire, time.Since(start), &g.mu)
-		queue = append(queue, waiting{got: r.got, since: time.Now()})
+		queue = append(queue, waiting{got: r.got, since: time.Now(), dir: batchFolder()})
 		r.fired <- nil
 	}
-}
-
-// photoDay is the photo folder for today (created if needed).
-func photoDay() string {
-	dir := filepath.Join(photoDir, time.Now().Format("2006-01-02"))
-	os.MkdirAll(dir, 0o755)
-	return dir
 }
 
 // saveUnique writes data to dir/name, or name with -2, -3… before the

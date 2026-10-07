@@ -275,10 +275,10 @@ func TestPhotoTimeline(t *testing.T) {
 	if tl := c.timeline().Photos; len(tl) != 0 {
 		t.Fatalf("after Reset: %v", tl)
 	}
-	// Numbering goes on after Reset.
+	// A new batch after Reset: numbering from 1 again.
 	c.shoot(context.Background(), true, nil)
 	time.Sleep(150 * time.Millisecond)
-	if tl := c.timeline().Photos; len(tl) != 1 || tl[0].N != 4 {
+	if tl := c.timeline().Photos; len(tl) != 1 || tl[0].N != 1 {
 		t.Fatalf("after Reset and a photo: %v", tl)
 	}
 }

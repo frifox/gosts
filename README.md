@@ -265,7 +265,9 @@ taken with the connected camera, recording where the rig really is as the shutte
 
 A real camera is driven through gphoto2 (`brew install gphoto2`). Set it to RAW & JPEG (and, for a Sony in
 PC Remote, save to PC+Camera): each photo's RAW stays on the camera's card and only the JPEG comes over USB
-(much quicker), saved in `~/Pictures/gosts/<date>/` (`PhotoDir` in the config file changes it) and shown on
+(much quicker), saved in a folder per batch, `~/Pictures/gosts/<yyyy-mm-dd hh:mm:ss>/` named after the batch's first photo
+(`PhotoDir` in the config file changes the parent; a batch runs from the app's start, or **Reset**, which also
+numbers the photos from 1 again), and shown on
 the page. A camera on JPEG only works the same way; on RAW only no picture would come. On macOS the
 system's camera service grabs a camera when it's plugged in (and may open Photos): if taking a photo says
 another program has the camera, quit Photos and Image Capture and run `killall ptpcamerad mscamerad-xpc`.

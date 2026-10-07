@@ -46,9 +46,40 @@ type photo struct {
 	Caption string // its settings, for a sample
 }
 
-// photoDir is where real cameras' photos are saved (a folder a day); main
-// sets it from the config.
+// photoDir is where real cameras' photos are saved (a folder per batch, see
+// batchFolder); main sets it from the config.
 var photoDir = defaultPhotoDir()
+
+// The batch: the photos since the app started, or since Reset. Each batch's
+// files go in a folder of their own, named after when its first photo was
+// taken ("2006-01-02 15:04:05"), made only then.
+var batch struct {
+	sync.Mutex
+	dir string
+}
+
+// batchFolder is the current batch's folder (made now if it's the batch's
+// first photo).
+func batchFolder() string {
+	batch.Lock()
+	defer batch.Unlock()
+	if batch.dir == "" {
+		batch.dir = filepath.Join(photoDir, time.Now().Format("2006-01-02 15:04:05"))
+		if err := os.MkdirAll(batch.dir, 0o755); err != nil {
+			log.Printf("photos: %v", err)
+		} else {
+			log.Printf("photos: new batch in %s", batch.dir)
+		}
+	}
+	return batch.dir
+}
+
+// newBatch starts a new batch: the next photo makes its folder.
+func newBatch() {
+	batch.Lock()
+	batch.dir = ""
+	batch.Unlock()
+}
 
 func defaultPhotoDir() string {
 	home, err := os.UserHomeDir()
@@ -211,6 +242,7 @@ type cameraConn struct {
 	queue   chan queuedShot // photos to take without waiting (see shoot)
 	deleted map[int]bool    // photos deleted (a picture still coming is dropped)
 	samples map[int]string  // sample shots (off the timeline): their captions
+	gen     int             // Resets so far (see generation)
 }
 
 // maxPhotos is how many photos the timeline keeps in memory; the oldest go.
@@ -339,7 +371,7 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 	// camera takes it and its picture comes over.
 	c.mu.Lock()
 	c.count++
-	n := c.count
+	n, gen := c.count, c.gen
 	if sample {
 		if c.samples == nil {
 			c.samples = map[int]string{}
@@ -348,7 +380,11 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 	}
 	c.mu.Unlock()
 	c.out(photoEventMsg{Type: "photoPending", N: n, Sample: sample})
-	got := func(p photo, err error) { c.got(cam, n, p, err) }
+	got := func(p photo, err error) {
+		if c.current(gen) { // not a photo from before a Reset
+			c.got(cam, n, p, err)
+		}
+	}
 	if wait {
 		if err := cam.Shoot(ctx, firing, got); err != nil {
 			c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: sample})
@@ -419,11 +455,26 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 		c.pending = n
 		c.mu.Unlock()
 		c.out(simShootMsg{Type: "simShoot", N: n, Exposure: cam.(*simCamera).exposure()})
-		time.AfterFunc(simPictureWait, func() { c.picture(n, photo{JPEG: simPictureJPEG(n), At: p.At}) })
+		gen := c.generation()
+		time.AfterFunc(simPictureWait, func() {
+			if c.current(gen) {
+				c.picture(n, photo{JPEG: simPictureJPEG(n), At: p.At})
+			}
+		})
 	default: // taken, but nothing to show
 		c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: c.isSample(n)})
 	}
 }
+
+// generation counts Resets: a photo still coming from before one is dropped
+// (its number may be taken again).
+func (c *cameraConn) generation() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.gen
+}
+
+func (c *cameraConn) current(gen int) bool { return c.generation() == gen }
 
 // isSample says whether photo n is a sample shot.
 func (c *cameraConn) isSample(n int) bool {
@@ -512,11 +563,15 @@ func (c *cameraConn) timeline() photosMsg {
 	return m
 }
 
-// reset clears the timeline (Reset).
+// reset clears the timeline (Reset) and starts a new batch: numbering from
+// 1 again, and a new folder for its files.
 func (c *cameraConn) reset() {
 	c.mu.Lock()
-	c.photos = nil
+	c.photos, c.deleted, c.samples = nil, nil, nil
+	c.count, c.pending = 0, 0
+	c.gen++
 	c.mu.Unlock()
+	newBatch()
 	c.out(c.timeline())
 }
 

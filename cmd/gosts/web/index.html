@@ -583,7 +583,7 @@ function thumb(p, isNew) {
   b.tabIndex = 0;
   b.setAttribute("role", "button");
   b.title = photoCaption(p);
-  b.innerHTML = `<img alt="" loading="lazy" src="/photo/${p.n}.jpg"><span class="num">${p.n}</span>` +
+  b.innerHTML = `<img alt="" loading="lazy" src="${photoURL(p)}"><span class="num">${p.n}</span>` +
     `<button class="del" title="Delete photo ${p.n} (from the timeline)" aria-label="Delete photo ${p.n}">${trashIcon}</button>`;
   b.onclick = (e) => { if (!e.target.closest(".del")) openPhoto(p.n); };
   b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) openPhoto(p.n); };
@@ -614,10 +614,14 @@ function photosShown() {
   if (!$("gallery").hidden) galleryTitle();
   if (!$("viewer").hidden) viewerButtons();
 }
+// A photo's picture; its time in the address too, as numbers start again
+// after Reset (so a picture from before isn't shown from the cache).
+const photoURL = (p) => `/photo/${p.n}.jpg?at=${p.at || 0}`;
 function setPhotos(list) {
   state.photos = list || [];
   const tl = $("timeline");
-  tl.querySelectorAll(".thumb:not(.pending)").forEach((t) => t.remove());
+  tl.querySelectorAll(".thumb").forEach((t) => t.remove()); // placeholders too: a new batch
+  state.pending.clear();
   for (const p of state.photos) putThumb(tl, thumb(p, false), p.n);
   if (!$("viewer").hidden && !state.photos.some((p) => p.n === state.viewing)) closePhoto();
   if (!$("gallery").hidden) renderGallery();
@@ -672,7 +676,7 @@ function openPhoto(n) {
   const p = state.photos.find((q) => q.n === n);
   if (!p) return;
   state.viewing = n;
-  $("viewerImg").src = `/photo/${n}.jpg`;
+  $("viewerImg").src = photoURL(p);
   $("viewerCap").textContent = photoCaption(p);
   $("viewer").hidden = false;
   viewerButtons();
@@ -767,10 +771,10 @@ $("sampleBtn").onclick = async () => {
 };
 function samplePending(n) { state.samplePending = n; $("sampleBox").classList.add("taking"); }
 function sampleArrived(m) {
-  if (m.n < (state.sampleShown || 0)) return; // an older one, late
-  state.sampleShown = m.n;
+  if (m.at < (state.sampleAt || 0)) return; // an older one, late
+  state.sampleShown = m.n; state.sampleAt = m.at;
   $("sampleBox").classList.remove("taking");
-  $("sampleImg").src = `/photo/${m.n}.jpg`;
+  $("sampleImg").src = photoURL(m);
   $("sampleImg").hidden = false;
   $("sampleNone").hidden = true;
   $("sampleCaption").textContent = `${m.caption || ""}${m.caption ? "  ·  " : ""}${new Date(m.at).toLocaleTimeString()}`;
@@ -782,7 +786,7 @@ function sampleFailed(n) {
 // The sample full size, in the photo viewer.
 $("sampleBox").onclick = () => {
   if (!state.sampleShown) return;
-  $("viewerImg").src = `/photo/${state.sampleShown}.jpg`;
+  $("viewerImg").src = $("sampleImg").src;
   $("viewerCap").textContent = "Sample · " + $("sampleCaption").textContent;
   $("viewerHint").textContent = "  ·  Esc to close";
   for (const id of ["viewerBack", "viewerNewer", "viewerOlder"]) $(id).hidden = true;
