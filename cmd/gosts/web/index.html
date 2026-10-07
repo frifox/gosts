@@ -130,10 +130,10 @@ td.mono { font-family: var(--mono); }
 .gallery { position: fixed; inset: 0; z-index: 55; background: var(--bg); display: flex; flex-direction: column; }
 .gallery-bar { border-bottom: 1px solid var(--border); background: var(--panel); }
 .gallery-bar h3 { margin: 0; font-size: 14px; font-weight: 650; }
-.gallery-grid { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; align-content: start; }
-.gallery-grid .thumb { width: 100%; height: auto; aspect-ratio: 3 / 2; position: relative; padding: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
+.gallery-grid { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); grid-auto-rows: max-content; gap: 10px; align-content: start; } /* rows never squeezed to fit: it scrolls */
+.gallery-grid .thumb { width: 100%; height: auto; position: relative; padding: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
 .gallery-grid .thumb:hover { border-color: var(--accent); }
-.gallery-grid .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gallery-grid .thumb img { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; display: block; } /* the 3:2 shape: the rows keep it */
 .gallery-grid .thumb span { position: absolute; left: 8px; bottom: 6px; font: 12px var(--mono); color: #fff; text-shadow: 0 0 3px #000; }
 .view .card-body { flex: 1; position: relative; padding: 0; min-height: 300px; }
 #rig { position: absolute; inset: 0; cursor: grab; touch-action: none; overflow: hidden; border-radius: 0 0 12px 12px; }
@@ -562,7 +562,19 @@ function closePhoto() { $("viewer").hidden = true; state.viewing = null; }
 $("viewerBack").onclick = closePhoto;
 $("viewerNewer").onclick = () => stepPhoto(1);
 $("viewerOlder").onclick = () => stepPhoto(-1);
-$("viewerStage").onclick = (e) => { if (e.target === $("viewerStage")) closePhoto(); }; // the backdrop
+// A click beside the photo (not on it, nor on a button) goes back: to All
+// Photos where it was left, if the photo was opened from there, else to
+// the page. The picture fills the stage, letterboxed, so "on it" is where
+// it's drawn.
+function onPicture(e) {
+  const img = $("viewerImg"), r = img.getBoundingClientRect();
+  if (e.target !== img || !img.naturalWidth) return false;
+  const k = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
+  const w = img.naturalWidth * k, h = img.naturalHeight * k;
+  const x = r.left + (r.width - w) / 2, y = r.top + (r.height - h) / 2;
+  return e.clientX >= x && e.clientX <= x + w && e.clientY >= y && e.clientY <= y + h;
+}
+$("viewer").onclick = (e) => { if (!e.target.closest("button") && !onPicture(e)) closePhoto(); };
 // ✕ on the photo closes All Photos too.
 $("viewerClose").onclick = () => { closePhoto(); closeGallery(); };
 document.addEventListener("keydown", (e) => {
