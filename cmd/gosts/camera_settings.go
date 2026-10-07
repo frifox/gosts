@@ -31,6 +31,9 @@ type cameraSetting struct {
 	// Focus: the camera's focus can be set from here (see focusCamera), in
 	// these of its modes.
 	FocusModes []string `json:"focusModes,omitempty"`
+	// F-stop: the focal length (mm) the photos are taken at, for the depth
+	// of field (0: not known yet: no photo).
+	Focal float64 `json:"focal,omitempty"`
 }
 
 // shiftLabel is a white balance shift as the camera shows it: "0", or the

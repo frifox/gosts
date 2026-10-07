@@ -163,6 +163,9 @@ function a6600() {
   // Its controller on the hot shoe.
   g.add(box(30, 26, 44, mat.flashBody, 2, H / 2 + 17, -10, 3));
   g.userData.lensFront = new THREE.Vector3(fx + 10, ly, lz);
+  // The sensor: 18 mm behind the mount's face (E-mount's flange distance),
+  // where focus distances are measured from.
+  g.userData.sensor = new THREE.Vector3(D / 2 + 6 - 18, ly, lz);
   return g;
 }
 
@@ -875,5 +878,13 @@ export function createRig(container) {
     const v = cam.position.clone().sub(t).divideScalar(far);
     return { x: +v.x.toFixed(2), y: +v.y.toFixed(2), z: +v.z.toFixed(2) };
   }
-  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, speed, snapshot };
+  // focusDistance is how far (mm) the object's middle (the middle of the
+  // turntable, up half the object's height) is from the camera's sensor, the
+  // rig as shown now: where it focuses, for the depth of field.
+  function focusDistance() {
+    rig.camera.updateWorldMatrix(true, false);
+    return rig.camera.localToWorld(rig.camera.userData.sensor.clone()).distanceTo(rig.objectCentre);
+  }
+
+  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, speed, snapshot, focusDistance };
 }

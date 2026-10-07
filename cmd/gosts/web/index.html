@@ -160,6 +160,8 @@ td.mono { font-family: var(--mono); }
 .gray-out .hint { margin: 0; color: #a9b0bd; }
 .gray-btns { display: flex; flex-wrap: wrap; gap: 6px; }
 .setting-row { display: flex; gap: 6px; align-items: center; }
+.camcfg-params label .dof { display: inline; color: var(--muted); font-weight: normal; }
+.camcfg-params label .dof.short { color: var(--warn); }
 .setting-row input.kelvin { width: 84px; flex: none; }
 .setting-row .shift-val { width: 84px; flex: none; font-size: 13px; color: var(--text); text-align: center; }
 /* White balance shifts: the track runs from one end's colour to the other's. */
@@ -813,12 +815,19 @@ function renderSettings(list) {
   for (const st of list) {
     const label = document.createElement("label");
     label.textContent = st.label;
+    if (st.key === "aperture") { // its name and the depth of field, on one line
+      const head = document.createElement("span");
+      head.append(st.label, dofSpan(st));
+      label.textContent = "";
+      label.appendChild(head);
+    }
     if (st.range) { box.appendChild(rangeSetting(st, label)); continue; }
     const sel = document.createElement("select");
     sel.disabled = st.readOnly;
     for (const c of st.choices) sel.add(new Option(c, c, false, c === st.current));
     if (!st.choices.includes(st.current)) sel.add(new Option(st.current || "–", st.current, true, true));
     sel.onchange = async () => {
+      if (st.key === "aperture") showDof(sel.value); // at once: the camera takes a moment
       $("camConfigErr").textContent = "";
       sel.disabled = true;
       label.classList.add("setting-busy"); // the camera takes a moment to apply it
@@ -864,6 +873,50 @@ function renderSettings(list) {
     box.appendChild(label);
   }
 }
+// ---------------------------------------------------------------- depth of field
+// Beside F-stop: how deep the sharp zone is at the f-stop chosen, focused on
+// the object's middle (the turntable's middle, up half the object's height:
+// its distance from the camera's sensor from the rig's geometry, as it
+// stands), at the focal length the last photo was taken at (EXIF). Sharp
+// means a blur spot no bigger than the circle of confusion: Sony's standard
+// for APS-C (0.02 mm, about 5 of the A6600's pixels), or strict (2 pixels,
+// 0.0078 mm, for photogrammetry's fine detail); the label has the standard
+// one, the tip both.
+const DOF_COC = 0.02, DOF_COC_STRICT = 2 * 23.5 / 6000; // mm
+function dofSpan(st) {
+  const sp = document.createElement("span");
+  sp.className = "dof";
+  sp.id = "dofText";
+  state.dofFocal = st.focal || 0;
+  queueMicrotask(() => showDof(st.current));
+  return sp;
+}
+// dof is the depth of field at focal length f, f-number n, focused at s (mm),
+// blur spot c: near and far limits (far Infinity past the hyperfocal).
+function dof(f, n, s, c) {
+  const H = (f * f) / (n * c) + f;
+  const near = (s * (H - f)) / (H + s - 2 * f);
+  const far = s < H ? (s * (H - f)) / (H - s) : Infinity;
+  return { near, far, depth: far - near };
+}
+function showDof(fstop) {
+  const sp = $("dofText");
+  if (!sp) return;
+  const n = parseFloat(String(fstop).replace(/^f\//, "")), f = state.dofFocal;
+  const s = window.rig3d?.focusDistance?.();
+  if (!f) { sp.textContent = " · depth: take a sample"; sp.title = "The focal length comes from a photo's EXIF: take a sample shot"; return; }
+  if (!n || !s) { sp.textContent = ""; return; }
+  const mm = (v) => (v === Infinity ? "∞" : `${Math.round(v)}`);
+  const a = dof(f, n, s, DOF_COC), b = dof(f, n, s, DOF_COC_STRICT);
+  const obj = state.server?.config?.Rig?.ObjectZ;
+  sp.textContent = ` · ${a.depth === Infinity ? "∞" : mm(a.depth) + " mm"} deep`;
+  sp.classList.toggle("short", !!obj && a.depth < obj);
+  sp.title = `Depth of field at f/${n}, ${f} mm, focused ${Math.round(s)} mm away (the object's middle, from the sensor, the rig as it stands):\n` +
+    `• standard (0.02 mm blur): sharp ${mm(a.near)}–${mm(a.far)} mm, ${mm(a.depth)} mm deep\n` +
+    `• strict (2 px, 0.008 mm): ${mm(b.near)}–${mm(b.far)} mm, ${mm(b.depth)} mm deep` +
+    (obj ? `\nThe object (Rig Setup): ${obj} mm tall${a.depth < obj ? ": deeper than what's sharp" : ""}.` : "");
+}
+
 // A number setting (colour temperature, Kelvin): a number field and a
 // slider, sent to the camera as one's let go (or Enter, or leaving the field).
 // shiftLabel is a white balance shift as the camera shows it: "0", or the end
@@ -967,6 +1020,10 @@ function samplePending(n) { state.samplePending = n; $("sampleBox").classList.ad
 function sampleArrived(m) {
   if (m.at < (state.sampleAt || 0)) return; // an older one, late
   state.sampleShown = m.n; state.sampleAt = m.at; state.sampleSettings = m.settings || {};
+  if (m.settings?.focal) { // the depth of field at the focal length it was taken at
+    state.dofFocal = Number(m.settings.focal);
+    showDof((state.camSettings || []).find((x) => x.key === "aperture")?.current);
+  }
   $("grayBtn").disabled = $("focusBtn").disabled = false;
   if (state.selecting) stopSelecting();
   if (!state.grayRect) $("grayOut").hidden = true;
