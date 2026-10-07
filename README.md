@@ -223,7 +223,7 @@ Set up and calibrate the servos with gosts-ctl first (IDs, tuning, and "Set 0° 
 the camera level with the object and azimuth 0° is the platform's front); the two programs can't use
 the serial port at the same time. In gosts, **Setup** assigns the roles (by default #10 elevation
 leader, mirrored; #11 elevation follower; #12 azimuth); the Motion card sets the servos' speed (in °/s) and
-acceleration (saved as entered; lower acceleration is gentler on the frame). The rig's servos are always switched
+acceleration (in °/s², kept in the servos' steps of about 8.8°/s²; lower acceleration is gentler on the frame). The rig's servos are always switched
 to multi-turn when gosts connects, so moves never take the long way round. Elevation moves go straight
 from where each elevation servo is to the target (kept within the min/max), each worked out in that servo's
 own turn count. Torque on holds the servos where they are: each restarts its turn count from its reading

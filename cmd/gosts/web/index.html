@@ -122,7 +122,7 @@ td.mono { font-family: var(--mono); }
   overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
 .timeline .thumb:hover { border-color: var(--accent); }
 .timeline .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.timeline .thumb .num { position: absolute; left: 6px; bottom: 4px; font: 11px var(--mono); color: #fff; text-shadow: 0 0 3px #000; }
+.timeline .thumb .num { position: absolute; left: 5px; bottom: 5px; padding: 1px 5px; border-radius: 5px; background: rgba(0,0,0,.55); font: 11px var(--mono); color: #fff; }
 .timeline .thumb.new { animation: thumbIn .35s ease-out; }
 @keyframes thumbIn { from { opacity: 0; transform: translateX(-12px); } }
 /* Camera Settings: the settings on the left, the last sample shot on the right. */
@@ -176,7 +176,7 @@ td.mono { font-family: var(--mono); }
 .gallery-grid .thumb { width: 100%; height: auto; position: relative; padding: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
 .gallery-grid .thumb:hover { border-color: var(--accent); }
 .gallery-grid .thumb img { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; display: block; } /* the 3:2 shape: the rows keep it */
-.gallery-grid .thumb .num { position: absolute; left: 8px; bottom: 6px; font: 12px var(--mono); color: #fff; text-shadow: 0 0 3px #000; }
+.gallery-grid .thumb .num { position: absolute; left: 7px; bottom: 7px; padding: 2px 6px; border-radius: 6px; background: rgba(0,0,0,.55); font: 12px var(--mono); color: #fff; }
 /* On a thumbnail: delete (shown on hover), and the placeholder of a photo
    being taken or coming over from the camera. */
 .thumb .del { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 7px; border: 1px solid rgba(255,255,255,.25);
@@ -287,7 +287,7 @@ td.mono { font-family: var(--mono); }
         <!-- How fast the servos move, saved as soon as a value is entered. -->
         <div class="grid2" style="margin-top:10px">
           <label title="The servos' top speed">Speed (°/s)<input type="number" id="mSpeed" min="5" max="298" step="1"></label>
-          <label title="How quickly they speed up and slow down: lower is gentler on the frame">Acceleration (100 step/s²)<input type="number" id="mAcc" min="1" max="254"></label>
+          <label title="How quickly they speed up and slow down: lower is gentler on the frame">Acceleration (°/s²)<input type="number" id="mAcc" min="9" max="2232"></label>
         </div>
         <p class="hint" id="motionHint"></p>
         <div class="err" id="motionErr"></div>
@@ -1096,26 +1096,30 @@ async function simShoot(n, exposure, settings) {
 }
 
 // Speed and acceleration (Motion card): saved on Enter or leaving a field.
-// Speed is entered in °/s; the servos (and the config) count steps/s.
+// Speed is entered in °/s, acceleration in °/s²; the servos (and the config)
+// count steps/s and 100 steps/s².
 const STEP_DEG = 360 / 4096;
 const speedDeg = (steps) => Math.round(steps * STEP_DEG);
 const speedSteps = (deg) => Math.round(deg / STEP_DEG);
+const accDeg = (acc) => Math.round(acc * 100 * STEP_DEG);
+const accUnits = (deg) => Math.min(254, Math.max(1, Math.round(deg / (100 * STEP_DEG))));
 function motionFields(m) {
   if (document.activeElement !== $("mSpeed")) $("mSpeed").value = speedDeg(m.Speed);
-  if (document.activeElement !== $("mAcc")) $("mAcc").value = m.Acc;
-  $("motionHint").textContent = `Full speed reached in ${(m.Speed / (m.Acc * 100)).toFixed(2)} s (acceleration ≈ ${Math.round(m.Acc * 100 * STEP_DEG)}°/s²)`;
+  if (document.activeElement !== $("mAcc")) $("mAcc").value = accDeg(m.Acc);
+  $("motionHint").textContent = `Full speed reached in ${(m.Speed / (m.Acc * 100)).toFixed(2)} s`;
 }
 for (const id of ["mSpeed", "mAcc"]) {
   const save = async () => {
     const saved = state.server.config.Motion;
     // An unchanged °/s keeps the exact steps/s saved (it may not be a whole number of °/s).
     const speed = +$("mSpeed").value === speedDeg(saved.Speed) ? saved.Speed : speedSteps(+$("mSpeed").value);
-    const motion = { ...saved, Speed: speed, Acc: +$("mAcc").value };
+    const acc = +$("mAcc").value === accDeg(saved.Acc) ? saved.Acc : accUnits(+$("mAcc").value); // the servos' steps of 100 steps/s² (≈ 8.8°/s²)
+    const motion = { ...saved, Speed: speed, Acc: acc };
     if (motion.Speed === saved.Speed && motion.Acc === saved.Acc) return;
     $("motionErr").textContent = "";
     try { await send("motion", { motion }); } catch (e) {
       $("motionErr").textContent = e.message;
-      $("mSpeed").value = speedDeg(state.server.config.Motion.Speed); $("mAcc").value = state.server.config.Motion.Acc; // back to what's saved
+      $("mSpeed").value = speedDeg(state.server.config.Motion.Speed); $("mAcc").value = accDeg(state.server.config.Motion.Acc); // back to what's saved
     }
   };
   $(id).addEventListener("change", save);
