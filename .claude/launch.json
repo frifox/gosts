@@ -18,6 +18,15 @@
         "go run ./cmd/gosts -addr localhost:8081"
       ],
       "port": 8081
+    },
+    {
+      "name": "gosts-sim",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "go run ./cmd/gosts -addr localhost:8082 -sim -camera sim -config \"${TMPDIR:-/tmp}/gosts-sim.toml\""
+      ],
+      "port": 8082
     }
   ]
 }

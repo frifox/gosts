@@ -528,7 +528,21 @@ export function createRig(container) {
     const c = pv || cv, h = c?.history;
     if (!h?.length || !(c.normal > 0)) return null;
     const v = h[h.length - 1].v;
-    return { v, normal: c.normal, x: speedX(v, c.normal), moving: c === pv ? pv.t <= pv.times[pv.times.length - 1] : !(cv.ended && cv.clock >= cv.endAt) };
+    return { v, normal: c.normal, x: speedX(v, c.normal), moving: c === pv ? pv.t <= pv.times[pv.times.length - 1] : !(cv.ended && cv.clock >= cv.endAt),
+      elevation: rates.e, azimuth: rates.az };
+  }
+  // The shown pose's axis speeds (degrees per second, signed like the
+  // angles), from frame to frame, smoothed over ~0.15 s: how fast the swing
+  // (elevation) and the platform (azimuth) are turning in the view.
+  const shown = { e: 0, az: 0 }, prevShown = { e: 0, az: 0 }, rates = { e: 0, az: 0 };
+  function axisRates(dt) {
+    if (dt > 0) {
+      const k = Math.min(1, dt / 0.15);
+      const de = (shown.e - prevShown.e) / dt, daz = ((((shown.az - prevShown.az) % 360) + 540) % 360 - 180) / dt;
+      rates.e += (de - rates.e) * k;
+      rates.az += (daz - rates.az) * k;
+    }
+    prevShown.e = shown.e; prevShown.az = shown.az;
   }
   // drawTrail: the tail at time `now`, through the history younger than
   // `tail` seconds (evenly sampled, ending at the newest point), fading
@@ -643,6 +657,7 @@ export function createRig(container) {
   }
   // setPose puts the swing and platform at elevation e, azimuth az.
   function setPose(e, az) {
+    shown.e = e; shown.az = az;
     rig.turn.rotation.y = rig.shotGroup.rotation.y = rad(az);
     rig.tilt.rotation.z = -rad(e);
     rig.tilt.updateMatrixWorld(true);
@@ -786,6 +801,7 @@ export function createRig(container) {
     if (!pv) { const q = livePose(); setPose(q.e, q.az); } // during a preview the preview poses the rig
     previewTick(dt);
     captureTick(dt);
+    axisRates(dt);
     flashTick(dt);
     controls.update();
     renderer.render(scene, cam);
