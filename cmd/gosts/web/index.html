@@ -426,8 +426,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <div class="camcfg-params">
         <div id="camSettings"><div class="hint">Reading the camera's settings…</div></div>
         <button class="btn primary" id="sampleBtn" style="margin-top:14px;width:100%">Take Sample Shot</button>
-        <p class="hint">Changes go to the camera at once. Take a sample shot to see how they come out; it's saved
-          with your photos but kept off the timeline.</p>
         <div class="err" id="camConfigErr"></div>
       </div>
       <div class="camcfg-preview">
@@ -903,7 +901,7 @@ function showDof(fstop) {
   if (!sp) return;
   const n = parseFloat(String(fstop).replace(/^f\//, "")), f = state.dofFocal;
   const s = window.rig3d?.focusDistance?.();
-  if (!f) { sp.textContent = " · depth: take a sample"; sp.title = "The focal length comes from a photo's EXIF: take a sample shot"; return; }
+  if (!f) { sp.textContent = " · need sample to estimate depth"; sp.title = "The focal length comes from a photo's EXIF: take a sample shot"; return; }
   if (!n || !s) { sp.textContent = ""; return; }
   const mm = (v) => (v === Infinity ? "∞" : `${Math.round(v)}`);
   const a = dof(f, n, s, DOF_COC), b = dof(f, n, s, DOF_COC_STRICT);
