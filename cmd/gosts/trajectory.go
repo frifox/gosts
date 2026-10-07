@@ -103,16 +103,19 @@ const (
 // path reaches followLookahead from now, at the speed that gets it there
 // from where it really is just then, so the servos keep moving instead of
 // stopping at each goal, and the rig runs along the path itself, on time.
-// at(k) is called as the path passes point k (the photo). When paused()
-// says so the rig stops and follow returns errPaused.
-func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int), paused func() bool) error {
+// at(k) is called as the path passes point k (the photo; an error stops
+// the rig and follow). When paused() says so the rig stops and follow
+// returns errPaused.
+func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, paused func() bool) error {
 	start := time.Now()
 	next := 0 // next point
 	end := tr.duration()
 	for {
 		t := time.Since(start).Seconds()
 		for next < len(tr.pointT) && t >= tr.pointT[next] {
-			at(next)
+			if err := at(next); err != nil {
+				return errors.Join(err, r.stop())
+			}
 			next++
 		}
 		if next >= len(tr.pointT) {

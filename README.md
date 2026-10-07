@@ -216,6 +216,7 @@ go install github.com/frifox/gosts/cmd/gosts@latest
 
 gosts                               # pick the board in the browser (http://localhost:8081)
 gosts -sim                          # simulated rig, no hardware needed
+gosts -sim -camera sim              # and a simulated camera
 ```
 
 Set up and calibrate the servos with gosts-ctl first (IDs, tuning, and "Set 0° to" so elevation 0° is
@@ -226,8 +227,10 @@ the rig's servos to multi-turn so moves never take the long way round.
 
 The page has the controls on the left (a **Control** card that, until a board is connected, lists the serial
 ports to connect to, with Refresh; once connected, live elevation/azimuth: the rig moves as a slider is dragged or a value entered, with Stop shown while it moves, and Torque, and a
-**Capture** card: the number of photos, the settle time, and **Moving Shots**, with Start, Pause and
-Stop) and a live perspective view
+**Capture** card that, until a camera is connected, lists the cameras to connect to (for now the
+simulated one, which takes each photo after a short shutter lag and saves nothing; real cameras come
+next), and once connected has the number of photos, the settle time, and **Moving Shots**, with Start,
+Pause and Stop; Setup can disconnect either) and a live perspective view
 of the rig on the right (a 3D model rendered with [three.js](https://threejs.org): 2020 extrusions, the
 ST3215s, the Sony A6600 with its ring flash, and [#3DBenchy](https://www.3dbenchy.com) (CC0) as the
 object; bundled in the binary, so no internet is needed), with
@@ -245,8 +248,9 @@ the preview draws (goals streamed ~30 times a second just ahead of it, corrected
 the servos' speed and with gentle acceleration), each photo taken as the path passes its shot; the platform is never unwound: if a spiral
 wouldn't stay within its servo's multi-turn range (about ±7.5 turns from power-up) from where it is, it turns
 the other way instead (the same shots, mirrored), so spirals are limited to 7 turns (about 90 photos).
-When the last photo is taken (or a preview reaches its last shot, if a board is connected) the rig returns to 0°/0° the short way (less than a turn) and stops. Camera control (Sony A6600 over USB, with live preview) is next; for
-now each shot waits for the rig to settle and records where it really is.
+When the last photo is taken (or a preview reaches its last shot, if a board is connected) the rig returns to 0°/0° the short way (less than a turn) and stops. Each photo is
+taken with the connected camera, recording where the rig really is as the shutter goes; drivers for real
+cameras (Sony A6600 over USB, with live preview) are next.
 
 The **Configure** card (below Control; like every card it folds by its title, each window remembering which are folded) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
 X/Y, the camera's offset along the arms (camera X) and up/down from the bar (camera Z, default 0), the turntable's height (turntable Z), the object's height (object height, the model is scaled to it); the defaults draw the rig to scale)

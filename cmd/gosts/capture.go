@@ -107,8 +107,9 @@ func round1(v float64) float64 { return math.Round(v*10) / 10 }
 
 // capture runs a plan.
 type capture struct {
-	rig *rig
-	out func(any)
+	rig    *rig
+	camera *cameraConn
+	out    func(any)
 
 	mu      sync.Mutex
 	shots   []shot
@@ -170,6 +171,9 @@ func (c *capture) preview(p Plan) error {
 func (c *capture) start(p Plan) error {
 	if _, err := c.rig.ready(); err != nil {
 		return err
+	}
+	if !c.camera.connected() {
+		return errors.New("connect a camera first (the simulator will do for a try)")
 	}
 	shots, rows, spacing, err := planShots(p, c.rig.cfg.get().Motion)
 	if err != nil {
@@ -317,17 +321,21 @@ func (c *capture) loop(ctx context.Context, p Plan) error {
 			return ctx.Err()
 		case <-time.After(time.Duration(p.SettleMS) * time.Millisecond):
 		}
-		c.photo()
+		if err := c.photo(ctx); err != nil {
+			return err
+		}
 	}
 }
 
-// photo takes the next shot. The camera isn't connected yet, so the shot is
-// only recorded with where the rig really is (read fresh: moving shots are
-// taken in motion).
-func (c *capture) photo() {
+// photo takes the next shot with the camera, recording where the rig really
+// is as the shutter goes (read fresh: moving shots are taken in motion).
+func (c *capture) photo(ctx context.Context) error {
 	ae, aa := c.rig.where()
 	if fe, fa, err := c.rig.angles(); err == nil {
 		ae, aa = fe, fa
+	}
+	if err := c.camera.shoot(ctx); err != nil {
+		return fmt.Errorf("camera: %w", err)
 	}
 	c.mu.Lock()
 	c.shots[c.index].Done = true
@@ -335,6 +343,7 @@ func (c *capture) photo() {
 	c.index++
 	c.mu.Unlock()
 	c.send()
+	return nil
 }
 
 // spiral takes moving shots: the rig goes to the first shot, then runs
@@ -386,10 +395,11 @@ func (c *capture) spiral(ctx context.Context) error {
 			as = append(as, s.Azimuth)
 		}
 		tr := newTrajectory(es, as, maxRate, accel)
-		err := c.rig.follow(ctx, tr, func(k int) {
-			if k >= first {
-				c.photo()
+		err := c.rig.follow(ctx, tr, func(k int) error {
+			if k < first {
+				return nil
 			}
+			return c.photo(ctx)
 		}, func() bool {
 			c.mu.Lock()
 			defer c.mu.Unlock()

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"math"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/frifox/gosts"
 )
@@ -159,5 +162,46 @@ func TestTrajectory(t *testing.T) {
 	}
 	if math.Abs(tr.a[len(tr.a)-1]-(170+60)) > 1e-6 {
 		t.Errorf("azimuth not unwrapped: ends at %v", tr.a[len(tr.a)-1])
+	}
+}
+
+func TestCaptureCamera(t *testing.T) {
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	camera := &cameraConn{out: func(any) {}}
+	c := &capture{rig: r, camera: camera, out: func(any) {}}
+	p := Plan{Photos: 3, SettleMS: 0}
+	if err := c.start(p); err == nil {
+		t.Fatal("started without a camera")
+	}
+	if err := camera.connect(simCameraID); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.start(p); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		m := c.msg()
+		if !m.Running {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("capture didn't finish")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	camera.mu.Lock()
+	n := camera.cam.(*simCamera).n
+	camera.mu.Unlock()
+	if m := c.msg(); m.Index != 3 || n != 3 {
+		t.Fatalf("%d of 3 shots done, %d photos taken: %s", m.Index, n, m.Note)
 	}
 }

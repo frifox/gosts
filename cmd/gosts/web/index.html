@@ -135,14 +135,24 @@ td.mono { font-family: var(--mono); }
   <span class="spacer"></span>
   <span class="pill"><span class="dot" id="wsDot"></span><span id="wsText">connecting…</span></span>
   <span class="pill"><span class="dot" id="busDot"></span><span id="busText">no board</span></span>
+  <span class="pill"><span class="dot" id="camDot"></span><span id="camText">no camera</span></span>
   <button class="btn small" id="setupBtn">Setup…</button>
 </header>
 
 <div class="layout">
   <div class="left">
     <section class="card" id="captureCard">
-      <h2>Capture</h2>
-      <div class="card-body">
+      <h2>Capture <span class="spacer"></span>
+        <button class="btn small" id="camRefresh" style="text-transform:none;letter-spacing:0">Refresh</button>
+      </h2>
+      <!-- No camera: pick one and connect. -->
+      <div class="card-body" id="cameraBody">
+        <div class="ports" id="cameras"><div class="hint">Looking for cameras…</div></div>
+        <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="camConnectBtn" disabled>Connect</button></div>
+        <div class="err" id="camErr"></div>
+      </div>
+      <!-- Camera connected: plan and run the capture. -->
+      <div class="card-body" id="captureBody" hidden>
         <div class="plan-row">
           <label>Photos<input type="number" id="pPhotos" min="1" max="2000" value="60"></label>
           <label title="How long the rig waits after arriving, before each photo (not used with Moving Shots)">Settle (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
@@ -271,6 +281,7 @@ td.mono { font-family: var(--mono); }
       <div class="err" id="setupErr"></div>
       <div class="row" style="margin-top:14px">
         <button class="btn small" id="sDisconnect">Disconnect board</button>
+        <button class="btn small" id="sCamDisconnect">Disconnect camera</button>
         <span class="spacer"></span>
         <button class="btn" id="sCancel">Cancel</button>
         <button class="btn primary" id="sSave">Save</button>
@@ -288,14 +299,18 @@ draw();
 </script>
 <script>
 const $ = (id) => document.getElementById(id);
-const state = { server: null, cap: null, tele: null, view: { yaw: -0.75, pitch: 0.42, zoom: 1 }, selectedPort: null, ports: [] };
+const state = { server: null, cap: null, tele: null, view: { yaw: -0.75, pitch: 0.42, zoom: 1 }, selectedPort: null, ports: [], camera: null, cameras: [], selectedCamera: null };
 
 // ---------------------------------------------------------------- websocket
 let ws, seq = 0;
 const pending = new Map();
 function connectWS() {
   ws = new WebSocket(`ws://${location.host}/ws`);
-  ws.onopen = () => { setPill("ws", true, "ws connected"); send("ports").then(renderPorts).catch(() => {}); };
+  ws.onopen = () => {
+    setPill("ws", true, "ws connected");
+    send("ports").then(renderPorts).catch(() => {});
+    send("cameras").then(renderCameras).catch(() => {});
+  };
   ws.onclose = () => {
     setPill("ws", false, "ws disconnected");
     for (const p of pending.values()) p.reject(new Error("disconnected"));
@@ -328,6 +343,7 @@ function onMessage(m) {
     case "state": onState(m); break;
     case "telemetry": onTelemetry(m); break;
     case "capture": onCapture(m); break;
+    case "camera": onCamera(m); break;
     case "log": log(m.message, m.level); break;
   }
 }
@@ -368,6 +384,41 @@ $("connectBtn").onclick = async () => {
   await act("connect", { port: state.selectedPort, baud: 1000000 }, $("connectErr"));
   $("connectBtn").disabled = false;
 };
+
+// ---------------------------------------------------------------- camera
+// The Capture card: the cameras to connect to, or once one is connected the
+// capture itself.
+function renderCameras(list) {
+  state.cameras = list || [];
+  if (!state.cameras.some((c) => c.id === state.selectedCamera)) state.selectedCamera = state.cameras[0]?.id || null;
+  const el = $("cameras");
+  el.innerHTML = "";
+  if (!state.cameras.length) el.innerHTML = '<div class="hint">No cameras found.</div>';
+  for (const c of state.cameras) {
+    const d = document.createElement("div");
+    d.className = "port" + (c.id === state.selectedCamera ? " sel" : "");
+    d.innerHTML = '<span class="name"></span><span class="detail"></span>';
+    d.querySelector(".name").textContent = c.name;
+    d.querySelector(".detail").textContent = c.detail || "";
+    d.onclick = () => { state.selectedCamera = c.id; renderCameras(state.cameras); };
+    el.appendChild(d);
+  }
+  $("camConnectBtn").disabled = !state.selectedCamera;
+}
+$("camRefresh").onclick = () => send("cameras").then(renderCameras).catch((e) => ($("camErr").textContent = e.message));
+$("camConnectBtn").onclick = async () => {
+  $("camErr").textContent = "";
+  $("camConnectBtn").disabled = true;
+  await act("cameraConnect", { camera: state.selectedCamera }, $("camErr"));
+  $("camConnectBtn").disabled = false;
+};
+function onCamera(m) {
+  state.camera = m;
+  $("cameraBody").hidden = $("camRefresh").hidden = m.connected;
+  $("captureBody").hidden = !m.connected;
+  setPill("cam", m.connected, m.connected ? `camera: ${m.id === "sim" ? "simulator" : m.name}` : "no camera");
+  if (!m.connected) { stopPreview(); send("cameras").then(renderCameras).catch(() => {}); }
+}
 
 function onState(m) {
   state.server = m;
@@ -537,6 +588,7 @@ function fillSetup() {
   $("sFound").textContent = m.connected ? (m.found.length ? m.found.map((id) => "#" + id).join(" ") : "none") : "no board connected";
 }
 $("sScan").onclick = () => act("scan", {}, $("setupErr"));
+$("sCamDisconnect").onclick = async () => { await act("cameraDisconnect", {}, $("setupErr")); $("setupModal").hidden = true; };
 $("sDisconnect").onclick = async () => { await act("disconnect", {}, $("setupErr")); $("setupModal").hidden = true; send("ports").then(renderPorts).catch(() => {}); };
 $("sSave").onclick = async () => {
   $("setupErr").textContent = "";

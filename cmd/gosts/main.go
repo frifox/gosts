@@ -12,6 +12,7 @@
 //	gosts                               # pick the board in the browser
 //	gosts -port /dev/cu.usbmodem1101    # connect on startup
 //	gosts -sim                          # simulated rig (servos 10, 11, 12)
+//	gosts -sim -camera sim              # and a simulated camera
 package main
 
 import (
@@ -29,6 +30,7 @@ import (
 func main() {
 	port := flag.String("port", "", "serial device to connect to on startup (default: Port in the config file)")
 	sim := flag.Bool("sim", false, "use a simulated rig")
+	camera := flag.String("camera", "", `camera to connect on startup, "sim" for the simulated one (default: Camera in the config file)`)
 	addr := flag.String("addr", "", "web address, e.g. localhost:8081 (default: ListenAddr in the config file, \":8081\" if unset)")
 	cfgPath := flag.String("config", defaultConfigPath(), "settings file, created if missing")
 	flag.Parse()
@@ -48,13 +50,17 @@ func main() {
 	if *sim {
 		*port = simPort
 	}
+	if *camera == "" {
+		*camera = c.Camera
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
 	a := &app{cfg: cfg, clients: map[*client]struct{}{}}
 	a.rig = &rig{cfg: cfg, out: a.broadcast}
-	a.cap = &capture{rig: a.rig, out: a.broadcast}
+	a.camera = &cameraConn{out: a.broadcast}
+	a.cap = &capture{rig: a.rig, camera: a.camera, out: a.broadcast}
 	if err := a.cap.preview(c.Plan); err != nil {
 		log.Print(err)
 	}
@@ -65,6 +71,12 @@ func main() {
 			}
 		}()
 	}
+	if *camera != "" {
+		if err := a.camera.connect(*camera); err != nil {
+			log.Printf("camera %s: %v", *camera, err)
+		}
+	}
+	defer a.camera.disconnect()
 	defer a.rig.disconnect()
 	go a.rig.pollLoop(ctx)
 

@@ -24,9 +24,10 @@ func logPrint(msg string) { log.Print(msg) }
 
 // app ties the rig, the capture runner and the browser windows together.
 type app struct {
-	cfg *configFile
-	rig *rig
-	cap *capture
+	cfg    *configFile
+	rig    *rig
+	cap    *capture
+	camera *cameraConn
 
 	mu      sync.Mutex
 	clients map[*client]struct{}
@@ -65,6 +66,7 @@ type request struct {
 	Motion    *Motion  `json:"motion"`
 	Plan      *Plan    `json:"plan"`
 	Rig       *Rig     `json:"rig"`
+	Camera    string   `json:"camera"`
 }
 
 type resultMsg struct {
@@ -157,6 +159,20 @@ func (a *app) exec(req request) (any, error) {
 		return nil, err
 	case "pause":
 		return nil, a.cap.pause(req.On)
+	case "cameras":
+		return listCameras(), nil
+	case "cameraConnect":
+		if err := a.camera.connect(req.Camera); err != nil {
+			return nil, err
+		}
+		if req.Camera == simCameraID {
+			return nil, nil // don't make the simulator the default
+		}
+		return nil, a.cfg.update(func(c *Config) { c.Camera = req.Camera })
+	case "cameraDisconnect":
+		a.cap.stop()
+		a.camera.disconnect()
+		return nil, nil
 	}
 	return nil, errors.New("unknown command " + req.Type)
 }
@@ -174,6 +190,7 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 	a.mu.Unlock()
 	c.push(a.rig.state())
 	c.push(a.cap.msg())
+	c.push(a.camera.msg())
 
 	done := make(chan struct{})
 	go func() {
