@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -194,24 +195,56 @@ func (g *gphoto2Camera) script(lines []string) (string, error) {
 // gphoto2Saved is a "Saving file as …" line: a file downloaded.
 var gphoto2Saved = regexp.MustCompile(`Saving file as (\S+)`)
 
+// cameraFileNumber is the number in a camera's file name (capt_DSC01116.JPG:
+// 1116), 0 if there's none.
+func cameraFileNumber(name string) int {
+	m := gphoto2FileNumber.FindStringSubmatch(name)
+	if m == nil {
+		return 0
+	}
+	k, _ := strconv.Atoi(m[1])
+	return k
+}
+
+var gphoto2FileNumber = regexp.MustCompile(`(\d+)\.[A-Za-z0-9]+$`)
+
 // gphoto2Added is a "FILEADDED name folder" line: a file the camera wrote.
 var gphoto2Added = regexp.MustCompile(`FILEADDED (\S+)`)
 
 // pictureWait is how long a photo waits for its JPEG before it's given up
 // (e.g. the camera on RAW only: nothing comes over).
-const pictureWait = 30 * time.Second
+var pictureWait = 30 * time.Second
 
 // work owns the shell: photos first, then collecting pictures.
 func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 	defer close(g.done)
 	defer os.RemoveAll(tmp)
 	defer sh.close()
+	// Each photo is matched to its JPEG by the camera's file number
+	// (capt_DSC01116.JPG): the camera numbers its files in turn, so a photo
+	// fired expects the next number. A file numbered lower is a leftover
+	// (from an earlier session, or a photo that gave up waiting): kept, but
+	// no photo's picture. One numbered higher means the camera skipped
+	// (a photo taken on the camera itself): the numbers waited for move up.
 	type waiting struct {
 		got   func(photo, error)
 		since time.Time
 		dir   string // its batch's folder (as the shutter went)
+		num   int    // the camera's number its files will have (0: not known yet)
 	}
-	var queue []waiting // photos taken whose JPEG hasn't come yet, oldest first
+	var queue []waiting  // photos taken whose JPEG hasn't come yet, oldest first
+	next := 0            // the number the next photo fired will get (0: not known yet)
+	saw := func(k int) { // a file numbered k is on the camera: new photos come after it
+		next = max(next, k+1)
+		for _, w := range queue {
+			next = max(next, w.num+1)
+		}
+	}
+	keep := func(name string, data []byte, why string) { // a file that's no photo's picture
+		if path, err := saveUnique(batchFolder(), name, data); err == nil {
+			log.Printf("camera: %s, saved %s", why, path)
+		}
+	}
 	open := true
 	collect := func(d time.Duration) {
 		start := time.Now()
@@ -222,6 +255,10 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 		for _, l := range strings.Split(out, "\n") {
 			if m := gphoto2Added.FindStringSubmatch(l); m != nil {
 				log.Printf("camera: on the card: %s", m[1])
+				if k := cameraFileNumber(m[1]); k > 0 && len(queue) == 0 {
+					saw(k) // a photo nobody's waiting for (taken on the camera): later ones come after it
+				}
+				continue
 			}
 			m := gphoto2Saved.FindStringSubmatch(l)
 			if m == nil {
@@ -230,30 +267,54 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			name := m[1]
 			data, rerr := os.ReadFile(filepath.Join(tmp, name))
 			os.Remove(filepath.Join(tmp, name))
+			if rerr != nil {
+				log.Printf("camera: %s: %v", name, rerr)
+				continue
+			}
+			k := cameraFileNumber(name)
 			if !strings.EqualFold(filepath.Ext(name), ".jpg") && !strings.EqualFold(filepath.Ext(name), ".jpeg") {
 				// Not a JPEG (a RAW-only camera, or --keep-raw not honoured):
-				// kept, but it's no photo's picture by itself.
-				if rerr == nil {
-					dir := batchFolder()
-					if len(queue) > 0 {
-						dir = queue[0].dir
-					}
-					if path, err := saveUnique(dir, name, data); err == nil {
-						log.Printf("camera: saved %s", path)
+				// kept, but no photo's picture by itself.
+				keep(name, data, "not a JPEG")
+				continue
+			}
+			// Whose is it? The photo waiting for its number; else, if it's past
+			// the oldest waiting one's (or the numbers aren't known yet), the
+			// oldest's, the numbers moving up; else a leftover.
+			i := -1
+			if k > 0 {
+				for j := range queue {
+					if queue[j].num == k {
+						i = j
 					}
 				}
+				if i < 0 && len(queue) > 0 && (queue[0].num == 0 || k > queue[0].num) {
+					if queue[0].num == 0 { // the first number seen: those not numbered yet follow it
+						for j := range queue {
+							if queue[j].num == 0 {
+								queue[j].num = k + j
+							}
+						}
+					} else { // the camera skipped: all move up
+						d := k - queue[0].num
+						for j := range queue {
+							queue[j].num += d
+						}
+					}
+					i = 0
+				}
+			} else if len(queue) > 0 { // no number in its name: in turn
+				i = 0
+			}
+			if k > 0 {
+				saw(k)
+			}
+			if i < 0 { // a leftover
+				keep(name, data, fmt.Sprintf("%s isn't any waiting photo's", name))
 				continue
 			}
-			if len(queue) == 0 {
-				log.Printf("camera: %s came over, but no photo was waiting for it", name)
-				continue
-			}
-			w := queue[0]
-			queue = queue[1:]
-			if rerr != nil {
-				w.got(photo{}, rerr)
-				continue
-			}
+			w := queue[i]
+			queue = append(queue[:i:i], queue[i+1:]...)
 			p := photo{JPEG: data, At: time.Now()}
 			if path, err := saveUnique(w.dir, name, data); err == nil {
 				p.Files = []string{path}
@@ -270,6 +331,9 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			queue = queue[1:]
 		}
 	}
+	// First, whatever the camera still has to hand over (photos from before:
+	// they mustn't be taken for new ones). It also tells the numbers so far.
+	collect(1500 * time.Millisecond)
 	for open || len(queue) > 0 {
 		var r gphoto2Req
 		var ok bool
@@ -323,7 +387,10 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			continue
 		}
 		measured(&g.fire, time.Since(start), &g.mu)
-		queue = append(queue, waiting{got: r.got, since: time.Now(), dir: batchFolder()})
+		queue = append(queue, waiting{got: r.got, since: time.Now(), dir: batchFolder(), num: next})
+		if next > 0 {
+			next++
+		}
 		r.fired <- nil
 	}
 }

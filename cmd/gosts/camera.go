@@ -52,11 +52,14 @@ var photoDir = defaultPhotoDir()
 
 // The batch: the photos since the app started, or since Reset. Each batch's
 // files go in a folder of their own, named after when its first photo was
-// taken ("2006-01-02 15:04:05"), made only then.
+// taken ("2006-01-02 15.04.05": colons aren't for file names on a Mac), made
+// only then.
 var batch struct {
 	sync.Mutex
 	dir string
 }
+
+const batchName = "2006-01-02 15.04.05"
 
 // batchFolder is the current batch's folder (made now if it's the batch's
 // first photo).
@@ -64,7 +67,7 @@ func batchFolder() string {
 	batch.Lock()
 	defer batch.Unlock()
 	if batch.dir == "" {
-		batch.dir = filepath.Join(photoDir, time.Now().Format("2006-01-02 15:04:05"))
+		batch.dir = filepath.Join(photoDir, time.Now().Format(batchName))
 		if err := os.MkdirAll(batch.dir, 0o755); err != nil {
 			log.Printf("photos: %v", err)
 		} else {
