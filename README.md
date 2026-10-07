@@ -204,27 +204,27 @@ gosts-ctl adds `github.com/gorilla/websocket` and `github.com/BurntSushi/toml` t
 library packages don't import them. Listing USB port details uses cgo on macOS (the Xcode command
 line tools).
 
-## gosts: photogrammetry rig
+## gosts-rig: photogrammetry rig
 
-[`cmd/gosts`](cmd/gosts) drives a photogrammetry rig built from 2020 extrusions: a 600×500 mm base with a
+[`cmd/gosts-rig`](cmd/gosts-rig) drives a photogrammetry rig built from 2020 extrusions: a 600×500 mm base with a
 600 mm post in the middle of each long side, an ST3215 on top of each post tilting a 600×450 mm frame
 (camera on one 450 mm bar, counterweight on the other) for the camera's **elevation**, and a third
 ST3215 turning the platform under the object for the **azimuth**.
 
 ```bash
-go install github.com/frifox/gosts/cmd/gosts@latest
+go install github.com/frifox/gosts/cmd/gosts-rig@latest
 
-gosts                               # pick the board in the browser (http://localhost:8081)
-gosts -sim                          # simulated rig, no hardware needed
-gosts -sim -camera sim              # and a simulated camera
+gosts-rig                           # pick the board in the browser (http://localhost:8081)
+gosts-rig -sim                      # simulated rig, no hardware needed
+gosts-rig -sim -camera sim          # and a simulated camera
 ```
 
 Set up and calibrate the servos with gosts-ctl first (IDs, tuning, and "Set 0° to" so elevation 0° is
 the camera level with the object and azimuth 0° is the platform's front); the two programs can't use
-the serial port at the same time. In gosts, **Setup** assigns the roles (by default #10 elevation
+the serial port at the same time. In gosts-rig, **Setup** assigns the roles (by default #10 elevation
 leader, mirrored; #11 elevation follower; #12 azimuth); the Motion card sets the servos' speed (in °/s) and
 acceleration (in °/s², kept in the servos' steps of about 8.8°/s²; lower acceleration is gentler on the frame). The rig's servos are always switched
-to multi-turn when gosts connects, so moves never take the long way round. Elevation moves go straight
+to multi-turn when gosts-rig connects, so moves never take the long way round. Elevation moves go straight
 from where each elevation servo is to the target (kept within the min/max), each worked out in that servo's
 own turn count. Torque on holds the servos where they are: each restarts its turn count from its reading
 (multi-turn off and on) and holds that, first at 35% torque; if one moves away or strains instead, torque
@@ -267,7 +267,7 @@ taken with the connected camera, recording where the rig really is as the shutte
 A real camera is driven through gphoto2 (`brew install gphoto2`). Set it to RAW & JPEG (and, for a Sony in
 PC Remote, save to PC+Camera): each photo's RAW stays on the camera's card and only the JPEG comes over USB
 (much quicker; each matched to its photo by the camera's file number, so a JPEG left over from before
-is kept but never shown as a new photo), saved in a folder per batch, `~/Pictures/gosts/<yyyy-mm-dd hh.mm.ss>/` named after the batch's first photo
+is kept but never shown as a new photo), saved in a folder per batch, `~/Pictures/gosts-rig/<yyyy-mm-dd hh.mm.ss>/` named after the batch's first photo
 (`PhotoDir` in the config file changes the parent; a batch runs from the app's start, or **Reset**, which also
 numbers the photos from 1 again), and shown on
 the page. A camera on JPEG only works the same way; on RAW only no picture would come. On macOS the
@@ -302,7 +302,7 @@ on the A6600); each new sample is measured again in the same rectangle (till Dis
 camera has the same settings, and its sample comes out brighter or darker with them, and tinted by its 4300 K,
 slightly green light against its white balance and shifts.
 
-gosts keeps one gphoto2 shell open on the camera: firing the shutter takes about 1.1 s on the A6600 (nothing
+gosts-rig keeps one gphoto2 shell open on the camera: firing the shutter takes about 1.1 s on the A6600 (nothing
 downloaded), and the JPEGs are collected in between, each to its own photo, while the rig moves on. Stopping
 shots and Take Photo wait for the shutter only; Moving Shots doesn't wait at all, its path paced so the shots
 are no closer together than the camera can keep up with (firing plus downloading, measured as it goes, about
@@ -314,7 +314,7 @@ and the min/max elevation the camera may reach (default −45° to 80°).
 The view has 3D, Front (from behind the camera, looking at the object), Side (along the tilt axis) and Top
 presets.
 
-Settings are kept in `gosts/config.toml` in the user's config directory (`-config` to change).
+Settings are kept in `gosts-rig/config.toml` in the user's config directory (`-config` to change; one left in `gosts/config.toml` from before the app's rename is copied over the first time).
 
 ## Platform notes
 

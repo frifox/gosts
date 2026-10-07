@@ -484,7 +484,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <label class="switch" style="flex-direction:row"><input type="checkbox" id="sInvA"><span class="track"></span><span>Invert azimuth</span></label>
       </div>
       <p class="hint">The two top servos move together as one group, the leader deciding the goal. Mark the servo that faces its partner as mirrored, so the same command tilts both the same way. Elevation 0° is the camera level with the object (the servos' own 0°, set with gosts-ctl → Set 0° to), positive is up; invert if it goes the wrong way. Azimuth 0° is the platform's own 0°.</p>
-      <p class="hint">The rig's servos are always switched to multi-turn mode when gosts connects, so every move can take the short way: in single-turn mode a move across a servo's 0/360° point goes the long way, nearly a full turn, which could swing the frame into the posts.</p>
+      <p class="hint">The rig's servos are always switched to multi-turn mode when gosts-rig connects, so every move can take the short way: in single-turn mode a move across a servo's 0/360° point goes the long way, nearly a full turn, which could swing the frame into the posts.</p>
       <p class="hint">Found on the bus: <span id="sFound" class="mono">–</span> <button class="btn small" id="sScan">Scan again</button></p>
       <div class="err" id="setupErr"></div>
       <div class="row" style="margin-top:14px">
@@ -531,7 +531,7 @@ function connectWS() {
 }
 function send(type, payload = {}) {
   return new Promise((resolve, reject) => {
-    if (!ws || ws.readyState !== 1) return reject(new Error("not connected to gosts"));
+    if (!ws || ws.readyState !== 1) return reject(new Error("not connected to gosts-rig"));
     const s = ++seq;
     pending.set(s, { resolve, reject });
     ws.send(JSON.stringify({ seq: s, type, ...payload }));

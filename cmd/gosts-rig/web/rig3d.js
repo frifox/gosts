@@ -13,7 +13,7 @@ const P = 20; // 2020 profile size
 // the servo horns. The camera orbits it and looks at it.
 export const pivotHeight = (d) => P + d.PostZ + 30;
 
-// Default measurements (mm), as in gosts' config: seen from above, X along
+// Default measurements (mm), as in gosts-rig's config: seen from above, X along
 // the base sides that carry the posts, Y along the tilt axis, Z up.
 export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, CameraZ: 0, TurntableZ: 400, ObjectZ: 100 };
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,14 +13,14 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// Config is gosts' settings file: where to listen, which serial port, which
+// Config is gosts-rig's settings file: where to listen, which serial port, which
 // servo does what, and the last capture plan.
 type Config struct {
 	ListenAddr string `toml:"ListenAddr"`
 	Port       string `toml:"Port,omitempty"` // serial device connected on startup; empty = pick in the browser
 	Baud       int    `toml:"Baud,omitzero"`
 	Camera     string `toml:"Camera,omitempty"`   // camera connected on startup; empty = pick in the browser
-	PhotoDir   string `toml:"PhotoDir,omitempty"` // where real cameras' photos are saved (a folder a day); empty = ~/Pictures/gosts
+	PhotoDir   string `toml:"PhotoDir,omitempty"` // where real cameras' photos are saved (a folder a day); empty = ~/Pictures/gosts-rig
 	Roles      Roles  `toml:"Roles"`
 	Motion     Motion `toml:"Motion"`
 	Plan       Plan   `toml:"Plan"`
@@ -136,7 +137,7 @@ func (f *configFile) update(fn func(*Config)) error {
 	return f.save()
 }
 
-const configHeader = `# gosts: photogrammetry rig settings. Edited by the web UI; read on startup.
+const configHeader = `# gosts-rig: photogrammetry rig settings. Edited by the web UI; read on startup.
 # Servo calibration (zero, tuning, limits) is done in gosts-ctl and stored on the servos.
 
 `
@@ -165,11 +166,21 @@ func (f *configFile) save() error {
 	return os.Rename(tmp.Name(), f.path)
 }
 
-// defaultConfigPath is gosts/config.toml in the user's config directory.
+// defaultConfigPath is gosts-rig/config.toml in the user's config
+// directory. One left from before the rename (gosts/config.toml) is copied
+// there the first time.
 func defaultConfigPath() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
-		return "gosts.toml"
+		return "gosts-rig.toml"
 	}
-	return filepath.Join(dir, "gosts", "config.toml")
+	path := filepath.Join(dir, "gosts-rig", "config.toml")
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+		if old, err := os.ReadFile(filepath.Join(dir, "gosts", "config.toml")); err == nil {
+			if os.MkdirAll(filepath.Dir(path), 0o755) == nil && os.WriteFile(path, old, 0o644) == nil {
+				log.Printf("config: copied the settings from before the rename, %s", filepath.Join(dir, "gosts", "config.toml"))
+			}
+		}
+	}
+	return path
 }

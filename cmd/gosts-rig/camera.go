@@ -110,9 +110,9 @@ func newBatch() {
 func defaultPhotoDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "gosts-photos"
+		return "gosts-rig-photos"
 	}
-	return filepath.Join(home, "Pictures", "gosts")
+	return filepath.Join(home, "Pictures", "gosts-rig")
 }
 
 // cameraInfo is a camera that can be connected, for the page's list.

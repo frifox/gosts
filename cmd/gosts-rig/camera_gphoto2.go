@@ -97,7 +97,7 @@ func openGphoto2Camera(port string) (Camera, string, error) {
 	}
 	// Cautious until measured (the A6600: about 1.1 s and 0.7 s).
 	g := &gphoto2Camera{port: port, reqs: make(chan gphoto2Req, 64), done: make(chan struct{}), fire: 1200 * time.Millisecond, dl: 800 * time.Millisecond}
-	tmp, err := os.MkdirTemp("", "gosts-camera-*")
+	tmp, err := os.MkdirTemp("", "gosts-rig-camera-*")
 	if err != nil {
 		return nil, "", err
 	}

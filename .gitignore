@@ -3,3 +3,4 @@
 .claude/settings.local.json
 .idea/
 /cmd/gosts-ctl/gosts-ctl
+/cmd/gosts-rig/gosts-rig

@@ -1,18 +1,18 @@
-// Command gosts drives a photogrammetry rig built on ST3215 servos: two
+// Command gosts-rig drives a photogrammetry rig built on ST3215 servos: two
 // servos on top of the posts tilt the camera frame (elevation) as one
 // mirrored group, a third turns the platform under the object (azimuth).
 // The web page plans a capture (rings of photos round the object) and shows
 // the rig live.
 //
 // Set up and calibrate the servos with gosts-ctl first (IDs, zero, tuning,
-// limits); gosts and gosts-ctl can't use the serial port at the same time.
+// limits); gosts-rig and gosts-ctl can't use the serial port at the same time.
 //
-//	go install github.com/frifox/gosts/cmd/gosts@latest
+//	go install github.com/frifox/gosts/cmd/gosts-rig@latest
 //
-//	gosts                               # pick the board in the browser
-//	gosts -port /dev/cu.usbmodem1101    # connect on startup
-//	gosts -sim                          # simulated rig (servos 10, 11, 12)
-//	gosts -sim -camera sim              # and a simulated camera
+//	gosts-rig                               # pick the board in the browser
+//	gosts-rig -port /dev/cu.usbmodem1101    # connect on startup
+//	gosts-rig -sim                          # simulated rig (servos 10, 11, 12)
+//	gosts-rig -sim -camera sim              # and a simulated camera
 package main
 
 import (
