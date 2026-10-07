@@ -816,7 +816,7 @@ export function createRig(container) {
   // exposure brightens (>1) or darkens the picture, as a camera's settings
   // would (the simulated camera's shutter, f-stop and ISO).
   // gains tints it, red, green and blue (a white balance set off the light).
-  function snapshot(width = 1200, exposure = 1, gains = null) {
+  function snapshot(width = 1200, exposure = 1, gains = null, blur = 0) {
     const height = Math.round(width / photoCam.aspect);
     if (!photoRenderer) {
       photoRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -854,6 +854,14 @@ export function createRig(container) {
       }));
       for (let i = 0; i < px.length; i += 4) { px[i] = lut[0][px[i]]; px[i + 1] = lut[1][px[i + 1]]; px[i + 2] = lut[2][px[i + 2]]; }
       ctx.putImageData(img, 0, 0);
+      out = c;
+    }
+    if (blur > 0) { // out of focus (the simulated lens: see simCamera.blur)
+      const c = document.createElement("canvas");
+      c.width = out.width; c.height = out.height;
+      const ctx = c.getContext("2d");
+      ctx.filter = `blur(${blur}px)`;
+      ctx.drawImage(out, 0, 0);
       out = c;
     }
     return new Promise((resolve, reject) =>

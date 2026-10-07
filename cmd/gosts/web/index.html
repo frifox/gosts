@@ -138,6 +138,16 @@ td.mono { font-family: var(--mono); }
 #sampleCaption { margin-top: 8px; line-height: 18px; min-height: 18px; } /* room kept for it before the first sample */
 .camcfg-shot.selecting { cursor: crosshair; }
 .sel-rect { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 1px #000, 0 0 0 9999px rgba(0,0,0,.35); pointer-events: none; }
+/* Focus: the part picked, over most of the sample; its controls below it. */
+.focus-zoom { position: absolute; inset: 3%; z-index: 3; display: flex; flex-direction: column; background: #0b0d10; border: 1px solid #ffffff40;
+  border-radius: 10px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,.5); cursor: default; }
+.focus-zoom canvas { flex: 1; min-height: 0; width: 100%; display: block; }
+.focus-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 10px; background: rgba(12,14,18,.92); color: #e8eaef; font-size: 12px; }
+.focus-nudge { display: inline-flex; align-items: center; gap: 3px; }
+.focus-nudge .btn { min-width: 30px; padding-left: 6px; padding-right: 6px; }
+.focus-nf { color: #a9b0bd; padding: 0 4px; }
+.focus-stat { color: #a9b0bd; }
+.focus-zoom.busy canvas { opacity: .55; }
 .shot-overlay { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .gray-hint, .gray-out { padding: 8px 12px; border-radius: 10px; background: rgba(12, 14, 18, .82); color: #e8eaef; font-size: 13px;
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 2px 10px rgba(0,0,0,.35); }
@@ -423,9 +433,25 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <img id="sampleImg" alt="The sample shot" hidden><div class="sel-rect" id="selRect" hidden></div>
           <!-- White balance from a gray card in the sample: the steps and the result, over the photo's
                bottom, so the modal keeps its height. -->
-          <div class="shot-overlay"><div class="gray-hint" id="grayHint"></div><div class="gray-out" id="grayOut" hidden></div></div></div>
+          <div class="shot-overlay"><div class="gray-hint" id="grayHint"></div><div class="gray-out" id="grayOut" hidden></div></div>
+          <!-- Focus: the part picked, large, to judge the focus by; and the focus controls. -->
+          <div class="focus-zoom" id="focusZoom" hidden>
+            <canvas id="focusCanvas"></canvas>
+            <div class="focus-bar">
+              <button class="btn small" id="focusAF" title="Focus once, where the camera's focus area says (in Manual: then back to Manual, so it stays)">Autofocus</button>
+              <span class="focus-nudge" title="Drive the focus by hand, towards near or far (small, medium, large steps)">
+                <button class="btn small" data-n="-7">‹‹‹</button><button class="btn small" data-n="-3">‹‹</button><button class="btn small" data-n="-1">‹</button>
+                <span class="focus-nf">near · far</span>
+                <button class="btn small" data-n="1">›</button><button class="btn small" data-n="3">››</button><button class="btn small" data-n="7">›››</button>
+              </span>
+              <span class="focus-stat mono" id="focusStat"></span>
+              <span class="spacer"></span>
+              <button class="btn small" id="focusClose">Close</button>
+            </div>
+          </div></div>
         <div class="hint mono" id="sampleCaption"></div>
         <!-- Gray Card lives by the colour temperature slider (renderSettings puts it there); parked here meanwhile. -->
+        <div hidden id="focusPark"><button class="btn small" id="focusBtn" disabled title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again">Focus</button></div>
         <div hidden id="grayPark"><button class="btn small" id="grayBtn" disabled title="Balance white from a gray card: drag a rectangle inside the card in the sample, and the app works out the colour temperature that makes it neutral">Gray Card</button></div>
       </div>
     </div>
@@ -533,7 +559,7 @@ function onMessage(m) {
     case "photoFailed": m.sample ? sampleFailed(m.n) : photoGone(m.n); break;
     case "photoDeleted": photoGone(m.n); break;
     case "photos": setPhotos(m.photos); break;
-    case "simShoot": simShoot(m.n, m.exposure, m.settings); break;
+    case "simShoot": simShoot(m.n, m.exposure, m.settings, m.blur); break;
     case "log": log(m.message, m.level); break;
   }
 }
@@ -776,8 +802,10 @@ document.addEventListener("keydown", (e) => {
 // Camera Settings: the camera's settings (each change goes to it at once), and
 // sample shots (off the timeline) to judge them by.
 function renderSettings(list) {
+  queueMicrotask(focusControls); // what the focus mode allows
   state.camSettings = list || [];
   $("grayPark").appendChild($("grayBtn")); // back to its parking (see rangeSetting)
+  $("focusPark").appendChild($("focusBtn")); // and Focus (see below)
   const box = $("camSettings");
   box.innerHTML = "";
   if (!list?.length) { box.innerHTML = '<div class="hint">This camera has no settings to change here.</div>'; return; }
@@ -796,6 +824,14 @@ function renderSettings(list) {
       try { renderSettings(await send("cameraSet", { key: st.key, value: sel.value })); }
       catch (e) { $("camConfigErr").textContent = e.message; label.classList.remove("setting-busy"); sel.disabled = false; loadSettings(); }
     };
+    if (st.focusModes?.includes(st.current)) { // Focus beside it (see focus)
+      const row = document.createElement("div");
+      row.className = "setting-row";
+      row.append(sel, $("focusBtn"));
+      label.appendChild(row);
+      box.appendChild(label);
+      continue;
+    }
     if (!st.probe) {
       label.appendChild(sel);
       box.appendChild(label);
@@ -930,19 +966,20 @@ function samplePending(n) { state.samplePending = n; $("sampleBox").classList.ad
 function sampleArrived(m) {
   if (m.at < (state.sampleAt || 0)) return; // an older one, late
   state.sampleShown = m.n; state.sampleAt = m.at; state.sampleSettings = m.settings || {};
-  $("grayBtn").disabled = false;
+  $("grayBtn").disabled = $("focusBtn").disabled = false;
   if (state.selecting) stopSelecting();
   if (!state.grayRect) $("grayOut").hidden = true;
   $("sampleBox").classList.remove("taking");
   // A gray card measured on the last sample: measure it again on this one,
   // the same place (once it's loaded).
-  $("sampleImg").onload = () => { if (state.grayRect) { showGrayRect(); measureGrayRect(); } };
+  $("sampleImg").onload = () => { if (state.grayRect) { showGrayRect(); measureGrayRect(); } if (state.focusRect) drawFocus(true); state.focusWaiting?.(); };
   $("sampleImg").src = photoURL(m);
   $("sampleImg").hidden = false;
   $("sampleNone").hidden = true;
   $("sampleCaption").textContent = `${m.caption || ""}${m.caption ? "  ·  " : ""}${new Date(m.at).toLocaleTimeString()}`;
 }
 function sampleFailed(n) {
+  state.focusWaiting?.();
   $("sampleBox").classList.remove("taking");
   $("camConfigErr").textContent = `The sample shot didn't come through.`;
 }
@@ -951,20 +988,32 @@ function sampleFailed(n) {
 // its average colour, and the white balance the sample was taken with, give
 // the colour temperature that makes it neutral (graycard.js). Applied, the
 // white balance goes to Kelvin at that.
+// A rectangle on the sample is dragged for the gray card or for focus
+// (state.selecting says which).
 $("grayBtn").onclick = () => {
   if (state.selecting) return stopSelecting();
   state.grayRect = null; // a new one
-  state.selecting = true;
+  state.selecting = "gray";
   $("sampleBox").classList.add("selecting");
   $("grayBtn").textContent = "Cancel";
   $("grayHint").textContent = "Drag a rectangle inside the gray card.";
   $("grayOut").hidden = true;
 };
+$("focusBtn").onclick = (e) => {
+  e.preventDefault();
+  if (state.selecting) return stopSelecting();
+  closeFocus();
+  state.selecting = "focus";
+  $("sampleBox").classList.add("selecting");
+  $("focusBtn").textContent = "Cancel";
+  $("grayHint").textContent = "Drag a rectangle around the part to check the focus of.";
+};
 function stopSelecting() {
   state.selecting = false;
   $("sampleBox").classList.remove("selecting");
-  $("selRect").hidden = true;
+  if (state.grayRect) showGrayRect(); else $("selRect").hidden = true;
   $("grayBtn").textContent = "Gray Card";
+  $("focusBtn").textContent = "Focus";
   $("grayHint").textContent = "";
 }
 // The sample's drawn picture, inside its box (it's fitted, letterboxed).
@@ -1000,14 +1049,15 @@ window.addEventListener("mouseup", () => {
   state.justSelected = true; setTimeout(() => (state.justSelected = false), 0); // not a click on the sample
   if (x1 === undefined || Math.abs(x1 - x0) < 4 || Math.abs(y1 - y0) < 4) { $("selRect").hidden = true; return; } // too small
   // The rectangle, as fractions of the photo: kept, so each new sample is
-  // measured there too (till Dismiss, or a new rectangle).
-  state.grayRect = { fx: (Math.min(x0, x1) - d.x) / d.w, fy: (Math.min(y0, y1) - d.y) / d.h,
+  // measured (or shown, for focus) there too (till Dismiss, or a new one).
+  const rect = { fx: (Math.min(x0, x1) - d.x) / d.w, fy: (Math.min(y0, y1) - d.y) / d.h,
     fw: Math.abs(x1 - x0) / d.w, fh: Math.abs(y1 - y0) / d.h };
+  const forFocus = state.selecting === "focus";
+  stopSelecting();
+  if (forFocus) { openFocus(rect); return; }
+  state.grayRect = rect;
+  showGrayRect();
   measureGrayRect();
-  state.selecting = false;
-  $("sampleBox").classList.remove("selecting");
-  $("grayBtn").textContent = "Gray Card";
-  $("grayHint").textContent = "";
 });
 // measureGrayRect measures the gray card where the rectangle is, on the
 // sample shown.
@@ -1110,6 +1160,101 @@ function balanceFrom(rgb) {
   if (hasGM) apply("graySetGM", [["gmshift", gm]]);
 }
 
+// ---------------------------------------------------------------- focus
+// Focus: drag a rectangle around a part of the sample; it's shown large over
+// the sample, from the full-size photo, with how sharp it is (the spread of
+// its edges: higher is sharper, comparable only for the same part and
+// light). Autofocus or the near/far steps change the focus, then a new
+// sample is taken and the part shown from it; it stays till Close.
+function openFocus(rect) {
+  state.focusRect = rect;
+  state.focusSharp = [];
+  state.focusSaid = "";
+  $("focusZoom").hidden = false;
+  $("focusStat").textContent = "";
+  focusControls();
+  drawFocus(true);
+}
+function closeFocus() {
+  state.focusRect = null;
+  $("focusZoom").hidden = true;
+}
+$("focusClose").onclick = closeFocus;
+for (const ev of ["mousedown", "click", "dblclick"]) $("focusZoom").addEventListener(ev, (e) => e.stopPropagation()); // not the sample's
+// focusControls enables what the focus mode allows: autofocus in Manual (it
+// focuses, then goes back to Manual), DMF and AF-S; the steps in Manual and DMF.
+function focusControls() {
+  const st = (state.camSettings || []).find((x) => x.key === "focus");
+  const mode = st?.current, ok = !!st?.focusModes?.includes(mode), busy = !!state.focusBusy;
+  $("focusAF").disabled = !ok || busy;
+  for (const b of document.querySelectorAll(".focus-nudge .btn")) b.disabled = !ok || busy || mode === "Automatic";
+  $("focusZoom").classList.toggle("busy", busy);
+  if (!ok && !$("focusZoom").hidden && !busy) $("focusStat").textContent = `Focus mode ${mode || "?"}: set Manual, DMF or AF-S to focus from here.`;
+}
+// drawFocus shows the part from the sample shown; fresh: a new sample (its sharpness counted).
+function drawFocus(fresh) {
+  const r = state.focusRect, img = $("sampleImg"), cv = $("focusCanvas");
+  if (!r || !img.naturalWidth || $("focusZoom").hidden) return;
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const sx = r.fx * W, sy = r.fy * H, sw = Math.max(1, r.fw * W), sh = Math.max(1, r.fh * H);
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(cv.clientWidth * dpr); cv.height = Math.round(cv.clientHeight * dpr);
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#0b0d10"; ctx.fillRect(0, 0, cv.width, cv.height);
+  const k = Math.min(cv.width / sw, cv.height / sh);
+  ctx.imageSmoothingEnabled = k < 1; // enlarged: pixels as they are, nothing smoothed over
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, sx, sy, sw, sh, (cv.width - sw * k) / 2, (cv.height - sh * k) / 2, sw * k, sh * k);
+  if (!fresh) return;
+  const s = sharpness(img, sx, sy, sw, sh), list = state.focusSharp;
+  list.push(s);
+  const best = Math.max(...list), prev = list.at(-2);
+  const trend = prev === undefined ? "" : s > prev * 1.03 ? " ▲ sharper" : s < prev * 0.97 ? " ▼ softer" : " = about the same";
+  $("focusStat").textContent = `${state.focusSaid ? state.focusSaid + " · " : ""}Sharpness ${s}${trend}${list.length > 1 ? ` · best ${best}` : ""} · ${Math.round(sw)}×${Math.round(sh)} px at ${k >= 1 ? k.toFixed(1) + "×" : Math.round(k * 100) + "%"}`;
+}
+window.addEventListener("resize", () => drawFocus(false));
+// sharpness is how sharp a part of a picture is: the spread of its
+// Laplacian (edges), at the photo's own pixels (the middle 800×800 at most).
+function sharpness(img, x, y, w, h) {
+  const n = 800, cw = Math.min(n, Math.round(w)), ch = Math.min(n, Math.round(h));
+  const c = document.createElement("canvas"); c.width = cw; c.height = ch;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, x + (w - cw) / 2, y + (h - ch) / 2, cw, ch, 0, 0, cw, ch);
+  const p = ctx.getImageData(0, 0, cw, ch).data;
+  const g = (i, j) => { const q = (j * cw + i) * 4; return 0.3 * p[q] + 0.59 * p[q + 1] + 0.11 * p[q + 2]; };
+  let s = 0, s2 = 0, m = 0;
+  for (let j = 1; j < ch - 1; j++) for (let i = 1; i < cw - 1; i++) {
+    const l = 4 * g(i, j) - g(i - 1, j) - g(i + 1, j) - g(i, j - 1) - g(i, j + 1);
+    s += l; s2 += l * l; m++;
+  }
+  return m ? Math.round(s2 / m - (s / m) ** 2) : 0;
+}
+// focusAct runs a focus command, then takes a sample to see it by.
+async function focusAct(what, run) {
+  state.focusBusy = true;
+  focusControls();
+  $("camConfigErr").textContent = "";
+  $("focusStat").textContent = what + "…";
+  try {
+    const said = await run();
+    state.focusSaid = said;
+    $("focusStat").textContent = `${said ? said + " · " : ""}taking a sample…`;
+    await send("sampleShot");
+    await new Promise((resolve) => { state.focusWaiting = resolve; setTimeout(resolve, 40000); });
+  } catch (e) { $("camConfigErr").textContent = e.message; $("focusStat").textContent = ""; }
+  state.focusBusy = false; state.focusWaiting = null;
+  focusControls();
+}
+$("focusAF").onclick = () => focusAct("Focusing", async () => {
+  const ind = await send("autofocus");
+  loadSettings(); // in Manual it went to AF-S and back
+  return ind;
+});
+for (const b of document.querySelectorAll(".focus-nudge .btn")) {
+  const n = Number(b.dataset.n);
+  b.onclick = () => focusAct(`Focusing ${n < 0 ? "nearer" : "further"}`, async () => { await send("focusNudge", { n }); return ""; });
+}
+
 // The sample full size, in the photo viewer.
 $("sampleBox").onclick = () => {
   if (!state.sampleShown || state.selecting || state.justSelected) return;
@@ -1183,9 +1328,9 @@ function simGains(settings) {
   const y = 0.2126 * g[0] + 0.7152 * g[1] + 0.0722 * g[2];
   return g.map((v) => v / y); // the brightness kept
 }
-async function simShoot(n, exposure, settings) {
+async function simShoot(n, exposure, settings, blur) {
   try {
-    const jpg = await window.rig3d.snapshot(1200, exposure || 1, simGains(settings));
+    const jpg = await window.rig3d.snapshot(1200, exposure || 1, simGains(settings), blur || 0);
     await fetch(`/photo/sim?n=${n}`, { method: "POST", body: jpg, headers: { "Content-Type": "image/jpeg" } });
   } catch (e) { log(`simulated photo ${n}: ${e.message}`, "error"); }
 }

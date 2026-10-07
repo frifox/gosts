@@ -233,6 +233,10 @@ var gphoto2Added = regexp.MustCompile(`FILEADDED (\S+)`)
 // (e.g. the camera on RAW only: nothing comes over).
 var pictureWait = 30 * time.Second
 
+// heldWait is how long a file that may be a given-up photo's, late, waits
+// for the next number to show it was (see gaveUp in work).
+var heldWait = 3 * time.Second
+
 // work owns the shell: photos first, then collecting pictures.
 func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 	defer close(g.done)
@@ -263,6 +267,55 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			log.Printf("camera: %s, saved %s", why, path)
 		}
 	}
+	// deliver gives queue[i] its picture.
+	deliver := func(i int, name string, data []byte) {
+		w := queue[i]
+		queue = append(queue[:i:i], queue[i+1:]...)
+		p := photo{JPEG: data, At: time.Now()}
+		if path, err := saveUnique(w.dir, name, data); err == nil {
+			p.Files = []string{path}
+		} else {
+			log.Printf("camera: saving %s: %v", name, err)
+		}
+		w.got(p, nil)
+	}
+	// A photo that gave up may never have been taken: the camera can refuse
+	// to fire (focus first, and it found none). Then the next photo gets the
+	// number it was given, and its file looks like the given-up one's, late.
+	// So that file is held a moment (heldWait): if the next number comes, it
+	// was late after all (a leftover); if not, it's the oldest waiting
+	// photo's, and the numbers waited for move down one.
+	gaveUp := map[int]bool{} // the numbers photos had when they gave up
+	type heldFile struct {
+		name string
+		data []byte
+		k    int
+		at   time.Time
+	}
+	var held *heldFile
+	settle := func(k int) { // a file numbered k is on the camera: a held one before it was late
+		if held != nil && k > held.k {
+			keep(held.name, held.data, fmt.Sprintf("%s came after its photo gave up", held.name))
+			held = nil
+		}
+	}
+	resolve := func(now bool) { // a held file waited long enough (or now: its photo's giving up): nothing came after it
+		if held == nil || (!now && time.Since(held.at) < heldWait) {
+			return
+		}
+		h := held
+		held = nil
+		if len(queue) == 0 || queue[0].num != h.k+1 {
+			keep(h.name, h.data, fmt.Sprintf("%s isn't any waiting photo's", h.name))
+			return
+		}
+		log.Printf("camera: the photo numbered %d wasn't taken (the camera refused?): %s is the next one's", h.k, h.name)
+		for j := range queue {
+			queue[j].num--
+		}
+		next--
+		deliver(0, h.name, h.data)
+	}
 	open := true
 	collect := func(d time.Duration) {
 		start := time.Now()
@@ -273,7 +326,11 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 		for _, l := range strings.Split(out, "\n") {
 			if m := gphoto2Added.FindStringSubmatch(l); m != nil {
 				log.Printf("camera: on the card: %s", m[1])
-				if k := cameraFileNumber(m[1]); k > 0 && len(queue) == 0 {
+				k := cameraFileNumber(m[1])
+				if k > 0 {
+					settle(k)
+				}
+				if k > 0 && len(queue) == 0 {
 					saw(k) // a photo nobody's waiting for (taken on the camera): later ones come after it
 				}
 				continue
@@ -290,6 +347,9 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 				continue
 			}
 			k := cameraFileNumber(name)
+			if k > 0 {
+				settle(k)
+			}
 			if !strings.EqualFold(filepath.Ext(name), ".jpg") && !strings.EqualFold(filepath.Ext(name), ".jpeg") {
 				// Not a JPEG (a RAW-only camera, or --keep-raw not honoured):
 				// kept, but no photo's picture by itself.
@@ -327,25 +387,29 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			if k > 0 {
 				saw(k)
 			}
+			if i < 0 && k > 0 && gaveUp[k] && len(queue) > 0 && queue[0].num == k+1 && held == nil {
+				held = &heldFile{name, data, k, time.Now()} // late, or the next photo's (see gaveUp)
+				continue
+			}
 			if i < 0 { // a leftover
 				keep(name, data, fmt.Sprintf("%s isn't any waiting photo's", name))
 				continue
 			}
-			w := queue[i]
-			queue = append(queue[:i:i], queue[i+1:]...)
-			p := photo{JPEG: data, At: time.Now()}
-			if path, err := saveUnique(w.dir, name, data); err == nil {
-				p.Files = []string{path}
-			} else {
-				log.Printf("camera: saving %s: %v", name, err)
-			}
-			w.got(p, nil)
+			deliver(i, name, data)
 		}
 		if err != nil {
 			log.Printf("camera: %v", err)
 		}
+		resolve(false)
 		for len(queue) > 0 && time.Since(queue[0].since) > pictureWait {
-			queue[0].got(photo{}, errors.New("its picture didn't come over (is the camera on RAW & JPEG?)"))
+			if held != nil && queue[0].num == held.k+1 {
+				resolve(true) // it's had its picture all along
+				continue
+			}
+			if queue[0].num > 0 {
+				gaveUp[queue[0].num] = true
+			}
+			queue[0].got(photo{}, errors.New("its picture didn't come over (did the camera fire? it may wait for focus; is it on RAW & JPEG?)"))
 			queue = queue[1:]
 		}
 	}
@@ -435,6 +499,9 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			next++
 		}
 		r.fired <- nil
+	}
+	if held != nil { // closing: whoever's it was, it's kept
+		keep(held.name, held.data, fmt.Sprintf("%s isn't any waiting photo's", held.name))
 	}
 }
 

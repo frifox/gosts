@@ -28,6 +28,9 @@ type cameraSetting struct {
 	// A white balance shift: Ends names the two ends (e.g. A, B), the value
 	// counting quarter steps towards the second (see shiftLabel).
 	Ends []string `json:"ends,omitempty"`
+	// Focus: the camera's focus can be set from here (see focusCamera), in
+	// these of its modes.
+	FocusModes []string `json:"focusModes,omitempty"`
 }
 
 // shiftLabel is a white balance shift as the camera shows it: "0", or the

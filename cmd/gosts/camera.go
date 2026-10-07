@@ -154,6 +154,8 @@ type simCamera struct {
 	n        int
 	settings map[string]string // see Settings
 	probed   bool              // the lens's f-stops found (see Probe)
+	focus    int               // the lens's focus: sharp at 0 (see Autofocus)
+	focusSet bool              // focus set (else it's simFocusStart)
 }
 
 func (s *simCamera) Shoot(ctx context.Context, sh shutter) error {
@@ -302,6 +304,7 @@ type simShootMsg struct {
 	// Its white balance (and colour temperature): the picture is tinted as a
 	// camera set so would tint the simulated studio light.
 	Settings map[string]string `json:"settings,omitempty"`
+	Blur     float64           `json:"blur,omitempty"` // out of focus by (px, see simCamera.blur)
 }
 
 // simPictureWait is how long a simulated photo waits for a page's render
@@ -553,7 +556,7 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 				settings[st.Key] = st.Current
 			}
 		}
-		c.out(simShootMsg{Type: "simShoot", N: n, Exposure: sim.exposure(), Settings: settings})
+		c.out(simShootMsg{Type: "simShoot", N: n, Exposure: sim.exposure(), Settings: settings, Blur: sim.blur()})
 		gen := c.generation()
 		time.AfterFunc(simPictureWait, func() {
 			if c.current(gen) {

@@ -294,3 +294,25 @@ func TestWhiteBalanceShift(t *testing.T) {
 		t.Errorf("caption %q", c)
 	}
 }
+
+// TestSimFocus: the simulated lens starts out of focus, nudges move it
+// (bigger steps further), autofocus makes it sharp.
+func TestSimFocus(t *testing.T) {
+	s := &simCamera{}
+	b0 := s.blur()
+	if b0 <= 0 {
+		t.Fatalf("starts sharp: blur %v", b0)
+	}
+	if err := s.Nudge(-3); err != nil { // 4 towards near: from 9 to 5
+		t.Fatal(err)
+	}
+	if b := s.blur(); b >= b0 {
+		t.Errorf("nudged towards sharp, blur %v → %v", b0, b)
+	}
+	if err := s.Nudge(8); err == nil {
+		t.Error("nudge 8 taken")
+	}
+	if ind, err := s.Autofocus(); err != nil || ind != "Focus Locked" || s.blur() != 0 {
+		t.Errorf("autofocus: %q %v, blur %v", ind, err, s.blur())
+	}
+}

@@ -207,6 +207,18 @@ func (a *app) exec(req request) (any, error) {
 			return nil, err
 		}
 		return a.cameraSettings()
+	case "autofocus": // Camera Settings' Focus: focus once (and stay, in Manual): how it went
+		fc, err := a.focusCam()
+		if err != nil {
+			return nil, err
+		}
+		return fc.Autofocus()
+	case "focusNudge": // Focus: drive the lens N steps (−: near)
+		fc, err := a.focusCam()
+		if err != nil {
+			return nil, err
+		}
+		return nil, fc.Nudge(req.N)
 	case "sampleShot": // Config: a photo to judge the settings by
 		if a.cap.msg().Running {
 			return nil, errors.New("a capture is running")
@@ -366,5 +378,31 @@ func (a *app) cameraSettings() ([]cameraSetting, error) {
 	if err != nil {
 		return nil, err
 	}
-	return sc.Settings()
+	ss, err := sc.Settings()
+	if _, ok := sc.(focusCamera); ok {
+		for i := range ss {
+			if ss[i].Key == "focus" {
+				ss[i].FocusModes = focusModes
+			}
+		}
+	}
+	return ss, err
+}
+
+// focusCam is the camera, if its focus can be set from here.
+func (a *app) focusCam() (focusCamera, error) {
+	if a.cap.msg().Running {
+		return nil, errors.New("a capture is running")
+	}
+	a.camera.mu.Lock()
+	cam := a.camera.cam
+	a.camera.mu.Unlock()
+	if cam == nil {
+		return nil, errNoCamera
+	}
+	fc, ok := cam.(focusCamera)
+	if !ok {
+		return nil, errors.New("this camera's focus can't be set from here")
+	}
+	return fc, nil
 }
