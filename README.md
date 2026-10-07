@@ -276,7 +276,7 @@ another program has the camera, quit Photos and Image Capture and run `killall p
 **Settings** (in the Camera title, right of the battery, while a camera is connected) opens the camera's settings next to a sample shot: exposure mode (P, A, S,
 M; shutter, f-stop and ISO hold in M), shutter speed, f-stop (all there are, until **Detect** next to it finds
 the lens's: the camera steps the aperture to its limits and back, about half a minute), ISO, white balance
-(with a **Color temperature (K)** field and slider, 2500–9900 K by 100, when it's on Choose Color Temperature)
+(with a **Color temperature (K)** field and slider, 2500–9900 K by 100, when it's on Choose Color Temperature) and its shifts, as on the camera's WB grid: **amber–blue** and **green–magenta** sliders, ±7 (A–B by halves, G–M by quarters; double-click for 0; e.g. a magenta cast colour temperature can't fix is set off towards G)
 and focus mode, each change
 sent to the camera at once; **Take Sample Shot** takes a photo (kept off the timeline, saved in the batch's
 folder name with `-samples`)

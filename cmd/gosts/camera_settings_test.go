@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -242,5 +243,54 @@ func TestColorTemperature(t *testing.T) {
 	ss, _ := s.Settings()
 	if got := settingsCaption(ss); got != "1/60 · f/8 · ISO 200 · 4300K · focus: Manual" {
 		t.Fatalf("caption %q", got)
+	}
+}
+
+// TestWhiteBalanceShift: the A6600's A–B (a range by 2) and G–M (a menu)
+// shifts, as the dialog has them: quarter steps towards B or M.
+func TestWhiteBalanceShift(t *testing.T) {
+	for _, c := range []struct {
+		v    int
+		ends []string
+		want string
+	}{{0, []string{"A", "B"}, "0"}, {-8, []string{"A", "B"}, "A2"}, {6, []string{"A", "B"}, "B1.5"}, {3, []string{"G", "M"}, "M0.75"}, {-28, []string{"G", "M"}, "G7"}} {
+		if got := shiftLabel(c.v, c.ends); got != c.want {
+			t.Errorf("shiftLabel(%d) = %q, want %q", c.v, got, c.want)
+		}
+	}
+	ab, err := parseGphoto2Config("Label: AB Filter\nReadonly: 0\nType: RANGE\nCurrent: 200\nBottom: 164\nTop: 220\nStep: 2\nEND\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, ok := shiftSetting(ab, "abshift", "A–B", []string{"A", "B"})
+	if !ok || st.Current != "-8" || st.Min != -28 || st.Max != 28 || st.Step != 2 {
+		t.Errorf("A–B: %+v", st)
+	}
+	menu := "Label: CC Filter\nReadonly: 0\nType: MENU\nCurrent: 189\n"
+	for i := 0; i <= 56; i++ {
+		menu += fmt.Sprintf("Choice: %d %d\n", i, 164+i)
+	}
+	gm, err := parseGphoto2Config(menu + "END\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, ok = shiftSetting(gm, "gmshift", "G–M", []string{"G", "M"})
+	if !ok || st.Current != "3" || st.Min != -28 || st.Max != 28 || st.Step != 1 {
+		t.Errorf("G–M: %+v", st)
+	}
+	if _, err := checkShift("3", -28, 28, 2); err == nil {
+		t.Error("A–B takes halves only")
+	}
+
+	s := &simCamera{}
+	if err := s.Set("abshift", "-8"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Set("gmshift", "29"); err == nil {
+		t.Error("G–M past 7 taken")
+	}
+	ss, _ := s.Settings()
+	if c := settingsCaption(ss); !strings.Contains(c, "A2") {
+		t.Errorf("caption %q", c)
 	}
 }

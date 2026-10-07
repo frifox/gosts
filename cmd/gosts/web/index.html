@@ -148,6 +148,13 @@ td.mono { font-family: var(--mono); }
 .gray-out .row { margin-top: 8px; }
 .setting-row { display: flex; gap: 6px; align-items: center; }
 .setting-row input.kelvin { width: 84px; flex: none; }
+.setting-row .shift-val { width: 84px; flex: none; font-size: 13px; color: var(--text); text-align: center; }
+/* White balance shifts: the track runs from one end's colour to the other's. */
+input.shift { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; flex: 1; }
+input.shift.abshift { background: linear-gradient(90deg, #d08a2c, #8a8f98 50%, #3f78d6); }
+input.shift.gmshift { background: linear-gradient(90deg, #3fae5a, #8a8f98 50%, #c04fb0); }
+input.shift::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 1px solid #0006; }
+input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 1px solid #0006; }
 .setting-row input[type=range] { flex: 1; }
 .camcfg-params label.setting-busy::after { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border);
   border-top-color: var(--accent); animation: spin .8s linear infinite; position: absolute; margin: 2px 0 0 82px; }
@@ -820,7 +827,45 @@ function renderSettings(list) {
 }
 // A number setting (colour temperature, Kelvin): a number field and a
 // slider, sent to the camera as one's let go (or Enter, or leaving the field).
+// shiftLabel is a white balance shift as the camera shows it: "0", or the end
+// it's towards and how far, e.g. "A2", "M0.75" (v in quarter steps).
+function shiftLabel(v, ends) {
+  v = Number(v);
+  return v === 0 ? "0" : `${v < 0 ? ends[0] : ends[1]}${Math.abs(v) / 4}`;
+}
+// shiftSetting: a white balance shift, a slider (one end to the other, 0 in
+// the middle; double-click it for 0) with how far it is beside it.
+function shiftSetting(st, label) {
+  const row = document.createElement("div");
+  row.className = "setting-row";
+  const out = document.createElement("span");
+  out.className = "shift-val mono";
+  const slider = document.createElement("input");
+  slider.type = "range"; slider.min = st.min; slider.max = st.max; slider.step = st.step; slider.value = st.current;
+  slider.className = "shift " + st.key;
+  slider.title = `${shiftLabel(st.min, st.ends)} to ${shiftLabel(st.max, st.ends)}; double-click for 0`;
+  const show = () => (out.textContent = shiftLabel(slider.value, st.ends));
+  show();
+  let sent = st.current;
+  const apply = async () => {
+    const v = String(slider.value);
+    if (v === sent) return;
+    sent = v;
+    $("camConfigErr").textContent = "";
+    slider.disabled = true;
+    label.classList.add("setting-busy");
+    try { renderSettings(await send("cameraSet", { key: st.key, value: v })); }
+    catch (e) { $("camConfigErr").textContent = e.message; loadSettings(); }
+  };
+  slider.oninput = show;
+  slider.onchange = apply;
+  slider.ondblclick = () => { slider.value = 0; show(); apply(); };
+  row.append(out, slider);
+  label.appendChild(row);
+  return label;
+}
 function rangeSetting(st, label) {
+  if (st.ends) return shiftSetting(st, label);
   const row = document.createElement("div");
   row.className = "setting-row";
   const num = document.createElement("input");

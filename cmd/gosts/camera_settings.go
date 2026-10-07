@@ -25,6 +25,31 @@ type cameraSetting struct {
 	Min   int  `json:"min,omitempty"`
 	Max   int  `json:"max,omitempty"`
 	Step  int  `json:"step,omitempty"`
+	// A white balance shift: Ends names the two ends (e.g. A, B), the value
+	// counting quarter steps towards the second (see shiftLabel).
+	Ends []string `json:"ends,omitempty"`
+}
+
+// shiftLabel is a white balance shift as the camera shows it: "0", or the
+// end it's towards and how far, e.g. "A2", "M0.75" (v in quarter steps).
+func shiftLabel(v int, ends []string) string {
+	if v == 0 || len(ends) != 2 {
+		return strconv.Itoa(v)
+	}
+	end := ends[1]
+	if v < 0 {
+		end, v = ends[0], -v
+	}
+	return end + strconv.FormatFloat(float64(v)/4, 'f', -1, 64)
+}
+
+// checkShift is a white balance shift's value, if it's one the camera takes.
+func checkShift(value string, min, max, step int) (int, error) {
+	v, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || v < min || v > max || (step > 0 && (v-min)%step != 0) {
+		return 0, fmt.Errorf("shift must be %d–%d quarter steps, in steps of %d", min, max, step)
+	}
+	return v, nil
 }
 
 // kelvinMode is the white balance that uses the colour temperature setting
@@ -106,6 +131,11 @@ func settingsCaption(ss []cameraSetting) string {
 		case "colortemp":
 			parts = append(parts, s.Current+"K")
 			continue
+		case "abshift", "gmshift":
+			if v, err := strconv.Atoi(s.Current); err == nil && v != 0 {
+				parts = append(parts, shiftLabel(v, s.Ends))
+			}
+			continue
 		}
 		parts = append(parts, s.Current)
 	}
@@ -123,6 +153,42 @@ var gphoto2Settings = map[string]string{
 	"whitebalance": "/main/imgsettings/whitebalance",
 	"focus":        "/main/capturesettings/focusmode",
 	"colortemp":    "/main/imgsettings/colortemperature", // only in Kelvin mode (kelvinMode)
+}
+
+// gphoto2Shifts are the white balance shifts (the A6600's; gphoto2 has
+// them as unnamed properties, so only offered when their labels say so).
+// The camera counts 192 for none, a quarter step a unit: higher is amber
+// (A–B) or green (G–M), so the dialog's value, towards B or M, is 192 − it.
+var gphoto2Shifts = []struct {
+	key, label, path, camLabel string
+	ends                       []string
+}{
+	{"abshift", "White balance shift (amber–blue)", "/main/other/d21c", "AB Filter", []string{"A", "B"}},
+	{"gmshift", "White balance shift (green–magenta)", "/main/other/d210", "CC Filter", []string{"G", "M"}},
+}
+
+const shiftZero = 192
+
+// shiftSetting is a white balance shift's setting, from what the camera said.
+func shiftSetting(c gphoto2Config, key, label string, ends []string) (cameraSetting, bool) {
+	raw, err := strconv.Atoi(c.current)
+	if err != nil {
+		return cameraSetting{}, false
+	}
+	lo, hi, step := int(c.bottom), int(c.top), int(c.step)
+	if len(c.choices) > 0 { // a menu of every value (G–M)
+		lo, hi, step = math.MaxInt, math.MinInt, 1
+		for _, ch := range c.choices {
+			if v, err := strconv.Atoi(ch); err == nil {
+				lo, hi = min(lo, v), max(hi, v)
+			}
+		}
+	}
+	if lo > hi || step <= 0 {
+		return cameraSetting{}, false
+	}
+	return cameraSetting{Key: key, Label: label, Current: strconv.Itoa(shiftZero - raw), ReadOnly: c.readOnly,
+		Range: true, Min: shiftZero - hi, Max: shiftZero - lo, Step: step, Ends: ends}, true
 }
 
 // gphoto2Config is what get-config says about a setting.
@@ -176,11 +242,24 @@ func (g *gphoto2Camera) Settings() ([]cameraSetting, error) {
 		lines = append(lines, "get-config "+gphoto2Settings[k.key])
 	}
 	lines = append(lines, "get-config "+gphoto2Settings["colortemp"])
+	for _, sh := range gphoto2Shifts {
+		lines = append(lines, "get-config "+sh.path)
+	}
 	outs, err := g.runLines(lines)
 	if err != nil {
 		return nil, err
 	}
 	kelvin, kerr := parseGphoto2Config(outs[len(settingKeys)])
+	var shifts []cameraSetting
+	for i, sh := range gphoto2Shifts {
+		c, err := parseGphoto2Config(outs[len(settingKeys)+1+i])
+		if err != nil || c.label != sh.camLabel {
+			continue // not this camera's
+		}
+		if st, ok := shiftSetting(c, sh.key, sh.label, sh.ends); ok {
+			shifts = append(shifts, st)
+		}
+	}
 	var ss []cameraSetting
 	for i, k := range settingKeys {
 		c, err := parseGphoto2Config(outs[i])
@@ -206,6 +285,9 @@ func (g *gphoto2Camera) Settings() ([]cameraSetting, error) {
 		if k.key == "whitebalance" && c.current == kelvinMode && kerr == nil {
 			ss = append(ss, colortempSetting(kelvin.current, int(kelvin.bottom), int(kelvin.top), int(kelvin.step)))
 		}
+		if k.key == "whitebalance" {
+			ss = append(ss, shifts...)
+		}
 	}
 	return ss, nil
 }
@@ -213,6 +295,11 @@ func (g *gphoto2Camera) Settings() ([]cameraSetting, error) {
 // Set changes one setting (by its index among the camera's choices: some
 // values have spaces; the colour temperature by its number).
 func (g *gphoto2Camera) Set(key, value string) error {
+	for _, sh := range gphoto2Shifts {
+		if sh.key == key {
+			return g.setShift(sh.path, sh.key, sh.label, sh.ends, value)
+		}
+	}
 	path, ok := gphoto2Settings[key]
 	if !ok {
 		return fmt.Errorf("no setting %q", key)
@@ -260,6 +347,42 @@ func (g *gphoto2Camera) Set(key, value string) error {
 	// It takes a moment: reading straight back still gives the old value.
 	if err := g.awaitSetting(path, value, settingWait); err != nil {
 		return fmt.Errorf("the camera didn't take %s %s (maybe not in this exposure mode): %w", key, value, err)
+	}
+	return nil
+}
+
+// setShift sets a white balance shift (value: the dialog's, see gphoto2Shifts).
+func (g *gphoto2Camera) setShift(path, key, label string, ends []string, value string) error {
+	outs, err := g.runLines([]string{"get-config " + path})
+	if err != nil {
+		return err
+	}
+	c, err := parseGphoto2Config(outs[0])
+	if err != nil {
+		return err
+	}
+	st, ok := shiftSetting(c, key, label, ends)
+	if !ok {
+		return fmt.Errorf("%s: unexpected from the camera: %q", key, c.current)
+	}
+	v, err := checkShift(value, st.Min, st.Max, st.Step)
+	if err != nil {
+		return err
+	}
+	raw := strconv.Itoa(shiftZero - v)
+	line := fmt.Sprintf("set-config %s=%s", path, raw)
+	if len(c.choices) > 0 {
+		i := slices.Index(c.choices, raw)
+		if i < 0 {
+			return fmt.Errorf("%s: the camera has no %s", key, raw)
+		}
+		line = fmt.Sprintf("set-config-index %s=%d", path, i)
+	}
+	if _, err := g.runLines([]string{line}); err != nil {
+		return err
+	}
+	if err := g.awaitSetting(path, raw, settingWait); err != nil {
+		return fmt.Errorf("the camera didn't take %s %s: %w", key, shiftLabel(v, ends), err)
 	}
 	return nil
 }
@@ -354,7 +477,7 @@ func (s *simCamera) Settings() ([]cameraSetting, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.settings == nil {
-		s.settings = map[string]string{"mode": "M", "shutter": "1/60", "aperture": "f/8", "iso": "200", "whitebalance": "Automatic", "focus": "Manual", "colortemp": "5500"}
+		s.settings = map[string]string{"mode": "M", "shutter": "1/60", "aperture": "f/8", "iso": "200", "whitebalance": "Automatic", "focus": "Manual", "colortemp": "5500", "abshift": "0", "gmshift": "0"}
 	}
 	var ss []cameraSetting
 	for _, k := range settingKeys {
@@ -369,8 +492,27 @@ func (s *simCamera) Settings() ([]cameraSetting, error) {
 		if k.key == "whitebalance" && st.Current == kelvinMode {
 			ss = append(ss, colortempSetting(s.settings["colortemp"], 2500, 9900, 100))
 		}
+		if k.key == "whitebalance" {
+			for _, sh := range simShifts {
+				ss = append(ss, cameraSetting{Key: sh.key, Label: sh.label, Current: s.settings[sh.key],
+					Range: true, Min: -28, Max: 28, Step: sh.step, Ends: sh.ends})
+			}
+		}
 	}
 	return ss, nil
+}
+
+// simShifts are the simulated camera's white balance shifts, as the A6600's:
+// ±7 in quarter steps (A–B by halves).
+type simShift struct {
+	key, label string
+	step       int
+	ends       []string
+}
+
+var simShifts = []simShift{
+	{"abshift", "White balance shift (amber–blue)", 2, []string{"A", "B"}},
+	{"gmshift", "White balance shift (green–magenta)", 1, []string{"G", "M"}},
 }
 
 // simLens is the simulated camera's lens: f/4 to f/16 (found by Probe).
@@ -397,6 +539,12 @@ func (s *simCamera) Set(key, value string) error {
 			return err
 		}
 		value = strconv.Itoa(k)
+	} else if i := slices.IndexFunc(simShifts, func(sh simShift) bool { return sh.key == key }); i >= 0 {
+		v, err := checkShift(value, -28, 28, simShifts[i].step)
+		if err != nil {
+			return err
+		}
+		value = strconv.Itoa(v)
 	} else if !slices.Contains(simSettingChoices[key], value) {
 		return fmt.Errorf("%s: no choice %q", key, value)
 	}
