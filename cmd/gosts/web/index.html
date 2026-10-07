@@ -1075,14 +1075,10 @@ function balanceFrom(rgb) {
     (wb === "Automatic" ? " (Automatic changes from shot to shot: a fixed one is steadier)." : ".");
   const cast = !hasGM && r && !r.problem && Math.abs(r.cast) > 0.03
     ? `<br><span style="color:var(--warn)">The light also has a ${r.cast > 0 ? "green" : "magenta"} cast (${Math.round(Math.abs(r.cast) * 100)}%), which colour temperature can't correct.</span>` : "";
-  const now = [];
-  if (hasAB) now.push(`A–B ${shiftLabel(set.abshift, abS.ends)}`);
-  if (hasGM) now.push(`G–M ${shiftLabel(set.gmshift, gmS.ends)}`);
-  const nowLine = now.length ? `<br><span class="hint">Taken with ${now.join(", ")}${k && hasAB ? "; amber–blue: the temperature or the A–B shift, not both" : ""}.</span>` : "";
   // A button each; one that would change nothing is greyed out.
   const kSame = wb === "Choose Color Temperature" && k === setK;
   const btn = (id, text, same) => `<button class="btn small${same ? "" : " primary"}" id="${id}"${same ? " disabled title=\"Already set\"" : ""}>${text}</button>`;
-  out.innerHTML = `${card}<br>${head}${cast}${nowLine}
+  out.innerHTML = `${card}<br>${head}${cast}
     <div class="row gray-btns">${k ? btn("graySetK", `Temperature ${k} K`, kSame) : ""}${hasAB ? btn("graySetAB", `Amber–blue ${shiftLabel(ab, abS.ends)}`, ab === Number(set.abshift)) : ""}${hasGM ? btn("graySetGM", `Green–magenta ${shiftLabel(gm, gmS.ends)}`, gm === Number(set.gmshift)) : ""}${dismiss}</div>
     <div class="gray-done hint" id="grayDone"></div>`;
   wire();
