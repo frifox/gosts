@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -73,13 +74,15 @@ func (g *gphoto2Camera) Shoot(ctx context.Context) (photo, error) {
 	defer os.RemoveAll(tmp)
 
 	// --capture-image-and-download triggers the shutter and downloads what
-	// the camera wrote: one file, or two in RAW+JPEG mode (%f.%C keeps each
-	// its camera name and extension, so they don't overwrite each other).
-	// --keep leaves them on the camera's card too: gphoto2 would otherwise
-	// delete them once downloaded.
+	// the camera wrote (%f.%C keeps each file its camera name and
+	// extension). --keep-raw leaves a RAW on the camera's card, not
+	// downloaded: with the camera on RAW & JPEG (and PC Remote saving to
+	// PC+Camera) only the small JPEG comes over USB, which is much quicker,
+	// and the RAWs wait on the card. A JPEG downloaded is deleted from the
+	// card (it's saved here). A camera on RAW only gives nothing to download.
 	cmd := exec.CommandContext(ctx, "gphoto2",
 		"--port", g.port,
-		"--keep",
+		"--keep-raw",
 		"--force-overwrite",
 		"--filename", filepath.Join(tmp, "%f.%C"),
 		"--capture-image-and-download",
@@ -88,9 +91,14 @@ func (g *gphoto2Camera) Shoot(ctx context.Context) (photo, error) {
 	if err != nil {
 		return photo{}, fmt.Errorf("gphoto2: %w: %s", err, gphoto2Error(out))
 	}
+	for _, l := range strings.Split(string(out), "\n") {
+		if l = strings.TrimSpace(l); strings.Contains(l, " on the camera") {
+			log.Printf("camera: %s", l) // what was taken, and what stays on the card
+		}
+	}
 	files, err := os.ReadDir(tmp)
 	if err != nil || len(files) == 0 {
-		return photo{}, fmt.Errorf("gphoto2 reported success but wrote no file: %s", strings.TrimSpace(string(out)))
+		return photo{}, errors.New("the photo is on the camera's card but no JPEG came: set the camera's File Format to RAW & JPEG")
 	}
 
 	// Keep every file in the photo folder, then show the camera's JPEG, or

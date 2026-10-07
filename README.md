@@ -255,12 +255,13 @@ the other way instead (the same shots, mirrored), so spirals are limited to 7 tu
 When the last photo is taken (or a preview reaches its last shot, if a board is connected) the rig returns to 0°/0° the short way (less than a turn) and stops. Each photo is
 taken with the connected camera, recording where the rig really is as the shutter goes.
 
-A real camera is driven through gphoto2 (`brew install gphoto2`). Each photo's files (RAW, JPEG, or both)
-are saved in `~/Pictures/gosts/<date>/` (`PhotoDir` in the config file changes it) and left on the camera's
-card too; the page shows the camera's JPEG, or else the full-size preview embedded in the RAW. On macOS the
+A real camera is driven through gphoto2 (`brew install gphoto2`). Set it to RAW & JPEG (and, for a Sony in
+PC Remote, save to PC+Camera): each photo's RAW stays on the camera's card and only the JPEG comes over USB
+(much quicker), saved in `~/Pictures/gosts/<date>/` (`PhotoDir` in the config file changes it) and shown on
+the page. A camera on JPEG only works the same way; on RAW only no picture would come. On macOS the
 system's camera service grabs a camera when it's plugged in (and may open Photos): if taking a photo says
 another program has the camera, quit Photos and Image Capture and run `killall ptpcamerad mscamerad-xpc`.
-A photo takes several seconds (the A6600's 25 MB RAW over USB), which Moving Shots can't wait for yet.
+A photo still takes a few seconds (about 3 s with the A6600's large JPEG), which Moving Shots can't wait for yet.
 
 The **Rig Setup** card (below Motion; like every card it folds by its title, each window remembering which are folded) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
 X/Y, the camera's offset along the arms (camera X) and up/down from the bar (camera Z, default 0), the turntable's height (turntable Z), the object's height (object height, the model is scaled to it); the defaults draw the rig to scale)
