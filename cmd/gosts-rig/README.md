@@ -69,4 +69,4 @@ saved in `~/Pictures/gosts-rig/`, a folder per batch named after its start time.
 - The battery level is shown next to the Camera card's title.
 
 Settings are kept in `~/Library/Application Support/gosts-rig/config.toml` on macOS (`~/.config/gosts-rig/` on
-Linux); `-config` picks another file.
+Linux); `--config` picks another file.

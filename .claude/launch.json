@@ -24,7 +24,7 @@
       "runtimeExecutable": "sh",
       "runtimeArgs": [
         "-c",
-        "go run ./cmd/gosts-rig --listen localhost:8082 --rig sim --camera sim -config \"${TMPDIR:-/tmp}/gosts-rig-sim.toml\""
+        "go run ./cmd/gosts-rig --listen localhost:8082 --rig sim --camera sim --config \"${TMPDIR:-/tmp}/gosts-rig-sim.toml\""
       ],
       "port": 8082
     }
