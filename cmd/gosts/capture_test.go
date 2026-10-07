@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -325,5 +328,37 @@ func TestElevationAcrossSeam(t *testing.T) {
 	}
 	if le, fe := read(); math.Abs(le-target) > 1 || math.Abs(fe-target) > 1 {
 		t.Fatalf("ended at leader %.1f°, follower %.1f°, want %v°", le, fe, target)
+	}
+}
+
+func TestPhotoDelete(t *testing.T) {
+	simPictureWait = 50 * time.Millisecond
+	defer func() { simPictureWait = 2 * time.Second }()
+	var events []string
+	var mu sync.Mutex
+	c := &cameraConn{out: func(m any) {
+		mu.Lock()
+		defer mu.Unlock()
+		switch m := m.(type) {
+		case photoEventMsg:
+			events = append(events, fmt.Sprint(m.Type, m.N))
+		case photoMsg:
+			events = append(events, fmt.Sprint("photo", m.N))
+		}
+	}}
+	c.connect(simCameraID)
+	c.shoot(context.Background()) // 1: deleted once it's there
+	c.shoot(context.Background()) // 2: deleted while its picture is still coming
+	c.delete(2)
+	time.Sleep(150 * time.Millisecond)
+	c.delete(1)
+	if tl := c.timeline().Photos; len(tl) != 0 {
+		t.Fatalf("timeline %v", tl)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	want := "photoPending1 photoPending2 photoDeleted2 photo1 photoDeleted1"
+	if got := strings.Join(events, " "); got != want {
+		t.Fatalf("events %q, want %q", got, want)
 	}
 }

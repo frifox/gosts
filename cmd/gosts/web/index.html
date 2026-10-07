@@ -114,7 +114,7 @@ td.mono { font-family: var(--mono); }
   overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
 .timeline .thumb:hover { border-color: var(--accent); }
 .timeline .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.timeline .thumb span { position: absolute; left: 6px; bottom: 4px; font: 11px var(--mono); color: #fff; text-shadow: 0 0 3px #000; }
+.timeline .thumb .num { position: absolute; left: 6px; bottom: 4px; font: 11px var(--mono); color: #fff; text-shadow: 0 0 3px #000; }
 .timeline .thumb.new { animation: thumbIn .35s ease-out; }
 @keyframes thumbIn { from { opacity: 0; transform: translateX(-12px); } }
 /* A photo full size, over the whole page. */
@@ -134,7 +134,20 @@ td.mono { font-family: var(--mono); }
 .gallery-grid .thumb { width: 100%; height: auto; position: relative; padding: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
 .gallery-grid .thumb:hover { border-color: var(--accent); }
 .gallery-grid .thumb img { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; display: block; } /* the 3:2 shape: the rows keep it */
-.gallery-grid .thumb span { position: absolute; left: 8px; bottom: 6px; font: 12px var(--mono); color: #fff; text-shadow: 0 0 3px #000; }
+.gallery-grid .thumb .num { position: absolute; left: 8px; bottom: 6px; font: 12px var(--mono); color: #fff; text-shadow: 0 0 3px #000; }
+/* On a thumbnail: delete (shown on hover), and the placeholder of a photo
+   being taken or coming over from the camera. */
+.thumb .del { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 7px; border: 1px solid rgba(255,255,255,.25);
+  background: rgba(15,18,24,.72); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer;
+  opacity: 0; transition: opacity .12s; }
+.thumb:hover .del, .thumb:focus-within .del { opacity: 1; }
+.thumb .del:hover { background: var(--bad); border-color: var(--bad); }
+.thumb .del svg { width: 14px; height: 14px; }
+.thumb.pending { cursor: progress; border-style: dashed; display: flex; align-items: center; justify-content: center; }
+.gallery-grid .thumb.pending { aspect-ratio: 3 / 2; }
+.thumb.pending::before { content: ""; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .view .card-body { flex: 1; position: relative; padding: 0; min-height: 300px; }
 #rig { position: absolute; inset: 0; cursor: grab; touch-action: none; overflow: hidden; border-radius: 0 0 12px 12px; }
 #rig:active { cursor: grabbing; }
@@ -408,6 +421,8 @@ function onMessage(m) {
     case "capture": onCapture(m); break;
     case "camera": onCamera(m); break;
     case "photo": addPhoto(m, true); break;
+    case "photoPending": photoPending(m.n); break;
+    case "photoFailed": case "photoDeleted": photoGone(m.n); break;
     case "photos": setPhotos(m.photos); break;
     case "simShoot": simShoot(m.n); break;
     case "log": log(m.message, m.level); break;
@@ -491,33 +506,80 @@ function onCamera(m) {
 // and Reset. A photo clicked opens full size; arrows step, Esc closes.
 state.photos = []; // oldest first: {n, at}
 const photoCaption = (p) => `Photo ${p.n}` + (p.at ? ` · ${new Date(p.at).toLocaleTimeString()}` : "");
+state.pending = new Set(); // photos being taken: placeholders until their picture comes
+const trashIcon = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4M6.8 6.5v4.5M9.2 6.5v4.5"/></svg>';
 function thumb(p, isNew) {
-  const b = document.createElement("button");
+  const b = document.createElement("div");
   b.className = "thumb" + (isNew ? " new" : "");
+  b.dataset.n = p.n;
+  b.tabIndex = 0;
+  b.setAttribute("role", "button");
   b.title = photoCaption(p);
-  b.innerHTML = `<img alt="" loading="lazy" src="/photo/${p.n}.jpg"><span>${p.n}</span>`;
-  b.onclick = () => openPhoto(p.n);
+  b.innerHTML = `<img alt="" loading="lazy" src="/photo/${p.n}.jpg"><span class="num">${p.n}</span>` +
+    `<button class="del" title="Delete photo ${p.n} (from the timeline)" aria-label="Delete photo ${p.n}">${trashIcon}</button>`;
+  b.onclick = (e) => { if (!e.target.closest(".del")) openPhoto(p.n); };
+  b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) openPhoto(p.n); };
+  b.querySelector(".del").onclick = () => act("photoDelete", { n: p.n }, $("shotErr"));
   return b;
+}
+function placeholder(n) {
+  const b = document.createElement("div");
+  b.className = "thumb pending new";
+  b.dataset.n = n;
+  b.title = `Photo ${n}: taking…`;
+  b.innerHTML = `<span class="num">${n}</span>`;
+  return b;
+}
+// The thumbnail containers: the timeline, and All Photos while it's open.
+const thumbBoxes = () => [$("timeline"), ...($("gallery").hidden ? [] : [$("galleryGrid")])];
+// putThumb puts el (photo n) in box newest first, replacing n's placeholder.
+function putThumb(box, el, n) {
+  box.querySelector(":scope > .hint:not(#shotNone)")?.remove(); // All Photos' "No photos yet."
+  const old = box.querySelector(`.thumb[data-n="${n}"]`);
+  if (old) return old.replaceWith(el);
+  const after = [...box.querySelectorAll(".thumb")].find((t) => +t.dataset.n < n);
+  after ? box.insertBefore(el, after) : box.appendChild(el);
+}
+function photosShown() {
+  $("shotNone").hidden = state.photos.length + state.pending.size > 0;
+  cameraButtons();
+  if (!$("gallery").hidden) galleryTitle();
+  if (!$("viewer").hidden) viewerButtons();
 }
 function setPhotos(list) {
   state.photos = list || [];
   const tl = $("timeline");
-  tl.querySelectorAll(".thumb").forEach((t) => t.remove());
-  for (const p of state.photos) tl.prepend(thumb(p, false));
-  $("shotNone").hidden = state.photos.length > 0;
-  cameraButtons();
+  tl.querySelectorAll(".thumb:not(.pending)").forEach((t) => t.remove());
+  for (const p of state.photos) putThumb(tl, thumb(p, false), p.n);
   if (!$("viewer").hidden && !state.photos.some((p) => p.n === state.viewing)) closePhoto();
   if (!$("gallery").hidden) renderGallery();
+  photosShown();
 }
 function addPhoto(p, isNew) {
+  state.pending.delete(p.n);
   if (state.photos.some((q) => q.n === p.n)) return;
   state.photos.push(p);
-  $("timeline").prepend(thumb(p, isNew));
+  state.photos.sort((a, b) => a.n - b.n);
+  for (const box of thumbBoxes()) putThumb(box, thumb(p, isNew && box === $("timeline")), p.n);
   $("timeline").scrollLeft = 0; // the newest in view
-  $("shotNone").hidden = true;
-  cameraButtons();
-  if (!$("gallery").hidden) { $("galleryGrid").prepend(thumb(p, false)); galleryTitle(); }
-  if (!$("viewer").hidden) viewerButtons();
+  photosShown();
+}
+// A photo being taken: its placeholder, until its picture comes (addPhoto),
+// or none does (photoGone).
+function photoPending(n) {
+  state.pending.add(n);
+  for (const box of thumbBoxes()) putThumb(box, placeholder(n), n);
+  $("timeline").scrollLeft = 0;
+  photosShown();
+}
+// Photo n is gone: deleted, or taken without a picture (or failed).
+function photoGone(n) {
+  state.pending.delete(n);
+  state.photos = state.photos.filter((p) => p.n !== n);
+  document.querySelectorAll(`.thumb[data-n="${n}"]`).forEach((t) => t.remove());
+  if (state.viewing === n) closePhoto();
+  if (!$("gallery").hidden && !state.photos.length && !state.pending.size) renderGallery();
+  photosShown();
 }
 
 // All Photos: every photo in a grid, newest first, over the whole page.
@@ -525,8 +587,9 @@ function galleryTitle() { $("galleryTitle").textContent = `All Photos (${state.p
 function renderGallery() {
   const g = $("galleryGrid");
   g.innerHTML = "";
-  for (const p of state.photos) g.prepend(thumb(p, false));
-  if (!state.photos.length) g.innerHTML = '<span class="hint">No photos yet.</span>';
+  for (const p of state.photos) putThumb(g, thumb(p, false), p.n);
+  for (const n of state.pending) putThumb(g, placeholder(n), n);
+  if (!g.children.length) g.innerHTML = '<span class="hint">No photos yet.</span>';
   galleryTitle();
 }
 function openGallery() { renderGallery(); $("gallery").hidden = false; $("galleryGrid").scrollTop = 0; }

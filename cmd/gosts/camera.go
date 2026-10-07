@@ -193,6 +193,7 @@ type cameraConn struct {
 	photos  map[int]photo // by number, those with a picture
 	count   int           // photos taken, numbering them (on across Resets)
 	pending int           // simulated photo waiting for its picture from a page
+	deleted map[int]bool  // photos deleted (a picture still coming is dropped)
 }
 
 // maxPhotos is how many photos the timeline keeps in memory; the oldest go.
@@ -287,33 +288,60 @@ func (c *cameraConn) shoot(ctx context.Context) error {
 	if cam == nil {
 		return errNoCamera
 	}
-	p, err := cam.Shoot(ctx)
-	if err != nil {
-		return err
-	}
+	// The photo's number now, so the page can show a placeholder while the
+	// camera takes it and its picture comes over.
 	c.mu.Lock()
 	c.count++
 	n := c.count
-	_, sim := cam.(*simCamera)
-	if sim {
-		c.pending = n
-	}
 	c.mu.Unlock()
+	c.out(photoEventMsg{Type: "photoPending", N: n})
+	p, err := cam.Shoot(ctx)
+	if err != nil {
+		c.out(photoEventMsg{Type: "photoFailed", N: n})
+		return err
+	}
+	_, sim := cam.(*simCamera)
 	switch {
 	case len(p.JPEG) > 0:
 		c.picture(n, p)
 	case sim: // a page renders it; if none does, a made-up one
+		c.mu.Lock()
+		c.pending = n
+		c.mu.Unlock()
 		c.out(simShootMsg{Type: "simShoot", N: n})
 		time.AfterFunc(simPictureWait, func() { c.picture(n, photo{JPEG: simPictureJPEG(n), At: p.At}) })
+	default: // taken, but nothing to show
+		c.out(photoEventMsg{Type: "photoFailed", N: n})
 	}
 	return nil
+}
+
+// photoEventMsg tells the page about photo n: being taken ("photoPending";
+// its picture follows as a photoMsg), taken without a picture or failed
+// ("photoFailed"), or deleted ("photoDeleted").
+type photoEventMsg struct {
+	Type string `json:"type"`
+	N    int    `json:"n"`
+}
+
+// delete takes photo n off the timeline (its files, if saved, stay where
+// they are). A photo still coming is dropped when it arrives.
+func (c *cameraConn) delete(n int) {
+	c.mu.Lock()
+	delete(c.photos, n)
+	if c.deleted == nil {
+		c.deleted = map[int]bool{}
+	}
+	c.deleted[n] = true
+	c.mu.Unlock()
+	c.out(photoEventMsg{Type: "photoDeleted", N: n})
 }
 
 // picture sets photo n's picture, adding it to the timeline (once: a later
 // copy of the same photo is ignored).
 func (c *cameraConn) picture(n int, p photo) bool {
 	c.mu.Lock()
-	if _, ok := c.photos[n]; ok || n > c.count || n <= c.count-maxPhotos {
+	if _, ok := c.photos[n]; ok || c.deleted[n] || n > c.count || n <= c.count-maxPhotos {
 		c.mu.Unlock()
 		return false
 	}

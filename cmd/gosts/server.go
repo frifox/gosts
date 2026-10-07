@@ -70,6 +70,7 @@ type request struct {
 	Plan      *Plan    `json:"plan"`
 	Rig       *Rig     `json:"rig"`
 	Camera    string   `json:"camera"`
+	N         int      `json:"n"`
 }
 
 type resultMsg struct {
@@ -171,6 +172,9 @@ func (a *app) exec(req request) (any, error) {
 			return nil, errors.New("a capture is running")
 		}
 		return nil, a.camera.shoot(context.Background())
+	case "photoDelete": // one photo off the timeline
+		a.camera.delete(req.N)
+		return nil, nil
 	case "photosReset": // Reset: clear the timeline
 		a.camera.reset()
 		return nil, nil
