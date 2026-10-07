@@ -11,7 +11,7 @@
 //
 //	gosts-rig                                # pick the board and camera in the browser
 //	gosts-rig --rig /dev/cu.usbmodem1101     # connect the rig's board on startup
-//	gosts-rig --rig sim                      # simulated rig (servos 10, 11, 12)
+//	gosts-rig --rig sim                      # simulated rig (servos 1, 2, 3)
 //	gosts-rig --rig sim --camera sim         # and a simulated camera
 //	gosts-rig --listen :9000                 # serve the page on another port
 package main

@@ -16,7 +16,7 @@ import (
 	"go.bug.st/serial/enumerator"
 )
 
-// simPort selects the simulated board (servos 10, 11 and 12).
+// simPort selects the simulated board (servos 1, 2 and 3).
 const simPort = "sim"
 
 // rig is the connection to the driver board and the rig's three servos.
@@ -96,7 +96,7 @@ var newSimPort = newSim
 // newSim makes a simulated board with the role servos at the simulator's
 // start position (mirroring and inversion applied, as on the real rig).
 func newSim(ro Roles) *servosim.Port {
-	ids := []uint8{10, 11, 12}
+	ids := []uint8{1, 2, 3}
 	for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
 		if !slices.Contains(ids, id) {
 			ids = append(ids, id)

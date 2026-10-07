@@ -29,7 +29,7 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 
 1. Set up the servos with [gosts-ctl](../gosts-ctl) first: IDs, tuning, and zero (elevation 0° = camera level with
    the object, azimuth 0° = the platform's front). Close it after: only one program can use the serial port.
-2. In gosts-rig, **Setup** picks which servo does what (by default #10 and #11 elevation, #12 azimuth).
+2. In gosts-rig, **Setup** picks which servo does what (by default #1 and #2 elevation, #3 azimuth).
 3. **Rig Setup** takes your rig's measurements and how low and high the camera may go.
 4. Set the camera to **RAW & JPEG** (on a Sony in PC Remote: save to PC+Camera). The RAWs stay on the card,
    and only the JPEGs come over USB.
@@ -56,8 +56,8 @@ saved in `~/Pictures/gosts-rig/`, a folder per batch named after its start time.
   they look.
 - **Detect** next to the f-stop finds the range your lens really has (about half a minute).
 - Next to the f-stop: the **depth of field**, how deep the sharp zone is, for where the object sits on the rig.
-- **Gray Card** (with white balance on a colour temperature): drag a box over a gray card in the sample. It
-  suggests the colour temperature and colour shifts that make the card neutral, a button each to apply.
+- **Gray Card** (with white balance on a color temperature): drag a box over a gray card in the sample. It
+  suggests the color temperature and color shifts that make the card neutral, a button each to apply.
 - **Focus** (in Manual focus): drag a box over the part that matters to see it large. **Auto** focuses on that
   part for you; the arrows nudge the focus nearer or further. Focus stays where you leave it for the capture.
 
