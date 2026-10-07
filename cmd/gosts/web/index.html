@@ -875,8 +875,12 @@ function sampleArrived(m) {
   if (m.at < (state.sampleAt || 0)) return; // an older one, late
   state.sampleShown = m.n; state.sampleAt = m.at; state.sampleSettings = m.settings || {};
   $("grayBtn").disabled = false;
-  stopSelecting(); $("grayOut").hidden = true;
+  if (state.selecting) stopSelecting();
+  if (!state.grayRect) $("grayOut").hidden = true;
   $("sampleBox").classList.remove("taking");
+  // A gray card measured on the last sample: measure it again on this one,
+  // the same place (once it's loaded).
+  $("sampleImg").onload = () => { if (state.grayRect) { showGrayRect(); measureGrayRect(); } };
   $("sampleImg").src = photoURL(m);
   $("sampleImg").hidden = false;
   $("sampleNone").hidden = true;
@@ -893,6 +897,7 @@ function sampleFailed(n) {
 // white balance goes to Kelvin at that.
 $("grayBtn").onclick = () => {
   if (state.selecting) return stopSelecting();
+  state.grayRect = null; // a new one
   state.selecting = true;
   $("sampleBox").classList.add("selecting");
   $("grayBtn").textContent = "Cancel";
@@ -937,15 +942,34 @@ window.addEventListener("mouseup", () => {
   drag = null;
   state.justSelected = true; setTimeout(() => (state.justSelected = false), 0); // not a click on the sample
   if (x1 === undefined || Math.abs(x1 - x0) < 4 || Math.abs(y1 - y0) < 4) { $("selRect").hidden = true; return; } // too small
-  // The rectangle in the photo's own pixels.
-  const px = (Math.min(x0, x1) - d.x) / d.k, py = (Math.min(y0, y1) - d.y) / d.k;
-  const pw = Math.abs(x1 - x0) / d.k, ph = Math.abs(y1 - y0) / d.k;
-  balanceFrom(cardColour(px, py, pw, ph));
+  // The rectangle, as fractions of the photo: kept, so each new sample is
+  // measured there too (till Dismiss, or a new rectangle).
+  state.grayRect = { fx: (Math.min(x0, x1) - d.x) / d.w, fy: (Math.min(y0, y1) - d.y) / d.h,
+    fw: Math.abs(x1 - x0) / d.w, fh: Math.abs(y1 - y0) / d.h };
+  measureGrayRect();
   state.selecting = false;
   $("sampleBox").classList.remove("selecting");
   $("grayBtn").textContent = "Balance from gray card";
   $("grayHint").textContent = "";
 });
+// measureGrayRect measures the gray card where the rectangle is, on the
+// sample shown.
+function measureGrayRect() {
+  const r = state.grayRect, img = $("sampleImg");
+  if (!r || !img.naturalWidth) return;
+  const W = img.naturalWidth, H = img.naturalHeight;
+  balanceFrom(cardColour(r.fx * W, r.fy * H, r.fw * W, r.fh * H));
+}
+// showGrayRect draws the rectangle over the sample.
+function showGrayRect() {
+  const r = state.grayRect;
+  if (!r || $("sampleImg").hidden) return;
+  const d = sampleDrawn(), box = $("sampleBox").getBoundingClientRect(), sr = $("selRect");
+  sr.hidden = false;
+  sr.style.left = `${d.x + r.fx * d.w - box.left}px`; sr.style.top = `${d.y + r.fy * d.h - box.top}px`;
+  sr.style.width = `${r.fw * d.w}px`; sr.style.height = `${r.fh * d.h}px`;
+}
+window.addEventListener("resize", () => { if (state.grayRect && !$("selRect").hidden) showGrayRect(); });
 // cardColour is the average sRGB colour of a part of the sample (photo pixels).
 function cardColour(x, y, w, h) {
   const n = 64; // enough pixels to average, without decoding the whole photo
@@ -980,7 +1004,7 @@ function balanceFrom(rgb) {
     : "";
   out.innerHTML = `${card}<br>The light is about <b>${Math.round(r.kelvin / 10) * 10} K</b>: it ${off} ${setK} K the sample was taken at.${cast}
     <div class="row"><button class="btn small primary" id="grayApply">Set ${k} K</button><button class="btn small" id="grayDismiss">Dismiss</button></div>`;
-  $("grayDismiss").onclick = () => { out.hidden = true; $("selRect").hidden = true; };
+  $("grayDismiss").onclick = () => { out.hidden = true; $("selRect").hidden = true; state.grayRect = null; };
   $("grayApply").onclick = async () => {
     $("grayApply").disabled = true;
     $("camConfigErr").textContent = "";
@@ -988,8 +1012,7 @@ function balanceFrom(rgb) {
       if ((state.camSettings || []).find((x) => x.key === "whitebalance")?.current !== "Choose Color Temperature")
         renderSettings(await send("cameraSet", { key: "whitebalance", value: "Choose Color Temperature" }));
       renderSettings(await send("cameraSet", { key: "colortemp", value: String(k) }));
-      out.innerHTML = `White balance set to ${k} K. Take another sample to check: the card should come out neutral.`;
-      $("selRect").hidden = true;
+      out.innerHTML = `White balance set to ${k} K. Take another sample to check: the card is measured again, the same place.`;
     } catch (e) { $("camConfigErr").textContent = e.message; $("grayApply").disabled = false; }
   };
 }

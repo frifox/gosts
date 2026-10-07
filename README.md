@@ -283,7 +283,7 @@ folder name with `-samples`)
 and shows it with the settings it was taken at, to adjust from. **Balance from gray card**: drag a rectangle
 inside a gray card in the sample, and the app works out the colour temperature that makes it neutral (from the
 card's average colour and the white balance the sample was taken with; it notes a green or magenta cast Kelvin
-can't fix) and sets it; another sample checks it. The simulated camera has the same settings,
+can't fix) and sets it; each new sample is measured again in the same rectangle (till Dismiss or a new one). The simulated camera has the same settings,
 and its sample comes out brighter or darker with them.
 
 gosts keeps one gphoto2 shell open on the camera: firing the shutter takes about 1.1 s on the A6600 (nothing
