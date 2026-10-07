@@ -257,7 +257,8 @@ the preview draws (goals streamed ~30 times a second just ahead of it, corrected
 the servos' speed and with gentle acceleration), each photo taken as the path passes its shot; the platform is never unwound: if a spiral
 wouldn't stay within its servo's multi-turn range (about ±7.5 turns from power-up) from where it is, it turns
 the other way instead (the same shots, mirrored), so spirals are limited to 7 turns (about 90 photos).
-When the last photo is taken (or a preview reaches its last shot, if a board is connected) the rig returns to 0°/0° the short way (less than a turn) and stops. Each photo is
+When the last photo is taken the rig returns to 0°/0° the short way (less than a turn) and stops. A preview
+only moves the view: it never moves the rig or uses the camera. Each photo is
 taken with the connected camera, recording where the rig really is as the shutter goes.
 
 A real camera is driven through gphoto2 (`brew install gphoto2`). Set it to RAW & JPEG (and, for a Sony in
