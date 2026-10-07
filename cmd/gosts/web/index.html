@@ -339,8 +339,7 @@ td.mono { font-family: var(--mono); }
         <label>Speed (step/s)<input type="number" id="sSpeed" min="50" max="3400" step="50"></label>
         <label>Acceleration (100 step/s²)<input type="number" id="sAcc" min="1" max="254"></label>
       </div>
-      <div class="row" style="margin-top:10px"><label class="switch"><input type="checkbox" id="sMulti"><span class="track"></span><span>Enable multi-turn on the rig's servos (recommended)</span></label></div>
-      <p class="hint">In single-turn mode a move across a servo's 0/360° point goes the long way, nearly a full turn, which could swing the frame into the posts. With this on, the three servos are switched to multi-turn when gosts connects, so every move takes the short way.</p>
+      <p class="hint">The rig's servos are always switched to multi-turn mode when gosts connects, so every move can take the short way: in single-turn mode a move across a servo's 0/360° point goes the long way, nearly a full turn, which could swing the frame into the posts.</p>
       <p class="hint">Found on the bus: <span id="sFound" class="mono">–</span> <button class="btn small" id="sScan">Scan again</button></p>
       <div class="err" id="setupErr"></div>
       <div class="row" style="margin-top:14px">
@@ -772,7 +771,6 @@ function fillSetup() {
   }
   $("sLeaderMir").checked = r.LeaderMirrored; $("sFollowerMir").checked = r.FollowerMirrored;
   $("sInvE").checked = r.InvertElevation; $("sInvA").checked = r.InvertAzimuth;
-  $("sMulti").checked = c.Motion.MultiTurn;
   $("sSpeed").value = c.Motion.Speed; $("sAcc").value = c.Motion.Acc;
   $("sFound").textContent = m.connected ? (m.found.length ? m.found.map((id) => "#" + id).join(" ") : "none") : "no board connected";
 }
@@ -783,7 +781,7 @@ $("sSave").onclick = async () => {
   $("setupErr").textContent = "";
   const roles = { ElevationLeader: +$("sLeader").value, ElevationFollower: +$("sFollower").value, Azimuth: +$("sAzim").value,
     LeaderMirrored: $("sLeaderMir").checked, FollowerMirrored: $("sFollowerMir").checked, InvertElevation: $("sInvE").checked, InvertAzimuth: $("sInvA").checked };
-  const motion = { ...state.server.config.Motion, Speed: +$("sSpeed").value, Acc: +$("sAcc").value, MultiTurn: $("sMulti").checked };
+  const motion = { ...state.server.config.Motion, Speed: +$("sSpeed").value, Acc: +$("sAcc").value };
   try {
     await send("roles", { roles });
     await send("motion", { motion });

@@ -68,7 +68,7 @@ func (r *rig) connect(ctx context.Context, port string, baud int) error {
 	var bus *gosts.Bus
 	var err error
 	if port == simPort {
-		bus, err = gosts.NewBus(newSim(r.cfg.get().Roles))
+		bus, err = gosts.NewBus(newSimPort(r.cfg.get().Roles))
 	} else {
 		bus, err = gosts.Open(port, baud)
 	}
@@ -88,6 +88,10 @@ func (r *rig) connect(ctx context.Context, port string, baud int) error {
 
 // Simulator start: the camera at elevation 20°, the platform at azimuth 0°.
 const simElevation, simAzimuth = 20, 0
+
+// newSimPort makes the simulated board (tests replace it to start the
+// servos elsewhere).
+var newSimPort = newSim
 
 // newSim makes a simulated board with the role servos at the simulator's
 // start position (mirroring and inversion applied, as on the real rig).
@@ -148,6 +152,10 @@ func (r *rig) setRoles(ro Roles) error {
 		return nil
 	})
 	r.logf("info", "roles: elevation #%d (leader) + #%d, azimuth #%d", ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth)
+	r.mu.Lock()
+	found := slices.Clone(r.found)
+	r.mu.Unlock()
+	r.ensureMultiTurn(found) // the newly assigned servos too
 	r.sendState()
 	return nil
 }
@@ -180,9 +188,7 @@ func (r *rig) scan(ctx context.Context) error {
 		r.logf("error", "scan: %v", err)
 	} else {
 		r.logf("info", "found servos %v", found)
-		if r.cfg.get().Motion.MultiTurn {
-			r.ensureMultiTurn(found)
-		}
+		r.ensureMultiTurn(found) // always: see ensureMultiTurn
 		ro := r.cfg.get().Roles
 		for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
 			if !slices.Contains(found, id) {
@@ -284,8 +290,11 @@ func (r *rig) moveToAt(elevation, azimuth *float64, speedE, speedA int) error {
 		speed := speedE
 		if elevation != nil {
 			e := math.Max(c.Motion.ElevationMin, math.Min(c.Motion.ElevationMax, *elevation))
-			g := bus.Group(ro.ElevationLeader, ro.ElevationFollower)
-			if _, err := g.MoveToShortest(stepsFor(e, ro.InvertElevation), speed, acc); err != nil {
+			targets, err := elevationTargets(bus, ro, e, speed, acc)
+			if err == nil {
+				err = bus.SyncMove(targets...)
+			}
+			if err != nil {
 				return fmt.Errorf("elevation: %w", err)
 			}
 			r.mu.Lock()
@@ -303,6 +312,30 @@ func (r *rig) moveToAt(elevation, azimuth *float64, speedE, speedA int) error {
 		}
 		return nil
 	})
+}
+
+// elevationTargets are the two elevation servos' goals for elevation e
+// (already within the limits): each servo goes from where it is by the
+// difference in angle, straight through the range between, never the other
+// way round. Each is worked out in that servo's own turn count: two servos
+// a step either side of the 0/4095 seam at 0° are a whole turn apart in
+// theirs, so one shared goal would send one of them the long way round,
+// past the limits.
+func elevationTargets(bus *gosts.Bus, ro Roles, e float64, speed int, acc uint8) ([]gosts.Target, error) {
+	var targets []gosts.Target
+	for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower} {
+		abs, err := bus.Servo(id).AbsolutePosition()
+		if err != nil {
+			return nil, fmt.Errorf("servo %d: %w", id, err)
+		}
+		// Both angles are within ±90°: their difference never wraps.
+		steps := int(math.Round((e - elevationOf(abs, ro)) * stepsPerDegree))
+		if ro.InvertElevation {
+			steps = -steps
+		}
+		targets = append(targets, gosts.Target{ID: id, Position: abs + steps, Speed: speed, Acc: acc})
+	}
+	return targets, nil
 }
 
 // angles reads the rig's elevation and azimuth now (not the last telemetry).
@@ -410,7 +443,10 @@ func (r *rig) torque(on bool) error {
 		return err
 	}
 	return r.withBus(func(bus *gosts.Bus) error {
-		return bus.SyncTorque(on, ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth)
+		if on { // holding where they are, not jumping to an old goal
+			return bus.Group(ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth).Hold()
+		}
+		return bus.SyncTorque(false, ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth)
 	})
 }
 

@@ -103,3 +103,23 @@ func TestGroupSetPositionAs(t *testing.T) {
 		}
 	}
 }
+
+// Hold switches torque on where the servo is, in its goal's turn count, so a
+// servo moved by hand with torque off doesn't jump back to its old goal.
+func TestHold(t *testing.T) {
+	b, p := newTestBus(t, 1)
+	s := p.servos[1]
+	putU16(s.mem[RegMaxAngleLimit.Addr:], 0) // multi-turn
+	putU16(s.mem[RegGoalPosition.Addr:], encodeSignMag(4011, 15)) // stale goal, end of turn 0
+	putU16(s.mem[RegPresentPosition.Addr:], 10)                   // moved by hand past the seam
+	if err := b.Servo(1).Hold(); err != nil {
+		t.Fatal(err)
+	}
+	goal, _ := b.Servo(1).Read(RegGoalPosition)
+	if goal != 4096+10 {
+		t.Fatalf("goal %d, want %d (where it is, in the goal's turn count)", goal, 4096+10)
+	}
+	if on, _ := b.Servo(1).TorqueEnabled(); !on {
+		t.Fatal("torque off")
+	}
+}

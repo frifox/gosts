@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/frifox/gosts"
+	servosim "github.com/frifox/gosts/cmd/gosts-ctl/servo-sim"
 )
 
 func TestPlanShots(t *testing.T) {
@@ -268,5 +269,61 @@ func TestPhotoTimeline(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 	if tl := c.timeline().Photos; len(tl) != 1 || tl[0].N != 4 {
 		t.Fatalf("after Reset and a photo: %v", tl)
+	}
+}
+
+// The two elevation servos straddle the 0/4095 seam at 0° (a step or two of
+// calibration difference): their own turn counts are then a turn apart, and
+// a goal worked out on the leader would send the follower the long way round,
+// past the elevation limits. Each must go straight to the target.
+func TestElevationAcrossSeam(t *testing.T) {
+	defer func(f func(Roles) *servosim.Port) { newSimPort = f }(newSimPort)
+	newSimPort = func(ro Roles) *servosim.Port {
+		p := servosim.NewPort(ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth)
+		// Logical +2 steps on the leader (mirrored: physical 4094), -2 (4094)
+		// on the follower.
+		p.SetPosition(ro.ElevationLeader, 2*gosts.CenterPosition-2)
+		p.SetPosition(ro.ElevationFollower, gosts.StepsPerRev-2)
+		p.SetPosition(ro.Azimuth, 0)
+		return p
+	}
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	ro := cfg.get().Roles
+	if err := r.torque(true); err != nil {
+		t.Fatal(err)
+	}
+	read := func() (float64, float64) {
+		var le, fe float64
+		r.withBus(func(bus *gosts.Bus) error {
+			res, _ := bus.SyncFeedback(ro.ElevationLeader, ro.ElevationFollower)
+			le, fe = elevationOf(res[ro.ElevationLeader].Position, ro), elevationOf(res[ro.ElevationFollower].Position, ro)
+			return nil
+		})
+		return le, fe
+	}
+	target := -25.0
+	if err := r.moveTo(&target, nil); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(6 * time.Second)
+	for time.Now().Before(deadline) {
+		le, fe := read()
+		for _, e := range []float64{le, fe} {
+			if e > 1 || e < target-2 {
+				t.Fatalf("on the way from 0° to %v°, an elevation servo is at %.1f° (leader %.1f°, follower %.1f°)", target, e, le, fe)
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if le, fe := read(); math.Abs(le-target) > 1 || math.Abs(fe-target) > 1 {
+		t.Fatalf("ended at leader %.1f°, follower %.1f°, want %v°", le, fe, target)
 	}
 }

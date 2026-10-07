@@ -899,6 +899,36 @@ func (s *Servo) Stop() error {
 	return err
 }
 
+// Hold switches the torque on with the servo holding where it is. Torque on
+// by itself drives the servo to its goal register, which is stale if the
+// servo was moved by hand meanwhile: the arm would jump back. So the goal is
+// first set to the present position, in the goal's turn count (nearest the
+// old goal: right unless the servo was turned by hand more than half a turn
+// since, which a rig's arm can't be).
+func (s *Servo) Hold() error {
+	cur, err := s.Position()
+	if err != nil {
+		return err
+	}
+	lo, hi, err := s.AngleLimits()
+	if err != nil {
+		return err
+	}
+	goal := cur
+	if lo == 0 && hi == 0 { // multi-turn: keep the goal's turn
+		g, err := s.Read(RegGoalPosition)
+		if err != nil {
+			return err
+		}
+		g = mirrorPos(s.Mirrored(), g)
+		goal = g + CircularDiff(cur, g)
+	}
+	if _, err := s.bus.Write(s.id, RegGoalPosition.Addr, mustEncode(RegGoalPosition, mirrorPos(s.Mirrored(), goal))); err != nil {
+		return err
+	}
+	return s.EnableTorque(true)
+}
+
 // SetWheelSpeed sets the rotation speed in ModeWheel (step/s, sign = direction,
 // 0 = stop) with an acceleration in 100 step/s².
 func (s *Servo) SetWheelSpeed(speed int, acc uint8) error {

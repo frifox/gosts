@@ -45,17 +45,32 @@ func (g *Group) MoveTo(pos, speed int, acc uint8) error {
 	return g.bus.SyncMove(targets...)
 }
 
-// MoveToShortest moves all members to the angle of pos the short way round,
-// measured on the leader (see Servo.ShortestGoal), and returns the goal used.
+// MoveToShortest moves all members to the angle of pos the short way round
+// (see Servo.ShortestGoal) and returns the leader's goal.
+//
+// Each member's goal is worked out on that member: in multi-turn mode every
+// servo counts turns from where it powered up, so two members a step either
+// side of the 0/4095 seam are a whole turn apart in their own counts, and the
+// leader's goal would send the other one the long way round.
 func (g *Group) MoveToShortest(pos, speed int, acc uint8) (int, error) {
-	goal, err := g.Leader().ShortestGoal(pos, -MultiTurnLimit, MultiTurnLimit)
-	if err != nil {
-		return 0, err
+	targets := make([]Target, len(g.ids))
+	for i, id := range g.ids {
+		s := g.bus.Servo(id)
+		goal, err := s.ShortestGoal(pos, -MultiTurnLimit, MultiTurnLimit)
+		if err != nil {
+			return 0, fmt.Errorf("servo %d: %w", id, err)
+		}
+		if goal, err = s.rangeGoal(goal); err != nil {
+			return 0, fmt.Errorf("servo %d: %w", id, err)
+		}
+		targets[i] = Target{ID: id, Position: goal, Speed: speed, Acc: acc}
 	}
-	if goal, err = g.Leader().rangeGoal(goal); err != nil { // as the leader will get it
-		return 0, err
-	}
-	return goal, g.MoveTo(goal, speed, acc)
+	return targets[0].Position, g.bus.SyncMove(targets...)
+}
+
+// Hold switches every member's torque on where it is (see Servo.Hold).
+func (g *Group) Hold() error {
+	return g.each(func(s *Servo) error { return s.Hold() })
 }
 
 // StepBy moves all members a relative number of steps in ModeStep.

@@ -118,12 +118,6 @@ func (a *app) exec(req request) (any, error) {
 		if err == nil {
 			_ = a.cap.preview(a.cfg.get().Plan) // the plan follows the elevation range
 		}
-		if err == nil && m.MultiTurn {
-			a.rig.mu.Lock()
-			found := append([]uint8(nil), a.rig.found...)
-			a.rig.mu.Unlock()
-			a.rig.ensureMultiTurn(found)
-		}
 		a.rig.sendState()
 		return nil, err
 	case "move":

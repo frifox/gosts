@@ -78,11 +78,6 @@ type Motion struct {
 	Acc          int     `toml:"Acc"`          // 100 step/s²
 	ElevationMin float64 `toml:"ElevationMin"` // degrees; the camera never goes outside
 	ElevationMax float64 `toml:"ElevationMax"`
-	// MultiTurn switches the rig's servos to multi-turn mode on connect, so
-	// every move goes the short way round: in single-turn mode a move across
-	// the servo's 0/360° point goes the long way, nearly a full turn, which
-	// could swing the frame into the posts.
-	MultiTurn bool `toml:"MultiTurn"`
 }
 
 // Plan is a capture: Photos points spread evenly over the part of the sphere
@@ -100,7 +95,7 @@ func defaultConfig() Config {
 	return Config{
 		ListenAddr: ":8081",
 		Roles:      Roles{ElevationLeader: 10, ElevationFollower: 11, Azimuth: 12, LeaderMirrored: true},
-		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80, MultiTurn: true},
+		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80},
 		Plan:       Plan{Photos: 60, SettleMS: 800},
 		Rig:        Rig{BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 400, ObjectZ: 100},
 	}
