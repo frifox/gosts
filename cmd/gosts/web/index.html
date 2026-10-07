@@ -41,7 +41,6 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .card > h2 .btn.small { margin-block: -3px; } /* buttons in a title don't make it taller */
 .card.collapsed > h2 { border-bottom: 0; }
 .card.collapsed > .card-body { display: none; }
-.card.view.collapsed { align-self: start; }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .row:first-child { margin-top: 0; }
 .field { display: grid; grid-template-columns: 96px 1fr 76px auto; gap: 8px; align-items: center; margin-top: 8px; }
@@ -119,9 +118,23 @@ td.mono { font-family: var(--mono); }
 .timeline .thumb.new { animation: thumbIn .35s ease-out; }
 @keyframes thumbIn { from { opacity: 0; transform: translateX(-12px); } }
 /* A photo full size, over the whole page. */
-.viewer { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.88); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; cursor: zoom-out; }
-.viewer img { max-width: 100%; max-height: calc(100% - 34px); object-fit: contain; box-shadow: 0 8px 40px rgba(0,0,0,.6); }
-.viewer .cap { color: #e6e9ef; font: 12px var(--mono); }
+.viewer { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.92); display: flex; flex-direction: column; }
+.viewer .stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 0 16px 16px; }
+.viewer img { width: 100%; height: 100%; object-fit: contain; } /* as large as the window allows, even past its own size */
+.viewer-bar, .gallery-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; }
+.viewer-bar .cap { color: #e6e9ef; font: 12px var(--mono); }
+.viewer-bar .hint { color: #9aa3b2; }
+.icon-btn { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 16px; line-height: 1; cursor: pointer; }
+.icon-btn:hover { border-color: var(--accent); }
+/* All Photos: every photo, newest first, in a grid that scrolls. */
+.gallery { position: fixed; inset: 0; z-index: 55; background: var(--bg); display: flex; flex-direction: column; }
+.gallery-bar { border-bottom: 1px solid var(--border); background: var(--panel); }
+.gallery-bar h3 { margin: 0; font-size: 14px; font-weight: 650; }
+.gallery-grid { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; align-content: start; }
+.gallery-grid .thumb { width: 100%; height: auto; aspect-ratio: 3 / 2; position: relative; padding: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
+.gallery-grid .thumb:hover { border-color: var(--accent); }
+.gallery-grid .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gallery-grid .thumb span { position: absolute; left: 8px; bottom: 6px; font: 12px var(--mono); color: #fff; text-shadow: 0 0 3px #000; }
 .view .card-body { flex: 1; position: relative; padding: 0; min-height: 300px; }
 #rig { position: absolute; inset: 0; cursor: grab; touch-action: none; overflow: hidden; border-radius: 0 0 12px 12px; }
 #rig:active { cursor: grabbing; }
@@ -258,6 +271,7 @@ td.mono { font-family: var(--mono); }
   <section class="card" id="cameraCard">
     <h2>Camera <span class="spacer"></span>
       <button class="btn small" id="resetPhotosBtn" title="Clear the photos from the timeline" style="text-transform:none;letter-spacing:0" disabled>Reset</button>
+      <button class="btn small" id="viewAllBtn" title="All the photos, large" style="text-transform:none;letter-spacing:0" disabled>View All</button>
       <button class="btn small primary" id="takePhotoBtn" style="text-transform:none;letter-spacing:0" disabled>Take Photo</button>
     </h2>
     <div class="card-body">
@@ -291,7 +305,21 @@ td.mono { font-family: var(--mono); }
   </div>
 </div>
 
-<div class="viewer" id="viewer" hidden><img id="viewerImg" alt=""><div class="cap" id="viewerCap"></div></div>
+<div class="gallery" id="gallery" hidden>
+  <div class="gallery-bar"><h3 id="galleryTitle">All Photos</h3><span class="spacer"></span><button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
+  <div class="gallery-grid" id="galleryGrid"></div>
+</div>
+<div class="viewer" id="viewer" hidden>
+  <div class="viewer-bar">
+    <button class="btn small" id="viewerBack" title="Back to all photos (Esc)">← All Photos</button>
+    <span class="cap" id="viewerCap"></span><span class="hint" id="viewerHint"></span>
+    <span class="spacer"></span>
+    <button class="btn small" id="viewerNewer" title="Newer photo (←)">‹ Newer</button>
+    <button class="btn small" id="viewerOlder" title="Older photo (→)">Older ›</button>
+    <button class="icon-btn" id="viewerClose" title="Close (Esc)" aria-label="Close">✕</button>
+  </div>
+  <div class="stage" id="viewerStage"><img id="viewerImg" alt=""></div>
+</div>
 <div class="modal-backdrop" id="setupModal" hidden>
   <div class="modal card" role="dialog" aria-modal="true">
     <h2>Setup</h2>
@@ -480,6 +508,7 @@ function setPhotos(list) {
   $("shotNone").hidden = state.photos.length > 0;
   cameraButtons();
   if (!$("viewer").hidden && !state.photos.some((p) => p.n === state.viewing)) closePhoto();
+  if (!$("gallery").hidden) renderGallery();
 }
 function addPhoto(p, isNew) {
   if (state.photos.some((q) => q.n === p.n)) return;
@@ -488,24 +517,63 @@ function addPhoto(p, isNew) {
   $("timeline").scrollLeft = 0; // the newest in view
   $("shotNone").hidden = true;
   cameraButtons();
+  if (!$("gallery").hidden) { $("galleryGrid").prepend(thumb(p, false)); galleryTitle(); }
+  if (!$("viewer").hidden) viewerButtons();
 }
+
+// All Photos: every photo in a grid, newest first, over the whole page.
+function galleryTitle() { $("galleryTitle").textContent = `All Photos (${state.photos.length})`; }
+function renderGallery() {
+  const g = $("galleryGrid");
+  g.innerHTML = "";
+  for (const p of state.photos) g.prepend(thumb(p, false));
+  if (!state.photos.length) g.innerHTML = '<span class="hint">No photos yet.</span>';
+  galleryTitle();
+}
+function openGallery() { renderGallery(); $("gallery").hidden = false; $("galleryGrid").scrollTop = 0; }
+function closeGallery() { $("gallery").hidden = true; }
+$("viewAllBtn").onclick = openGallery;
+$("galleryClose").onclick = closeGallery;
+
+// One photo, as large as the window allows. ← newer, → older (as on the
+// timeline); Esc or ← All Photos goes back to All Photos if it's open,
+// else closes, as does ✕.
 function openPhoto(n) {
   const p = state.photos.find((q) => q.n === n);
   if (!p) return;
   state.viewing = n;
   $("viewerImg").src = `/photo/${n}.jpg`;
-  $("viewerCap").textContent = photoCaption(p) + "  ·  ← newer, older →, Esc closes";
+  $("viewerCap").textContent = photoCaption(p);
   $("viewer").hidden = false;
+  viewerButtons();
+}
+function viewerButtons() {
+  const i = state.photos.findIndex((p) => p.n === state.viewing), gallery = !$("gallery").hidden;
+  $("viewerBack").hidden = !gallery;
+  $("viewerNewer").disabled = i < 0 || i >= state.photos.length - 1;
+  $("viewerOlder").disabled = i <= 0;
+  $("viewerHint").textContent = `  ·  ← → to step, Esc ${gallery ? "for all photos" : "to close"}`;
+}
+function stepPhoto(d) { // +1 newer, -1 older
+  const i = state.photos.findIndex((p) => p.n === state.viewing), j = i + d;
+  if (i >= 0 && j >= 0 && j < state.photos.length) openPhoto(state.photos[j].n);
 }
 function closePhoto() { $("viewer").hidden = true; state.viewing = null; }
-$("viewer").onclick = closePhoto;
+$("viewerBack").onclick = closePhoto;
+$("viewerNewer").onclick = () => stepPhoto(1);
+$("viewerOlder").onclick = () => stepPhoto(-1);
+$("viewerStage").onclick = (e) => { if (e.target === $("viewerStage")) closePhoto(); }; // the backdrop
+// ✕ on the photo closes All Photos too.
+$("viewerClose").onclick = () => { closePhoto(); closeGallery(); };
 document.addEventListener("keydown", (e) => {
-  if ($("viewer").hidden) return;
-  const i = state.photos.findIndex((p) => p.n === state.viewing);
-  if (e.key === "Escape") closePhoto();
-  // As on the timeline: newer to the left, older to the right.
-  else if (e.key === "ArrowLeft" && i >= 0 && i < state.photos.length - 1) openPhoto(state.photos[i + 1].n);
-  else if (e.key === "ArrowRight" && i > 0) openPhoto(state.photos[i - 1].n);
+  if (!$("viewer").hidden) {
+    if (e.key === "Escape") closePhoto(); // back to All Photos, if open
+    else if (e.key === "ArrowLeft") stepPhoto(1);
+    else if (e.key === "ArrowRight") stepPhoto(-1);
+    else return;
+  } else if (!$("gallery").hidden && e.key === "Escape") closeGallery();
+  else return;
+  e.preventDefault();
 });
 $("takePhotoBtn").onclick = async () => {
   $("shotErr").textContent = "";
@@ -517,6 +585,7 @@ $("resetPhotosBtn").onclick = () => act("photosReset", {}, $("shotErr"));
 function cameraButtons() {
   $("takePhotoBtn").disabled = !state.camera?.connected || !!state.cap?.running;
   $("resetPhotosBtn").disabled = !state.photos.length || !!state.cap?.running;
+  $("viewAllBtn").disabled = !state.photos.length;
 }
 // The simulated camera's picture: the Rig View from the camera, sent back.
 // Every open window renders it; the server keeps the first.

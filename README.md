@@ -232,7 +232,8 @@ simulated one, whose photos are the 3D view rendered from the camera on the rig,
 object; real cameras come next), and once connected has the number of photos, the settle time, and **Moving Shots**, with Start,
 Pause and Stop; Setup can disconnect either) and on the right a **Camera** card (a timeline of every photo
 taken, newest on the left, during a capture too; click one to see it full size, ← → to step, Esc to close;
-**Take Photo** and **Reset**, which clears the timeline) above the **Rig View**, a live perspective view
+**Reset**, which clears the timeline, **View All**, every photo in a grid over the whole page where a click
+shows one full size (← → to step, Esc or ← All Photos back to the grid, ✕ to close), and **Take Photo**) above the **Rig View**, a live perspective view
 of the rig on the right (a 3D model rendered with [three.js](https://threejs.org): 2020 extrusions, the
 ST3215s, the Sony A6600 with its ring flash, and [#3DBenchy](https://www.3dbenchy.com) (CC0) as the
 object; bundled in the binary, so no internet is needed), with
