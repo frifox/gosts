@@ -11,7 +11,9 @@ import (
 // trajectory is a smooth timed path for moving shots: the Catmull-Rom
 // curve through the points (elevation and unwrapped azimuth, as the preview
 // draws it), timed so that neither axis goes faster than maxRate and the
-// speed changes at most by accel, starting and ending at rest.
+// speed changes at most by accel, starting and ending at rest, and so that
+// the path takes at least minGap seconds from each point to the next (the
+// camera's time between photos; 0: no minimum).
 type trajectory struct {
 	t, e, a []float64 // samples: time (s), elevation, azimuth (degrees)
 	pointT  []float64 // when the path passes each point
@@ -19,7 +21,7 @@ type trajectory struct {
 
 const trajSteps = 32 // samples per hop
 
-func newTrajectory(e, a []float64, maxRate, accel float64) *trajectory {
+func newTrajectory(e, a []float64, maxRate, accel, minGap float64) *trajectory {
 	n := len(e)
 	az := make([]float64, n) // unwrapped: each hop the short way
 	for i := range az {
@@ -52,9 +54,24 @@ func newTrajectory(e, a []float64, maxRate, accel float64) *trajectory {
 	for i := 1; i < m; i++ {
 		ds[i] = math.Max(math.Abs(tr.e[i]-tr.e[i-1]), math.Abs(tr.a[i]-tr.a[i-1]))
 	}
+	// Each hop's top speed: maxRate, or slower so the hop takes minGap.
+	vcap := make([]float64, m)
+	for h := 0; h+1 < n; h++ {
+		dist := 0.0
+		for k := 1; k <= trajSteps; k++ {
+			dist += ds[h*trajSteps+k]
+		}
+		c := maxRate
+		if minGap > 0 && dist > 1e-9 {
+			c = math.Min(c, dist/minGap)
+		}
+		for k := 1; k <= trajSteps; k++ {
+			vcap[h*trajSteps+k] = c
+		}
+	}
 	v := make([]float64, m)
 	for i := 1; i < m; i++ {
-		v[i] = math.Min(maxRate, math.Sqrt(v[i-1]*v[i-1]+2*accel*ds[i]))
+		v[i] = math.Min(vcap[i], math.Sqrt(v[i-1]*v[i-1]+2*accel*ds[i]))
 	}
 	v[m-1] = 0
 	for i := m - 2; i >= 0; i-- {
@@ -113,10 +130,16 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 	for {
 		t := time.Since(start).Seconds()
 		for next < len(tr.pointT) && t >= tr.pointT[next] {
+			took := time.Now()
 			if err := at(next); err != nil {
 				return errors.Join(err, r.stop())
 			}
 			next++
+			// A photo that held things up doesn't count as path time:
+			// the path waits for it instead of racing ahead (and the next
+			// photos being due at once, all taken from here).
+			start = start.Add(time.Since(took))
+			t = time.Since(start).Seconds()
 		}
 		if next >= len(tr.pointT) {
 			return nil
@@ -132,9 +155,11 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 		e1, a1 := tr.at(math.Min(t+followLookahead, end))
 		// A servo trails a moving goal a little (its position loop): add how
 		// far behind the path it is to the goal, so it runs on the path.
+		// At most followCatchUp: a rig held up far behind eases back onto
+		// the path instead of lurching after it.
 		pe, pa := tr.at(t)
-		e1 += pe - e0
-		a1 += wrap180(pa - a0)
+		e1 += math.Max(-followCatchUp, math.Min(followCatchUp, pe-e0))
+		a1 += math.Max(-followCatchUp, math.Min(followCatchUp, wrap180(pa-a0)))
 		dt := math.Min(followLookahead, math.Max(end-t, followTick.Seconds()))
 		speed := func(d float64) int { return max(20, int(math.Abs(d)/dt*stepsPerDegree)) }
 		if err := r.moveToAt(&e1, &a1, speed(e1-e0), speed(wrap180(a1-a0))); err != nil {
@@ -154,3 +179,6 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 }
 
 const stepsPerDegree = 4096.0 / 360
+
+// followCatchUp is the most (degrees) follow adds to a goal for the lag.
+const followCatchUp = 2.0

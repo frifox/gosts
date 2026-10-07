@@ -71,6 +71,7 @@ type request struct {
 	Rig       *Rig     `json:"rig"`
 	Camera    string   `json:"camera"`
 	N         int      `json:"n"`
+	Lines     []string `json:"lines"`
 }
 
 type resultMsg struct {
@@ -176,7 +177,16 @@ func (a *app) exec(req request) (any, error) {
 		if a.cap.msg().Running {
 			return nil, errors.New("a capture is running")
 		}
-		return nil, a.camera.shoot(context.Background())
+		return nil, a.camera.shoot(context.Background(), true, nil)
+	case "shootBurst": // testing: N photos queued at once, as Moving Shots takes them
+		for i := 0; i < req.N; i++ {
+			if err := a.camera.shoot(context.Background(), false, nil); err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
+	case "gphoto2Shell": // development: run a gphoto2 shell script on the connected camera
+		return gphoto2ShellScript(a.camera, req.Lines)
 	case "diag": // read-only: the role servos' raw registers, for debugging
 		return a.rig.diag()
 	case "photoDelete": // one photo off the timeline

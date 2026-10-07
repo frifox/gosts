@@ -144,7 +144,15 @@ func TestSpiralOrder(t *testing.T) {
 func TestTrajectory(t *testing.T) {
 	e := []float64{0, 10, 20, 30}
 	a := []float64{170, -170, -150, -130} // crosses ±180 the short way
-	tr := newTrajectory(e, a, 50, 100)
+	// With a camera needing 2 s between photos, every hop takes at least that.
+	if slow := newTrajectory(e, a, 50, 100, 2); true {
+		for i := 1; i < len(slow.pointT); i++ {
+			if d := slow.pointT[i] - slow.pointT[i-1]; d < 2-1e-6 {
+				t.Errorf("hop %d takes %.2f s, under the camera's 2 s", i, d)
+			}
+		}
+	}
+	tr := newTrajectory(e, a, 50, 100, 0)
 	if d := tr.duration(); d <= 0 {
 		t.Fatalf("duration %v", d)
 	}
@@ -220,7 +228,7 @@ func TestSimCameraPicture(t *testing.T) {
 	ctx := context.Background()
 	// A page renders photo 1: that's the picture, the made-up one doesn't
 	// replace it.
-	if err := c.shoot(ctx); err != nil {
+	if err := c.shoot(ctx, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !c.simPicture(1, []byte("rendered")) {
@@ -231,7 +239,7 @@ func TestSimCameraPicture(t *testing.T) {
 		t.Fatalf("photo %d: %q", n, p.JPEG)
 	}
 	// No page renders photo 2: a made-up picture stands in.
-	if err := c.shoot(ctx); err != nil {
+	if err := c.shoot(ctx, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(200 * time.Millisecond)
@@ -251,7 +259,7 @@ func TestPhotoTimeline(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i < 3; i++ {
-		if err := c.shoot(context.Background()); err != nil {
+		if err := c.shoot(context.Background(), true, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -268,7 +276,7 @@ func TestPhotoTimeline(t *testing.T) {
 		t.Fatalf("after Reset: %v", tl)
 	}
 	// Numbering goes on after Reset.
-	c.shoot(context.Background())
+	c.shoot(context.Background(), true, nil)
 	time.Sleep(150 * time.Millisecond)
 	if tl := c.timeline().Photos; len(tl) != 1 || tl[0].N != 4 {
 		t.Fatalf("after Reset and a photo: %v", tl)
@@ -347,8 +355,8 @@ func TestPhotoDelete(t *testing.T) {
 		}
 	}}
 	c.connect(simCameraID)
-	c.shoot(context.Background()) // 1: deleted once it's there
-	c.shoot(context.Background()) // 2: deleted while its picture is still coming
+	c.shoot(context.Background(), true, nil) // 1: deleted once it's there
+	c.shoot(context.Background(), true, nil) // 2: deleted while its picture is still coming
 	c.delete(2)
 	time.Sleep(150 * time.Millisecond)
 	c.delete(1)

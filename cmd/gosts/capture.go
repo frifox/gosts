@@ -321,25 +321,41 @@ func (c *capture) loop(ctx context.Context, p Plan) error {
 			return ctx.Err()
 		case <-time.After(time.Duration(p.SettleMS) * time.Millisecond):
 		}
-		if err := c.photo(ctx); err != nil {
+		if err := c.photo(ctx, true); err != nil {
 			return err
 		}
 	}
 }
 
 // photo takes the next shot with the camera, recording where the rig really
-// is as the shutter goes (read fresh: moving shots are taken in motion).
-func (c *capture) photo(ctx context.Context) error {
-	ae, aa := c.rig.where()
-	if fe, fa, err := c.rig.angles(); err == nil {
-		ae, aa = fe, fa
+// is as the shutter goes (read fresh then: moving shots are taken in
+// motion). With wait it returns once the shutter has fired (stopping shots:
+// the rig must keep still till then); without, at once: the camera takes it
+// in turn while the rig moves on (moving shots, spaced for the camera; see
+// spiral), and the shot's pose is filled in as its shutter goes.
+func (c *capture) photo(ctx context.Context, wait bool) error {
+	c.mu.Lock()
+	i := c.index
+	c.mu.Unlock()
+	firing := func() {
+		ae, aa := c.rig.where()
+		if fe, fa, err := c.rig.angles(); err == nil {
+			ae, aa = fe, fa
+		}
+		c.mu.Lock()
+		if i < len(c.shots) {
+			c.shots[i].ActualElevation, c.shots[i].ActualAzimuth = ae, aa
+		}
+		c.mu.Unlock()
+		if !wait {
+			c.send() // the page has the shot already; now where it was taken
+		}
 	}
-	if err := c.camera.shoot(ctx); err != nil {
+	if err := c.camera.shoot(ctx, wait, firing); err != nil {
 		return fmt.Errorf("camera: %w", err)
 	}
 	c.mu.Lock()
-	c.shots[c.index].Done = true
-	c.shots[c.index].ActualElevation, c.shots[c.index].ActualAzimuth = ae, aa
+	c.shots[i].Done = true
 	c.index++
 	c.mu.Unlock()
 	c.send()
@@ -394,12 +410,13 @@ func (c *capture) spiral(ctx context.Context) error {
 			es = append(es, math.Max(m.ElevationMin, math.Min(m.ElevationMax, s.Elevation)))
 			as = append(as, s.Azimuth)
 		}
-		tr := newTrajectory(es, as, maxRate, accel)
+		// Shots no closer together than the camera can take them.
+		tr := newTrajectory(es, as, maxRate, accel, c.camera.minInterval().Seconds())
 		err := c.rig.follow(ctx, tr, func(k int) error {
 			if k < first {
 				return nil
 			}
-			return c.photo(ctx)
+			return c.photo(ctx, false)
 		}, func() bool {
 			c.mu.Lock()
 			defer c.mu.Unlock()

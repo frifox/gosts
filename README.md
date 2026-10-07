@@ -269,7 +269,11 @@ PC Remote, save to PC+Camera): each photo's RAW stays on the camera's card and o
 the page. A camera on JPEG only works the same way; on RAW only no picture would come. On macOS the
 system's camera service grabs a camera when it's plugged in (and may open Photos): if taking a photo says
 another program has the camera, quit Photos and Image Capture and run `killall ptpcamerad mscamerad-xpc`.
-A photo still takes a few seconds (about 3 s with the A6600's large JPEG), which Moving Shots can't wait for yet.
+gosts keeps one gphoto2 shell open on the camera: firing the shutter takes about 1.1 s on the A6600 (nothing
+downloaded), and the JPEGs are collected in between, each to its own photo, while the rig moves on. Stopping
+shots and Take Photo wait for the shutter only; Moving Shots doesn't wait at all, its path paced so the shots
+are no closer together than the camera can keep up with (firing plus downloading, measured as it goes, about
+2 s), each shot's pose read as its shutter goes.
 
 The **Rig Setup** card (below Motion; like every card it folds by its title, each window remembering which are folded) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
 X/Y, the camera's offset along the arms (camera X) and up/down from the bar (camera Z, default 0), the turntable's height (turntable Z), the object's height (object height, the model is scaled to it); the defaults draw the rig to scale)

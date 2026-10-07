@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -21,10 +22,19 @@ import (
 // first) implement it; the simulated camera stands in for one so the rest
 // can be tried without a camera.
 type Camera interface {
-	// Shoot takes one photo and returns it once taken (the rig may move on
-	// then). JPEG may be empty if the picture comes later (or not at all).
-	Shoot(ctx context.Context) (photo, error)
+	// Shoot takes one photo: firing is called just as the shutter is
+	// released (where the rig is then is where the photo was taken), it
+	// returns once the shutter has fired (the rig may move on then), and got
+	// is called with its picture once that has come over, maybe later and
+	// from another goroutine (JPEG empty: nothing to show), or with an error.
+	Shoot(ctx context.Context, firing func(), got func(photo, error)) error
 	Close() error
+}
+
+// pacedCamera is a camera that needs time between photos: Moving Shots
+// spaces the shots at least MinInterval apart.
+type pacedCamera interface {
+	MinInterval() time.Duration
 }
 
 // photo is one photo taken.
@@ -86,16 +96,18 @@ type simCamera struct {
 	n   int
 }
 
-func (s *simCamera) Shoot(ctx context.Context) (photo, error) {
+func (s *simCamera) Shoot(ctx context.Context, firing func(), got func(photo, error)) error {
+	firing()
 	select {
 	case <-ctx.Done():
-		return photo{}, ctx.Err()
+		return ctx.Err()
 	case <-time.After(s.lag):
 	}
 	s.mu.Lock()
 	s.n++
 	s.mu.Unlock()
-	return photo{At: time.Now()}, nil
+	got(photo{At: time.Now()}, nil) // no picture: cameraConn has one rendered
+	return nil
 }
 
 // simPictureJPEG is simPicture n as a JPEG.
@@ -190,10 +202,11 @@ type cameraConn struct {
 	cam     Camera
 	id      string
 	name    string
-	photos  map[int]photo // by number, those with a picture
-	count   int           // photos taken, numbering them (on across Resets)
-	pending int           // simulated photo waiting for its picture from a page
-	deleted map[int]bool  // photos deleted (a picture still coming is dropped)
+	photos  map[int]photo   // by number, those with a picture
+	count   int             // photos taken, numbering them (on across Resets)
+	pending int             // simulated photo waiting for its picture from a page
+	queue   chan queuedShot // photos to take without waiting (see shoot)
+	deleted map[int]bool    // photos deleted (a picture still coming is dropped)
 }
 
 // maxPhotos is how many photos the timeline keeps in memory; the oldest go.
@@ -280,28 +293,95 @@ func (c *cameraConn) connected() bool {
 
 var errNoCamera = errors.New("no camera connected")
 
-// shoot takes a photo with the connected camera; it becomes the last photo.
-func (c *cameraConn) shoot(ctx context.Context) error {
+// shoot takes a photo with the connected camera; its picture joins the
+// timeline when it comes.
+//
+// With wait it returns once the shutter has fired (the rig must keep still
+// till then). Without, it returns at once and the photo is taken in turn by
+// a worker (Moving Shots: the rig keeps moving); a failure then only shows
+// on the page and in the log.
+// firing is called just as the shutter is released (from another goroutine
+// when not waiting).
+func (c *cameraConn) shoot(ctx context.Context, wait bool, firing func()) error {
+	if firing == nil {
+		firing = func() {}
+	}
 	c.mu.Lock()
 	cam := c.cam
-	c.mu.Unlock()
 	if cam == nil {
+		c.mu.Unlock()
 		return errNoCamera
 	}
 	// The photo's number now, so the page can show a placeholder while the
 	// camera takes it and its picture comes over.
-	c.mu.Lock()
 	c.count++
 	n := c.count
 	c.mu.Unlock()
 	c.out(photoEventMsg{Type: "photoPending", N: n})
-	p, err := cam.Shoot(ctx)
-	if err != nil {
-		c.out(photoEventMsg{Type: "photoFailed", N: n})
-		return err
+	got := func(p photo, err error) { c.got(cam, n, p, err) }
+	if wait {
+		if err := cam.Shoot(ctx, firing, got); err != nil {
+			c.out(photoEventMsg{Type: "photoFailed", N: n})
+			return err
+		}
+		return nil
 	}
+	c.mu.Lock()
+	if c.queue == nil {
+		c.queue = make(chan queuedShot, 256)
+		go c.shooter(c.queue)
+	}
+	q := c.queue
+	c.mu.Unlock()
+	q <- queuedShot{ctx: ctx, cam: cam, n: n, firing: firing, got: got, asked: time.Now()}
+	return nil
+}
+
+// queuedShot is a photo for the shooter to take.
+type queuedShot struct {
+	ctx    context.Context
+	cam    Camera
+	n      int
+	firing func()
+	got    func(photo, error)
+	asked  time.Time
+}
+
+// shooter takes queued photos in turn.
+func (c *cameraConn) shooter(q chan queuedShot) {
+	for s := range q {
+		if err := s.cam.Shoot(s.ctx, s.firing, s.got); err != nil {
+			c.out(photoEventMsg{Type: "photoFailed", N: s.n})
+			if s.ctx.Err() == nil {
+				c.warn("photo %d: %v", s.n, err)
+			}
+			continue
+		}
+		// The rig moved on meanwhile: how late the shutter was says how far
+		// from its point the photo was taken.
+		log.Printf("camera: photo %d fired %v after it was asked for", s.n, time.Since(s.asked).Round(time.Millisecond))
+	}
+}
+
+// minInterval is how soon after one photo the connected camera can take the
+// next (0: at once).
+func (c *cameraConn) minInterval() time.Duration {
+	c.mu.Lock()
+	cam := c.cam
+	c.mu.Unlock()
+	if p, ok := cam.(pacedCamera); ok {
+		return p.MinInterval()
+	}
+	return 0
+}
+
+// got is photo n's picture (or failure), from the camera.
+func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 	_, sim := cam.(*simCamera)
 	switch {
+	case err != nil:
+		c.out(photoEventMsg{Type: "photoFailed", N: n})
+		c.warn("photo %d: %v", n, err)
 	case len(p.JPEG) > 0:
 		c.picture(n, p)
 	case sim: // a page renders it; if none does, a made-up one
@@ -313,7 +393,13 @@ func (c *cameraConn) shoot(ctx context.Context) error {
 	default: // taken, but nothing to show
 		c.out(photoEventMsg{Type: "photoFailed", N: n})
 	}
-	return nil
+}
+
+// warn logs a camera problem, also on the page.
+func (c *cameraConn) warn(format string, args ...any) {
+	msg := "camera: " + fmt.Sprintf(format, args...)
+	log.Print(msg)
+	c.out(logMsg{Type: "log", Level: "error", Message: msg})
 }
 
 // photoEventMsg tells the page about photo n: being taken ("photoPending";
