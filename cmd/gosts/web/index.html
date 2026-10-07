@@ -63,7 +63,10 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .btn:hover:not(:disabled) { border-color: var(--accent); }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.danger { color: var(--bad); }
+.btn.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--border)); }
+.btn.danger:hover:not(:disabled) { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn.danger.solid { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn.danger.solid:hover:not(:disabled) { filter: brightness(1.1); }
 .btn.small { padding: 3px 9px; font-size: 12px; }
 .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
 .switch input { display: none; }
@@ -283,7 +286,7 @@ td.mono { font-family: var(--mono); }
   <div class="right">
   <section class="card" id="cameraCard">
     <h2>Camera <span class="spacer"></span>
-      <button class="btn small" id="resetPhotosBtn" title="Clear the photos from the timeline" style="text-transform:none;letter-spacing:0" disabled>Reset</button>
+      <button class="btn small danger" id="resetPhotosBtn" title="Clear all photos from the timeline (asks first)" style="text-transform:none;letter-spacing:0" disabled>Reset</button>
       <button class="btn small" id="viewAllBtn" title="All the photos, large" style="text-transform:none;letter-spacing:0" disabled>View All</button>
       <button class="btn small primary" id="takePhotoBtn" style="text-transform:none;letter-spacing:0" disabled>Take Photo</button>
     </h2>
@@ -332,6 +335,18 @@ td.mono { font-family: var(--mono); }
     <button class="icon-btn" id="viewerClose" title="Close (Esc)" aria-label="Close">✕</button>
   </div>
   <div class="stage" id="viewerStage"><img id="viewerImg" alt=""></div>
+</div>
+<div class="modal-backdrop" id="confirmModal" hidden>
+  <div class="modal card" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" style="width:min(420px,100%)">
+    <h2 id="confirmTitle">Are you sure?</h2>
+    <div class="card-body">
+      <p id="confirmText" style="margin:0"></p>
+      <div class="row" style="margin-top:14px"><span class="spacer"></span>
+        <button class="btn" id="confirmNo">Cancel</button>
+        <button class="btn danger solid" id="confirmYes">OK</button>
+      </div>
+    </div>
+  </div>
 </div>
 <div class="modal-backdrop" id="setupModal" hidden>
   <div class="modal card" role="dialog" aria-modal="true">
@@ -655,7 +670,37 @@ $("takePhotoBtn").onclick = async () => {
   await act("shoot", {}, $("shotErr"));
   cameraButtons();
 };
-$("resetPhotosBtn").onclick = () => act("photosReset", {}, $("shotErr"));
+$("resetPhotosBtn").onclick = async () => {
+  const n = state.photos.length;
+  if (await confirmDanger("Reset the timeline?",
+    `This removes all ${n} photo${n === 1 ? "" : "s"} from the timeline. Files already saved on this computer or the camera's card stay where they are.`,
+    `Remove ${n} photo${n === 1 ? "" : "s"}`)) act("photosReset", {}, $("shotErr"));
+};
+// confirmDanger asks before something that can't be undone; resolves true on
+// the red button (or Enter), false on Cancel, Esc or a click outside.
+function confirmDanger(title, text, yes) {
+  $("confirmTitle").textContent = title;
+  $("confirmText").textContent = text;
+  $("confirmYes").textContent = yes;
+  $("confirmModal").hidden = false;
+  $("confirmNo").focus(); // the safe choice has the focus
+  return new Promise((resolve) => {
+    const done = (ok) => {
+      $("confirmModal").hidden = true;
+      $("confirmYes").onclick = $("confirmNo").onclick = $("confirmModal").onclick = null;
+      document.removeEventListener("keydown", key, true);
+      resolve(ok);
+    };
+    const key = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(false); }
+      else if (e.key === "Enter" && document.activeElement !== $("confirmNo")) { e.preventDefault(); done(true); }
+    };
+    $("confirmYes").onclick = () => done(true);
+    $("confirmNo").onclick = () => done(false);
+    $("confirmModal").onclick = (e) => { if (e.target === $("confirmModal")) done(false); };
+    document.addEventListener("keydown", key, true);
+  });
+}
 function cameraButtons() {
   $("takePhotoBtn").disabled = !state.camera?.connected || !!state.cap?.running;
   $("resetPhotosBtn").disabled = !state.photos.length || !!state.cap?.running;

@@ -238,7 +238,7 @@ and once connected has the number of photos, the settle time, and **Moving Shots
 Pause and Stop; Setup can disconnect either) and on the right a **Camera** card (a timeline of every photo
 taken, newest on the left, during a capture too, each first as a placeholder while it's taken and comes
 over; hovering one shows a delete button, which takes it off the timeline (its files stay); click one to see it full size, ← → to step, Esc to close;
-**Reset**, which clears the timeline, **View All**, every photo in a grid over the whole page where a click
+**Reset** (red; it asks first), which clears the timeline, **View All**, every photo in a grid over the whole page where a click
 shows one full size (← → to step, Esc, ← All Photos or a click beside the photo back to the grid where it was left, ✕ to close), and **Take Photo**) above the **Rig View**, a live perspective view
 of the rig on the right (a 3D model rendered with [three.js](https://threejs.org): 2020 extrusions, the
 ST3215s, the Sony A6600 with its ring flash, and [#3DBenchy](https://www.3dbenchy.com) (CC0) as the
