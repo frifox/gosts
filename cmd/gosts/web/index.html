@@ -1080,9 +1080,13 @@ function balanceFrom(rgb) {
     ? `<br><span style="color:var(--warn)">The light also has a ${r.cast > 0 ? "green" : "magenta"} cast (${Math.round(Math.abs(r.cast) * 100)}%), which colour temperature can't correct.</span>` : "";
   // A button each; one that would change nothing is greyed out.
   const kSame = wb === "Choose Color Temperature" && k === setK;
+  const abSame = hasAB && ab === Number(set.abshift), gmSame = hasGM && gm === Number(set.gmshift);
+  // Neutral: amber–blue needs neither fix (to a step), nor green–magenta.
+  const neutral = (abSame || (k && k === Math.round(setK / kstep) * kstep)) && (!hasGM || gmSame);
+  const neutralLine = neutral ? `<br><span style="color:#3ccf7a">✓ Neutral: nothing to change (each within a step).</span>` : "";
   const btn = (id, text, same) => `<button class="btn small${same ? "" : " primary"}" id="${id}"${same ? " disabled title=\"Already set\"" : ""}>${text}</button>`;
-  out.innerHTML = `${card}<br>${head}${cast}
-    <div class="row gray-btns">${k ? btn("graySetK", `Temperature ${k} K`, kSame) : ""}${hasAB ? btn("graySetAB", `Amber–blue ${shiftLabel(ab, abS.ends)}`, ab === Number(set.abshift)) : ""}${hasGM ? btn("graySetGM", `Green–magenta ${shiftLabel(gm, gmS.ends)}`, gm === Number(set.gmshift)) : ""}${dismiss}</div>`;
+  out.innerHTML = `${card}<br>${head}${cast}${neutralLine}
+    <div class="row gray-btns">${k ? btn("graySetK", `Temperature ${k} K`, kSame) : ""}${hasAB ? btn("graySetAB", `Amber–blue ${shiftLabel(ab, abS.ends)}`, abSame) : ""}${hasGM ? btn("graySetGM", `Green–magenta ${shiftLabel(gm, gmS.ends)}`, gmSame) : ""}${dismiss}</div>`;
   wire();
   // apply sets one (its button ticked); setting one amber–blue fix greys out the other.
   const apply = (id, steps, other) => {
