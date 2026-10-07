@@ -75,8 +75,9 @@ type gphoto2Req struct {
 	fired  chan error         // the shutter's fired (or not)
 	firing func()             // just before the shutter
 	got    func(photo, error) // the photo's picture, later
-	lines  []string           // instead: run these, reply on out
-	out    chan string
+	lines  []string           // instead: run these, reply on out (then errc)
+	out    chan []string
+	errc   chan error
 }
 
 // openGphoto2Camera connects to the camera gphoto2 sees on port (failing if
@@ -158,15 +159,36 @@ func (g *gphoto2Camera) Close() error {
 	return nil
 }
 
-// script runs shell lines on the camera's shell (development).
-func (g *gphoto2Camera) script(lines []string) (string, error) {
-	r := gphoto2Req{lines: lines, out: make(chan string, 1)}
+// runLines runs shell lines on the camera's shell, in turn with the photos,
+// and returns what each printed.
+func (g *gphoto2Camera) runLines(lines []string) ([]string, error) {
+	r := gphoto2Req{lines: lines, out: make(chan []string, 1), errc: make(chan error, 1)}
 	select {
 	case g.reqs <- r:
 	case <-g.done:
-		return "", errors.New("the camera is closed")
+		return nil, errors.New("the camera is closed")
 	}
-	return <-r.out, nil
+	return <-r.out, <-r.errc
+}
+
+// script runs shell lines on the camera's shell (development) and returns
+// what each printed, with how long it took.
+func (g *gphoto2Camera) script(lines []string) (string, error) {
+	var b strings.Builder
+	for _, l := range lines {
+		start := time.Now()
+		outs, err := g.runLines([]string{l})
+		out := ""
+		if len(outs) > 0 {
+			out = outs[0]
+		}
+		fmt.Fprintf(&b, "> %s  [%v]\n%s", l, time.Since(start).Round(time.Millisecond), out)
+		if err != nil {
+			fmt.Fprintf(&b, "ERROR: %v\n", err)
+			break
+		}
+	}
+	return b.String(), nil
 }
 
 // gphoto2Saved is a "Saving file as …" line: a file downloaded.
@@ -267,17 +289,18 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			continue
 		}
 		if r.lines != nil {
-			var b strings.Builder
+			var outs []string
+			var err error
 			for _, l := range r.lines {
-				start := time.Now()
-				out, err := sh.run(l, 60*time.Second)
-				fmt.Fprintf(&b, "> %s  [%v]\n%s", l, time.Since(start).Round(time.Millisecond), out)
+				var out string
+				out, err = sh.run(l, 60*time.Second)
+				outs = append(outs, out)
 				if err != nil {
-					fmt.Fprintf(&b, "ERROR: %v\n", err)
 					break
 				}
 			}
-			r.out <- b.String()
+			r.out <- outs
+			r.errc <- err
 			continue
 		}
 		if r.ctx.Err() != nil { // the capture stopped meanwhile

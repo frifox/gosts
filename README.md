@@ -269,6 +269,12 @@ PC Remote, save to PC+Camera): each photo's RAW stays on the camera's card and o
 the page. A camera on JPEG only works the same way; on RAW only no picture would come. On macOS the
 system's camera service grabs a camera when it's plugged in (and may open Photos): if taking a photo says
 another program has the camera, quit Photos and Image Capture and run `killall ptpcamerad mscamerad-xpc`.
+**Config** (in the Capture title) opens the camera's settings next to a sample shot: exposure mode (P, A, S,
+M; shutter, f-stop and ISO hold in M), shutter speed, f-stop, ISO, white balance and focus mode, each change
+sent to the camera at once; **Take Sample Shot** takes a photo (saved like the others, kept off the timeline)
+and shows it with the settings it was taken at, to adjust from. The simulated camera has the same settings,
+and its sample comes out brighter or darker with them.
+
 gosts keeps one gphoto2 shell open on the camera: firing the shutter takes about 1.1 s on the A6600 (nothing
 downloaded), and the JPEGs are collected in between, each to its own photo, while the rig moves on. Stopping
 shots and Take Photo wait for the shutter only; Moving Shots doesn't wait at all, its path paced so the shots

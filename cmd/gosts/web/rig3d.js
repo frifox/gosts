@@ -813,7 +813,9 @@ export function createRig(container) {
   // photos are these. It resolves to a JPEG Blob.
   let photoRenderer = null;
   const photoCam = new THREE.PerspectiveCamera(25, 3 / 2, 5, 20000);
-  function snapshot(width = 1200) {
+  // exposure brightens (>1) or darkens the picture, as a camera's settings
+  // would (the simulated camera's shutter, f-stop and ISO).
+  function snapshot(width = 1200, exposure = 1) {
     const height = Math.round(width / photoCam.aspect);
     if (!photoRenderer) {
       photoRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -834,6 +836,7 @@ export function createRig(container) {
     rig.camera.traverse((o) => { if (o.isMesh) parts.push(o); });
     const hide = [...parts, rig.shotGroup, rig.sight].filter((o) => o.visible);
     for (const o of hide) o.visible = false;
+    photoRenderer.toneMappingExposure = exposure;
     photoRenderer.render(scene, photoCam);
     for (const o of hide) o.visible = true;
     return new Promise((resolve, reject) =>

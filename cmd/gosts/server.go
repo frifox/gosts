@@ -72,6 +72,8 @@ type request struct {
 	Camera    string   `json:"camera"`
 	N         int      `json:"n"`
 	Lines     []string `json:"lines"`
+	Key       string   `json:"key"`
+	Value     string   `json:"value"`
 }
 
 type resultMsg struct {
@@ -178,6 +180,22 @@ func (a *app) exec(req request) (any, error) {
 			return nil, errors.New("a capture is running")
 		}
 		return nil, a.camera.shoot(context.Background(), true, nil)
+	case "cameraSettings": // the Config dialog's settings, from the camera
+		return a.cameraSettings()
+	case "cameraSet": // one setting, then all of them again
+		sc, err := a.settingsCam()
+		if err != nil {
+			return nil, err
+		}
+		if err := sc.Set(req.Key, req.Value); err != nil {
+			return nil, err
+		}
+		return a.cameraSettings()
+	case "sampleShot": // Config: a photo to judge the settings by
+		if a.cap.msg().Running {
+			return nil, errors.New("a capture is running")
+		}
+		return nil, a.camera.sample(context.Background())
 	case "shootBurst": // testing: N photos queued at once, as Moving Shots takes them
 		for i := 0; i < req.N; i++ {
 			if err := a.camera.shoot(context.Background(), false, nil); err != nil {
@@ -297,4 +315,27 @@ func (a *app) handleSimPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.camera.simPicture(n, jpg)
+}
+
+// settingsCam is the connected camera, if its settings can be changed.
+func (a *app) settingsCam() (settingsCamera, error) {
+	a.camera.mu.Lock()
+	cam := a.camera.cam
+	a.camera.mu.Unlock()
+	if cam == nil {
+		return nil, errNoCamera
+	}
+	sc, ok := cam.(settingsCamera)
+	if !ok {
+		return nil, errors.New("this camera's settings can't be changed from here")
+	}
+	return sc, nil
+}
+
+func (a *app) cameraSettings() ([]cameraSetting, error) {
+	sc, err := a.settingsCam()
+	if err != nil {
+		return nil, err
+	}
+	return sc.Settings()
 }

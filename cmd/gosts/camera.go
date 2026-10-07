@@ -39,9 +39,11 @@ type pacedCamera interface {
 
 // photo is one photo taken.
 type photo struct {
-	JPEG  []byte   // to show; the camera's, or a RAW file's preview
-	Files []string // where the camera's own files were saved, if anywhere
-	At    time.Time
+	JPEG    []byte   // to show; the camera's, or a RAW file's preview
+	Files   []string // where the camera's own files were saved, if anywhere
+	At      time.Time
+	Sample  bool   // a sample shot (Config): not on the timeline
+	Caption string // its settings, for a sample
 }
 
 // photoDir is where real cameras' photos are saved (a folder a day); main
@@ -91,9 +93,10 @@ func openCamera(id string) (Camera, string, error) {
 // cameraConn asks a page to render the Rig View from the camera (simShoot),
 // or makes one up if no page does.
 type simCamera struct {
-	lag time.Duration
-	mu  sync.Mutex
-	n   int
+	lag      time.Duration
+	mu       sync.Mutex
+	n        int
+	settings map[string]string // see Settings
 }
 
 func (s *simCamera) Shoot(ctx context.Context, firing func(), got func(photo, error)) error {
@@ -207,6 +210,7 @@ type cameraConn struct {
 	pending int             // simulated photo waiting for its picture from a page
 	queue   chan queuedShot // photos to take without waiting (see shoot)
 	deleted map[int]bool    // photos deleted (a picture still coming is dropped)
+	samples map[int]string  // sample shots (off the timeline): their captions
 }
 
 // maxPhotos is how many photos the timeline keeps in memory; the oldest go.
@@ -229,8 +233,9 @@ type photosMsg struct {
 // simShootMsg asks the pages to render the simulated camera's photo n (the
 // Rig View from the camera) and post it to /photo/sim?n=.
 type simShootMsg struct {
-	Type string `json:"type"` // "simShoot"
-	N    int    `json:"n"`
+	Type     string  `json:"type"` // "simShoot"
+	N        int     `json:"n"`
+	Exposure float64 `json:"exposure"` // brighter (>1) or darker than normal, from its settings
 }
 
 // simPictureWait is how long a simulated photo waits for a page's render
@@ -239,9 +244,11 @@ var simPictureWait = 2 * time.Second
 
 // photoMsg tells the page a photo was taken (it fetches /photo/{n}.jpg).
 type photoMsg struct {
-	Type string `json:"type"` // "photo"
-	N    int    `json:"n"`
-	At   int64  `json:"at"` // ms since 1970
+	Type    string `json:"type"` // "photo"
+	N       int    `json:"n"`
+	At      int64  `json:"at"` // ms since 1970
+	Sample  bool   `json:"sample,omitempty"`
+	Caption string `json:"caption,omitempty"`
 }
 
 // cameraMsg tells the page which camera is connected.
@@ -303,25 +310,48 @@ var errNoCamera = errors.New("no camera connected")
 // firing is called just as the shutter is released (from another goroutine
 // when not waiting).
 func (c *cameraConn) shoot(ctx context.Context, wait bool, firing func()) error {
+	return c.take(ctx, wait, firing, false)
+}
+
+// sample takes a sample shot (the Config dialog): like Take Photo, but kept
+// off the timeline, and captioned with the settings it was taken at.
+func (c *cameraConn) sample(ctx context.Context) error {
+	return c.take(ctx, true, nil, true)
+}
+
+func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample bool) error {
 	if firing == nil {
 		firing = func() {}
 	}
 	c.mu.Lock()
 	cam := c.cam
+	c.mu.Unlock()
 	if cam == nil {
-		c.mu.Unlock()
 		return errNoCamera
+	}
+	caption := ""
+	if sc, ok := cam.(settingsCamera); ok && sample {
+		if ss, err := sc.Settings(); err == nil {
+			caption = settingsCaption(ss)
+		}
 	}
 	// The photo's number now, so the page can show a placeholder while the
 	// camera takes it and its picture comes over.
+	c.mu.Lock()
 	c.count++
 	n := c.count
+	if sample {
+		if c.samples == nil {
+			c.samples = map[int]string{}
+		}
+		c.samples[n] = caption
+	}
 	c.mu.Unlock()
-	c.out(photoEventMsg{Type: "photoPending", N: n})
+	c.out(photoEventMsg{Type: "photoPending", N: n, Sample: sample})
 	got := func(p photo, err error) { c.got(cam, n, p, err) }
 	if wait {
 		if err := cam.Shoot(ctx, firing, got); err != nil {
-			c.out(photoEventMsg{Type: "photoFailed", N: n})
+			c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: sample})
 			return err
 		}
 		return nil
@@ -380,7 +410,7 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 	_, sim := cam.(*simCamera)
 	switch {
 	case err != nil:
-		c.out(photoEventMsg{Type: "photoFailed", N: n})
+		c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: c.isSample(n)})
 		c.warn("photo %d: %v", n, err)
 	case len(p.JPEG) > 0:
 		c.picture(n, p)
@@ -388,11 +418,19 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 		c.mu.Lock()
 		c.pending = n
 		c.mu.Unlock()
-		c.out(simShootMsg{Type: "simShoot", N: n})
+		c.out(simShootMsg{Type: "simShoot", N: n, Exposure: cam.(*simCamera).exposure()})
 		time.AfterFunc(simPictureWait, func() { c.picture(n, photo{JPEG: simPictureJPEG(n), At: p.At}) })
 	default: // taken, but nothing to show
-		c.out(photoEventMsg{Type: "photoFailed", N: n})
+		c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: c.isSample(n)})
 	}
+}
+
+// isSample says whether photo n is a sample shot.
+func (c *cameraConn) isSample(n int) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, ok := c.samples[n]
+	return ok
 }
 
 // warn logs a camera problem, also on the page.
@@ -406,8 +444,9 @@ func (c *cameraConn) warn(format string, args ...any) {
 // its picture follows as a photoMsg), taken without a picture or failed
 // ("photoFailed"), or deleted ("photoDeleted").
 type photoEventMsg struct {
-	Type string `json:"type"`
-	N    int    `json:"n"`
+	Type   string `json:"type"`
+	N      int    `json:"n"`
+	Sample bool   `json:"sample,omitempty"`
 }
 
 // delete takes photo n off the timeline (its files, if saved, stay where
@@ -434,6 +473,9 @@ func (c *cameraConn) picture(n int, p photo) bool {
 	if c.photos == nil {
 		c.photos = map[int]photo{}
 	}
+	if caption, ok := c.samples[n]; ok {
+		p.Sample, p.Caption = true, caption
+	}
 	c.photos[n] = p
 	for k := range c.photos {
 		if k <= c.count-maxPhotos {
@@ -444,7 +486,7 @@ func (c *cameraConn) picture(n int, p photo) bool {
 		c.pending = 0
 	}
 	c.mu.Unlock()
-	c.out(photoMsg{Type: "photo", N: n, At: p.At.UnixMilli()})
+	c.out(photoMsg{Type: "photo", N: n, At: p.At.UnixMilli(), Sample: p.Sample, Caption: p.Caption})
 	return true
 }
 
@@ -462,7 +504,9 @@ func (c *cameraConn) timeline() photosMsg {
 	defer c.mu.Unlock()
 	m := photosMsg{Type: "photos", Photos: []photoInfo{}}
 	for n, p := range c.photos {
-		m.Photos = append(m.Photos, photoInfo{N: n, At: p.At.UnixMilli()})
+		if !p.Sample {
+			m.Photos = append(m.Photos, photoInfo{N: n, At: p.At.UnixMilli()})
+		}
 	}
 	slices.SortFunc(m.Photos, func(a, b photoInfo) int { return a.N - b.N })
 	return m
@@ -487,8 +531,10 @@ func (c *cameraConn) lastPhoto() (photo, int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	last := 0
-	for n := range c.photos {
-		last = max(last, n)
+	for n, p := range c.photos {
+		if !p.Sample {
+			last = max(last, n)
+		}
 	}
 	return c.photos[last], last
 }

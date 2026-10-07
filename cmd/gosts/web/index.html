@@ -120,6 +120,18 @@ td.mono { font-family: var(--mono); }
 .timeline .thumb .num { position: absolute; left: 6px; bottom: 4px; font: 11px var(--mono); color: #fff; text-shadow: 0 0 3px #000; }
 .timeline .thumb.new { animation: thumbIn .35s ease-out; }
 @keyframes thumbIn { from { opacity: 0; transform: translateX(-12px); } }
+/* Camera Config: the settings on the left, the last sample shot on the right. */
+.modal.camcfg { width: min(1180px, 100%); }
+.camcfg-body { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
+.camcfg-params label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 10px; }
+.camcfg-params label:first-child { margin-top: 0; }
+.camcfg-shot { aspect-ratio: 3 / 2; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2);
+  display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; cursor: zoom-in; }
+.camcfg-shot img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.camcfg-shot.taking::after { content: ""; position: absolute; width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--border);
+  border-top-color: var(--accent); animation: spin .8s linear infinite; }
+#sampleCaption { margin-top: 8px; }
+@media (max-width: 860px) { .camcfg-body { grid-template-columns: 1fr; } }
 /* A photo full size, over the whole page. */
 .viewer { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.92); display: flex; flex-direction: column; }
 .viewer .stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 0 16px 16px; }
@@ -198,6 +210,7 @@ td.mono { font-family: var(--mono); }
     <section class="card" id="captureCard">
       <h2>Capture <span class="spacer"></span>
         <button class="btn small" id="camRefresh" style="text-transform:none;letter-spacing:0">Refresh</button>
+        <button class="btn small" id="camConfigBtn" title="Camera settings, with sample shots to judge them by" style="text-transform:none;letter-spacing:0" hidden>Config</button>
       </h2>
       <!-- No camera: pick one and connect. -->
       <div class="card-body" id="cameraBody">
@@ -357,6 +370,26 @@ td.mono { font-family: var(--mono); }
   </div>
   <div class="stage" id="viewerStage"><img id="viewerImg" alt=""></div>
 </div>
+<div class="modal-backdrop" id="camConfigModal" hidden>
+  <div class="modal card camcfg" role="dialog" aria-modal="true" aria-labelledby="camConfigTitle">
+    <h2><span id="camConfigTitle">Camera Config</span><span class="spacer"></span>
+      <button class="icon-btn" id="camConfigClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
+    <div class="card-body camcfg-body">
+      <div class="camcfg-params">
+        <div id="camSettings"><div class="hint">Reading the camera's settings…</div></div>
+        <button class="btn primary" id="sampleBtn" style="margin-top:14px;width:100%">Take Sample Shot</button>
+        <p class="hint">Changes go to the camera at once. Take a sample shot to see how they come out; it's saved
+          with your photos but kept off the timeline.</p>
+        <div class="err" id="camConfigErr"></div>
+      </div>
+      <div class="camcfg-preview">
+        <div class="camcfg-shot" id="sampleBox"><span class="hint" id="sampleNone">No sample shot yet.</span>
+          <img id="sampleImg" alt="The sample shot" hidden></div>
+        <div class="hint mono" id="sampleCaption"></div>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="modal-backdrop" id="confirmModal" hidden>
   <div class="modal card" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" style="width:min(420px,100%)">
     <h2 id="confirmTitle">Are you sure?</h2>
@@ -452,11 +485,12 @@ function onMessage(m) {
     case "telemetry": onTelemetry(m); break;
     case "capture": onCapture(m); break;
     case "camera": onCamera(m); break;
-    case "photo": addPhoto(m, true); break;
-    case "photoPending": photoPending(m.n); break;
-    case "photoFailed": case "photoDeleted": photoGone(m.n); break;
+    case "photo": m.sample ? sampleArrived(m) : addPhoto(m, true); break;
+    case "photoPending": m.sample ? samplePending(m.n) : photoPending(m.n); break;
+    case "photoFailed": m.sample ? sampleFailed(m.n) : photoGone(m.n); break;
+    case "photoDeleted": photoGone(m.n); break;
     case "photos": setPhotos(m.photos); break;
-    case "simShoot": simShoot(m.n); break;
+    case "simShoot": simShoot(m.n, m.exposure); break;
     case "log": log(m.message, m.level); break;
   }
 }
@@ -530,6 +564,8 @@ function onCamera(m) {
   $("cameraBody").hidden = $("camRefresh").hidden = m.connected;
   $("captureBody").hidden = !m.connected;
   setPill("cam", m.connected, m.connected ? `camera: ${m.id === "sim" ? "simulator" : m.name}` : "no camera");
+  $("camConfigBtn").hidden = !m.connected;
+  if (!m.connected) closeCamConfig();
   cameraButtons();
   if (!m.connected) { stopPreview(); send("cameras").then(renderCameras).catch(() => {}); }
 }
@@ -644,6 +680,7 @@ function openPhoto(n) {
 function viewerButtons() {
   const i = state.photos.findIndex((p) => p.n === state.viewing), gallery = !$("gallery").hidden;
   $("viewerBack").hidden = !gallery;
+  $("viewerNewer").hidden = $("viewerOlder").hidden = false; // (a sample's view hides them)
   $("viewerNewer").disabled = i < 0 || i >= state.photos.length - 1;
   $("viewerOlder").disabled = i <= 0;
   $("viewerHint").textContent = `  ·  ← → to step, Esc ${gallery ? "for all photos" : "to close"}`;
@@ -681,6 +718,78 @@ document.addEventListener("keydown", (e) => {
   else return;
   e.preventDefault();
 });
+// ---------------------------------------------------------------- camera config
+// Camera Config: the camera's settings (each change goes to it at once), and
+// sample shots (off the timeline) to judge them by.
+function renderSettings(list) {
+  const box = $("camSettings");
+  box.innerHTML = "";
+  if (!list?.length) { box.innerHTML = '<div class="hint">This camera has no settings to change here.</div>'; return; }
+  for (const st of list) {
+    const label = document.createElement("label");
+    label.textContent = st.label;
+    const sel = document.createElement("select");
+    sel.disabled = st.readOnly;
+    for (const c of st.choices) sel.add(new Option(c, c, false, c === st.current));
+    if (!st.choices.includes(st.current)) sel.add(new Option(st.current || "–", st.current, true, true));
+    sel.onchange = async () => {
+      $("camConfigErr").textContent = "";
+      sel.disabled = true;
+      try { renderSettings(await send("cameraSet", { key: st.key, value: sel.value })); }
+      catch (e) { $("camConfigErr").textContent = e.message; sel.disabled = false; loadSettings(); }
+    };
+    label.appendChild(sel);
+    box.appendChild(label);
+  }
+}
+async function loadSettings() {
+  try { renderSettings(await send("cameraSettings")); }
+  catch (e) { $("camConfigErr").textContent = e.message; $("camSettings").innerHTML = ""; }
+}
+function openCamConfig() {
+  $("camConfigErr").textContent = "";
+  $("camSettings").innerHTML = '<div class="hint">Reading the camera\'s settings…</div>';
+  $("camConfigModal").hidden = false;
+  sampleButton();
+  loadSettings();
+}
+function closeCamConfig() { $("camConfigModal").hidden = true; }
+$("camConfigBtn").onclick = openCamConfig;
+$("camConfigClose").onclick = closeCamConfig;
+$("camConfigModal").onclick = (e) => { if (e.target === $("camConfigModal")) closeCamConfig(); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented && !$("camConfigModal").hidden) closeCamConfig(); });
+function sampleButton() { $("sampleBtn").disabled = !state.camera?.connected || !!state.cap?.running || state.sampleTaking; }
+$("sampleBtn").onclick = async () => {
+  $("camConfigErr").textContent = "";
+  state.sampleTaking = true; sampleButton();
+  await act("sampleShot", {}, $("camConfigErr"));
+  state.sampleTaking = false; sampleButton();
+};
+function samplePending(n) { state.samplePending = n; $("sampleBox").classList.add("taking"); }
+function sampleArrived(m) {
+  if (m.n < (state.sampleShown || 0)) return; // an older one, late
+  state.sampleShown = m.n;
+  $("sampleBox").classList.remove("taking");
+  $("sampleImg").src = `/photo/${m.n}.jpg`;
+  $("sampleImg").hidden = false;
+  $("sampleNone").hidden = true;
+  $("sampleCaption").textContent = `${m.caption || ""}${m.caption ? "  ·  " : ""}${new Date(m.at).toLocaleTimeString()}`;
+}
+function sampleFailed(n) {
+  $("sampleBox").classList.remove("taking");
+  $("camConfigErr").textContent = `The sample shot didn't come through.`;
+}
+// The sample full size, in the photo viewer.
+$("sampleBox").onclick = () => {
+  if (!state.sampleShown) return;
+  $("viewerImg").src = `/photo/${state.sampleShown}.jpg`;
+  $("viewerCap").textContent = "Sample · " + $("sampleCaption").textContent;
+  $("viewerHint").textContent = "  ·  Esc to close";
+  for (const id of ["viewerBack", "viewerNewer", "viewerOlder"]) $(id).hidden = true;
+  state.viewing = null;
+  $("viewer").hidden = false;
+};
+
 $("takePhotoBtn").onclick = async () => {
   $("shotErr").textContent = "";
   $("takePhotoBtn").disabled = true;
@@ -725,9 +834,9 @@ function cameraButtons() {
 }
 // The simulated camera's picture: the Rig View from the camera, sent back.
 // Every open window renders it; the server keeps the first.
-async function simShoot(n) {
+async function simShoot(n, exposure) {
   try {
-    const jpg = await window.rig3d.snapshot();
+    const jpg = await window.rig3d.snapshot(1200, exposure || 1);
     await fetch(`/photo/sim?n=${n}`, { method: "POST", body: jpg, headers: { "Content-Type": "image/jpeg" } });
   } catch (e) { log(`simulated photo ${n}: ${e.message}`, "error"); }
 }
