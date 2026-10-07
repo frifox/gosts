@@ -157,7 +157,7 @@ card white balance, focus and depth of field.
 
 ```bash
 go install github.com/frifox/gosts/cmd/gosts-rig@latest
-gosts-rig -sim -camera sim    # simulated rig and camera, no hardware needed
+gosts-rig --rig sim --camera sim    # simulated rig and camera, no hardware needed
 ```
 
 More in [its README](cmd/gosts-rig/README.md).

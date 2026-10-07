@@ -21,7 +21,7 @@ brew install gphoto2                        # for a real camera
 go install github.com/frifox/gosts/cmd/gosts-rig@latest
 
 gosts-rig                                   # then open http://localhost:8081
-gosts-rig -sim -camera sim                  # simulated rig and camera
+gosts-rig --rig sim --camera sim            # simulated rig and camera
 gosts-rig --listen :9000                    # another port (or "localhost:9000" to keep it to this computer)
 ```
 

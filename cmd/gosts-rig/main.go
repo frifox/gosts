@@ -9,10 +9,10 @@
 //
 //	go install github.com/frifox/gosts/cmd/gosts-rig@latest
 //
-//	gosts-rig                               # pick the board in the browser
-//	gosts-rig -port /dev/cu.usbmodem1101    # connect on startup
-//	gosts-rig -sim                          # simulated rig (servos 10, 11, 12)
-//	gosts-rig -sim -camera sim              # and a simulated camera
+//	gosts-rig                                # pick the board and camera in the browser
+//	gosts-rig --rig /dev/cu.usbmodem1101     # connect the rig's board on startup
+//	gosts-rig --rig sim                      # simulated rig (servos 10, 11, 12)
+//	gosts-rig --rig sim --camera sim         # and a simulated camera
 //	gosts-rig --listen :9000                 # serve the page on another port
 package main
 
@@ -30,9 +30,10 @@ import (
 )
 
 func main() {
-	port := flag.String("port", "", "serial device to connect to on startup (default: Port in the config file)")
-	sim := flag.Bool("sim", false, "use a simulated rig")
-	camera := flag.String("camera", "", `camera to connect on startup, "sim" for the simulated one (default: Camera in the config file)`)
+	port := flag.String("rig", "", `the rig's board to connect on startup: its serial device, or "sim" for the simulated rig (default: Port in the config file)`)
+	flag.StringVar(port, "port", "", "the same as -rig (its old name)")
+	sim := flag.Bool("sim", false, "the same as -rig sim (its old name)")
+	camera := flag.String("camera", "", `camera to connect on startup: its id (as the page lists it), or "sim" for the simulated camera (default: Camera in the config file)`)
 	addr := flag.String("listen", "", "address to serve the page on, e.g. \":8081\", \"localhost:9000\" or just a port, 9000 (default: ListenAddr in the config file, \":8081\" if unset)")
 	flag.StringVar(addr, "addr", "", "the same as -listen (its old name)")
 	cfgPath := flag.String("config", defaultConfigPath(), "settings file, created if missing")
