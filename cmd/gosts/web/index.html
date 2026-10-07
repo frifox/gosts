@@ -142,7 +142,6 @@ td.mono { font-family: var(--mono); }
 .gray-out .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); vertical-align: -2px; margin-right: 6px; }
 .gray-out .row { margin-top: 8px; }
 .setting-row { display: flex; gap: 6px; align-items: center; }
-.camcfg-params label.sub-setting { margin-left: 12px; padding-left: 10px; border-left: 2px solid var(--border); }
 .setting-row input.kelvin { width: 84px; flex: none; }
 .setting-row input[type=range] { flex: 1; }
 .camcfg-params label.setting-busy::after { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border);
@@ -817,7 +816,6 @@ function renderSettings(list) {
 // A number setting (colour temperature, Kelvin): a number field and a
 // slider, sent to the camera as one's let go (or Enter, or leaving the field).
 function rangeSetting(st, label) {
-  label.classList.add("sub-setting"); // it belongs to the one above (white balance)
   const row = document.createElement("div");
   row.className = "setting-row";
   const num = document.createElement("input");
