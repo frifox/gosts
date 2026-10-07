@@ -300,17 +300,30 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handlePhoto serves a photo on the timeline (/photo/{n}.jpg).
+// handlePhoto serves a photo on the timeline (/photo/{n}.jpg; ?thumb, its
+// thumbnail).
 func (a *app) handlePhoto(w http.ResponseWriter, r *http.Request) {
 	n, err := strconv.Atoi(strings.TrimSuffix(r.PathValue("file"), ".jpg"))
-	p, ok := a.camera.photo(n)
-	if err != nil || !ok {
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	var jpg []byte
+	var ok bool
+	if r.URL.Query().Has("thumb") { // ?thumb: a small one, for the timeline
+		jpg, ok = a.camera.thumb(n)
+	} else {
+		var p photo
+		p, ok = a.camera.photo(n)
+		jpg = p.JPEG
+	}
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Write(p.JPEG)
+	w.Write(jpg)
 }
 
 // handleSimPhoto takes a simulated photo's picture, rendered by a page

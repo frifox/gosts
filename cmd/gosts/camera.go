@@ -50,6 +50,7 @@ type pacedCamera interface {
 // photo is one photo taken.
 type photo struct {
 	JPEG     []byte   // to show; the camera's, or a RAW file's preview
+	Thumb    []byte   // it shrunk, for the timeline (see thumb); made when first wanted
 	Files    []string // where the camera's own files were saved, if anywhere
 	At       time.Time
 	Sample   bool              // a sample shot (Config): not on the timeline

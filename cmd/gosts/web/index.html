@@ -624,7 +624,7 @@ function thumb(p, isNew) {
   b.tabIndex = 0;
   b.setAttribute("role", "button");
   b.title = photoCaption(p);
-  b.innerHTML = `<img alt="" loading="lazy" src="${photoURL(p)}"><span class="num">${p.n}</span>` +
+  b.innerHTML = `<img alt="" loading="lazy" decoding="async" src="${photoURL(p)}&thumb"><span class="num">${p.n}</span>` +
     `<button class="del" title="Delete photo ${p.n} (from the timeline)" aria-label="Delete photo ${p.n}">${trashIcon}</button>`;
   b.onclick = (e) => { if (!e.target.closest(".del")) openPhoto(p.n); };
   b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) openPhoto(p.n); };
