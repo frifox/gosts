@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -176,6 +177,9 @@ func (a *app) exec(req request) (any, error) {
 			return nil, errors.New("a capture is running")
 		}
 		return nil, a.camera.shoot(context.Background())
+	case "photosReset": // Reset: clear the timeline
+		a.camera.reset()
+		return nil, nil
 	case "cameraDisconnect":
 		a.cap.stop()
 		a.camera.disconnect()
@@ -198,9 +202,7 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 	c.push(a.rig.state())
 	c.push(a.cap.msg())
 	c.push(a.camera.msg())
-	if _, n := a.camera.lastPhoto(); n > 0 {
-		c.push(photoMsg{Type: "photo", N: n})
-	}
+	c.push(a.camera.timeline())
 
 	done := make(chan struct{})
 	go func() {
@@ -249,10 +251,11 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handlePhoto serves the last photo taken (/photo/last.jpg).
+// handlePhoto serves a photo on the timeline (/photo/{n}.jpg).
 func (a *app) handlePhoto(w http.ResponseWriter, r *http.Request) {
-	p, _ := a.camera.lastPhoto()
-	if len(p.JPEG) == 0 {
+	n, err := strconv.Atoi(strings.TrimSuffix(r.PathValue("file"), ".jpg"))
+	p, ok := a.camera.photo(n)
+	if err != nil || !ok {
 		http.NotFound(w, r)
 		return
 	}

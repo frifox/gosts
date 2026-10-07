@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"math"
+	"slices"
 	"sync"
 	"time"
 )
@@ -156,7 +157,8 @@ func drawNumber(img *image.RGBA, n, x, y, scale int) {
 
 func (s *simCamera) Close() error { return nil }
 
-// cameraConn is the connected camera, if any, and the last photo taken.
+// cameraConn is the connected camera, if any, and the photos taken (the
+// page's timeline, until Reset).
 type cameraConn struct {
 	out func(any)
 
@@ -164,10 +166,26 @@ type cameraConn struct {
 	cam     Camera
 	id      string
 	name    string
-	last    photo
-	count   int // photos taken, numbering them
-	shown   int // the photo last is
-	pending int // simulated photo waiting for its picture from a page
+	photos  map[int]photo // by number, those with a picture
+	count   int           // photos taken, numbering them (on across Resets)
+	pending int           // simulated photo waiting for its picture from a page
+}
+
+// maxPhotos is how many photos the timeline keeps in memory; the oldest go.
+const maxPhotos = 1000
+
+// photoInfo is a photo on the timeline, for the page (the picture is at
+// /photo/{n}.jpg).
+type photoInfo struct {
+	N  int   `json:"n"`
+	At int64 `json:"at"` // ms since 1970
+}
+
+// photosMsg is the whole timeline, oldest first (on connecting, and after
+// Reset).
+type photosMsg struct {
+	Type   string      `json:"type"` // "photos"
+	Photos []photoInfo `json:"photos"`
 }
 
 // simShootMsg asks the pages to render the simulated camera's photo n (the
@@ -181,7 +199,7 @@ type simShootMsg struct {
 // before a made-up picture stands in.
 var simPictureWait = 2 * time.Second
 
-// photoMsg tells the page a photo was taken (it fetches /photo/last.jpg).
+// photoMsg tells the page a photo was taken (it fetches /photo/{n}.jpg).
 type photoMsg struct {
 	Type string `json:"type"` // "photo"
 	N    int    `json:"n"`
@@ -267,15 +285,23 @@ func (c *cameraConn) shoot(ctx context.Context) error {
 	return nil
 }
 
-// picture sets photo n's picture, making it the last photo (once: a later
-// copy of the same photo is ignored, and so is an older photo's).
+// picture sets photo n's picture, adding it to the timeline (once: a later
+// copy of the same photo is ignored).
 func (c *cameraConn) picture(n int, p photo) bool {
 	c.mu.Lock()
-	if n <= c.shown {
+	if _, ok := c.photos[n]; ok || n > c.count || n <= c.count-maxPhotos {
 		c.mu.Unlock()
 		return false
 	}
-	c.last, c.shown = p, n
+	if c.photos == nil {
+		c.photos = map[int]photo{}
+	}
+	c.photos[n] = p
+	for k := range c.photos {
+		if k <= c.count-maxPhotos {
+			delete(c.photos, k)
+		}
+	}
 	if c.pending == n {
 		c.pending = 0
 	}
@@ -284,14 +310,47 @@ func (c *cameraConn) picture(n int, p photo) bool {
 	return true
 }
 
+// photo is photo n's picture, if it's on the timeline.
+func (c *cameraConn) photo(n int) (photo, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	p, ok := c.photos[n]
+	return p, ok
+}
+
+// timeline lists the photos, oldest first.
+func (c *cameraConn) timeline() photosMsg {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	m := photosMsg{Type: "photos", Photos: []photoInfo{}}
+	for n, p := range c.photos {
+		m.Photos = append(m.Photos, photoInfo{N: n, At: p.At.UnixMilli()})
+	}
+	slices.SortFunc(m.Photos, func(a, b photoInfo) int { return a.N - b.N })
+	return m
+}
+
+// reset clears the timeline (Reset).
+func (c *cameraConn) reset() {
+	c.mu.Lock()
+	c.photos = nil
+	c.mu.Unlock()
+	c.out(c.timeline())
+}
+
 // simPicture sets simulated photo n's picture, rendered by a page.
 func (c *cameraConn) simPicture(n int, jpg []byte) bool {
 	return c.picture(n, photo{JPEG: jpg, At: time.Now()})
 }
 
-// lastPhoto is the last photo with a picture (empty if none), and its number.
+// lastPhoto is the newest photo on the timeline (empty if none), and its
+// number.
 func (c *cameraConn) lastPhoto() (photo, int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.last, c.shown
+	last := 0
+	for n := range c.photos {
+		last = max(last, n)
+	}
+	return c.photos[last], last
 }

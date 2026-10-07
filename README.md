@@ -230,8 +230,9 @@ ports to connect to, with Refresh; once connected, live elevation/azimuth: the r
 **Capture** card that, until a camera is connected, lists the cameras to connect to (for now the
 simulated one, whose photos are the 3D view rendered from the camera on the rig, looking at the
 object; real cameras come next), and once connected has the number of photos, the settle time, and **Moving Shots**, with Start,
-Pause and Stop; Setup can disconnect either) and on the right a **Camera** card (the last photo taken,
-during a capture too, and **Take Photo**) above the **Rig View**, a live perspective view
+Pause and Stop; Setup can disconnect either) and on the right a **Camera** card (a timeline of every photo
+taken, newest on the left, during a capture too; click one to see it full size, ← → to step, Esc to close;
+**Take Photo** and **Reset**, which clears the timeline) above the **Rig View**, a live perspective view
 of the rig on the right (a 3D model rendered with [three.js](https://threejs.org): 2020 extrusions, the
 ST3215s, the Sony A6600 with its ring flash, and [#3DBenchy](https://www.3dbenchy.com) (CC0) as the
 object; bundled in the binary, so no internet is needed), with

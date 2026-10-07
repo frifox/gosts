@@ -104,12 +104,19 @@ td.mono { font-family: var(--mono); }
 .right .view { flex: 1; }
 .right .view.collapsed { flex: none; }
 .view { position: relative; min-height: 0; display: flex; flex-direction: column; }
-/* Camera: the last photo (3:2), and its controls beside it. */
-.camera { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
-.camera .shot { width: min(300px, 100%); aspect-ratio: 3 / 2; flex: none; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2);
-  display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.camera .shot img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.camera-controls { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; min-width: 0; }
+/* Camera: the timeline of photos (3:2), newest on the left, scrolling sideways. */
+.timeline { display: flex; gap: 8px; overflow-x: auto; min-height: 120px; align-items: center; padding-bottom: 4px; }
+.timeline .thumb { flex: none; height: 120px; aspect-ratio: 3 / 2; position: relative; padding: 0; border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
+.timeline .thumb:hover { border-color: var(--accent); }
+.timeline .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.timeline .thumb span { position: absolute; left: 6px; bottom: 4px; font: 11px var(--mono); color: #fff; text-shadow: 0 0 3px #000; }
+.timeline .thumb.new { animation: thumbIn .35s ease-out; }
+@keyframes thumbIn { from { opacity: 0; transform: translateX(-12px); } }
+/* A photo full size, over the whole page. */
+.viewer { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.88); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; cursor: zoom-out; }
+.viewer img { max-width: 100%; max-height: calc(100% - 34px); object-fit: contain; box-shadow: 0 8px 40px rgba(0,0,0,.6); }
+.viewer .cap { color: #e6e9ef; font: 12px var(--mono); }
 .view .card-body { flex: 1; position: relative; padding: 0; min-height: 300px; }
 #rig { position: absolute; inset: 0; cursor: grab; touch-action: none; overflow: hidden; border-radius: 0 0 12px 12px; }
 #rig:active { cursor: grabbing; }
@@ -244,19 +251,14 @@ td.mono { font-family: var(--mono); }
 
   <div class="right">
   <section class="card" id="cameraCard">
-    <h2>Camera</h2>
+    <h2>Camera <span class="spacer"></span>
+      <button class="btn small" id="resetPhotosBtn" title="Clear the photos from the timeline" style="text-transform:none;letter-spacing:0" disabled>Reset</button>
+      <button class="btn small primary" id="takePhotoBtn" style="text-transform:none;letter-spacing:0" disabled>Take Photo</button>
+    </h2>
     <div class="card-body">
-      <div class="camera">
-        <div class="shot" id="shotBox">
-          <img id="shotImg" alt="The last photo" hidden>
-          <span class="hint" id="shotNone">No photo yet.</span>
-        </div>
-        <div class="camera-controls">
-          <button class="btn primary" id="takePhotoBtn" disabled>Take Photo</button>
-          <p class="hint" id="shotInfo"></p>
-          <div class="err" id="shotErr"></div>
-        </div>
-      </div>
+      <!-- The timeline: every photo taken, newest on the left; click one to see it large. -->
+      <div class="timeline" id="timeline"><span class="hint" id="shotNone">No photos yet.</span></div>
+      <div class="err" id="shotErr"></div>
     </div>
   </section>
 
@@ -284,6 +286,7 @@ td.mono { font-family: var(--mono); }
   </div>
 </div>
 
+<div class="viewer" id="viewer" hidden><img id="viewerImg" alt=""><div class="cap" id="viewerCap"></div></div>
 <div class="modal-backdrop" id="setupModal" hidden>
   <div class="modal card" role="dialog" aria-modal="true">
     <h2>Setup</h2>
@@ -372,7 +375,8 @@ function onMessage(m) {
     case "telemetry": onTelemetry(m); break;
     case "capture": onCapture(m); break;
     case "camera": onCamera(m); break;
-    case "photo": onPhoto(m); break;
+    case "photo": addPhoto(m, true); break;
+    case "photos": setPhotos(m.photos); break;
     case "simShoot": simShoot(m.n); break;
     case "log": log(m.message, m.level); break;
   }
@@ -451,20 +455,64 @@ function onCamera(m) {
   if (!m.connected) { stopPreview(); send("cameras").then(renderCameras).catch(() => {}); }
 }
 
-// The Camera card: the last photo, and Take Photo.
-function onPhoto(m) {
-  $("shotImg").src = `/photo/last.jpg?n=${m.n}`;
-  $("shotImg").hidden = false;
-  $("shotNone").hidden = true;
-  $("shotInfo").textContent = `Photo ${m.n}` + (m.at ? ` · ${new Date(m.at).toLocaleTimeString()}` : "");
+// The Camera card: the timeline of photos (newest on the left), Take Photo
+// and Reset. A photo clicked opens full size; arrows step, Esc closes.
+state.photos = []; // oldest first: {n, at}
+const photoCaption = (p) => `Photo ${p.n}` + (p.at ? ` · ${new Date(p.at).toLocaleTimeString()}` : "");
+function thumb(p, isNew) {
+  const b = document.createElement("button");
+  b.className = "thumb" + (isNew ? " new" : "");
+  b.title = photoCaption(p);
+  b.innerHTML = `<img alt="" loading="lazy" src="/photo/${p.n}.jpg"><span>${p.n}</span>`;
+  b.onclick = () => openPhoto(p.n);
+  return b;
 }
+function setPhotos(list) {
+  state.photos = list || [];
+  const tl = $("timeline");
+  tl.querySelectorAll(".thumb").forEach((t) => t.remove());
+  for (const p of state.photos) tl.prepend(thumb(p, false));
+  $("shotNone").hidden = state.photos.length > 0;
+  cameraButtons();
+  if (!$("viewer").hidden && !state.photos.some((p) => p.n === state.viewing)) closePhoto();
+}
+function addPhoto(p, isNew) {
+  if (state.photos.some((q) => q.n === p.n)) return;
+  state.photos.push(p);
+  $("timeline").prepend(thumb(p, isNew));
+  $("timeline").scrollLeft = 0; // the newest in view
+  $("shotNone").hidden = true;
+  cameraButtons();
+}
+function openPhoto(n) {
+  const p = state.photos.find((q) => q.n === n);
+  if (!p) return;
+  state.viewing = n;
+  $("viewerImg").src = `/photo/${n}.jpg`;
+  $("viewerCap").textContent = photoCaption(p) + "  ·  ← newer, older →, Esc closes";
+  $("viewer").hidden = false;
+}
+function closePhoto() { $("viewer").hidden = true; state.viewing = null; }
+$("viewer").onclick = closePhoto;
+document.addEventListener("keydown", (e) => {
+  if ($("viewer").hidden) return;
+  const i = state.photos.findIndex((p) => p.n === state.viewing);
+  if (e.key === "Escape") closePhoto();
+  // As on the timeline: newer to the left, older to the right.
+  else if (e.key === "ArrowLeft" && i >= 0 && i < state.photos.length - 1) openPhoto(state.photos[i + 1].n);
+  else if (e.key === "ArrowRight" && i > 0) openPhoto(state.photos[i - 1].n);
+});
 $("takePhotoBtn").onclick = async () => {
   $("shotErr").textContent = "";
   $("takePhotoBtn").disabled = true;
   await act("shoot", {}, $("shotErr"));
   cameraButtons();
 };
-function cameraButtons() { $("takePhotoBtn").disabled = !state.camera?.connected || !!state.cap?.running; }
+$("resetPhotosBtn").onclick = () => act("photosReset", {}, $("shotErr"));
+function cameraButtons() {
+  $("takePhotoBtn").disabled = !state.camera?.connected || !!state.cap?.running;
+  $("resetPhotosBtn").disabled = !state.photos.length || !!state.cap?.running;
+}
 // The simulated camera's picture: the Rig View from the camera, sent back.
 // Every open window renders it; the server keeps the first.
 async function simShoot(n) {

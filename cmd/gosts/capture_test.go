@@ -238,3 +238,35 @@ func TestSimCameraPicture(t *testing.T) {
 		t.Fatal("a late copy replaced the picture")
 	}
 }
+
+func TestPhotoTimeline(t *testing.T) {
+	simPictureWait = 50 * time.Millisecond
+	defer func() { simPictureWait = 2 * time.Second }()
+	c := &cameraConn{out: func(any) {}}
+	if err := c.connect(simCameraID); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		if err := c.shoot(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	time.Sleep(150 * time.Millisecond)
+	tl := c.timeline().Photos
+	if len(tl) != 3 || tl[0].N != 1 || tl[2].N != 3 {
+		t.Fatalf("timeline %v", tl)
+	}
+	if _, ok := c.photo(2); !ok {
+		t.Fatal("photo 2 missing")
+	}
+	c.reset()
+	if tl := c.timeline().Photos; len(tl) != 0 {
+		t.Fatalf("after Reset: %v", tl)
+	}
+	// Numbering goes on after Reset.
+	c.shoot(context.Background())
+	time.Sleep(150 * time.Millisecond)
+	if tl := c.timeline().Photos; len(tl) != 1 || tl[0].N != 4 {
+		t.Fatalf("after Reset and a photo: %v", tl)
+	}
+}
