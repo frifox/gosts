@@ -84,6 +84,8 @@ func main() {
 	site, _ := fs.Sub(webFiles, "web")
 	mux.Handle("/", http.FileServerFS(site))
 	mux.HandleFunc("/ws", a.handleWS)
+	mux.HandleFunc("/photo/last.jpg", a.handlePhoto)
+	mux.HandleFunc("/photo/sim", a.handleSimPhoto)
 	hs := &http.Server{Addr: *addr, Handler: mux}
 	go func() {
 		<-ctx.Done()

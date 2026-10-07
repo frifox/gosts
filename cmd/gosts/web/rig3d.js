@@ -790,6 +790,40 @@ export function createRig(container) {
     controls.update();
     renderer.render(scene, cam);
   });
+  // ---------------------------------------------------------------- simulated photo
+  // snapshot renders what the camera on the rig sees now (the Rig View's
+  // pose): from its lens, looking at the object's middle, like an APS-C
+  // camera with a 35 mm lens (about 25° high, 3:2). The simulated camera's
+  // photos are these. It resolves to a JPEG Blob.
+  let photoRenderer = null;
+  const photoCam = new THREE.PerspectiveCamera(25, 3 / 2, 5, 20000);
+  function snapshot(width = 1200) {
+    const height = Math.round(width / photoCam.aspect);
+    if (!photoRenderer) {
+      photoRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      photoRenderer.shadowMap.enabled = true;
+      photoRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      photoRenderer.toneMapping = renderer.toneMapping;
+      photoRenderer.outputColorSpace = renderer.outputColorSpace;
+      photoRenderer.setClearColor(0x2a2e36, 1); // a studio backdrop
+    }
+    photoRenderer.setSize(width, height, false);
+    rig.tilt.updateMatrixWorld(true);
+    photoCam.position.copy(rig.camera.localToWorld(rig.camera.userData.lensFront.clone()));
+    photoCam.lookAt(rig.objectCentre);
+    // Only the real things: no camera body in the way, no shots, trail or
+    // sight line.
+    // (The camera's parts, not its flash light: switching lights recompiles.)
+    const parts = [];
+    rig.camera.traverse((o) => { if (o.isMesh) parts.push(o); });
+    const hide = [...parts, rig.shotGroup, rig.sight].filter((o) => o.visible);
+    for (const o of hide) o.visible = false;
+    photoRenderer.render(scene, photoCam);
+    for (const o of hide) o.visible = true;
+    return new Promise((resolve, reject) =>
+      photoRenderer.domElement.toBlob((b) => (b ? resolve(b) : reject(new Error("no picture"))), "image/jpeg", 0.9));
+  }
+
   // getView reports where the viewer is, relative to the rig's centre, as
   // fractions of the preset distance (used to pick the presets).
   function getView() {
@@ -797,5 +831,5 @@ export function createRig(container) {
     const v = cam.position.clone().sub(t).divideScalar(far);
     return { x: +v.x.toFixed(2), y: +v.y.toFixed(2), z: +v.z.toFixed(2) };
   }
-  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, speed };
+  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, speed, snapshot };
 }

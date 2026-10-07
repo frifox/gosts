@@ -225,12 +225,13 @@ the serial port at the same time. In gosts, **Setup** assigns the roles (by defa
 leader, mirrored; #11 elevation follower; #12 azimuth), the speed, and switches
 the rig's servos to multi-turn so moves never take the long way round.
 
-The page has the controls on the left (a **Control** card that, until a board is connected, lists the serial
+The page has the controls on the left (a **Motion** card that, until a board is connected, lists the serial
 ports to connect to, with Refresh; once connected, live elevation/azimuth: the rig moves as a slider is dragged or a value entered, with Stop shown while it moves, and Torque, and a
 **Capture** card that, until a camera is connected, lists the cameras to connect to (for now the
-simulated one, which takes each photo after a short shutter lag and saves nothing; real cameras come
-next), and once connected has the number of photos, the settle time, and **Moving Shots**, with Start,
-Pause and Stop; Setup can disconnect either) and a live perspective view
+simulated one, whose photos are the 3D view rendered from the camera on the rig, looking at the
+object; real cameras come next), and once connected has the number of photos, the settle time, and **Moving Shots**, with Start,
+Pause and Stop; Setup can disconnect either) and on the right a **Camera** card (the last photo taken,
+during a capture too, and **Take Photo**) above the **Rig View**, a live perspective view
 of the rig on the right (a 3D model rendered with [three.js](https://threejs.org): 2020 extrusions, the
 ST3215s, the Sony A6600 with its ring flash, and [#3DBenchy](https://www.3dbenchy.com) (CC0) as the
 object; bundled in the binary, so no internet is needed), with
@@ -239,7 +240,7 @@ capture as the rig does it: the camera tilts while the turntable turns the objec
 and a fading trail with it, coloured by the camera's speed against the path's average (neutral at normal, amber to coral up to 2×, blue down to ½×),
 with a speed key showing the speed now in °/s. Each photo pops its dot and fires the ring flash lightly. A running capture looks the same but follows the real rig (telemetry, smoothed), each
 shot's dot going as its photo is taken; when it ends the trail runs out and the dots return, taken ones green. The photos are spread as evenly as possible over the part of the sphere round the object the
-camera can reach (the min/max elevation in Configure, which keeps the frame clear of the posts), on a
+camera can reach (the min/max elevation in Rig Setup, which keeps the frame clear of the posts), on a
 golden-angle spiral, and taken in rows of similar elevation, each row in azimuth order with
 alternating direction, so the arm moves little and the platform never unwinds a whole turn. With
 **Moving Shots** (for a fast shutter) the rig doesn't stop: the same shots are taken along one smooth
@@ -252,7 +253,7 @@ When the last photo is taken (or a preview reaches its last shot, if a board is 
 taken with the connected camera, recording where the rig really is as the shutter goes; drivers for real
 cameras (Sony A6600 over USB, with live preview) are next.
 
-The **Configure** card (below Control; like every card it folds by its title, each window remembering which are folded) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
+The **Rig Setup** card (below Motion; like every card it folds by its title, each window remembering which are folded) sets the rig's measurements for the 3D view (in mm, seen from above: base X/Y, post Z, swing
 X/Y, the camera's offset along the arms (camera X) and up/down from the bar (camera Z, default 0), the turntable's height (turntable Z), the object's height (object height, the model is scaled to it); the defaults draw the rig to scale)
 and the min/max elevation the camera may reach (default −45° to 80°).
 The view has 3D, Front (from behind the camera, looking at the object), Side (along the tilt axis) and Top

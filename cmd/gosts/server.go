@@ -6,8 +6,10 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -169,6 +171,11 @@ func (a *app) exec(req request) (any, error) {
 			return nil, nil // don't make the simulator the default
 		}
 		return nil, a.cfg.update(func(c *Config) { c.Camera = req.Camera })
+	case "shoot": // Take Photo
+		if a.cap.msg().Running {
+			return nil, errors.New("a capture is running")
+		}
+		return nil, a.camera.shoot(context.Background())
 	case "cameraDisconnect":
 		a.cap.stop()
 		a.camera.disconnect()
@@ -191,6 +198,9 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 	c.push(a.rig.state())
 	c.push(a.cap.msg())
 	c.push(a.camera.msg())
+	if _, n := a.camera.lastPhoto(); n > 0 {
+		c.push(photoMsg{Type: "photo", N: n})
+	}
 
 	done := make(chan struct{})
 	go func() {
@@ -237,4 +247,36 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 			run()
 		}
 	}
+}
+
+// handlePhoto serves the last photo taken (/photo/last.jpg).
+func (a *app) handlePhoto(w http.ResponseWriter, r *http.Request) {
+	p, _ := a.camera.lastPhoto()
+	if len(p.JPEG) == 0 {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(p.JPEG)
+}
+
+// handleSimPhoto takes a simulated photo's picture, rendered by a page
+// (POST /photo/sim?n=, a JPEG).
+func (a *app) handleSimPhoto(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST a JPEG", http.StatusMethodNotAllowed)
+		return
+	}
+	n, err := strconv.Atoi(r.URL.Query().Get("n"))
+	if err != nil {
+		http.Error(w, "n: photo number", http.StatusBadRequest)
+		return
+	}
+	jpg, err := io.ReadAll(io.LimitReader(r.Body, 20<<20))
+	if err != nil || len(jpg) == 0 {
+		http.Error(w, "no picture", http.StatusBadRequest)
+		return
+	}
+	a.camera.simPicture(n, jpg)
 }

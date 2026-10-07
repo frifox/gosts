@@ -100,7 +100,16 @@ td.mono { font-family: var(--mono); }
 #log { font: 12px var(--mono); max-height: 120px; overflow-y: auto; }
 #log div { padding: 1px 0; }
 #log .error { color: var(--bad); }
+.right { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.right .view { flex: 1; }
+.right .view.collapsed { flex: none; }
 .view { position: relative; min-height: 0; display: flex; flex-direction: column; }
+/* Camera: the last photo (3:2), and its controls beside it. */
+.camera { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.camera .shot { width: min(300px, 100%); aspect-ratio: 3 / 2; flex: none; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2);
+  display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.camera .shot img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.camera-controls { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; min-width: 0; }
 .view .card-body { flex: 1; position: relative; padding: 0; min-height: 300px; }
 #rig { position: absolute; inset: 0; cursor: grab; touch-action: none; overflow: hidden; border-radius: 0 0 12px 12px; }
 #rig:active { cursor: grabbing; }
@@ -171,7 +180,7 @@ td.mono { font-family: var(--mono); }
     </section>
 
     <section class="card" id="rigCard">
-      <h2>Control <span class="spacer"></span>
+      <h2>Motion <span class="spacer"></span>
         <button class="btn small" id="refreshPorts" style="text-transform:none;letter-spacing:0">Refresh</button>
         <button class="btn small danger" id="stopBtn" title="Stop the rig where it is" style="text-transform:none;letter-spacing:0" hidden>Stop</button>
         <label class="switch" id="torqueSwitch" style="text-transform:none;letter-spacing:0;font-weight:400" hidden><input type="checkbox" id="torque"><span class="track"></span><span>Torque</span></label>
@@ -201,7 +210,7 @@ td.mono { font-family: var(--mono); }
     </section>
 
     <section class="card" id="rigCfgCard">
-      <h2 title="The rig's measurements, for the 3D view">Configure</h2>
+      <h2 title="The rig's measurements, for the 3D view">Rig Setup</h2>
       <div class="card-body">
         <div class="grid4">
           <label title="Base frame, along the sides that carry the posts">Base X<input type="number" id="dBaseX" step="10"></label>
@@ -233,8 +242,26 @@ td.mono { font-family: var(--mono); }
     </section>
   </div>
 
+  <div class="right">
+  <section class="card" id="cameraCard">
+    <h2>Camera</h2>
+    <div class="card-body">
+      <div class="camera">
+        <div class="shot" id="shotBox">
+          <img id="shotImg" alt="The last photo" hidden>
+          <span class="hint" id="shotNone">No photo yet.</span>
+        </div>
+        <div class="camera-controls">
+          <button class="btn primary" id="takePhotoBtn" disabled>Take Photo</button>
+          <p class="hint" id="shotInfo"></p>
+          <div class="err" id="shotErr"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="card view" id="viewCard">
-    <h2>Rig <span class="views" id="views">
+    <h2>Rig View <span class="views" id="views">
       <button data-v="3d" class="active">3D</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button>
     </span></h2>
     <div class="card-body">
@@ -254,6 +281,7 @@ td.mono { font-family: var(--mono); }
       </div>
     </div>
   </section>
+  </div>
 </div>
 
 <div class="modal-backdrop" id="setupModal" hidden>
@@ -344,6 +372,8 @@ function onMessage(m) {
     case "telemetry": onTelemetry(m); break;
     case "capture": onCapture(m); break;
     case "camera": onCamera(m); break;
+    case "photo": onPhoto(m); break;
+    case "simShoot": simShoot(m.n); break;
     case "log": log(m.message, m.level); break;
   }
 }
@@ -417,13 +447,37 @@ function onCamera(m) {
   $("cameraBody").hidden = $("camRefresh").hidden = m.connected;
   $("captureBody").hidden = !m.connected;
   setPill("cam", m.connected, m.connected ? `camera: ${m.id === "sim" ? "simulator" : m.name}` : "no camera");
+  cameraButtons();
   if (!m.connected) { stopPreview(); send("cameras").then(renderCameras).catch(() => {}); }
+}
+
+// The Camera card: the last photo, and Take Photo.
+function onPhoto(m) {
+  $("shotImg").src = `/photo/last.jpg?n=${m.n}`;
+  $("shotImg").hidden = false;
+  $("shotNone").hidden = true;
+  $("shotInfo").textContent = `Photo ${m.n}` + (m.at ? ` · ${new Date(m.at).toLocaleTimeString()}` : "");
+}
+$("takePhotoBtn").onclick = async () => {
+  $("shotErr").textContent = "";
+  $("takePhotoBtn").disabled = true;
+  await act("shoot", {}, $("shotErr"));
+  cameraButtons();
+};
+function cameraButtons() { $("takePhotoBtn").disabled = !state.camera?.connected || !!state.cap?.running; }
+// The simulated camera's picture: the Rig View from the camera, sent back.
+// Every open window renders it; the server keeps the first.
+async function simShoot(n) {
+  try {
+    const jpg = await window.rig3d.snapshot();
+    await fetch(`/photo/sim?n=${n}`, { method: "POST", body: jpg, headers: { "Content-Type": "image/jpeg" } });
+  } catch (e) { log(`simulated photo ${n}: ${e.message}`, "error"); }
 }
 
 function onState(m) {
   state.server = m;
   const c = m.config, r = c.Roles;
-  // Control: the board's port to connect to, or once connected the rig's controls.
+  // Motion: the board's port to connect to, or once connected the rig's controls.
   $("connectBody").hidden = $("refreshPorts").hidden = m.connected;
   $("controlBody").hidden = $("torqueSwitch").hidden = !m.connected;
   if (!m.connected) $("stopBtn").hidden = true;
@@ -437,7 +491,7 @@ function onState(m) {
   // Motion limits for the elevation controls.
   for (const id of ["elev"]) { $(id).min = c.Motion.ElevationMin; $(id).max = c.Motion.ElevationMax; }
   if (!state.planLoaded) { loadPlan(c.Plan); state.planLoaded = true; }
-  // Configure: show the saved measurements unless they are being edited.
+  // Rig Setup: show the saved measurements unless they are being edited.
   const prev = state.lastDims, form = { ...formDims(), ...formLimits() };
   if (!prev || Object.keys(prev).every((k) => form[k] === prev[k])) fillDims(c.Rig, c.Motion);
   state.lastDims = { ...c.Rig, ElevationMin: c.Motion.ElevationMin, ElevationMax: c.Motion.ElevationMax };
@@ -553,6 +607,7 @@ $("pauseBtn").onclick = () => act("pause", { on: !state.cap?.paused });
 $("abortBtn").onclick = () => act("stop");
 function onCapture(m) {
   state.cap = m;
+  cameraButtons(); // no Take Photo during a capture
   const done = m.shots.filter((s) => s.done).length;
   $("capBar").style.width = m.total ? `${100 * done / m.total}%` : "0";
   $("capCount").textContent = m.total ? `${done} / ${m.total}` + (m.running ? ` · ${Math.round(m.elapsed)} s` : "") : "";

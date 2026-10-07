@@ -40,7 +40,7 @@ func planShots(p Plan, m Motion) (shots []shot, rows int, spacing float64, err e
 	}
 	lo, hi := math.Max(-90, m.ElevationMin), math.Min(90, m.ElevationMax)
 	if lo >= hi {
-		return nil, 0, 0, errors.New("the elevation range in Configure is empty")
+		return nil, 0, 0, errors.New("the elevation range in Rig Setup is empty")
 	}
 	n := p.Photos
 	z0, z1 := math.Sin(rad(lo)), math.Sin(rad(hi))

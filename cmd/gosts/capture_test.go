@@ -199,9 +199,42 @@ func TestCaptureCamera(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	camera.mu.Lock()
-	n := camera.cam.(*simCamera).n
+	n := camera.count
 	camera.mu.Unlock()
 	if m := c.msg(); m.Index != 3 || n != 3 {
 		t.Fatalf("%d of 3 shots done, %d photos taken: %s", m.Index, n, m.Note)
+	}
+}
+
+func TestSimCameraPicture(t *testing.T) {
+	simPictureWait = 100 * time.Millisecond
+	defer func() { simPictureWait = 2 * time.Second }()
+	c := &cameraConn{out: func(any) {}}
+	if err := c.connect(simCameraID); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	// A page renders photo 1: that's the picture, the made-up one doesn't
+	// replace it.
+	if err := c.shoot(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !c.simPicture(1, []byte("rendered")) {
+		t.Fatal("page's picture refused")
+	}
+	time.Sleep(200 * time.Millisecond)
+	if p, n := c.lastPhoto(); n != 1 || string(p.JPEG) != "rendered" {
+		t.Fatalf("photo %d: %q", n, p.JPEG)
+	}
+	// No page renders photo 2: a made-up picture stands in.
+	if err := c.shoot(ctx); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if p, n := c.lastPhoto(); n != 2 || len(p.JPEG) < 1000 || p.JPEG[0] != 0xFF {
+		t.Fatalf("photo %d: %d bytes", n, len(p.JPEG))
+	}
+	if c.simPicture(2, []byte("late")) {
+		t.Fatal("a late copy replaced the picture")
 	}
 }
