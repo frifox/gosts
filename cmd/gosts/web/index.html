@@ -1371,7 +1371,7 @@ $("focusAF").onclick = async () => {
       for (const [h, c] of Object.entries(net)) for (let i = 0; i < Math.abs(c); i++) await send("focusNudge", { n: -Math.sign(c) * Number(h) });
       await measure();
     }
-    state.focusSaid = `Auto: ${stopped() ? "stopped" : "done"} (${shots} samples; the camera: ${ind})`;
+    state.focusSaid = `Auto: ${stopped() ? "stopped" : "done"} (${shots} samples; the camera: ${ind === "Focus Locked" ? "Focus Applied" : ind})`;
     drawFocus(false);
     const now = state.focusSharp.at(-1);
     $("focusStat").textContent = `${state.focusSaid} · Sharpness ${now}${now < best.s * 0.95 ? ` (best seen ${best.s})` : ""}`;
