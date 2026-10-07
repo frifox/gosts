@@ -138,7 +138,12 @@ td.mono { font-family: var(--mono); }
 #sampleCaption { margin-top: 8px; }
 .camcfg-shot.selecting { cursor: crosshair; }
 .sel-rect { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 1px #000, 0 0 0 9999px rgba(0,0,0,.35); pointer-events: none; }
-.gray-out { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); font-size: 13px; }
+.shot-overlay { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.gray-hint, .gray-out { padding: 8px 12px; border-radius: 10px; background: rgba(12, 14, 18, .82); color: #e8eaef; font-size: 13px;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 2px 10px rgba(0,0,0,.35); }
+.gray-hint { pointer-events: none; }
+.gray-hint:empty { display: none; }
+.gray-out { padding: 10px 12px; max-width: 100%; cursor: default; }
 .gray-out .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); vertical-align: -2px; margin-right: 6px; }
 .gray-out .row { margin-top: 8px; }
 .setting-row { display: flex; gap: 6px; align-items: center; }
@@ -406,13 +411,13 @@ td.mono { font-family: var(--mono); }
       </div>
       <div class="camcfg-preview">
         <div class="camcfg-shot" id="sampleBox"><span class="hint" id="sampleNone">No sample shot yet.</span>
-          <img id="sampleImg" alt="The sample shot" hidden><div class="sel-rect" id="selRect" hidden></div></div>
+          <img id="sampleImg" alt="The sample shot" hidden><div class="sel-rect" id="selRect" hidden></div>
+          <!-- White balance from a gray card in the sample: the steps and the result, over the photo's
+               bottom, so the modal keeps its height. -->
+          <div class="shot-overlay"><div class="gray-hint" id="grayHint"></div><div class="gray-out" id="grayOut" hidden></div></div></div>
         <div class="hint mono" id="sampleCaption"></div>
-        <!-- White balance from a gray card in the sample. -->
-        <div class="hint" id="grayHint" style="margin-top:8px"></div>
         <!-- Gray Card lives by the colour temperature slider (renderSettings puts it there); parked here meanwhile. -->
         <div hidden id="grayPark"><button class="btn small" id="grayBtn" disabled title="Balance white from a gray card: drag a rectangle inside the card in the sample, and the app works out the colour temperature that makes it neutral">Gray Card</button></div>
-        <div class="gray-out" id="grayOut" hidden></div>
       </div>
     </div>
   </div>
@@ -918,6 +923,7 @@ function sampleDrawn() {
   return { x: r.left + (r.width - w) / 2, y: r.top + (r.height - h) / 2, w, h, k };
 }
 let drag = null;
+for (const ev of ["mousedown", "click"]) $("grayOut").addEventListener(ev, (e) => e.stopPropagation()); // its buttons aren't the sample
 $("sampleBox").addEventListener("mousedown", (e) => {
   if (!state.selecting) return;
   e.preventDefault();
