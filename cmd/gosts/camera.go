@@ -22,13 +22,23 @@ import (
 // first) implement it; the simulated camera stands in for one so the rest
 // can be tried without a camera.
 type Camera interface {
-	// Shoot takes one photo: firing is called just as the shutter is
-	// released (where the rig is then is where the photo was taken), it
-	// returns once the shutter has fired (the rig may move on then), and got
-	// is called with its picture once that has come over, maybe later and
-	// from another goroutine (JPEG empty: nothing to show), or with an error.
-	Shoot(ctx context.Context, firing func(), got func(photo, error)) error
+	// Shoot takes one photo (see shutter), returning once the shutter has
+	// fired (the rig may move on then).
+	Shoot(ctx context.Context, s shutter) error
 	Close() error
+}
+
+// shutter is what Shoot calls back for a photo.
+type shutter struct {
+	// firing is called just as the shutter is released: where the rig is
+	// then is where the photo was taken.
+	firing func()
+	// folder is where the photo's files are saved (asked as it's taken).
+	folder func() string
+	// got is called with its picture once that has come over, maybe later
+	// and from another goroutine (JPEG empty: nothing to show), or with an
+	// error.
+	got func(photo, error)
 }
 
 // pacedCamera is a camera that needs time between photos: Moving Shots
@@ -53,7 +63,8 @@ var photoDir = defaultPhotoDir()
 // The batch: the photos since the app started, or since Reset. Each batch's
 // files go in a folder of their own, named after when its first photo was
 // taken ("2006-01-02 15.04.05": colons aren't for file names on a Mac), made
-// only then.
+// only then; its sample shots (Config) in one beside it, the same name with
+// "-samples".
 var batch struct {
 	sync.Mutex
 	dir string
@@ -63,18 +74,27 @@ const batchName = "2006-01-02 15.04.05"
 
 // batchFolder is the current batch's folder (made now if it's the batch's
 // first photo).
-func batchFolder() string {
+func batchFolder() string { return batchDir("") }
+
+// sampleFolder is the current batch's sample shots' folder (made now if it's
+// the first).
+func sampleFolder() string { return batchDir("-samples") }
+
+func batchDir(suffix string) string {
 	batch.Lock()
 	defer batch.Unlock()
-	if batch.dir == "" {
+	if batch.dir == "" { // the batch's name: when it first takes something
 		batch.dir = filepath.Join(photoDir, time.Now().Format(batchName))
-		if err := os.MkdirAll(batch.dir, 0o755); err != nil {
+	}
+	dir := batch.dir + suffix
+	if _, err := os.Stat(dir); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			log.Printf("photos: %v", err)
 		} else {
-			log.Printf("photos: new batch in %s", batch.dir)
+			log.Printf("photos: new folder %s", dir)
 		}
 	}
-	return batch.dir
+	return dir
 }
 
 // newBatch starts a new batch: the next photo makes its folder.
@@ -133,8 +153,8 @@ type simCamera struct {
 	settings map[string]string // see Settings
 }
 
-func (s *simCamera) Shoot(ctx context.Context, firing func(), got func(photo, error)) error {
-	firing()
+func (s *simCamera) Shoot(ctx context.Context, sh shutter) error {
+	sh.firing()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -143,7 +163,7 @@ func (s *simCamera) Shoot(ctx context.Context, firing func(), got func(photo, er
 	s.mu.Lock()
 	s.n++
 	s.mu.Unlock()
-	got(photo{At: time.Now()}, nil) // no picture: cameraConn has one rendered
+	sh.got(photo{At: time.Now()}, nil) // no picture: cameraConn has one rendered
 	return nil
 }
 
@@ -383,13 +403,16 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 	}
 	c.mu.Unlock()
 	c.out(photoEventMsg{Type: "photoPending", N: n, Sample: sample})
-	got := func(p photo, err error) {
+	sh := shutter{firing: firing, folder: batchFolder, got: func(p photo, err error) {
 		if c.current(gen) { // not a photo from before a Reset
 			c.got(cam, n, p, err)
 		}
+	}}
+	if sample {
+		sh.folder = sampleFolder
 	}
 	if wait {
-		if err := cam.Shoot(ctx, firing, got); err != nil {
+		if err := cam.Shoot(ctx, sh); err != nil {
 			c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: sample})
 			return err
 		}
@@ -402,24 +425,23 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 	}
 	q := c.queue
 	c.mu.Unlock()
-	q <- queuedShot{ctx: ctx, cam: cam, n: n, firing: firing, got: got, asked: time.Now()}
+	q <- queuedShot{ctx: ctx, cam: cam, n: n, shutter: sh, asked: time.Now()}
 	return nil
 }
 
 // queuedShot is a photo for the shooter to take.
 type queuedShot struct {
-	ctx    context.Context
-	cam    Camera
-	n      int
-	firing func()
-	got    func(photo, error)
-	asked  time.Time
+	ctx     context.Context
+	cam     Camera
+	n       int
+	shutter shutter
+	asked   time.Time
 }
 
 // shooter takes queued photos in turn.
 func (c *cameraConn) shooter(q chan queuedShot) {
 	for s := range q {
-		if err := s.cam.Shoot(s.ctx, s.firing, s.got); err != nil {
+		if err := s.cam.Shoot(s.ctx, s.shutter); err != nil {
 			c.out(photoEventMsg{Type: "photoFailed", N: s.n})
 			if s.ctx.Err() == nil {
 				c.warn("photo %d: %v", s.n, err)

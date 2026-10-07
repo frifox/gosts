@@ -274,7 +274,8 @@ system's camera service grabs a camera when it's plugged in (and may open Photos
 another program has the camera, quit Photos and Image Capture and run `killall ptpcamerad mscamerad-xpc`.
 **Config** (in the Capture title) opens the camera's settings next to a sample shot: exposure mode (P, A, S,
 M; shutter, f-stop and ISO hold in M), shutter speed, f-stop, ISO, white balance and focus mode, each change
-sent to the camera at once; **Take Sample Shot** takes a photo (saved like the others, kept off the timeline)
+sent to the camera at once; **Take Sample Shot** takes a photo (kept off the timeline, saved in the batch's
+folder name with `-samples`)
 and shows it with the settings it was taken at, to adjust from. The simulated camera has the same settings,
 and its sample comes out brighter or darker with them.
 

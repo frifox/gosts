@@ -72,13 +72,12 @@ type gphoto2Camera struct {
 // gphoto2Req is one thing for the worker: a photo to take, or (development)
 // shell lines to run.
 type gphoto2Req struct {
-	ctx    context.Context
-	fired  chan error         // the shutter's fired (or not)
-	firing func()             // just before the shutter
-	got    func(photo, error) // the photo's picture, later
-	lines  []string           // instead: run these, reply on out (then errc)
-	out    chan []string
-	errc   chan error
+	ctx     context.Context
+	fired   chan error // the shutter's fired (or not)
+	shutter            // its callbacks (see shutter)
+	lines   []string   // instead: run these, reply on out (then errc)
+	out     chan []string
+	errc    chan error
 }
 
 // openGphoto2Camera connects to the camera gphoto2 sees on port (failing if
@@ -111,8 +110,8 @@ func openGphoto2Camera(port string) (Camera, string, error) {
 
 // Shoot asks for a photo and returns once the shutter has fired; got is
 // called with its picture once it has come over (or with an error).
-func (g *gphoto2Camera) Shoot(ctx context.Context, firing func(), got func(photo, error)) error {
-	r := gphoto2Req{ctx: ctx, fired: make(chan error, 1), firing: firing, got: got}
+func (g *gphoto2Camera) Shoot(ctx context.Context, sh shutter) error {
+	r := gphoto2Req{ctx: ctx, fired: make(chan error, 1), shutter: sh}
 	select {
 	case g.reqs <- r:
 	case <-g.done:
@@ -387,7 +386,7 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			continue
 		}
 		measured(&g.fire, time.Since(start), &g.mu)
-		queue = append(queue, waiting{got: r.got, since: time.Now(), dir: batchFolder(), num: next})
+		queue = append(queue, waiting{got: r.got, since: time.Now(), dir: r.folder(), num: next})
 		if next > 0 {
 			next++
 		}

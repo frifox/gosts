@@ -66,7 +66,7 @@ func TestGphoto2Camera(t *testing.T) {
 	got := map[int]string{}
 	for i := 1; i <= 3; i++ {
 		i := i
-		if err := cam.Shoot(context.Background(), func() {}, func(p photo, err error) {
+		if err := cam.Shoot(context.Background(), shutter{firing: func() {}, folder: batchFolder, got: func(p photo, err error) {
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -74,7 +74,7 @@ func TestGphoto2Camera(t *testing.T) {
 				return
 			}
 			got[i] = string(p.JPEG)
-		}); err != nil {
+		}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -213,7 +213,7 @@ func TestGphoto2Leftovers(t *testing.T) {
 	var mu sync.Mutex
 	got := map[int]string{}
 	shoot := func(i int) {
-		if err := cam.Shoot(context.Background(), func() {}, func(p photo, err error) {
+		if err := cam.Shoot(context.Background(), shutter{firing: func() {}, folder: batchFolder, got: func(p photo, err error) {
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -221,7 +221,7 @@ func TestGphoto2Leftovers(t *testing.T) {
 				return
 			}
 			got[i] = string(p.JPEG)
-		}); err != nil {
+		}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -247,5 +247,53 @@ func TestGphoto2Leftovers(t *testing.T) {
 	saved, _ := filepath.Glob(filepath.Join(photoDir, "*", "*.JPG"))
 	if len(saved) != 3 {
 		t.Errorf("saved %v, want all 3 JPEGs (two of them leftovers)", saved)
+	}
+}
+
+// Sample shots go in a folder of their own beside the batch's: the same
+// name, with "-samples".
+func TestSampleFolder(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "gphoto2"), []byte(fakeGphoto2), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	defer func(d string) { photoDir = d }(photoDir)
+	photoDir = t.TempDir()
+	newBatch()
+	defer newBatch()
+
+	var mu sync.Mutex
+	n := 0
+	c := &cameraConn{out: func(m any) {
+		if _, ok := m.(photoMsg); ok {
+			mu.Lock()
+			n++
+			mu.Unlock()
+		}
+	}}
+	if err := c.connect(gphoto2Prefix + "usb:001,002"); err != nil {
+		t.Fatal(err)
+	}
+	defer c.disconnect()
+	c.sample(context.Background())
+	c.shoot(context.Background(), true, nil)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		mu.Lock()
+		k := n
+		mu.Unlock()
+		if k == 2 || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	samples, _ := filepath.Glob(filepath.Join(photoDir, "*-samples", "*.JPG"))
+	all, _ := filepath.Glob(filepath.Join(photoDir, "*", "*.JPG"))
+	if len(samples) != 1 || len(all) != 2 {
+		t.Fatalf("samples %v, all %v: want the sample alone in <batch>-samples", samples, all)
+	}
+	if want := filepath.Dir(samples[0]); filepath.Base(want) != filepath.Base(batchFolder())+"-samples" {
+		t.Errorf("sample folder %q, want the batch's name with -samples", want)
 	}
 }
