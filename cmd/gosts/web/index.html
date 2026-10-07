@@ -137,6 +137,9 @@ td.mono { font-family: var(--mono); }
   border-top-color: var(--accent); animation: spin .8s linear infinite; }
 #sampleCaption { margin-top: 8px; }
 .setting-row { display: flex; gap: 6px; align-items: center; }
+.camcfg-params label.sub-setting { margin-left: 12px; padding-left: 10px; border-left: 2px solid var(--border); }
+.setting-row input.kelvin { width: 84px; flex: none; }
+.setting-row input[type=range] { flex: 1; }
 .camcfg-params label.setting-busy::after { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border);
   border-top-color: var(--accent); animation: spin .8s linear infinite; position: absolute; margin: 2px 0 0 82px; }
 .camcfg-params label { position: relative; }
@@ -754,6 +757,7 @@ function renderSettings(list) {
   for (const st of list) {
     const label = document.createElement("label");
     label.textContent = st.label;
+    if (st.range) { box.appendChild(rangeSetting(st, label)); continue; }
     const sel = document.createElement("select");
     sel.disabled = st.readOnly;
     for (const c of st.choices) sel.add(new Option(c, c, false, c === st.current));
@@ -795,6 +799,39 @@ function renderSettings(list) {
     label.append(row, note);
     box.appendChild(label);
   }
+}
+// A number setting (colour temperature, Kelvin): a number field and a
+// slider, sent to the camera as one's let go (or Enter, or leaving the field).
+function rangeSetting(st, label) {
+  label.classList.add("sub-setting"); // it belongs to the one above (white balance)
+  const row = document.createElement("div");
+  row.className = "setting-row";
+  const num = document.createElement("input");
+  num.type = "number"; num.min = st.min; num.max = st.max; num.step = st.step; num.value = st.current;
+  num.className = "kelvin";
+  const slider = document.createElement("input");
+  slider.type = "range"; slider.min = st.min; slider.max = st.max; slider.step = st.step; slider.value = st.current;
+  slider.title = `${st.min}–${st.max} K`;
+  let sent = st.current;
+  const apply = async () => {
+    const v = String(Math.round(Number(num.value) / st.step) * st.step); // on the camera's steps
+    if (!num.value || v === sent) return;
+    num.value = slider.value = v;
+    sent = v;
+    $("camConfigErr").textContent = "";
+    num.disabled = slider.disabled = true;
+    label.classList.add("setting-busy");
+    try { renderSettings(await send("cameraSet", { key: st.key, value: v })); }
+    catch (e) { $("camConfigErr").textContent = e.message; loadSettings(); }
+  };
+  slider.oninput = () => { num.value = slider.value; };
+  slider.onchange = apply;
+  num.oninput = () => { slider.value = num.value; };
+  num.onchange = apply;
+  num.onkeydown = (e) => { if (e.key === "Enter") apply(); };
+  row.append(num, slider);
+  label.appendChild(row);
+  return label;
 }
 async function loadSettings() {
   try { renderSettings(await send("cameraSettings")); }

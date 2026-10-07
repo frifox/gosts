@@ -205,3 +205,42 @@ func TestGphoto2SetWaits(t *testing.T) {
 		t.Fatal("no error for a value the camera never took")
 	}
 }
+
+// Colour temperature: offered (as a number, 2500–9900 K by 100) only with
+// white balance on Kelvin mode; values off the steps are refused.
+func TestColorTemperature(t *testing.T) {
+	c, err := parseGphoto2Config("Label: Color Temperature\nReadonly: 0\nType: RANGE\nCurrent: 3100\nBottom: 2500\nTop: 9900\nStep: 100\nEND\n")
+	if err != nil || c.current != "3100" || c.bottom != 2500 || c.top != 9900 || c.step != 100 {
+		t.Fatalf("%+v %v", c, err)
+	}
+	s := &simCamera{}
+	has := func() (cameraSetting, bool) {
+		ss, _ := s.Settings()
+		for _, x := range ss {
+			if x.Key == "colortemp" {
+				return x, true
+			}
+		}
+		return cameraSetting{}, false
+	}
+	if _, ok := has(); ok {
+		t.Fatal("colour temperature offered outside Kelvin mode")
+	}
+	s.Set("whitebalance", kelvinMode)
+	ct, ok := has()
+	if !ok || !ct.Range || ct.Min != 2500 || ct.Max != 9900 || ct.Step != 100 {
+		t.Fatalf("in Kelvin mode: %+v", ct)
+	}
+	if err := s.Set("colortemp", "4300"); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"4350", "2000", "warm"} {
+		if err := s.Set("colortemp", bad); err == nil {
+			t.Errorf("%q taken", bad)
+		}
+	}
+	ss, _ := s.Settings()
+	if got := settingsCaption(ss); got != "1/60 · f/8 · ISO 200 · 4300K · focus: Manual" {
+		t.Fatalf("caption %q", got)
+	}
+}

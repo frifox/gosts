@@ -20,6 +20,30 @@ type cameraSetting struct {
 	ReadOnly bool     `json:"readOnly"`
 	Probe    bool     `json:"probe,omitempty"`  // the choices the lens has can be found (see proberCamera)
 	Probed   bool     `json:"probed,omitempty"` // and were: Choices are only those
+	// A number instead of choices (colour temperature): Min to Max by Step.
+	Range bool `json:"range,omitempty"`
+	Min   int  `json:"min,omitempty"`
+	Max   int  `json:"max,omitempty"`
+	Step  int  `json:"step,omitempty"`
+}
+
+// kelvinMode is the white balance that uses the colour temperature setting
+// ("colortemp", Kelvin): only then is that one offered.
+const kelvinMode = "Choose Color Temperature"
+
+// colortempSetting is the colour temperature setting, as the dialog offers
+// it (under white balance, in Kelvin mode).
+func colortempSetting(current string, min, max, step int) cameraSetting {
+	return cameraSetting{Key: "colortemp", Label: "Color temperature (K)", Current: current, Range: true, Min: min, Max: max, Step: step}
+}
+
+// checkKelvin is a colour temperature's value, if it's one the camera takes.
+func checkKelvin(value string, min, max, step int) (int, error) {
+	k, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || k < min || k > max || (step > 0 && (k-min)%step != 0) {
+		return 0, fmt.Errorf("color temperature must be %d–%d K, in steps of %d", min, max, step)
+	}
+	return k, nil
 }
 
 // proberCamera is a camera that can find which of a setting's choices really
@@ -75,6 +99,13 @@ func settingsCaption(ss []cameraSetting) string {
 		case "focus":
 			parts = append(parts, "focus: "+s.Current)
 			continue
+		case "whitebalance":
+			if s.Current == kelvinMode {
+				continue // the colour temperature says it
+			}
+		case "colortemp":
+			parts = append(parts, s.Current+"K")
+			continue
 		}
 		parts = append(parts, s.Current)
 	}
@@ -91,6 +122,7 @@ var gphoto2Settings = map[string]string{
 	"iso":          "/main/imgsettings/iso",
 	"whitebalance": "/main/imgsettings/whitebalance",
 	"focus":        "/main/capturesettings/focusmode",
+	"colortemp":    "/main/imgsettings/colortemperature", // only in Kelvin mode (kelvinMode)
 }
 
 // gphoto2Config is what get-config says about a setting.
@@ -98,6 +130,8 @@ type gphoto2Config struct {
 	label, current string
 	readOnly       bool
 	choices        []string // in the camera's order: the index is set-config-index's
+	bottom, top    float64  // a RANGE's
+	step           float64
 }
 
 // parseGphoto2Config reads get-config's output.
@@ -121,6 +155,12 @@ func parseGphoto2Config(out string) (gphoto2Config, error) {
 			if _, v, ok := strings.Cut(strings.TrimPrefix(l, "Choice: "), " "); ok {
 				c.choices = append(c.choices, v)
 			}
+		case strings.HasPrefix(l, "Bottom: "):
+			c.bottom, _ = strconv.ParseFloat(strings.TrimPrefix(l, "Bottom: "), 64)
+		case strings.HasPrefix(l, "Top: "):
+			c.top, _ = strconv.ParseFloat(strings.TrimPrefix(l, "Top: "), 64)
+		case strings.HasPrefix(l, "Step: "):
+			c.step, _ = strconv.ParseFloat(strings.TrimPrefix(l, "Step: "), 64)
 		}
 	}
 	if !found {
@@ -135,10 +175,12 @@ func (g *gphoto2Camera) Settings() ([]cameraSetting, error) {
 	for _, k := range settingKeys {
 		lines = append(lines, "get-config "+gphoto2Settings[k.key])
 	}
+	lines = append(lines, "get-config "+gphoto2Settings["colortemp"])
 	outs, err := g.runLines(lines)
 	if err != nil {
 		return nil, err
 	}
+	kelvin, kerr := parseGphoto2Config(outs[len(settingKeys)])
 	var ss []cameraSetting
 	for i, k := range settingKeys {
 		c, err := parseGphoto2Config(outs[i])
@@ -161,16 +203,40 @@ func (g *gphoto2Camera) Settings() ([]cameraSetting, error) {
 			}
 		}
 		ss = append(ss, s)
+		if k.key == "whitebalance" && c.current == kelvinMode && kerr == nil {
+			ss = append(ss, colortempSetting(kelvin.current, int(kelvin.bottom), int(kelvin.top), int(kelvin.step)))
+		}
 	}
 	return ss, nil
 }
 
 // Set changes one setting (by its index among the camera's choices: some
-// values have spaces).
+// values have spaces; the colour temperature by its number).
 func (g *gphoto2Camera) Set(key, value string) error {
 	path, ok := gphoto2Settings[key]
 	if !ok {
 		return fmt.Errorf("no setting %q", key)
+	}
+	if key == "colortemp" {
+		outs, err := g.runLines([]string{"get-config " + path})
+		if err != nil {
+			return err
+		}
+		c, err := parseGphoto2Config(outs[0])
+		if err != nil {
+			return err
+		}
+		k, err := checkKelvin(value, int(c.bottom), int(c.top), int(c.step))
+		if err != nil {
+			return err
+		}
+		if _, err := g.runLines([]string{fmt.Sprintf("set-config %s=%d", path, k)}); err != nil {
+			return err
+		}
+		if err := g.awaitSetting(path, strconv.Itoa(k), settingWait); err != nil {
+			return fmt.Errorf("the camera didn't take %d K (is white balance on %s?): %w", k, kelvinMode, err)
+		}
+		return nil
 	}
 	outs, err := g.runLines([]string{"get-config " + path})
 	if err != nil {
@@ -280,7 +346,7 @@ var simSettingChoices = map[string][]string{
 	"shutter":      {"1/8", "1/15", "1/30", "1/60", "1/125", "1/250", "1/500", "1/1000"},
 	"aperture":     {"f/2.8", "f/4", "f/5.6", "f/8", "f/11", "f/16"},
 	"iso":          {"Auto ISO", "100", "200", "400", "800", "1600", "3200"},
-	"whitebalance": {"Automatic", "Daylight", "Cloudy", "Tungsten", "Fluorescent", "Flash"},
+	"whitebalance": {"Automatic", "Daylight", "Cloudy", "Tungsten", "Fluorescent", "Flash", kelvinMode},
 	"focus":        {"Manual", "Automatic"},
 }
 
@@ -288,7 +354,7 @@ func (s *simCamera) Settings() ([]cameraSetting, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.settings == nil {
-		s.settings = map[string]string{"mode": "M", "shutter": "1/60", "aperture": "f/8", "iso": "200", "whitebalance": "Automatic", "focus": "Manual"}
+		s.settings = map[string]string{"mode": "M", "shutter": "1/60", "aperture": "f/8", "iso": "200", "whitebalance": "Automatic", "focus": "Manual", "colortemp": "5500"}
 	}
 	var ss []cameraSetting
 	for _, k := range settingKeys {
@@ -300,6 +366,9 @@ func (s *simCamera) Settings() ([]cameraSetting, error) {
 			}
 		}
 		ss = append(ss, st)
+		if k.key == "whitebalance" && st.Current == kelvinMode {
+			ss = append(ss, colortempSetting(s.settings["colortemp"], 2500, 9900, 100))
+		}
 	}
 	return ss, nil
 }
@@ -322,7 +391,13 @@ func (s *simCamera) Probe(key string) error {
 }
 
 func (s *simCamera) Set(key, value string) error {
-	if !slices.Contains(simSettingChoices[key], value) {
+	if key == "colortemp" {
+		k, err := checkKelvin(value, 2500, 9900, 100)
+		if err != nil {
+			return err
+		}
+		value = strconv.Itoa(k)
+	} else if !slices.Contains(simSettingChoices[key], value) {
 		return fmt.Errorf("%s: no choice %q", key, value)
 	}
 	s.Settings() // the defaults, first time
