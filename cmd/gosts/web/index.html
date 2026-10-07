@@ -135,7 +135,7 @@ td.mono { font-family: var(--mono); }
 .camcfg-shot img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .camcfg-shot.taking::after { content: ""; position: absolute; width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--border);
   border-top-color: var(--accent); animation: spin .8s linear infinite; }
-#sampleCaption { margin-top: 8px; }
+#sampleCaption { margin-top: 8px; line-height: 18px; min-height: 18px; } /* room kept for it before the first sample */
 .camcfg-shot.selecting { cursor: crosshair; }
 .sel-rect { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 1px #000, 0 0 0 9999px rgba(0,0,0,.35); pointer-events: none; }
 .shot-overlay { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
