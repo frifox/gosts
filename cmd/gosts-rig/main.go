@@ -13,6 +13,7 @@
 //	gosts-rig -port /dev/cu.usbmodem1101    # connect on startup
 //	gosts-rig -sim                          # simulated rig (servos 10, 11, 12)
 //	gosts-rig -sim -camera sim              # and a simulated camera
+//	gosts-rig --listen :9000                 # serve the page on another port
 package main
 
 import (
@@ -24,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 )
 
@@ -31,7 +33,8 @@ func main() {
 	port := flag.String("port", "", "serial device to connect to on startup (default: Port in the config file)")
 	sim := flag.Bool("sim", false, "use a simulated rig")
 	camera := flag.String("camera", "", `camera to connect on startup, "sim" for the simulated one (default: Camera in the config file)`)
-	addr := flag.String("addr", "", "web address, e.g. localhost:8081 (default: ListenAddr in the config file, \":8081\" if unset)")
+	addr := flag.String("listen", "", "address to serve the page on, e.g. \":8081\", \"localhost:9000\" or just a port, 9000 (default: ListenAddr in the config file, \":8081\" if unset)")
+	flag.StringVar(addr, "addr", "", "the same as -listen (its old name)")
 	cfgPath := flag.String("config", defaultConfigPath(), "settings file, created if missing")
 	flag.Parse()
 
@@ -43,6 +46,9 @@ func main() {
 	c := cfg.get()
 	if *addr == "" {
 		*addr = c.ListenAddr
+	}
+	if _, err := strconv.Atoi(*addr); err == nil { // just a port
+		*addr = ":" + *addr
 	}
 	if *port == "" && !*sim {
 		*port = c.Port

@@ -17,13 +17,20 @@ func TestExifFocalLength(t *testing.T) {
 	w(uint32(8)) // IFD0 at 8
 	// IFD0: one entry, ExifIFD (0x8769, LONG) → 26
 	w(uint16(1))
-	w(uint16(0x8769)); w(uint16(4)); w(uint32(1)); w(uint32(26))
+	w(uint16(0x8769))
+	w(uint16(4))
+	w(uint32(1))
+	w(uint32(26))
 	w(uint32(0))
 	// Exif IFD at 26: one entry, FocalLength (0x920A, RATIONAL) → 44
 	w(uint16(1))
-	w(uint16(0x920A)); w(uint16(5)); w(uint32(1)); w(uint32(44))
+	w(uint16(0x920A))
+	w(uint16(5))
+	w(uint32(1))
+	w(uint32(44))
 	w(uint32(0))
-	w(uint32(180)); w(uint32(10))
+	w(uint32(180))
+	w(uint32(10))
 	app1 := append([]byte("Exif\x00\x00"), tf.Bytes()...)
 	jpg := []byte{0xFF, 0xD8, 0xFF, 0xE1}
 	jpg = binary.BigEndian.AppendUint16(jpg, uint16(len(app1)+2))

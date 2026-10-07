@@ -1,4 +1,4 @@
-# gosts-rig: photogrammetry rig
+# Go ST Servo: Photogrammetry Rig
 
 Runs a turntable photogrammetry rig from the browser: plan a capture, watch the rig move in 3D, and get the photos
 straight off the camera. An example app of [Go ST Servo](../../README.md).
@@ -7,12 +7,12 @@ straight off the camera. An example app of [Go ST Servo](../../README.md).
 
 ## The rig
 
-- A 600×500 mm base of 2020 extrusions with a post on each long side.
-- Two ST3215 servos on the posts tilt a frame carrying the camera: the **elevation**.
-- A third ST3215 turns the platform under the object: the **azimuth**.
-- A camera on USB that [gphoto2](http://gphoto.org) can drive (developed with a Sony A6600 in PC Remote mode).
+- Based on aluminum extrusion profiles
+- Two ST3215 servos on the posts tilt a frame carrying the camera
+- One ST3215 turns the platform under the target object
+- A camera on USB that [gphoto2](http://gphoto.org) can drive
 
-No hardware? The simulator stands in for the rig, the camera, or both.
+No hardware? Simulators are available for both the rig and the camera.
 
 ## Install and run
 
@@ -22,6 +22,7 @@ go install github.com/frifox/gosts/cmd/gosts-rig@latest
 
 gosts-rig                                   # then open http://localhost:8081
 gosts-rig -sim -camera sim                  # simulated rig and camera
+gosts-rig --listen :9000                    # another port (or "localhost:9000" to keep it to this computer)
 ```
 
 ## First time

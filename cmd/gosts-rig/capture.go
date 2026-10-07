@@ -167,8 +167,6 @@ func (c *capture) preview(p Plan) error {
 	return nil
 }
 
-
-
 // start runs the plan in the background. If it can't, why is the note
 // too (so it stays on the page, not just a moment's error).
 func (c *capture) start(p Plan) error {
