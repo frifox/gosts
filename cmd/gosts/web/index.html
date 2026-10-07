@@ -125,7 +125,7 @@ td.mono { font-family: var(--mono); }
 .timeline .thumb .num { position: absolute; left: 6px; bottom: 4px; font: 11px var(--mono); color: #fff; text-shadow: 0 0 3px #000; }
 .timeline .thumb.new { animation: thumbIn .35s ease-out; }
 @keyframes thumbIn { from { opacity: 0; transform: translateX(-12px); } }
-/* Camera Config: the settings on the left, the last sample shot on the right. */
+/* Camera Settings: the settings on the left, the last sample shot on the right. */
 .modal.camcfg { width: min(1180px, 100%); }
 .camcfg-body { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
 .camcfg-params label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 10px; }
@@ -232,7 +232,6 @@ td.mono { font-family: var(--mono); }
     <section class="card" id="captureCard">
       <h2>Capture <span class="spacer"></span>
         <button class="btn small" id="camRefresh" style="text-transform:none;letter-spacing:0">Refresh</button>
-        <button class="btn small" id="camConfigBtn" title="Camera settings, with sample shots to judge them by" style="text-transform:none;letter-spacing:0" hidden>Config</button>
       </h2>
       <!-- No camera: pick one and connect. -->
       <div class="card-body" id="cameraBody">
@@ -331,7 +330,8 @@ td.mono { font-family: var(--mono); }
 
   <div class="right">
   <section class="card" id="cameraCard">
-    <h2>Camera <span class="battery" id="camBattery" title="The camera's battery" hidden><svg viewBox="0 0 24 12" aria-hidden="true"><rect x="0.75" y="0.75" width="20" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="21.5" y="3.5" width="2" height="5" rx="0.8" fill="currentColor"/><rect id="camBatteryFill" x="2.5" y="2.5" width="16.5" height="7" rx="1" fill="currentColor"/></svg><span id="camBatteryText"></span></span><span class="spacer"></span>
+    <h2>Camera <span class="battery" id="camBattery" title="The camera's battery" hidden><svg viewBox="0 0 24 12" aria-hidden="true"><rect x="0.75" y="0.75" width="20" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="21.5" y="3.5" width="2" height="5" rx="0.8" fill="currentColor"/><rect id="camBatteryFill" x="2.5" y="2.5" width="16.5" height="7" rx="1" fill="currentColor"/></svg><span id="camBatteryText"></span></span>
+      <button class="btn small" id="camConfigBtn" title="Camera settings, with sample shots to judge them by" style="text-transform:none;letter-spacing:0" hidden>Settings</button><span class="spacer"></span>
       <button class="btn small danger" id="resetPhotosBtn" title="Clear all photos from the timeline (asks first)" style="text-transform:none;letter-spacing:0" disabled>Reset</button>
       <button class="btn small" id="viewAllBtn" title="All the photos, large" style="text-transform:none;letter-spacing:0" disabled>View All</button>
       <button class="btn small primary" id="takePhotoBtn" style="text-transform:none;letter-spacing:0" disabled>Take Photo</button>
@@ -394,7 +394,7 @@ td.mono { font-family: var(--mono); }
 </div>
 <div class="modal-backdrop" id="camConfigModal" hidden>
   <div class="modal card camcfg" role="dialog" aria-modal="true" aria-labelledby="camConfigTitle">
-    <h2><span id="camConfigTitle">Camera Config</span><span class="spacer"></span>
+    <h2><span id="camConfigTitle">Camera Settings</span><span class="spacer"></span>
       <button class="icon-btn" id="camConfigClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
     <div class="card-body camcfg-body">
       <div class="camcfg-params">
@@ -759,7 +759,7 @@ document.addEventListener("keydown", (e) => {
   e.preventDefault();
 });
 // ---------------------------------------------------------------- camera config
-// Camera Config: the camera's settings (each change goes to it at once), and
+// Camera Settings: the camera's settings (each change goes to it at once), and
 // sample shots (off the timeline) to judge them by.
 function renderSettings(list) {
   state.camSettings = list || [];

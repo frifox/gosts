@@ -273,7 +273,7 @@ numbers the photos from 1 again), and shown on
 the page. A camera on JPEG only works the same way; on RAW only no picture would come. On macOS the
 system's camera service grabs a camera when it's plugged in (and may open Photos): if taking a photo says
 another program has the camera, quit Photos and Image Capture and run `killall ptpcamerad mscamerad-xpc`.
-**Config** (in the Capture title) opens the camera's settings next to a sample shot: exposure mode (P, A, S,
+**Settings** (in the Camera title, right of the battery, while a camera is connected) opens the camera's settings next to a sample shot: exposure mode (P, A, S,
 M; shutter, f-stop and ISO hold in M), shutter speed, f-stop (all there are, until **Detect** next to it finds
 the lens's: the camera steps the aperture to its limits and back, about half a minute), ISO, white balance
 (with a **Color temperature (K)** field and slider, 2500–9900 K by 100, when it's on Choose Color Temperature)
