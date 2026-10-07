@@ -901,29 +901,30 @@ func (s *Servo) Stop() error {
 
 // Hold switches the torque on with the servo holding where it is. Torque on
 // by itself drives the servo to its goal register, which is stale if the
-// servo was moved by hand meanwhile: the arm would jump back. So the goal is
-// first set to the present position, in the goal's turn count (nearest the
-// old goal: right unless the servo was turned by hand more than half a turn
-// since, which a rig's arm can't be).
+// servo was moved by hand meanwhile, or rezeroed (a new offset with torque
+// off leaves the goal in the old frame): the arm would jump. In multi-turn
+// mode the servo's own turn count can't be read either, so a goal worked out
+// from the stale one can be a whole turn off. Hold therefore restarts the
+// turn count first (multi-turn off and on: the servo counts from its reading
+// again), then holds the reading. The angle limits are rewritten (EEPROM).
 func (s *Servo) Hold() error {
-	cur, err := s.Position()
-	if err != nil {
-		return err
-	}
 	lo, hi, err := s.AngleLimits()
 	if err != nil {
 		return err
 	}
-	goal := cur
-	if lo == 0 && hi == 0 { // multi-turn: keep the goal's turn
-		g, err := s.Read(RegGoalPosition)
-		if err != nil {
+	if lo == 0 && hi == 0 { // multi-turn: count from the reading
+		if err := s.SetMultiTurn(false); err != nil {
 			return err
 		}
-		g = mirrorPos(s.Mirrored(), g)
-		goal = g + CircularDiff(cur, g)
+		if err := s.SetMultiTurn(true); err != nil {
+			return err
+		}
 	}
-	if _, err := s.bus.Write(s.id, RegGoalPosition.Addr, mustEncode(RegGoalPosition, mirrorPos(s.Mirrored(), goal))); err != nil {
+	cur, err := s.Position()
+	if err != nil {
+		return err
+	}
+	if _, err := s.bus.Write(s.id, RegGoalPosition.Addr, mustEncode(RegGoalPosition, mirrorPos(s.Mirrored(), cur))); err != nil {
 		return err
 	}
 	return s.EnableTorque(true)

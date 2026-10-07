@@ -362,3 +362,41 @@ func TestPhotoDelete(t *testing.T) {
 		t.Fatalf("events %q, want %q", got, want)
 	}
 }
+
+// A servo whose own turn count is a turn off from its reading (the
+// simulator doesn't restart the count, as the real servo does when Hold
+// toggles multi-turn): told to hold its reading, it heads a whole turn away.
+// Torque on must catch it at the limited torque and switch off again.
+func TestTorqueOnCatchesTurnOff(t *testing.T) {
+	defer func(f func(Roles) *servosim.Port) { newSimPort = f }(newSimPort)
+	newSimPort = func(ro Roles) *servosim.Port {
+		p := servosim.NewPort(ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth)
+		p.SetPosition(ro.ElevationLeader, 2*gosts.CenterPosition+20) // logical -20
+		p.SetPosition(ro.ElevationFollower, -20)                     // reads 4076, counts -20
+		p.SetPosition(ro.Azimuth, 0)
+		return p
+	}
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	ro := cfg.get().Roles
+	err = r.torque(true)
+	if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("#%d", ro.ElevationFollower)) {
+		t.Fatalf("torque on: %v, want it refused for #%d", err, ro.ElevationFollower)
+	}
+	r.withBus(func(bus *gosts.Bus) error {
+		for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
+			if on, _ := bus.Servo(id).TorqueEnabled(); on {
+				t.Errorf("servo %d still has torque", id)
+			}
+		}
+		return nil
+	})
+	t.Log(err)
+}

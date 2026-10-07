@@ -172,6 +172,8 @@ func (a *app) exec(req request) (any, error) {
 			return nil, errors.New("a capture is running")
 		}
 		return nil, a.camera.shoot(context.Background())
+	case "diag": // read-only: the role servos' raw registers, for debugging
+		return a.rig.diag()
 	case "photoDelete": // one photo off the timeline
 		a.camera.delete(req.N)
 		return nil, nil

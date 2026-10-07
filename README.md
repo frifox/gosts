@@ -50,7 +50,7 @@ fmt.Printf("%.1f° %.1fV %d°C %.0fmA %s\n",
 | Groups | `bus.Group(ids...)`: `MoveTo`, `EnableTorque`, `SetMultiTurn`, `SetPositionAs`, `SetWheelSpeed`, `Align`, `CopyFromLeader`, `WaitForPosition`, `Feedback().Spread()` / `.Fighting()` (one packet per command) |
 | Auto-tuning | `autotune.Run(ctx, autotune.ForServo(s) / ForGroup(g), opts)`: finds P, D, start force and dead zone by test moves with the real load |
 | Monitoring | `Feedback` (position, speed, load, voltage, temperature, current, moving, status in one read), plus single getters |
-| Torque | `EnableTorque`, `Hold` (torque on where it is, not jumping to a stale goal; also on groups), `SetTorqueLimit` (runtime), `SetMaxTorque` (persisted) |
+| Torque | `EnableTorque`, `Hold` (torque on where it is: restarts the multi-turn count from the reading, so a stale goal, e.g. after rezeroing with torque off, can't send it a turn; also on groups), `SetTorqueLimit` (runtime), `SetMaxTorque` (persisted) |
 | Calibration | `SetZero(steps)` / `Zero()` (absolute: the servo's own 0° on the encoder scale, e.g. 3072 = 270°), `SetZeroAt(steps)` (relative: the mark that reads `steps` now becomes 0°), `SetPositionAs(pos)` (current position reads `pos`), `ResetZero()` (offset 0, raw encoder angle; a factory reset instead restores the servo's factory calibration offset), `CalibrateMiddle` (= 2048), `SetPositionOffset`. A servo holding torque doesn't move; with torque off the goal is left alone |
 | Configuration | `SetID`, `SetBaudRate`, `SetAngleLimits`, `SetVoltageLimits`, `SetMaxTemperature`, `SetProtection`, `SetPID`, `SetDeadZone`, `ReadConfig` |
 | Raw access | `Servo.Read(reg)` / `Servo.Write(reg, v)` for every register in `Registers`; `Bus.Read/Write/SyncRead/SyncWrite` |
@@ -225,7 +225,9 @@ the serial port at the same time. In gosts, **Setup** assigns the roles (by defa
 leader, mirrored; #11 elevation follower; #12 azimuth) and the speed. The rig's servos are always switched
 to multi-turn when gosts connects, so moves never take the long way round. Elevation moves go straight
 from where each elevation servo is to the target (kept within the min/max), each worked out in that servo's
-own turn count, and Torque on holds the servos where they are.
+own turn count. Torque on holds the servos where they are: each restarts its turn count from its reading
+(multi-turn off and on) and holds that, first at 35% torque; if one moves away or strains instead, torque
+goes off again with an error naming it.
 
 The page has the controls on the left (a **Motion** card that, until a board is connected, lists the serial
 ports to connect to, with Refresh; once connected, live elevation/azimuth: the rig moves as a slider is dragged or a value entered, with Stop shown while it moves, and Torque, and a

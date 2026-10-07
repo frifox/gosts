@@ -442,12 +442,79 @@ func (r *rig) torque(on bool) error {
 	if err != nil {
 		return err
 	}
-	return r.withBus(func(bus *gosts.Bus) error {
-		if on { // holding where they are, not jumping to an old goal
-			return bus.Group(ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth).Hold()
+	ids := []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth}
+	if !on {
+		return r.withBus(func(bus *gosts.Bus) error { return bus.SyncTorque(false, ids...) })
+	}
+	return r.withBus(func(bus *gosts.Bus) error { return holdChecked(bus, ids) })
+}
+
+// Torque on, checked: holdTorque is the torque limit (%) the servos start
+// holding with, and after holdSettle each must still be within holdDrift
+// steps of where it was and not straining (load under holdStrain of the
+// limit); else torque goes off again. A servo told to go somewhere else (a
+// goal a turn off, say) would pull away or fight the frame: caught at a
+// limited torque, before it can do harm.
+const (
+	holdTorque = 35.0
+	holdSettle = 400 * time.Millisecond
+	holdDrift  = 60
+	holdStrain = 0.8
+)
+
+// holdChecked switches torque on, holding where they are (see Servo.Hold),
+// for the servos not holding already, and checks they really just hold.
+func holdChecked(bus *gosts.Bus, ids []uint8) error {
+	before, err := bus.SyncFeedback(ids...)
+	if err != nil {
+		return err
+	}
+	var started []uint8
+	for _, id := range ids {
+		sv := bus.Servo(id)
+		if on, err := sv.TorqueEnabled(); err != nil || on {
+			continue // holding already (or no answer: the check below says)
 		}
-		return bus.SyncTorque(false, ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth)
-	})
+		if err := sv.SetTorqueLimit(holdTorque); err != nil {
+			return fmt.Errorf("servo %d: %w", id, err)
+		}
+		if err := sv.Hold(); err != nil {
+			bus.SyncTorque(false, ids...)
+			return fmt.Errorf("servo %d: %w", id, err)
+		}
+		started = append(started, id)
+	}
+	if len(started) == 0 {
+		return nil
+	}
+	time.Sleep(holdSettle)
+	after, err := bus.SyncFeedback(started...)
+	var bad []string
+	for _, id := range started {
+		b, a := before[id], after[id]
+		if err != nil || a.Err != nil || b.Err != nil {
+			bad = append(bad, fmt.Sprintf("#%d didn't answer", id))
+			continue
+		}
+		if d := gosts.CircularDiff(a.Position, b.Position); abs(d) > holdDrift {
+			bad = append(bad, fmt.Sprintf("#%d moved %d steps", id, d))
+		} else if math.Abs(a.Load) >= holdStrain*holdTorque {
+			bad = append(bad, fmt.Sprintf("#%d strained (load %.0f%%)", id, math.Abs(a.Load)))
+		}
+	}
+	if len(bad) > 0 {
+		bus.SyncTorque(false, ids...)
+		for _, id := range started {
+			bus.Servo(id).SetTorqueLimit(100)
+		}
+		return fmt.Errorf("torque switched off again: instead of holding where it was, %s", strings.Join(bad, ", "))
+	}
+	for _, id := range started {
+		if err := bus.Servo(id).SetTorqueLimit(100); err != nil {
+			return fmt.Errorf("servo %d: %w", id, err)
+		}
+	}
+	return nil
 }
 
 // telemetry is one live frame for the browser.
@@ -625,4 +692,33 @@ func abs(v int) int {
 		return -v
 	}
 	return v
+}
+
+// diag reads the role servos' raw registers (no writes), for debugging:
+// what the servo itself holds, before mirroring.
+func (r *rig) diag() (map[string]map[string]int, error) {
+	ro := r.cfg.get().Roles
+	out := map[string]map[string]int{}
+	err := r.withBus(func(bus *gosts.Bus) error {
+		for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
+			m := map[string]int{}
+			sv := bus.Servo(id)
+			for _, reg := range []gosts.Register{gosts.RegPresentPosition, gosts.RegGoalPosition, gosts.RegPositionOffset,
+				gosts.RegMode, gosts.RegMinAngleLimit, gosts.RegMaxAngleLimit, gosts.RegTorqueEnable, gosts.RegTorqueLimit,
+				gosts.RegStatus, gosts.RegPresentLoad, gosts.RegPositionP, gosts.RegPositionD, gosts.RegPositionI} {
+				v, err := sv.Read(reg)
+				if err != nil {
+					m[reg.Name+"Err"] = 1
+					continue
+				}
+				m[reg.Name] = v
+			}
+			if bus.Mirrored(id) {
+				m["Mirrored"] = 1
+			}
+			out[fmt.Sprint(id)] = m
+		}
+		return nil
+	})
+	return out, err
 }
