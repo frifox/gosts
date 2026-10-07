@@ -113,11 +113,16 @@ td.mono { font-family: var(--mono); }
 .battery.empty { color: var(--bad); }
 /* Camera: the timeline of photos (3:2), newest on the left, scrolling sideways. */
 .timeline { display: flex; gap: 8px; overflow-x: auto; min-width: 0; max-width: 100%; min-height: 120px; align-items: center; padding-bottom: 8px; }
-/* A slim scrollbar that stays visible (macOS otherwise hides it until scrolling). */
+/* Slim scrollbars in the theme's colours that stay visible (macOS otherwise hides them until
+   scrolling): the timeline's, and the scrolling columns, log, photo grid and dialogs'. */
 .timeline::-webkit-scrollbar { height: 8px; }
-.timeline::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
-.timeline::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-.timeline::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.left::-webkit-scrollbar, #log::-webkit-scrollbar, .gallery-grid::-webkit-scrollbar, .modal::-webkit-scrollbar { width: 8px; }
+.timeline::-webkit-scrollbar-track, .left::-webkit-scrollbar-track, #log::-webkit-scrollbar-track,
+.gallery-grid::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
+.timeline::-webkit-scrollbar-thumb, .left::-webkit-scrollbar-thumb, #log::-webkit-scrollbar-thumb,
+.gallery-grid::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.timeline::-webkit-scrollbar-thumb:hover, .left::-webkit-scrollbar-thumb:hover, #log::-webkit-scrollbar-thumb:hover,
+.gallery-grid::-webkit-scrollbar-thumb:hover, .modal::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .timeline .thumb { flex: none; height: 120px; aspect-ratio: 3 / 2; position: relative; padding: 0; border: 1px solid var(--border); border-radius: 8px;
   overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
 .timeline .thumb:hover { border-color: var(--accent); }
