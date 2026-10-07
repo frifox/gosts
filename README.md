@@ -282,10 +282,13 @@ sent to the camera at once; **Take Sample Shot** takes a photo (kept off the tim
 folder name with `-samples`)
 and shows it with the settings it was taken at, to adjust from. **Focus** (beside the focus mode, in Manual, DMF
 or AF-S): drag a rectangle around a part of the sample and it's shown large over the sample, from the full-size
-photo, with its sharpness (the spread of its edges: higher is sharper, comparable for the same part); **Autofocus**
-focuses once where the camera's focus area says (in Manual it switches to AF-S for it and back, so the focus
-stays locked for the capture), and the near/far steps (‹ ‹‹ ‹‹‹, › ›› ›››: small to large, Manual and DMF) drive the
-lens; after each a new sample is taken and the part shown again, ▲ sharper or ▼ softer, till Close. (In AF-S or DMF
+photo, with its sharpness (the spread of its edges: higher is sharper, comparable for the same part). **Auto**: the
+app focuses on that part: the camera's autofocus gets it close (where its focus area says; in Manual it switches
+to AF-S for it and back, so the focus stays locked for the capture), then the app steps the lens, medium steps
+then small, a sample after each, on while the part gets sharper and back a step when it doesn't, ending at the
+sharpest it saw (about 10–15 samples, half a minute; click again to stop). The near/far steps (‹ ‹‹ ‹‹‹, › ›› ›››:
+small to large, Manual and DMF) drive the lens by hand (the big ones don't come back to quite the same place);
+after each a new sample is taken and the part shown again, ▲ sharper or ▼ softer, till Close. (In AF-S or DMF
 the camera won't fire till it has focus: Manual, focused from here, is the steady choice for a capture.) **Gray Card** (right of the colour temperature slider, in Kelvin mode): drag a rectangle
 inside a gray card in the sample, and the app works out what makes it neutral, from the card's average colour and
 the settings the sample was taken with, a button each to set: **Temperature** (when the white balance was a known

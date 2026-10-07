@@ -1261,7 +1261,9 @@ async function focusSample() {
 // stepped medium steps, then small ones, a sample taken after each and the
 // part's sharpness measured: on in one direction while it gets sharper,
 // one step back once it doesn't. Only small and medium steps: the big ones
-// don't come back to the same place.
+// don't come back to the same place. At the end, if it's softer than the
+// sharpest seen (the small steps are about the size of the noise), it goes
+// back there: the moves since, undone.
 const AUTO_STEPS = [3, 1], AUTO_MAX = 8; // the steps (see Nudge), at most so many each way
 $("focusAF").onclick = async () => {
   if (state.focusAuto) { state.focusAuto.stop = true; $("focusAF").textContent = "Stopping…"; return; }
@@ -1273,13 +1275,21 @@ $("focusAF").onclick = async () => {
   const say = (t) => ($("focusStat").textContent = "Auto: " + t);
   let shots = 0;
   const stopped = () => run.stop;
-  const measure = async () => { shots++; return focusSample(); };
-  const move = (n) => send("focusNudge", { n });
+  const moves = []; // the moves made, each with the sharpness after it
+  let best = { s: -1, at: 0 }; // the sharpest, and how many moves in
+  const measure = async () => {
+    shots++;
+    const v = await focusSample();
+    if (v > best.s) best = { s: v, at: moves.length };
+    return v;
+  };
+  const move = (n) => { moves.push(n); return send("focusNudge", { n }); };
   try {
     say("the camera focusing first…");
     const ind = await send("autofocus");
     loadSettings(); // in Manual it went to AF-S and back
     state.focusSaid = "Auto…";
+    best = { s: -1, at: 0 }; // from the camera's focus on
     let prev = await measure();
     for (const h of AUTO_STEPS) {
       if (stopped()) break;
@@ -1301,10 +1311,19 @@ $("focusAF").onclick = async () => {
         break;
       }
     }
+    // Back to the sharpest seen, if this isn't (about) it: the moves since, undone (net per step size).
+    const last = state.focusSharp.at(-1);
+    if (!stopped() && last < best.s * 0.97 && best.at < moves.length) {
+      say(`back to the sharpest (${best.s})…`);
+      const net = {};
+      for (const n of moves.slice(best.at)) net[Math.abs(n)] = (net[Math.abs(n)] || 0) + Math.sign(n);
+      for (const [h, c] of Object.entries(net)) for (let i = 0; i < Math.abs(c); i++) await send("focusNudge", { n: -Math.sign(c) * Number(h) });
+      await measure();
+    }
     state.focusSaid = `Auto: ${stopped() ? "stopped" : "done"} (${shots} samples; the camera: ${ind})`;
     drawFocus(false);
-    const list = state.focusSharp, best = Math.max(...list);
-    $("focusStat").textContent = `${state.focusSaid} · Sharpness ${list.at(-1)}${list.at(-1) < best * 0.95 ? ` (best seen ${best})` : ""}`;
+    const now = state.focusSharp.at(-1);
+    $("focusStat").textContent = `${state.focusSaid} · Sharpness ${now}${now < best.s * 0.95 ? ` (best seen ${best.s})` : ""}`;
   } catch (e) { $("camConfigErr").textContent = e.message; say("stopped: " + e.message); }
   state.focusAuto = null; state.focusBusy = false;
   $("focusAF").textContent = "Auto";
