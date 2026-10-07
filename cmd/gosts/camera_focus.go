@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"strings"
 	"time"
@@ -55,23 +54,57 @@ func (g *gphoto2Camera) Autofocus() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if mode == "Manual" {
+	manual := mode == "Manual"
+	if manual {
 		if err := g.Set("focus", "Automatic"); err != nil {
 			return "", fmt.Errorf("switching to AF-S to focus: %w", err)
 		}
-		defer func() {
-			if err := g.Set("focus", "Manual"); err != nil {
-				log.Printf("camera: back to Manual focus: %v", err)
-			}
-		}()
 	}
 	if _, err := g.runLines([]string{"set-config /main/actions/autofocus=1"}); err != nil {
 		return "", err
 	}
-	defer g.runLines([]string{"set-config /main/actions/autofocus=0"}) // let go of the half-press
+	ind, err := g.awaitFocus()
+	g.runLines([]string{"set-config /main/actions/autofocus=0"}) // let go of the half-press
+	if err != nil {
+		return "", err
+	}
+	if manual {
+		// Back to Manual, the lens staying where it focused. The camera won't
+		// change focus mode while it still says it's locked: a few seconds
+		// after letting go it says Unlock, and takes it.
+		var lerr error
+		for try := 0; try < 3; try++ {
+			for deadline := time.Now().Add(afWait); time.Now().Before(deadline); time.Sleep(250 * time.Millisecond) {
+				if v, err := get("/main/status/focusindication"); err != nil || v == "Unlock" {
+					break
+				}
+			}
+			if lerr = g.Set("focus", "Manual"); lerr == nil {
+				break
+			}
+		}
+		if lerr != nil {
+			return ind, fmt.Errorf("focused (%s), but the camera stayed in AF-S, not back to Manual: %w", ind, lerr)
+		}
+	}
+	return ind, nil
+}
+
+// awaitFocus waits for the half-pressed camera to find focus (or give up),
+// and says how it went.
+func (g *gphoto2Camera) awaitFocus() (string, error) {
+	get := func() (string, error) {
+		outs, err := g.runLines([]string{"get-config /main/status/focusindication"})
+		if err != nil {
+			return "", err
+		}
+		c, err := parseGphoto2Config(outs[0])
+		return c.current, err
+	}
 	ind := ""
+	var err error
 	for deadline := time.Now().Add(afWait); time.Now().Before(deadline); time.Sleep(250 * time.Millisecond) {
-		if ind, err = get("/main/status/focusindication"); err != nil {
+		if ind, err = get(); err != nil {
 			return "", err
 		}
 		if ind != "" && ind != "Unlock" && !strings.HasPrefix(ind, "Tracking") {
