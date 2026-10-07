@@ -439,7 +439,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <div class="focus-zoom" id="focusZoom" hidden>
             <canvas id="focusCanvas"></canvas>
             <div class="focus-bar">
-              <button class="btn small" id="focusAF" title="Focus once, where the camera's focus area says (in Manual: then back to Manual, so it stays)">Autofocus</button>
+              <button class="btn small" id="focusAF" title="The app focuses on the part selected: the camera focuses first, then the app steps the lens, measuring the part's sharpness on a sample each step, till it's sharpest (half a minute or so; click again to stop)">Auto</button>
               <span class="focus-nudge" title="Drive the focus by hand, towards near or far (small, medium, large steps)">
                 <button class="btn small" data-n="-7">‹‹‹</button><button class="btn small" data-n="-3">‹‹</button><button class="btn small" data-n="-1">‹</button>
                 <span class="focus-nf">near · far</span>
@@ -1187,10 +1187,11 @@ for (const ev of ["mousedown", "click", "dblclick"]) $("focusZoom").addEventList
 function focusControls() {
   const st = (state.camSettings || []).find((x) => x.key === "focus");
   const mode = st?.current, ok = !!st?.focusModes?.includes(mode), busy = !!state.focusBusy;
-  $("focusAF").disabled = !ok || busy;
-  for (const b of document.querySelectorAll(".focus-nudge .btn")) b.disabled = !ok || busy || mode === "Automatic";
-  $("focusZoom").classList.toggle("busy", busy);
-  if (!ok && !$("focusZoom").hidden && !busy) $("focusStat").textContent = `Focus mode ${mode || "?"}: set Manual, DMF or AF-S to focus from here.`;
+  const steps = ok && mode !== "Automatic"; // AF-S refocuses at each shot: nothing to step
+  $("focusAF").disabled = !steps || (busy && !state.focusAuto); // while Auto runs: Stop
+  for (const b of document.querySelectorAll(".focus-nudge .btn")) b.disabled = !steps || busy;
+  $("focusZoom").classList.toggle("busy", busy && !state.focusAuto);
+  if (!steps && !$("focusZoom").hidden && !busy) $("focusStat").textContent = `Focus mode ${mode || "?"}: set Manual (or DMF) to focus from here.`;
 }
 // drawFocus shows the part from the sample shown; fresh: a new sample (its sharpness counted).
 function drawFocus(fresh) {
@@ -1240,17 +1241,75 @@ async function focusAct(what, run) {
     const said = await run();
     state.focusSaid = said;
     $("focusStat").textContent = `${said ? said + " · " : ""}taking a sample…`;
-    await send("sampleShot");
-    await new Promise((resolve) => { state.focusWaiting = resolve; setTimeout(resolve, 40000); });
+    await focusSample();
   } catch (e) { $("camConfigErr").textContent = e.message; $("focusStat").textContent = ""; }
   state.focusBusy = false; state.focusWaiting = null;
   focusControls();
 }
-$("focusAF").onclick = () => focusAct("Focusing", async () => {
-  const ind = await send("autofocus");
-  loadSettings(); // in Manual it went to AF-S and back
-  return ind;
-});
+// focusSample takes a sample and waits for it: the part's sharpness on it.
+async function focusSample() {
+  const n = state.focusSharp.length;
+  await send("sampleShot");
+  await new Promise((resolve) => { state.focusWaiting = resolve; setTimeout(resolve, 40000); });
+  state.focusWaiting = null;
+  if (state.focusSharp.length === n) throw new Error("the sample didn't come");
+  return state.focusSharp.at(-1);
+}
+// Auto: the app focuses on the part selected (contrast detection, as a
+// camera does, but on the part chosen). The camera's own autofocus gets it
+// close first (the A6600's: where its focus area says); then the lens is
+// stepped medium steps, then small ones, a sample taken after each and the
+// part's sharpness measured: on in one direction while it gets sharper,
+// one step back once it doesn't. Only small and medium steps: the big ones
+// don't come back to the same place.
+const AUTO_STEPS = [3, 1], AUTO_MAX = 8; // the steps (see Nudge), at most so many each way
+$("focusAF").onclick = async () => {
+  if (state.focusAuto) { state.focusAuto.stop = true; $("focusAF").textContent = "Stopping…"; return; }
+  const run = (state.focusAuto = { stop: false });
+  state.focusBusy = true;
+  $("focusAF").textContent = "Stop";
+  focusControls();
+  $("camConfigErr").textContent = "";
+  const say = (t) => ($("focusStat").textContent = "Auto: " + t);
+  let shots = 0;
+  const stopped = () => run.stop;
+  const measure = async () => { shots++; return focusSample(); };
+  const move = (n) => send("focusNudge", { n });
+  try {
+    say("the camera focusing first…");
+    const ind = await send("autofocus");
+    loadSettings(); // in Manual it went to AF-S and back
+    state.focusSaid = "Auto…";
+    let prev = await measure();
+    for (const h of AUTO_STEPS) {
+      if (stopped()) break;
+      // Which way is sharper: a step further; if not, back the other way.
+      say(`which way (steps of ${h})…`);
+      await move(h);
+      let s = await measure();
+      const dir = s > prev ? 1 : -1;
+      prev = s;
+      for (let i = 0; i < AUTO_MAX + (dir < 0 ? 1 : 0) && !stopped(); i++) {
+        say(`${dir > 0 ? "further" : "nearer"}, steps of ${h}…`);
+        await move(dir * h);
+        s = await measure();
+        if (s > prev) { prev = s; continue; }
+        // Past the sharpest: one step back.
+        say(`back a step of ${h}…`);
+        await move(-dir * h);
+        prev = await measure();
+        break;
+      }
+    }
+    state.focusSaid = `Auto: ${stopped() ? "stopped" : "done"} (${shots} samples; the camera: ${ind})`;
+    drawFocus(false);
+    const list = state.focusSharp, best = Math.max(...list);
+    $("focusStat").textContent = `${state.focusSaid} · Sharpness ${list.at(-1)}${list.at(-1) < best * 0.95 ? ` (best seen ${best})` : ""}`;
+  } catch (e) { $("camConfigErr").textContent = e.message; say("stopped: " + e.message); }
+  state.focusAuto = null; state.focusBusy = false;
+  $("focusAF").textContent = "Auto";
+  focusControls();
+};
 for (const b of document.querySelectorAll(".focus-nudge .btn")) {
   const n = Number(b.dataset.n);
   b.onclick = () => focusAct(`Focusing ${n < 0 ? "nearer" : "further"}`, async () => { await send("focusNudge", { n }); return ""; });

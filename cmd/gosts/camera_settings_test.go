@@ -312,7 +312,12 @@ func TestSimFocus(t *testing.T) {
 	if err := s.Nudge(8); err == nil {
 		t.Error("nudge 8 taken")
 	}
-	if ind, err := s.Autofocus(); err != nil || ind != "Focus Locked" || s.blur() != 0 {
-		t.Errorf("autofocus: %q %v, blur %v", ind, err, s.blur())
+	if ind, err := s.Autofocus(); err != nil || ind != "Focus Locked" || s.focus != simAFLands {
+		t.Errorf("autofocus: %q %v, focus %v", ind, err, s.focus)
+	}
+	s.Nudge(-1)
+	s.Nudge(-2) // −1, −2: from 3 to 0
+	if b := s.blur(); b != 0 {
+		t.Errorf("stepped to sharp, blur %v", b)
 	}
 }

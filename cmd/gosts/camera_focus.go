@@ -140,15 +140,16 @@ var nudgeSettle = 300 * time.Millisecond
 // ---------------------------------------------------------------- simulator
 
 // The simulated lens: focus is a position, sharp at 0; it starts off
-// (simFocusStart), autofocus puts it at 0, a nudge moves it by its steps
-// (bigger steps further: 1, 2, 4… as Sony's). Its photos blur with it.
-const simFocusStart = 9
+// (simFocusStart), autofocus puts it near (simAFLands: the camera's focus
+// area isn't quite the part that matters), a nudge moves it by its steps
+// (bigger steps further: 1, 2, 4…). Its photos blur with it.
+const simFocusStart, simAFLands = 9, 3
 
 func (s *simCamera) Autofocus() (string, error) {
 	time.Sleep(600 * time.Millisecond) // finding it
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.focus = 0
+	s.focus = simAFLands
 	s.focusSet = true
 	return "Focus Locked", nil
 }
