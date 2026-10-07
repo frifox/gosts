@@ -191,8 +191,15 @@ func (g *gphoto2Camera) Set(key, value string) error {
 	if strings.Contains(outs[0], "*** Error") || strings.Contains(strings.ToLower(outs[0]), "failed") {
 		return fmt.Errorf("the camera refused %s %s: %s", key, value, gphoto2Error([]byte(outs[0])))
 	}
+	// It takes a moment: reading straight back still gives the old value.
+	if err := g.awaitSetting(path, value, settingWait); err != nil {
+		return fmt.Errorf("the camera didn't take %s %s (maybe not in this exposure mode): %w", key, value, err)
+	}
 	return nil
 }
+
+// settingWait is how long a setting gets to take on the camera.
+var settingWait = 5 * time.Second
 
 // Probe finds the f-stops the lens has. The camera reports every f-stop there
 // is, whatever the lens; but it sets one by stepping the aperture towards it,

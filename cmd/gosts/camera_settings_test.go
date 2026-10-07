@@ -150,3 +150,58 @@ func TestGphoto2ProbeAperture(t *testing.T) {
 		t.Fatalf("the aperture's at %s after probing, want it back at f/4", a.Current)
 	}
 }
+
+// fakeLaggyGphoto2: white balance takes a new value only some reads after
+// it's set (the A6600 applies it a moment later), and never takes "Shade".
+const fakeLaggyGphoto2 = `#!/bin/sh
+case "$*" in
+*--auto-detect*) echo "Fake Camera (PC Control)       usb:001,002"; exit 0;;
+esac
+cur=Automatic; want=""; lag=0
+prompt() { printf 'gphoto2: {%s} /> ' "$PWD"; }
+prompt
+while IFS= read -r line; do
+  echo "$line"
+  case "$line" in
+  "get-config /main/imgsettings/whitebalance")
+    if [ -n "$want" ]; then lag=$((lag-1)); if [ $lag -le 0 ]; then cur=$want; want=""; fi; fi
+    echo "Label: WhiteBalance"; echo "Readonly: 0"; echo "Current: $cur"
+    echo "Choice: 0 Automatic"; echo "Choice: 1 Daylight"; echo "Choice: 2 Shade"; echo END;;
+  "set-config-index /main/imgsettings/whitebalance="*)
+    i=${line##*=}
+    case $i in 0) want=Automatic;; 1) want=Daylight;; 2) want="";; esac
+    lag=3;;
+  get-config*) echo "Label: Other"; echo "Current: x"; echo END;;
+  exit|quit) exit 0;;
+  esac
+  prompt
+done
+`
+
+func TestGphoto2SetWaits(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "gphoto2"), []byte(fakeLaggyGphoto2), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	defer func(d time.Duration) { settingWait = d }(settingWait)
+	settingWait = 2 * time.Second
+	cam, _, err := openCamera(gphoto2Prefix + "usb:001,002")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cam.Close()
+	sc := cam.(settingsCamera)
+	if err := sc.Set("whitebalance", "Daylight"); err != nil {
+		t.Fatal(err)
+	}
+	ss, _ := sc.Settings()
+	for _, s := range ss {
+		if s.Key == "whitebalance" && s.Current != "Daylight" {
+			t.Fatalf("after Set: %s, want Daylight (Set returned before the camera took it)", s.Current)
+		}
+	}
+	if err := sc.Set("whitebalance", "Shade"); err == nil {
+		t.Fatal("no error for a value the camera never took")
+	}
+}

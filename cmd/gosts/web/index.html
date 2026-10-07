@@ -137,6 +137,9 @@ td.mono { font-family: var(--mono); }
   border-top-color: var(--accent); animation: spin .8s linear infinite; }
 #sampleCaption { margin-top: 8px; }
 .setting-row { display: flex; gap: 6px; align-items: center; }
+.camcfg-params label.setting-busy::after { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border);
+  border-top-color: var(--accent); animation: spin .8s linear infinite; position: absolute; margin: 2px 0 0 82px; }
+.camcfg-params label { position: relative; }
 .setting-row select { flex: 1; min-width: 0; }
 .setting-row .btn { white-space: nowrap; }
 .btn.busy::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; border-radius: 50%;
@@ -758,8 +761,9 @@ function renderSettings(list) {
     sel.onchange = async () => {
       $("camConfigErr").textContent = "";
       sel.disabled = true;
+      label.classList.add("setting-busy"); // the camera takes a moment to apply it
       try { renderSettings(await send("cameraSet", { key: st.key, value: sel.value })); }
-      catch (e) { $("camConfigErr").textContent = e.message; sel.disabled = false; loadSettings(); }
+      catch (e) { $("camConfigErr").textContent = e.message; label.classList.remove("setting-busy"); sel.disabled = false; loadSettings(); }
     };
     if (!st.probe) {
       label.appendChild(sel);

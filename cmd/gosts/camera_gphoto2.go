@@ -74,9 +74,10 @@ type gphoto2Camera struct {
 // shell lines to run.
 type gphoto2Req struct {
 	ctx     context.Context
-	fired   chan error // the shutter's fired (or not)
-	shutter            // its callbacks (see shutter)
-	lines   []string   // instead: run these, reply on out (then errc)
+	fired   chan error    // the shutter's fired (or not)
+	shutter               // its callbacks (see shutter)
+	lines   []string      // instead: run these, reply on out (then errc)
+	await   *gphoto2Await // instead: wait for a setting to take, reply on errc
 	out     chan []string
 	errc    chan error
 }
@@ -170,6 +171,23 @@ func (g *gphoto2Camera) runLines(lines []string) ([]string, error) {
 		return nil, errors.New("the camera is closed")
 	}
 	return <-r.out, <-r.errc
+}
+
+// gphoto2Await is a setting to wait for: path to read value.
+type gphoto2Await struct {
+	path, value string
+	timeout     time.Duration
+}
+
+// awaitSetting waits (up to timeout) for the camera to show path at value.
+func (g *gphoto2Camera) awaitSetting(path, value string, timeout time.Duration) error {
+	r := gphoto2Req{await: &gphoto2Await{path, value, timeout}, errc: make(chan error, 1)}
+	select {
+	case g.reqs <- r:
+	case <-g.done:
+		return errors.New("the camera is closed")
+	}
+	return <-r.errc
 }
 
 // script runs shell lines on the camera's shell (development) and returns
@@ -355,6 +373,31 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			}
 		}
 		if !ok {
+			continue
+		}
+		if a := r.await; a != nil {
+			// The camera applies a setting a moment later, telling it in its
+			// events: let them come (collecting any pictures meanwhile, as
+			// ever), and look again, till it shows or time's up.
+			deadline := time.Now().Add(a.timeout)
+			var err error
+			for {
+				collect(250 * time.Millisecond)
+				out, rerr := sh.run("get-config "+a.path, 10*time.Second)
+				c, perr := parseGphoto2Config(out)
+				if rerr == nil && perr == nil && c.current == a.value {
+					err = nil
+					break
+				}
+				if time.Now().After(deadline) {
+					err = fmt.Errorf("the camera stayed at %q", c.current)
+					if rerr != nil || perr != nil {
+						err = errors.Join(rerr, perr)
+					}
+					break
+				}
+			}
+			r.errc <- err
 			continue
 		}
 		if r.lines != nil {
