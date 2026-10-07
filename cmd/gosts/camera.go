@@ -251,6 +251,9 @@ func drawNumber(img *image.RGBA, n, x, y, scale int) {
 
 func (s *simCamera) Close() error { return nil }
 
+// Battery: the simulated camera's never runs down.
+func (s *simCamera) Battery() (string, error) { return "100%", nil }
+
 // cameraConn is the connected camera, if any, and the photos taken (the
 // page's timeline, until Reset).
 type cameraConn struct {
@@ -267,6 +270,7 @@ type cameraConn struct {
 	deleted map[int]bool    // photos deleted (a picture still coming is dropped)
 	samples map[int]string  // sample shots (off the timeline): their captions
 	gen     int             // Resets so far (see generation)
+	battery string          // its battery level, last read (see pollBattery)
 }
 
 // maxPhotos is how many photos the timeline keeps in memory; the oldest go.
@@ -313,12 +317,56 @@ type cameraMsg struct {
 	Connected bool   `json:"connected"`
 	ID        string `json:"id"`
 	Name      string `json:"name"`
+	Battery   string `json:"battery,omitempty"` // e.g. "92%", if the camera says
+}
+
+// batteryCamera is a camera that tells its battery level.
+type batteryCamera interface {
+	Battery() (string, error)
+}
+
+// batteryEvery is how often the battery level is read.
+const batteryEvery = time.Minute
+
+// pollBattery reads the connected camera's battery level now and then (and
+// when one connects), telling the pages when it changes.
+func (c *cameraConn) pollBattery(ctx context.Context) {
+	t := time.NewTicker(batteryEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			c.readBattery()
+		}
+	}
+}
+
+func (c *cameraConn) readBattery() {
+	c.mu.Lock()
+	b, ok := c.cam.(batteryCamera)
+	c.mu.Unlock()
+	if !ok {
+		return
+	}
+	level, err := b.Battery()
+	if err != nil {
+		return
+	}
+	c.mu.Lock()
+	changed := level != c.battery
+	c.battery = level
+	c.mu.Unlock()
+	if changed {
+		c.out(c.msg())
+	}
 }
 
 func (c *cameraConn) msg() cameraMsg {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return cameraMsg{Type: "camera", Connected: c.cam != nil, ID: c.id, Name: c.name}
+	return cameraMsg{Type: "camera", Connected: c.cam != nil, ID: c.id, Name: c.name, Battery: c.battery}
 }
 
 func (c *cameraConn) connect(id string) error {
@@ -328,19 +376,20 @@ func (c *cameraConn) connect(id string) error {
 	}
 	c.mu.Lock()
 	old := c.cam
-	c.cam, c.id, c.name = cam, id, name
+	c.cam, c.id, c.name, c.battery = cam, id, name, ""
 	c.mu.Unlock()
 	if old != nil {
 		old.Close()
 	}
 	c.out(c.msg())
+	go c.readBattery() // now, not in a minute
 	return nil
 }
 
 func (c *cameraConn) disconnect() {
 	c.mu.Lock()
 	old := c.cam
-	c.cam, c.id, c.name = nil, "", ""
+	c.cam, c.id, c.name, c.battery = nil, "", "", ""
 	c.mu.Unlock()
 	if old != nil {
 		old.Close()

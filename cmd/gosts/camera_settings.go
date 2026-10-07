@@ -252,6 +252,19 @@ func (g *gphoto2Camera) Probe(key string) error {
 	return nil
 }
 
+// Battery is the camera's battery level, as it says (e.g. "92%").
+func (g *gphoto2Camera) Battery() (string, error) {
+	outs, err := g.runLines([]string{"get-config /main/status/batterylevel"})
+	if err != nil {
+		return "", err
+	}
+	c, err := parseGphoto2Config(outs[0])
+	if err != nil {
+		return "", err
+	}
+	return c.current, nil
+}
+
 // ---------------------------------------------------------------- simulator
 
 // simSettingChoices are the simulated camera's settings and choices.

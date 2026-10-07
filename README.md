@@ -236,7 +236,8 @@ ports to connect to, with Refresh; once connected, live elevation/azimuth: the r
 simulated one, whose photos are the 3D view rendered from the camera on the rig, looking at the
 object, and any camera [gphoto2](http://gphoto.org) finds on USB, e.g. a Sony A6600 in PC Remote mode),
 and once connected has the number of photos, the settle time, and **Moving Shots**, with Start,
-Pause and Stop; Setup can disconnect either) and on the right a **Camera** card (a timeline of every photo
+Pause and Stop; Setup can disconnect either) and on the right a **Camera** card (its title shows the camera's battery level, read every minute: amber below
+20%, red below 10%; a timeline of every photo
 taken, newest on the left, during a capture too, each first as a placeholder while it's taken and comes
 over; hovering one shows a delete button, which takes it off the timeline (its files stay); click one to see it full size, ← → to step, Esc to close;
 **Reset** (red; it asks first), which clears the timeline, **View All**, every photo in a grid over the whole page where a click

@@ -106,6 +106,11 @@ td.mono { font-family: var(--mono); }
 .right .view { flex: 1; }
 .right .view.collapsed { flex: none; }
 .view { position: relative; min-height: 0; display: flex; flex-direction: column; }
+/* The camera's battery, in the Camera card's title. */
+.battery { display: inline-flex; align-items: center; gap: 5px; text-transform: none; letter-spacing: 0; font: 600 12px var(--mono); color: var(--ok); }
+.battery svg { width: 22px; height: 11px; }
+.battery.low { color: var(--warn); }
+.battery.empty { color: var(--bad); }
 /* Camera: the timeline of photos (3:2), newest on the left, scrolling sideways. */
 .timeline { display: flex; gap: 8px; overflow-x: auto; min-width: 0; max-width: 100%; min-height: 120px; align-items: center; padding-bottom: 8px; }
 /* A slim scrollbar that stays visible (macOS otherwise hides it until scrolling). */
@@ -316,7 +321,7 @@ td.mono { font-family: var(--mono); }
 
   <div class="right">
   <section class="card" id="cameraCard">
-    <h2>Camera <span class="spacer"></span>
+    <h2>Camera <span class="battery" id="camBattery" title="The camera's battery" hidden><svg viewBox="0 0 24 12" aria-hidden="true"><rect x="0.75" y="0.75" width="20" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="21.5" y="3.5" width="2" height="5" rx="0.8" fill="currentColor"/><rect id="camBatteryFill" x="2.5" y="2.5" width="16.5" height="7" rx="1" fill="currentColor"/></svg><span id="camBatteryText"></span></span><span class="spacer"></span>
       <button class="btn small danger" id="resetPhotosBtn" title="Clear all photos from the timeline (asks first)" style="text-transform:none;letter-spacing:0" disabled>Reset</button>
       <button class="btn small" id="viewAllBtn" title="All the photos, large" style="text-transform:none;letter-spacing:0" disabled>View All</button>
       <button class="btn small primary" id="takePhotoBtn" style="text-transform:none;letter-spacing:0" disabled>Take Photo</button>
@@ -572,6 +577,13 @@ function onCamera(m) {
   $("captureBody").hidden = !m.connected;
   setPill("cam", m.connected, m.connected ? `camera: ${m.id === "sim" ? "simulator" : m.name}` : "no camera");
   $("camConfigBtn").hidden = !m.connected;
+  // Battery: shown when the camera says, amber below 20%, red below 10%.
+  const pct = parseInt(m.battery, 10);
+  $("camBattery").hidden = !m.connected || !m.battery;
+  $("camBatteryText").textContent = m.battery || "";
+  $("camBattery").classList.toggle("low", pct < 20 && pct >= 10);
+  $("camBattery").classList.toggle("empty", pct < 10);
+  $("camBatteryFill").setAttribute("width", Number.isFinite(pct) ? (16.5 * Math.max(0, Math.min(100, pct)) / 100).toFixed(1) : "16.5");
   if (!m.connected) closeCamConfig();
   cameraButtons();
   if (!m.connected) { stopPreview(); send("cameras").then(renderCameras).catch(() => {}); }

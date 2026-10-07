@@ -83,6 +83,7 @@ func main() {
 	defer a.camera.disconnect()
 	defer a.rig.disconnect()
 	go a.rig.pollLoop(ctx)
+	go a.camera.pollBattery(ctx)
 
 	mux := http.NewServeMux()
 	site, _ := fs.Sub(webFiles, "web")
