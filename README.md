@@ -224,7 +224,8 @@ the serial port at the same time. In gosts, **Setup** assigns the roles (by defa
 leader, mirrored; #11 elevation follower; #12 azimuth), the speed, and switches
 the rig's servos to multi-turn so moves never take the long way round.
 
-The page has the controls on the left (live elevation/azimuth: the rig moves as a slider is dragged or a value entered, with Stop shown while it moves, and Torque, and a
+The page has the controls on the left (a **Control** card that, until a board is connected, lists the serial
+ports to connect to, with Refresh; once connected, live elevation/azimuth: the rig moves as a slider is dragged or a value entered, with Stop shown while it moves, and Torque, and a
 **Capture** card: the number of photos, the settle time, and **Moving Shots**, with Start, Pause and
 Stop) and a live perspective view
 of the rig on the right (a 3D model rendered with [three.js](https://threejs.org): 2020 extrusions, the

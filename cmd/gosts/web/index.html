@@ -140,16 +140,6 @@ td.mono { font-family: var(--mono); }
 
 <div class="layout">
   <div class="left">
-    <section class="card" id="connectCard">
-      <h2>Driver board <span class="spacer"></span><button class="btn small" id="refreshPorts">Refresh</button></h2>
-      <div class="card-body">
-        <div class="ports" id="ports"><div class="hint">Looking for serial ports…</div></div>
-        <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="connectBtn" disabled>Connect</button></div>
-        <p class="hint">Close gosts-ctl first: only one program can use the serial port.</p>
-        <div class="err" id="connectErr"></div>
-      </div>
-    </section>
-
     <section class="card" id="captureCard">
       <h2>Capture</h2>
       <div class="card-body">
@@ -172,10 +162,19 @@ td.mono { font-family: var(--mono); }
 
     <section class="card" id="rigCard">
       <h2>Control <span class="spacer"></span>
+        <button class="btn small" id="refreshPorts" style="text-transform:none;letter-spacing:0">Refresh</button>
         <button class="btn small danger" id="stopBtn" title="Stop the rig where it is" style="text-transform:none;letter-spacing:0" hidden>Stop</button>
-        <label class="switch" style="text-transform:none;letter-spacing:0;font-weight:400"><input type="checkbox" id="torque"><span class="track"></span><span>Torque</span></label>
+        <label class="switch" id="torqueSwitch" style="text-transform:none;letter-spacing:0;font-weight:400" hidden><input type="checkbox" id="torque"><span class="track"></span><span>Torque</span></label>
       </h2>
-      <div class="card-body">
+      <!-- No board: pick its port and connect. -->
+      <div class="card-body" id="connectBody">
+        <div class="ports" id="ports"><div class="hint">Looking for serial ports…</div></div>
+        <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="connectBtn" disabled>Connect</button></div>
+        <p class="hint">Close gosts-ctl first: only one program can use the serial port.</p>
+        <div class="err" id="connectErr"></div>
+      </div>
+      <!-- Board connected: move the rig. -->
+      <div class="card-body" id="controlBody" hidden>
         <div class="readout">
           <div class="tile"><div class="k">Elevation</div><div class="v" id="rElev">–</div></div>
           <div class="tile"><div class="k">Azimuth</div><div class="v" id="rAzim">–</div></div>
@@ -373,7 +372,10 @@ $("connectBtn").onclick = async () => {
 function onState(m) {
   state.server = m;
   const c = m.config, r = c.Roles;
-  $("connectCard").hidden = m.connected;
+  // Control: the board's port to connect to, or once connected the rig's controls.
+  $("connectBody").hidden = $("refreshPorts").hidden = m.connected;
+  $("controlBody").hidden = $("torqueSwitch").hidden = !m.connected;
+  if (!m.connected) $("stopBtn").hidden = true;
   if (!m.connected) state.controlsSet = false; // refill from the rig after the next connect
   if (!m.connected) setPill("bus", false, "no board");
   else if (m.scanning) setPill("bus", false, `scanning ${m.port}…`, true);
