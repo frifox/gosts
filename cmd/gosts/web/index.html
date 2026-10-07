@@ -161,7 +161,6 @@ td.mono { font-family: var(--mono); }
 .gray-btns { display: flex; flex-wrap: wrap; gap: 6px; }
 .setting-row { display: flex; gap: 6px; align-items: center; }
 .camcfg-params label .dof { display: inline; color: var(--muted); font-weight: normal; }
-.camcfg-params label .dof.short { color: var(--warn); }
 .setting-row input.kelvin { width: 84px; flex: none; }
 .setting-row .shift-val { width: 84px; flex: none; font-size: 13px; color: var(--text); text-align: center; }
 /* White balance shifts: the track runs from one end's colour to the other's. */
@@ -908,13 +907,10 @@ function showDof(fstop) {
   if (!n || !s) { sp.textContent = ""; return; }
   const mm = (v) => (v === Infinity ? "∞" : `${Math.round(v)}`);
   const a = dof(f, n, s, DOF_COC), b = dof(f, n, s, DOF_COC_STRICT);
-  const obj = state.server?.config?.Rig?.ObjectZ;
   sp.textContent = ` · ${a.depth === Infinity ? "∞" : mm(a.depth) + " mm"} deep`;
-  sp.classList.toggle("short", !!obj && a.depth < obj);
   sp.title = `Depth of field at f/${n}, ${f} mm, focused ${Math.round(s)} mm away (the object's middle, from the sensor, the rig as it stands):\n` +
     `• standard (0.02 mm blur): sharp ${mm(a.near)}–${mm(a.far)} mm, ${mm(a.depth)} mm deep\n` +
-    `• strict (2 px, 0.008 mm): ${mm(b.near)}–${mm(b.far)} mm, ${mm(b.depth)} mm deep` +
-    (obj ? `\nThe object (Rig Setup): ${obj} mm tall${a.depth < obj ? ": deeper than what's sharp" : ""}.` : "");
+    `• strict (2 px, 0.008 mm): ${mm(b.near)}–${mm(b.far)} mm, ${mm(b.depth)} mm deep`;
 }
 
 // A number setting (colour temperature, Kelvin): a number field and a

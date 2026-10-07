@@ -284,7 +284,7 @@ and shows it with the settings it was taken at, to adjust from. Beside **F-stop*
 chosen (it changes with it), focused on the object's middle (the turntable's middle, up half the object's height:
 its distance from the camera's sensor from the rig's geometry), at the focal length the last photo was taken at
 (EXIF: a zoom's, as set); "sharp" by Sony's standard for APS-C (0.02 mm blur), the tip also strict (2 pixels,
-0.008 mm), and amber when the object is deeper than it. **Focus** (beside the focus mode, in Manual, DMF
+0.008 mm). **Focus** (beside the focus mode, in Manual, DMF
 or AF-S): drag a rectangle around a part of the sample and it's shown large over the sample, from the full-size
 photo, with its sharpness (the spread of its edges: higher is sharper, comparable for the same part). **Auto**: the
 app focuses on that part: the camera's autofocus gets it close (where its focus area says; in Manual it switches
