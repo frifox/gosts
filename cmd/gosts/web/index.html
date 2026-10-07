@@ -142,11 +142,12 @@ td.mono { font-family: var(--mono); }
 .focus-zoom { position: absolute; inset: 3%; z-index: 3; display: flex; flex-direction: column; background: #0b0d10; border: 1px solid #ffffff40;
   border-radius: 10px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,.5); cursor: default; }
 .focus-zoom canvas { flex: 1; min-height: 0; width: 100%; display: block; }
-.focus-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 10px; background: rgba(12,14,18,.92); color: #e8eaef; font-size: 12px; }
+.focus-bar { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; padding: 8px 10px; background: rgba(12,14,18,.92); color: #e8eaef; font-size: 12px; }
 .focus-nudge { display: inline-flex; align-items: center; gap: 3px; }
 .focus-nudge .btn { min-width: 30px; padding-left: 6px; padding-right: 6px; }
 .focus-nf { color: #a9b0bd; padding: 0 4px; }
-.focus-stat { color: #a9b0bd; }
+.focus-stat { color: #a9b0bd; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.focus-bar > .btn, .focus-nudge { flex: none; }
 .focus-zoom.busy canvas { opacity: .55; }
 .shot-overlay { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .gray-hint, .gray-out { padding: 8px 12px; border-radius: 10px; background: rgba(12, 14, 18, .82); color: #e8eaef; font-size: 13px;
@@ -1210,7 +1211,7 @@ function drawFocus(fresh) {
   list.push(s);
   const best = Math.max(...list), prev = list.at(-2);
   const trend = prev === undefined ? "" : s > prev * 1.03 ? " ▲ sharper" : s < prev * 0.97 ? " ▼ softer" : " = about the same";
-  $("focusStat").textContent = `${state.focusSaid ? state.focusSaid + " · " : ""}Sharpness ${s}${trend}${list.length > 1 ? ` · best ${best}` : ""} · ${Math.round(sw)}×${Math.round(sh)} px at ${k >= 1 ? k.toFixed(1) + "×" : Math.round(k * 100) + "%"}`;
+  $("focusStat").textContent = `${state.focusSaid ? state.focusSaid + " · " : ""}Sharpness ${s}${trend}${list.length > 1 ? ` · best ${best}` : ""}`;
 }
 window.addEventListener("resize", () => drawFocus(false));
 // sharpness is how sharp a part of a picture is: the spread of its
