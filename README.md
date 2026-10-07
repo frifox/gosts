@@ -3,9 +3,8 @@
 Go package built to control Waveshare ST3215 servo, but should work with other Waveshare ST and possibly the original Feetech ST servos too.
 Servos are driven by the **Waveshare Bus Servo Adapter (A)** but connecting to servo directly should also work.
 
-![gosts-ctl web console controlling ST3215 servos](docs/gosts-ctl.jpg)
-
-*[gosts-ctl](cmd/gosts-ctl), the web console, driving ST3215 servos.*
+<p align="center"><img src="docs/gosts-ctl.jpg" alt="gosts-ctl web console controlling ST3215 servos"><br>
+<em><a href="cmd/gosts-ctl">gosts-ctl</a>, the web console, driving ST3215 servos.</em></p>
 
 ```go
 import "github.com/frifox/gosts"
@@ -132,7 +131,7 @@ calibration are set up. Grouped servos are always tuned together.
 
 ### [gosts-ctl](cmd/gosts-ctl): web console
 
-<a href="cmd/gosts-ctl"><img src="docs/gosts-ctl.jpg" width="480" alt="gosts-ctl"></a>
+<p align="center"><a href="cmd/gosts-ctl"><img src="docs/gosts-ctl.jpg" width="480" alt="gosts-ctl"></a></p>
 
 A WebSocket server plus a web page to set up, monitor and drive the servos: pick the driver board, find
 the servos, then configure, tune and drive them (IDs, zero, limits, mirrored groups, auto-tuning, live
@@ -147,7 +146,7 @@ More in [its README](cmd/gosts-ctl/README.md).
 
 ### [gosts-rig](cmd/gosts-rig): photogrammetry rig
 
-<a href="cmd/gosts-rig"><img src="docs/gosts-rig.jpg" width="480" alt="gosts-rig"></a>
+<p align="center"><a href="cmd/gosts-rig"><img src="docs/gosts-rig.jpg" width="480" alt="gosts-rig"></a></p>
 
 Drives a photogrammetry rig built from 2020 extrusions: a 600×500 mm base with a
 600 mm post in the middle of each long side, an ST3215 on top of each post tilting a 600×450 mm frame

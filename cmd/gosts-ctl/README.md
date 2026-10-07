@@ -2,7 +2,7 @@
 
 An example app of [Go ST Servo](../../README.md) (`github.com/frifox/gosts`).
 
-![gosts-ctl web console controlling ST3215 servos](../../docs/gosts-ctl.jpg)
+<p align="center"><img src="../../docs/gosts-ctl.jpg" alt="gosts-ctl web console controlling ST3215 servos"></p>
 
 `gosts-ctl` is a WebSocket server plus a web page to set up, monitor and drive the servos.
 The page walks through three steps:

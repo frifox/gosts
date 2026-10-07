@@ -3,7 +3,7 @@
 Runs a turntable photogrammetry rig from the browser: plan a capture, watch the rig move in 3D, and get the photos
 straight off the camera. An example app of [Go ST Servo](../../README.md).
 
-![gosts-rig: a moving-shots capture under way, the photos coming in and the rig drawn live](../../docs/gosts-rig.jpg)
+<p align="center"><img src="../../docs/gosts-rig.jpg" alt="gosts-rig: a moving-shots capture under way, the photos coming in and the rig drawn live"></p>
 
 ## The rig
 
