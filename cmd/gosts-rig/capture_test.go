@@ -498,8 +498,8 @@ func TestTurntableDiameterDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r := cfg.get().Rig; r.TurntableD != 240 || r.check() != nil {
-		t.Fatalf("turntable diameter %v (%v), want 240", r.TurntableD, r.check())
+	if r := cfg.get().Rig; r.TurntableD != 150 || r.check() != nil {
+		t.Fatalf("turntable diameter %v (%v), want 150", r.TurntableD, r.check())
 	}
 }
 
