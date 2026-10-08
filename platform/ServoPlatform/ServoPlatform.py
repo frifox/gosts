@@ -20,7 +20,7 @@ PARAMS = [
     ('platform_d',      '76.2 mm', 'mm', 'Top disc diameter (3 in)'),
     ('platform_h',      '50.8 mm', 'mm', 'Top surface height above the servo horn face (2 in)'),
     ('top_t',           '4 mm',    'mm', 'Top disc thickness'),
-    ('base_d',          '36 mm',   'mm', 'Base plate diameter (bolts to horn)'),
+    ('base_d',          '26 mm',   'mm', 'Base plate diameter (bolts to horn)'),
     ('base_t',          '4 mm',    'mm', 'Base plate thickness'),
     ('bolt_circle_d',   '14 mm',   'mm', 'Horn bolt circle diameter'),
     ('bolt_count',      '4',       '',   'Number of horn bolts'),
