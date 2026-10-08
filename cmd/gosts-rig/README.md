@@ -30,7 +30,7 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 1. Set up the servos with [gosts-ctl](../gosts-ctl) first: IDs, tuning, and zero (elevation 0° = camera level with
    the object, azimuth 0° = the platform's front). Close it after: only one program can use the serial port.
 2. In gosts-rig, **Setup** picks which servo does what (by default #1 and #2 elevation, #3 azimuth).
-3. **Rig Setup** takes your rig's measurements and how low and high the camera may go.
+3. The **gear** in the Rig card's title opens **Rig Setup**: your rig's measurements and how low and high the camera may go.
 4. Set the camera to **RAW & JPEG** (on a Sony in PC Remote: save to PC+Camera). The RAWs stay on the card,
    and only the JPEGs come over USB.
 

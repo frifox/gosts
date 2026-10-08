@@ -302,6 +302,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <button class="btn small" id="refreshPorts" style="text-transform:none;letter-spacing:0">Refresh</button>
         <button class="btn small danger" id="stopBtn" title="Stop the rig where it is" style="text-transform:none;letter-spacing:0" hidden>Stop</button>
         <label class="switch" id="torqueSwitch" style="text-transform:none;letter-spacing:0;font-weight:400" hidden><input type="checkbox" id="torque"><span class="track"></span><span>Torque</span></label>
+        <button class="btn small icon" id="rigCfgBtn" title="Rig setup: its measurements, and how low and high the camera may go" aria-label="Rig setup"></button>
       </h2>
       <!-- No board: pick its port and connect. -->
       <div class="card-body" id="connectBody">
@@ -334,32 +335,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       </div>
     </section>
 
-    <section class="card" id="rigCfgCard">
-      <h2 title="The rig's measurements, for the 3D view">Rig Setup</h2>
-      <div class="card-body">
-        <div class="grid4">
-          <label title="Base frame, along the sides that carry the posts">Base X<input type="number" id="dBaseX" step="10"></label>
-          <label title="Base frame, along the tilt axis">Base Y<input type="number" id="dBaseY" step="10"></label>
-          <label title="Swing arm length">Swing X<input type="number" id="dSwingX" step="10"></label>
-          <label title="Swing bar length (camera bar)">Swing Y<input type="number" id="dSwingY" step="10"></label>
-          <label title="Post height">Post Z<input type="number" id="dPostZ" step="10"></label>
-          <label title="Turntable height"><span class="label-head">Turntable Z<button class="mini" id="dTurntableAuto" title="Auto: the height that puts the object's middle on the tilt axis, where the camera points" aria-label="Auto turntable height">⌖</button></span><input type="number" id="dTurntableZ" step="10"></label>
-          <label title="Camera position along the arms: + towards the object">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
-          <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z offset<input type="number" id="dCameraZ" step="5"></label>
-          <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label>
-          <label title="Turntable diameter">Turntable Dia<input type="number" id="dTurntableD" step="10"></label>
-          <label>Min elevation °<input type="number" id="dElevMin" step="1"></label>
-          <label>Max elevation °<input type="number" id="dElevMax" step="1"></label>
-        </div>
-        <div class="err" id="rigErr"></div>
-        <div class="row" style="margin-top:10px">
-          <button class="btn small" id="dDefaults">Defaults</button>
-          <span class="spacer"></span>
-          <button class="btn" id="dRevert" disabled>Revert</button>
-          <button class="btn primary" id="dSave" disabled>Save</button>
-        </div>
-      </div>
-    </section>
 
     <section class="card" id="logCard">
       <h2>Log</h2>
@@ -469,6 +444,36 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <!-- Gray Card lives by the colour temperature slider (renderSettings puts it there); parked here meanwhile. -->
         <div hidden id="focusPark"><button class="btn small" id="focusBtn" disabled title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again">Focus</button></div>
         <div hidden id="grayPark"><button class="btn small" id="grayBtn" disabled title="Balance white from a gray card: drag a rectangle inside the card in the sample, and the app works out the colour temperature that makes it neutral">Gray Card</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Rig Setup: the rig's measurements (for the 3D view) and how low and high the camera may go. -->
+<div class="modal-backdrop" id="rigCfgModal" hidden>
+  <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="rigCfgTitle">
+    <h2><span id="rigCfgTitle" title="The rig's measurements, for the 3D view">Rig Setup</span><span class="spacer"></span>
+      <button class="icon-btn" id="rigCfgClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
+    <div class="card-body">
+      <div class="grid4">
+        <label title="Base frame, along the sides that carry the posts">Base X<input type="number" id="dBaseX" step="10"></label>
+        <label title="Base frame, along the tilt axis">Base Y<input type="number" id="dBaseY" step="10"></label>
+        <label title="Swing arm length">Swing X<input type="number" id="dSwingX" step="10"></label>
+        <label title="Swing bar length (camera bar)">Swing Y<input type="number" id="dSwingY" step="10"></label>
+        <label title="Post height">Post Z<input type="number" id="dPostZ" step="10"></label>
+        <label title="Turntable height"><span class="label-head">Turntable Z<button class="mini" id="dTurntableAuto" title="Auto: the height that puts the object's middle on the tilt axis, where the camera points" aria-label="Auto turntable height">⌖</button></span><input type="number" id="dTurntableZ" step="10"></label>
+        <label title="Camera position along the arms: + towards the object">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
+        <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z offset<input type="number" id="dCameraZ" step="5"></label>
+        <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label>
+        <label title="Turntable diameter">Turntable Dia<input type="number" id="dTurntableD" step="10"></label>
+        <label>Min elevation °<input type="number" id="dElevMin" step="1"></label>
+        <label>Max elevation °<input type="number" id="dElevMax" step="1"></label>
+      </div>
+      <div class="err" id="rigErr"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn small" id="dDefaults">Defaults</button>
+        <span class="spacer"></span>
+        <button class="btn" id="dRevert" disabled>Revert</button>
+        <button class="btn primary" id="dSave" disabled>Save</button>
       </div>
     </div>
   </div>
@@ -1840,6 +1845,15 @@ function dimsChanged() {
 }
 for (const id of [...DIMS.map((k) => "d" + k), "dElevMin", "dElevMax"]) $(id).addEventListener("input", dimsChanged);
 $("dDefaults").onclick = () => fillDims(DIMS_DEFAULT, LIMITS_DEFAULT);
+// The Rig Setup dialog, from the gear in the Rig card's title (the same
+// gear as the camera's). Closing keeps any edits (the 3D view shows them,
+// Save and Revert still waiting).
+$("rigCfgBtn").innerHTML = $("camConfigBtn").innerHTML;
+$("rigCfgBtn").onclick = () => { $("rigErr").textContent = ""; $("rigCfgModal").hidden = false; };
+const closeRigCfg = () => ($("rigCfgModal").hidden = true);
+$("rigCfgClose").onclick = closeRigCfg;
+$("rigCfgModal").onclick = (e) => { if (e.target === $("rigCfgModal")) closeRigCfg(); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("rigCfgModal").hidden) { e.preventDefault(); closeRigCfg(); } });
 // Turntable Z auto: the object's middle on the tilt axis (the centre of the
 // camera's orbit, where it points), so it's centred in every shot.
 $("dTurntableAuto").onclick = (e) => {
