@@ -105,7 +105,6 @@ td.mono { font-family: var(--mono); }
 #log .error { color: var(--bad); }
 .right { display: flex; flex-direction: column; gap: 14px; min-height: 0; min-width: 0; }
 .right .view { flex: 1; }
-.right .view.collapsed { flex: none; }
 .view { position: relative; min-height: 0; display: flex; flex-direction: column; }
 /* The camera's battery, in the Camera card's title. */
 .battery { display: inline-flex; align-items: center; gap: 5px; text-transform: none; letter-spacing: 0; font: 600 12px var(--mono); color: var(--ok); }
@@ -1816,11 +1815,14 @@ let skLast = 0;
   axis(s.azimuth, "skAzim", "skAzimBar", "↺", "↻");
 })(0);
 // Cards fold by their title (not by the buttons and switches in it). All
-// start open; each window remembers which were folded.
+// start open; each window remembers which were folded. Camera and Rig View
+// don't fold: they're what the page is for.
+const UNFOLDING = ["cameraCard", "viewCard"];
 (function cards() {
   let folded = {};
   try { folded = JSON.parse(localStorage.getItem("foldedCards") || "{}") || {}; } catch {}
   for (const card of document.querySelectorAll(".layout .card[id]")) {
+    if (UNFOLDING.includes(card.id)) continue;
     const h = card.querySelector(":scope > h2");
     h.classList.add("toggle");
     card.classList.toggle("collapsed", !!folded[card.id]);
