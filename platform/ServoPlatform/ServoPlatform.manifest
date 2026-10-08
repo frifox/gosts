@@ -1,0 +1,13 @@
+{
+  "autodeskProduct": "Fusion",
+  "type": "script",
+  "id": "5d1a8f3e-4c6b-4e0a-9b52-7a31c0de2b17",
+  "author": "",
+  "description": {
+    "": "Parametric ST3215 turntable platform (user parameters + timeline)"
+  },
+  "version": "1.0.0",
+  "runOnStartup": false,
+  "supportedOS": "windows|mac",
+  "editEnabled": true
+}
