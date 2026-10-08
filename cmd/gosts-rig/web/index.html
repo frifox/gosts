@@ -1911,9 +1911,9 @@ let skLast = 0;
   axis(s.azimuth, "skAzim", "skAzimBar", "↺", "↻");
 })(0);
 // Cards fold by their title (not by the buttons and switches in it). All
-// start open; each window remembers which were folded. Camera and Rig View
-// don't fold: they're what the page is for.
-const UNFOLDING = ["cameraCard", "viewCard"];
+// start open; each window remembers which were folded. Both Camera cards,
+// Rig and Rig View don't fold: they're what the page is for (only Log does).
+const UNFOLDING = ["captureCard", "rigCard", "cameraCard", "viewCard"];
 (function cards() {
   let folded = {};
   try { folded = JSON.parse(localStorage.getItem("foldedCards") || "{}") || {}; } catch {}
