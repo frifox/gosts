@@ -586,7 +586,13 @@ function renderPorts(ports) {
   state.ports = ports || [];
   const el = $("ports");
   const items = [...state.ports.map((p) => ({ name: p.name, detail: p.detail, likely: p.likely })), { name: "sim", detail: "Simulated rig (servos 1, 2, 3)", sim: true }];
-  if (!state.selectedPort) state.selectedPort = (items.find((p) => p.likely) || {}).name || null;
+  // Pre-selected (till picked, or it's gone): the board used last, if it's
+  // here; else the likely adapter; else the simulator.
+  if (state.autoPort || !items.some((p) => p.name === state.selectedPort)) {
+    state.autoPort = true; // till one's clicked
+    const last = state.server?.config?.Port;
+    state.selectedPort = (items.find((p) => !p.sim && p.name === last) || items.find((p) => p.likely) || items.find((p) => p.sim)).name;
+  }
   el.innerHTML = "";
   for (const p of items) {
     const d = document.createElement("div");
@@ -594,7 +600,7 @@ function renderPorts(ports) {
     d.innerHTML = `<span class="name"></span><span class="detail"></span>${p.likely ? '<span class="badge">likely adapter</span>' : ""}`;
     d.querySelector(".name").textContent = p.sim ? "Simulator" : p.name;
     d.querySelector(".detail").textContent = p.detail || "";
-    d.onclick = () => { state.selectedPort = p.name; renderPorts(state.ports); };
+    d.onclick = () => { state.selectedPort = p.name; state.autoPort = false; renderPorts(state.ports); };
     el.appendChild(d);
   }
   $("connectBtn").disabled = !state.selectedPort;
@@ -612,7 +618,13 @@ $("connectBtn").onclick = async () => {
 // capture itself.
 function renderCameras(list) {
   state.cameras = list || [];
-  if (!state.cameras.some((c) => c.id === state.selectedCamera)) state.selectedCamera = state.cameras[0]?.id || null;
+  // Pre-selected (till picked, or it's gone): the camera used last, if it's
+  // here; else a real one; else the simulator.
+  if (state.autoCamera || !state.cameras.some((c) => c.id === state.selectedCamera)) {
+    state.autoCamera = true; // till one's clicked
+    const last = state.server?.config?.Camera, real = state.cameras.filter((c) => c.id !== "sim");
+    state.selectedCamera = (real.find((c) => c.id === last) || real[0] || state.cameras.find((c) => c.id === "sim") || {}).id || null;
+  }
   const el = $("cameras");
   el.innerHTML = "";
   if (!state.cameras.length) el.innerHTML = '<div class="hint">No cameras found.</div>';
@@ -622,7 +634,7 @@ function renderCameras(list) {
     d.innerHTML = '<span class="name"></span><span class="detail"></span>';
     d.querySelector(".name").textContent = c.name;
     d.querySelector(".detail").textContent = c.detail || "";
-    d.onclick = () => { state.selectedCamera = c.id; renderCameras(state.cameras); };
+    d.onclick = () => { state.selectedCamera = c.id; state.autoCamera = false; renderCameras(state.cameras); };
     el.appendChild(d);
   }
   $("camConnectBtn").disabled = !state.selectedCamera;
@@ -1510,7 +1522,12 @@ for (const id of ["mSpeed", "mAcc"]) {
 }
 
 function onState(m) {
+  const first = !state.server;
   state.server = m;
+  if (first) { // the devices used last are known now: pick again if picked before they were
+    if (state.autoPort) renderPorts(state.ports);
+    if (state.autoCamera) renderCameras(state.cameras);
+  }
   const c = m.config, r = c.Roles;
   motionFields(c.Motion);
   // Motion: the board's port to connect to, or once connected the rig's controls.
