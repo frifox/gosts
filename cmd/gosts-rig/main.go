@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -51,14 +52,8 @@ func main() {
 	if _, err := strconv.Atoi(*addr); err == nil { // just a port
 		*addr = ":" + *addr
 	}
-	if *port == "" && !*sim {
-		*port = c.Port
-	}
 	if *sim {
 		*port = simPort
-	}
-	if *camera == "" {
-		*camera = c.Camera
 	}
 	if c.PhotoDir != "" {
 		photoDir = c.PhotoDir
@@ -75,18 +70,46 @@ func main() {
 	if err := a.cap.preview(c.Plan); err != nil {
 		log.Print(err)
 	}
-	if *port != "" {
-		go func() {
-			if err := a.rig.connect(ctx, *port, c.Baud); err != nil {
-				log.Printf("connect %s: %v", *port, err)
+	// Unless the command line says what to connect: the board and the camera
+	// used last, if they're here; else the only one there is (see
+	// startupDevice). With none here, the page offers the simulators.
+	go func() {
+		p := *port
+		if p == "" {
+			var real []string
+			ports, _ := listPorts()
+			for _, pi := range ports {
+				if pi.Likely { // a USB-serial adapter (not Bluetooth and the like)
+					real = append(real, pi.Name)
+				}
 			}
-		}()
-	}
-	if *camera != "" {
-		if err := a.camera.connect(*camera); err != nil {
-			log.Printf("camera %s: %v", *camera, err)
+			p = startupDevice(c.Port, real)
 		}
-	}
+		if p == "" {
+			return
+		}
+		if err := a.rig.connect(ctx, p, c.Baud); err != nil {
+			log.Printf("connect %s: %v", p, err)
+		}
+	}()
+	go func() {
+		cam := *camera
+		if cam == "" {
+			var real []string
+			for _, ci := range listCameras() {
+				if ci.ID != simCameraID {
+					real = append(real, ci.ID)
+				}
+			}
+			cam = startupDevice(c.Camera, real)
+		}
+		if cam == "" {
+			return
+		}
+		if err := a.camera.connect(cam); err != nil {
+			log.Printf("camera %s: %v", cam, err)
+		}
+	}()
 	defer a.camera.disconnect()
 	defer a.rig.disconnect()
 	go a.rig.pollLoop(ctx)
@@ -112,4 +135,17 @@ func main() {
 	if err := hs.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+}
+
+// startupDevice picks the device to connect on startup from the real ones
+// found: the one used last if it's among them, else the only one ("" if
+// none, or several and not the last one: the page then has them to pick from).
+func startupDevice(last string, real []string) string {
+	if last != "" && slices.Contains(real, last) {
+		return last
+	}
+	if len(real) == 1 {
+		return real[0]
+	}
+	return ""
 }

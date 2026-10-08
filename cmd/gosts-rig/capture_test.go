@@ -502,3 +502,24 @@ func TestTurntableDiameterDefault(t *testing.T) {
 		t.Fatalf("turntable diameter %v (%v), want 240", r.TurntableD, r.check())
 	}
 }
+
+// TestStartupDevice: on startup, the device used last if it's there, else
+// the only real one; with none, or several and not the last, nothing.
+func TestStartupDevice(t *testing.T) {
+	for _, c := range []struct {
+		last string
+		real []string
+		want string
+	}{
+		{"", nil, ""},
+		{"/dev/a", nil, ""},
+		{"", []string{"/dev/a"}, "/dev/a"},
+		{"/dev/gone", []string{"/dev/a"}, "/dev/a"},
+		{"/dev/b", []string{"/dev/a", "/dev/b"}, "/dev/b"},
+		{"", []string{"/dev/a", "/dev/b"}, ""},
+	} {
+		if got := startupDevice(c.last, c.real); got != c.want {
+			t.Errorf("startupDevice(%q, %v) = %q, want %q", c.last, c.real, got, c.want)
+		}
+	}
+}
