@@ -340,7 +340,7 @@ export function createRig(container) {
       orbit: barX - d.CameraOffset + 40, // camera (lens) distance from the tilt axis, along the arms
       lift: d.CameraZ || 0, // and square to them
       objectCentre: V(0, d.TurntableZ + d.ObjectZ / 2, 0), // the object's middle
-      target: V(0, P + d.PostZ / 2, 0) }; // the view orbits the rig's middle, half way up the posts
+      target: V(0, d.TurntableZ - 12, 0) }; // the view orbits the bottom of the platform's disc (12 mm thick, see disc)
   }
 
   // shotPos: where the camera is, relative to the object, for a shot taken at
