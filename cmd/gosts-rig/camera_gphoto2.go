@@ -68,6 +68,7 @@ type gphoto2Camera struct {
 	mu        sync.Mutex
 	fire, dl  time.Duration // recently: firing a photo, downloading its JPEG
 	apertures [2]int        // the lens's f-stops, as indexes of the camera's choices (see Probe; [1] 0: not probed)
+	tmp       string        // the shell's folder, where files land
 }
 
 // gphoto2Req is one thing for the worker: a photo to take, or (development)
@@ -106,6 +107,7 @@ func openGphoto2Camera(port string) (Camera, string, error) {
 		os.RemoveAll(tmp)
 		return nil, "", fmt.Errorf("gphoto2: %w", err)
 	}
+	g.tmp = tmp
 	go g.work(sh, tmp)
 	return g, model, nil
 }
@@ -659,4 +661,25 @@ func (sh *gphoto2Shell) close() {
 		sh.cmd.Process.Kill()
 		<-done
 	}
+}
+
+// Preview is a live-view frame (gphoto2's capture-preview: the camera's
+// live view, about 1 MP on the A6600, with the exposure and white balance as
+// set), taken on the open shell between whatever else it does.
+func (g *gphoto2Camera) Preview() ([]byte, error) {
+	outs, err := g.runLines([]string{"capture-preview"})
+	if err != nil {
+		return nil, err
+	}
+	m := gphoto2Saved.FindStringSubmatch(outs[0])
+	if m == nil {
+		return nil, fmt.Errorf("no live view: %s", gphoto2Error([]byte(outs[0])))
+	}
+	path := m[1]
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(g.tmp, path)
+	}
+	data, err := os.ReadFile(path)
+	os.Remove(path)
+	return data, err
 }

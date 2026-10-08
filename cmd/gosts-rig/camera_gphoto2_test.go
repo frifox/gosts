@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -375,5 +376,56 @@ func TestGphoto2Refused(t *testing.T) {
 	defer mu.Unlock()
 	if got[1] != "gave up" || got[2] != "JPEG 91" {
 		t.Fatalf("photo 1: %q, photo 2: %q; want gave up, JPEG 91", got[1], got[2])
+	}
+}
+
+// fakePreviewGphoto2 answers capture-preview as gphoto2 does: the frame in
+// the shell's folder.
+const fakePreviewGphoto2 = `#!/bin/sh
+case "$*" in
+*--auto-detect*)
+  echo "Fake Camera (PC Control)       usb:001,002"; exit 0;;
+esac
+n=0
+prompt() { printf 'gphoto2: {%s} /> ' "$PWD"; }
+prompt
+while IFS= read -r line; do
+  echo "$line"
+  case "$line" in
+  capture-preview) n=$((n+1)); printf 'FRAME %d' $n > capture_preview.jpg; echo "Saving file as capture_preview.jpg";;
+  exit|quit) exit 0;;
+  esac
+  prompt
+done
+`
+
+// TestGphoto2Preview: live-view frames come from capture-preview, one after
+// another, the file not left behind.
+func TestGphoto2Preview(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "gphoto2"), []byte(fakePreviewGphoto2), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	cam, _, err := openCamera(gphoto2Prefix + "usb:001,002")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cam.Close()
+	pc, ok := cam.(previewCamera)
+	if !ok {
+		t.Fatal("no live view")
+	}
+	for i := 1; i <= 2; i++ {
+		jpg, err := pc.Preview()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := fmt.Sprintf("FRAME %d", i); string(jpg) != want {
+			t.Errorf("frame %d: %q, want %q", i, jpg, want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(cam.(*gphoto2Camera).tmp, "capture_preview.jpg")); err == nil {
+		t.Error("the frame's file was left behind")
 	}
 }

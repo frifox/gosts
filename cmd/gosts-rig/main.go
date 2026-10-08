@@ -121,6 +121,7 @@ func main() {
 	mux.HandleFunc("/ws", a.handleWS)
 	mux.HandleFunc("GET /photo/{file}", a.handlePhoto)
 	mux.HandleFunc("POST /photo/sim", a.handleSimPhoto)
+	mux.HandleFunc("GET /camera/preview", a.handlePreview)
 	hs := &http.Server{Addr: *addr, Handler: mux}
 	go func() {
 		<-ctx.Done()

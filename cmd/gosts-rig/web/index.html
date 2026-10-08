@@ -109,6 +109,8 @@ td.mono { font-family: var(--mono); }
 /* The camera's battery, in the Camera card's title. */
 .battery { display: inline-flex; align-items: center; gap: 5px; text-transform: none; letter-spacing: 0; font: 600 12px var(--mono); color: var(--ok); }
 .battery svg { width: 22px; height: 11px; }
+.btn.small.icon { padding: 0; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; }
+.btn.small.icon svg { width: 15px; height: 15px; }
 .battery.low { color: var(--warn); }
 .battery.empty { color: var(--bad); }
 /* Camera: the timeline of photos (3:2), newest on the left, scrolling sideways. */
@@ -138,8 +140,11 @@ td.mono { font-family: var(--mono); }
 .camcfg-shot { aspect-ratio: 3 / 2; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2);
   display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; cursor: zoom-in; }
 .camcfg-shot img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.camcfg-shot.live { cursor: default; }
 .camcfg-shot.taking::after { content: ""; position: absolute; width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--border);
   border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.sample-btns { display: flex; gap: 8px; margin-top: 14px; }
+.sample-btns .btn { flex: 1; }
 #sampleCaption { margin-top: 8px; line-height: 18px; min-height: 18px; } /* room kept for it before the first sample */
 .camcfg-shot.selecting { cursor: crosshair; }
 .sel-rect { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 1px #000, 0 0 0 9999px rgba(0,0,0,.35); pointer-events: none; }
@@ -264,6 +269,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <section class="card" id="captureCard">
       <h2>Capture <span class="spacer"></span>
         <button class="btn small" id="camRefresh" style="text-transform:none;letter-spacing:0">Refresh</button>
+        <span class="battery" id="camBattery" title="The camera's battery" hidden><svg viewBox="0 0 24 12" aria-hidden="true"><rect x="0.75" y="0.75" width="20" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="21.5" y="3.5" width="2" height="5" rx="0.8" fill="currentColor"/><rect id="camBatteryFill" x="2.5" y="2.5" width="16.5" height="7" rx="1" fill="currentColor"/></svg><span id="camBatteryText"></span></span>
+        <button class="btn small icon" id="camConfigBtn" title="Camera settings, with sample shots and live preview" aria-label="Camera settings" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button>
       </h2>
       <!-- No camera: pick one and connect. -->
       <div class="card-body" id="cameraBody">
@@ -362,8 +369,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 
   <div class="right">
   <section class="card" id="cameraCard">
-    <h2>Camera <span class="battery" id="camBattery" title="The camera's battery" hidden><svg viewBox="0 0 24 12" aria-hidden="true"><rect x="0.75" y="0.75" width="20" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="21.5" y="3.5" width="2" height="5" rx="0.8" fill="currentColor"/><rect id="camBatteryFill" x="2.5" y="2.5" width="16.5" height="7" rx="1" fill="currentColor"/></svg><span id="camBatteryText"></span></span>
-      <button class="btn small" id="camConfigBtn" title="Camera settings, with sample shots to judge them by" style="text-transform:none;letter-spacing:0" hidden>Settings</button><span class="spacer"></span>
+    <h2>Camera <span class="spacer"></span>
       <button class="btn small danger" id="resetPhotosBtn" title="Clear all photos from the timeline (asks first)" style="text-transform:none;letter-spacing:0" disabled>Reset</button>
       <button class="btn small" id="viewAllBtn" title="All the photos, large" style="text-transform:none;letter-spacing:0" disabled>View All</button>
       <button class="btn small primary" id="takePhotoBtn" style="text-transform:none;letter-spacing:0" disabled>Take Photo</button>
@@ -431,7 +437,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <div class="card-body camcfg-body">
       <div class="camcfg-params">
         <div id="camSettings"><div class="hint">Reading the camera's settings…</div></div>
-        <button class="btn primary" id="sampleBtn" style="margin-top:14px;width:100%">Take Sample Shot</button>
+        <div class="sample-btns">
+          <button class="btn primary" id="sampleBtn">Take Sample Shot</button>
+          <button class="btn" id="liveBtn" title="The camera's live view, over and over: to frame the object and judge the exposure and white balance as you change them (lower resolution than a photo: use a sample shot for focus and the gray card)">Show Live Preview</button>
+        </div>
         <div class="err" id="camConfigErr"></div>
       </div>
       <div class="camcfg-preview">
@@ -439,6 +448,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <img id="sampleImg" alt="The sample shot" hidden><div class="sel-rect" id="selRect" hidden></div>
           <!-- White balance from a gray card in the sample: the steps and the result, over the photo's
                bottom, so the modal keeps its height. -->
+          <img id="liveImg" alt="The camera's live view" hidden>
           <div class="shot-overlay"><div class="gray-hint" id="grayHint"></div><div class="gray-out" id="grayOut" hidden></div></div>
           <!-- Focus: the part picked, large, to judge the focus by; and the focus controls. -->
           <div class="focus-zoom" id="focusZoom" hidden>
@@ -1014,13 +1024,17 @@ function openCamConfig() {
   sampleButton();
   loadSettings();
 }
-function closeCamConfig() { $("camConfigModal").hidden = true; }
+function closeCamConfig() { stopLive(); $("camConfigModal").hidden = true; }
 $("camConfigBtn").onclick = openCamConfig;
 $("camConfigClose").onclick = closeCamConfig;
 $("camConfigModal").onclick = (e) => { if (e.target === $("camConfigModal")) closeCamConfig(); };
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented && !$("camConfigModal").hidden) closeCamConfig(); });
-function sampleButton() { $("sampleBtn").disabled = !state.camera?.connected || !!state.cap?.running || state.sampleTaking; }
+function sampleButton() {
+  $("sampleBtn").disabled = !state.camera?.connected || !!state.cap?.running || state.sampleTaking;
+  $("liveBtn").disabled = !state.live && $("sampleBtn").disabled;
+}
 $("sampleBtn").onclick = async () => {
+  stopLive();
   $("camConfigErr").textContent = "";
   state.sampleTaking = true; sampleButton();
   await act("sampleShot", {}, $("camConfigErr"));
@@ -1044,7 +1058,8 @@ function sampleArrived(m) {
   $("sampleImg").src = photoURL(m);
   $("sampleImg").hidden = false;
   $("sampleNone").hidden = true;
-  $("sampleCaption").textContent = `${m.caption || ""}${m.caption ? "  ·  " : ""}${new Date(m.at).toLocaleTimeString()}`;
+  state.sampleCaption = `${m.caption || ""}${m.caption ? "  ·  " : ""}${new Date(m.at).toLocaleTimeString()}`;
+  $("sampleCaption").textContent = state.sampleCaption;
 }
 function sampleFailed(n) {
   state.focusWaiting?.();
@@ -1401,9 +1416,76 @@ for (const b of document.querySelectorAll(".focus-nudge .btn")) {
   b.onclick = () => focusAct(`Focusing ${n < 0 ? "nearer" : "further"}`, async () => { await send("focusNudge", { n }); return ""; });
 }
 
+// ---------------------------------------------------------------- live preview
+// Show Live Preview: the camera's live view in the sample's place, frame
+// after frame (as fast as the camera hands them over), till Hide, a sample
+// shot, or the dialog closes. A real camera's frames come from its live view
+// (lower resolution than a photo); the simulated camera's are rendered here
+// from the rig view, with its settings' exposure, colour and focus. Gray Card
+// and Focus wait for a sample shot meanwhile (they need the photo).
+$("liveBtn").onclick = () => (state.live ? stopLive() : startLive());
+function startLive() {
+  if (state.live) return;
+  stopSelecting();
+  closeFocus();
+  state.live = { frames: 0, since: performance.now() };
+  $("liveBtn").textContent = "Hide Live Preview";
+  $("liveBtn").classList.add("primary");
+  $("sampleBtn").classList.remove("primary");
+  $("sampleBox").classList.add("live");
+  $("camConfigErr").textContent = "";
+  $("grayBtn").disabled = $("focusBtn").disabled = true;
+  liveLoop(state.live);
+}
+function stopLive() {
+  if (!state.live) return;
+  state.live = null;
+  $("liveBtn").textContent = "Show Live Preview";
+  $("liveBtn").classList.remove("primary");
+  $("sampleBtn").classList.add("primary");
+  $("sampleBox").classList.remove("live");
+  $("liveImg").hidden = true;
+  $("sampleImg").hidden = !state.sampleShown;
+  $("sampleNone").hidden = !!state.sampleShown;
+  $("grayBtn").disabled = $("focusBtn").disabled = !state.sampleShown;
+  if (state.grayRect) showGrayRect();
+  $("sampleCaption").textContent = state.sampleCaption || "";
+  sampleButton();
+}
+async function liveLoop(run) {
+  const img = $("liveImg");
+  let url = null;
+  while (state.live === run) {
+    try {
+      const r = await fetch("/camera/preview", { cache: "no-store" });
+      if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+      let blob;
+      if ((r.headers.get("Content-Type") || "").includes("json")) { // the simulated camera: rendered here
+        const p = await r.json();
+        blob = await window.rig3d.snapshot(960, p.exposure || 1, simGains(p.settings), (p.blur || 0) * 960 / 1200);
+        await new Promise((res) => setTimeout(res, 60)); // about as often as a camera would
+      } else blob = await r.blob();
+      if (state.live !== run) break;
+      const next = URL.createObjectURL(blob);
+      await new Promise((res) => { img.onload = img.onerror = res; img.src = next; });
+      if (url) URL.revokeObjectURL(url);
+      url = next;
+      if (state.live !== run) break;
+      img.hidden = false;
+      $("sampleImg").hidden = $("sampleNone").hidden = $("selRect").hidden = true;
+      run.frames++;
+      const fps = run.frames / ((performance.now() - run.since) / 1000);
+      $("sampleCaption").textContent = `Live preview · ${img.naturalWidth}×${img.naturalHeight} · ${fps.toFixed(1)} frames/s`;
+    } catch (e) {
+      if (state.live === run) { $("camConfigErr").textContent = "Live preview: " + e.message; stopLive(); }
+      break;
+    }
+  }
+}
+
 // The sample full size, in the photo viewer.
 $("sampleBox").onclick = () => {
-  if (!state.sampleShown || state.selecting || state.justSelected) return;
+  if (!state.sampleShown || state.selecting || state.justSelected || state.live) return;
   $("viewerImg").src = $("sampleImg").src;
   $("viewerCap").textContent = "Sample · " + $("sampleCaption").textContent;
   $("viewerHint").textContent = "  ·  click or Esc to close";

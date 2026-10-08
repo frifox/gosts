@@ -338,6 +338,43 @@ func (a *app) handlePhoto(w http.ResponseWriter, r *http.Request) {
 	w.Write(jpg)
 }
 
+// handlePreview serves a live-view frame (GET /camera/preview): a JPEG from
+// a real camera; for the simulated one, what its settings do to the picture
+// (JSON: the page renders the frame itself, as for its photos).
+func (a *app) handlePreview(w http.ResponseWriter, r *http.Request) {
+	if a.cap.msg().Running {
+		http.Error(w, "a capture is running", http.StatusConflict)
+		return
+	}
+	a.camera.mu.Lock()
+	cam := a.camera.cam
+	a.camera.mu.Unlock()
+	w.Header().Set("Cache-Control", "no-store")
+	switch c := cam.(type) {
+	case nil:
+		http.Error(w, errNoCamera.Error(), http.StatusNotFound)
+	case *simCamera:
+		settings := map[string]string{}
+		if ss, err := c.Settings(); err == nil {
+			for _, st := range ss {
+				settings[st.Key] = st.Current
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"sim": true, "exposure": c.exposure(), "blur": c.blur(), "settings": settings})
+	case previewCamera:
+		jpg, err := c.Preview()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Write(jpg)
+	default:
+		http.Error(w, "this camera has no live view", http.StatusNotImplemented)
+	}
+}
+
 // handleSimPhoto takes a simulated photo's picture, rendered by a page
 // (POST /photo/sim?n=, a JPEG).
 func (a *app) handleSimPhoto(w http.ResponseWriter, r *http.Request) {

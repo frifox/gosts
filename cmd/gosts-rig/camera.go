@@ -122,6 +122,13 @@ type cameraInfo struct {
 	Detail string `json:"detail"`
 }
 
+// previewCamera is a camera with a live view: Preview is a frame of it now
+// (a JPEG, smaller than a photo; nothing is saved). Camera Settings' live
+// preview asks for one after another.
+type previewCamera interface {
+	Preview() ([]byte, error)
+}
+
 // simCameraID selects the simulated camera.
 const simCameraID = "sim"
 

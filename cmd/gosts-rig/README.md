@@ -50,10 +50,11 @@ saved in `~/Pictures/gosts-rig/`, a folder per batch named after its start time.
 
 ## Camera settings
 
-**Settings** (in the Camera card's title) opens the camera's settings next to a sample shot.
+The **gear** in the Capture card's title opens the camera's settings next to a sample shot.
 
 - Shutter, f-stop, ISO, white balance and focus, applied as you change them. **Take Sample Shot** shows how
-  they look.
+  they look, or **Show Live Preview** shows the camera's live view as you change them (lower resolution: use a
+  sample shot to check focus or use the gray card).
 - **Detect** next to the f-stop finds the range your lens really has (about half a minute).
 - Next to the f-stop: the **depth of field**, how deep the sharp zone is, for where the object sits on the rig.
 - **Gray Card** (with white balance on a color temperature): drag a box over a gray card in the sample. It
@@ -66,7 +67,7 @@ saved in `~/Pictures/gosts-rig/`, a folder per batch named after its start time.
 - *"Another program has the camera"* (macOS): quit Photos and Image Capture, then run
   `killall ptpcamerad mscamerad-xpc`.
 - Use **Manual** focus for captures: in an autofocus mode the camera won't fire until it has found focus.
-- The battery level is shown next to the Camera card's title.
+- The camera's battery level is shown in the Capture card's title, next to the gear.
 
 Settings are kept in `~/Library/Application Support/gosts-rig/config.toml` on macOS (`~/.config/gosts-rig/` on
 Linux); `--config` picks another file.
