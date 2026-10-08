@@ -267,7 +267,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 <div class="layout">
   <div class="left">
     <section class="card" id="captureCard">
-      <h2>Capture <span class="spacer"></span>
+      <h2>Camera <span class="spacer"></span>
         <button class="btn small" id="camRefresh" style="text-transform:none;letter-spacing:0">Refresh</button>
         <span class="battery" id="camBattery" title="The camera's battery" hidden><svg viewBox="0 0 24 12" aria-hidden="true"><rect x="0.75" y="0.75" width="20" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="21.5" y="3.5" width="2" height="5" rx="0.8" fill="currentColor"/><rect id="camBatteryFill" x="2.5" y="2.5" width="16.5" height="7" rx="1" fill="currentColor"/></svg><span id="camBatteryText"></span></span>
         <button class="btn small icon" id="camConfigBtn" title="Camera settings, with sample shots and live preview" aria-label="Camera settings" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button>
@@ -298,7 +298,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     </section>
 
     <section class="card" id="rigCard">
-      <h2>Motion <span class="spacer"></span>
+      <h2>Rig <span class="spacer"></span>
         <button class="btn small" id="refreshPorts" style="text-transform:none;letter-spacing:0">Refresh</button>
         <button class="btn small danger" id="stopBtn" title="Stop the rig where it is" style="text-transform:none;letter-spacing:0" hidden>Stop</button>
         <label class="switch" id="torqueSwitch" style="text-transform:none;letter-spacing:0;font-weight:400" hidden><input type="checkbox" id="torque"><span class="track"></span><span>Torque</span></label>
@@ -624,7 +624,7 @@ $("connectBtn").onclick = async () => {
 };
 
 // ---------------------------------------------------------------- camera
-// The Capture card: the cameras to connect to, or once one is connected the
+// The left Camera card (captureCard): the cameras to connect to, or once one is connected the
 // capture itself.
 function renderCameras(list) {
   state.cameras = list || [];
@@ -1563,7 +1563,7 @@ async function simShoot(n, exposure, settings, blur) {
   } catch (e) { log(`simulated photo ${n}: ${e.message}`, "error"); }
 }
 
-// Speed and acceleration (Motion card): saved on Enter or leaving a field.
+// Speed and acceleration (Rig card): saved on Enter or leaving a field.
 // Speed is entered in °/s, acceleration in °/s²; the servos (and the config)
 // count steps/s and 100 steps/s².
 const STEP_DEG = 360 / 4096;
@@ -1603,7 +1603,7 @@ function onState(m) {
   }
   const c = m.config, r = c.Roles;
   motionFields(c.Motion);
-  // Motion: the board's port to connect to, or once connected the rig's controls.
+  // The Rig card: the board's port to connect to, or once connected the rig's controls.
   $("connectBody").hidden = $("refreshPorts").hidden = m.connected;
   $("controlBody").hidden = $("torqueSwitch").hidden = !m.connected;
   if (!m.connected) $("stopBtn").hidden = true;

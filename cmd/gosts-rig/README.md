@@ -36,7 +36,7 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 
 ## Taking photos
 
-- **Capture**: choose how many photos you want. They're spread evenly round the object, as high and low as the
+- In the left **Camera** card, choose how many photos you want. They're spread evenly round the object, as high and low as the
   camera may go.
 - **Moving Shots**: the rig doesn't stop for each photo. It glides along one smooth spiral instead, which is much
   faster, for a quick enough shutter. Any number of photos works; on long spirals the rig pauses for a moment now
@@ -45,12 +45,12 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 - **Start**, **Pause**, **Stop**. The progress bar shows the photos done and about how long is left.
 - **Take Photo** takes a single photo where the rig is.
 
-Photos appear in the Camera card as they arrive. Click one to see it full size, **View All** for a grid. They're
+Photos appear in the right-hand Camera card as they arrive. Click one to see it full size, **View All** for a grid. They're
 saved in `~/Pictures/gosts-rig/`, a folder per batch named after its start time. **Reset** starts a new batch.
 
 ## Camera settings
 
-The **gear** in the Capture card's title opens the camera's settings next to a sample shot.
+The **gear** in the left Camera card's title opens the camera's settings next to a sample shot.
 
 - Shutter, f-stop, ISO, white balance and focus, applied as you change them. **Take Sample Shot** shows how
   they look, or **Show Live Preview** shows the camera's live view as you change them (lower resolution: use a
@@ -67,7 +67,7 @@ The **gear** in the Capture card's title opens the camera's settings next to a s
 - *"Another program has the camera"* (macOS): quit Photos and Image Capture, then run
   `killall ptpcamerad mscamerad-xpc`.
 - Use **Manual** focus for captures: in an autofocus mode the camera won't fire until it has found focus.
-- The camera's battery level is shown in the Capture card's title, next to the gear.
+- The camera's battery level is shown in the left Camera card's title, next to the gear.
 
 Settings are kept in `~/Library/Application Support/gosts-rig/config.toml` on macOS (`~/.config/gosts-rig/` on
 Linux); `--config` picks another file.
