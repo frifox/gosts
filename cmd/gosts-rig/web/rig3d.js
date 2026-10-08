@@ -409,13 +409,21 @@ export function createRig(container) {
     }
   }
 
-  // setDims rebuilds the rig when its measurements change.
+  // setDims rebuilds the rig when its measurements change. A preview or a
+  // capture's trail carries on: its comet moves to the new rig, the trail
+  // placed again for the new measurements (its points kept their poses).
   function setDims(d) {
     const dims = { ...DEFAULT_RIG, ...(d || {}) };
     if (rig && JSON.stringify(rig.d) === JSON.stringify(dims)) return;
     const first = !rig;
-    stopPreview();
+    const comets = [pv, cv].filter(Boolean);
+    for (const c of comets) rig.shotGroup.remove(c.ball, c.trail);
     build(dims);
+    for (const c of comets) {
+      rig.shotGroup.add(c.ball, c.trail);
+      for (const h of c.history) if (h.pose) h.p.copy(shotPos(h.pose.e, h.pose.az));
+      if (c.pose) c.ball.position.copy(shotPos(c.pose.e, c.pose.az));
+    }
     controls.target.copy(rig.target);
     if (first) setView("3d");
     update(last);
@@ -506,7 +514,7 @@ export function createRig(container) {
     let v = prev ? prev.v : c.normal;
     if (prev && t > prev.t) v += (prev.p.angleTo(p) * 180 / Math.PI / (t - prev.t) - v) * Math.min(1, (t - prev.t) / 0.15);
     else if (prev) return;
-    h.push({ t, p: p.clone(), v });
+    h.push({ t, p: p.clone(), v, pose: c.pose && { e: c.pose.e, az: c.pose.az } }); // the pose: to place it again if the rig is redrawn (setDims)
     return v;
   }
   // speedColor: a diverging scale of even brightness, on a log scale so
@@ -692,6 +700,7 @@ export function createRig(container) {
       const st = previewState(t);
       setPose(st.e, st.az);
       pv.ball.position.copy(shotPos(st.e, st.az));
+      pv.pose = st;
     }
     // Dots the ball has reached are consumed: hidden until the preview ends
     // (update() puts them back).
@@ -750,6 +759,7 @@ export function createRig(container) {
     if (running) {
       const q = livePose();
       cv.ball.position.copy(shotPos(q.e, q.az));
+      cv.pose = q;
     }
     // The tail starts at the first shot (as shown: the view runs DELAY behind).
     if (running && cv.shotAt.length && cv.clock >= cv.shotAt[0] + DELAY / 1000) {

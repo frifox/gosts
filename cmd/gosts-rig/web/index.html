@@ -340,7 +340,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <label title="Camera position along the arms: + towards the object">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
           <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z offset<input type="number" id="dCameraZ" step="5"></label>
           <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label>
-          <label title="Turntable diameter">Turntable Diameter<input type="number" id="dTurntableD" step="10"></label>
+          <label title="Turntable diameter">Turntable Dia<input type="number" id="dTurntableD" step="10"></label>
           <label>Min elevation °<input type="number" id="dElevMin" step="1"></label>
           <label>Max elevation °<input type="number" id="dElevMax" step="1"></label>
         </div>
@@ -1648,8 +1648,18 @@ $("previewBtn").onclick = () => {
   if (shots.length < 2 || !window.rig3d) return;
   $("previewBtn").textContent = "Stop";
   // Only the view moves: at the end it returns to where the real rig is.
-  window.rig3d.startPreview(shots, $("pMoving").checked).then(() => ($("previewBtn").textContent = "Preview FF"));
+  window.rig3d.startPreview(shots, $("pMoving").checked).then(() => { $("previewBtn").textContent = "Preview FF"; planLock(); });
+  planLock();
 };
+// planLock: while a preview or a capture runs, what would change the plan
+// (the photos, moving shots, the elevation limits, and Defaults, which
+// resets them) can't be changed; the rig's measurements can (the view is
+// redrawn, the trail carrying on).
+function planLock() {
+  const busy = !!(window.rig3d?.previewing() || state.cap?.running);
+  for (const id of ["pPhotos", "pMoving", "dElevMin", "dElevMax", "dDefaults"]) $(id).disabled = busy;
+  for (const id of ["dElevMin", "dElevMax"]) $(id).title = busy ? "Set while no preview or capture runs: it changes the plan" : "";
+}
 $("pauseBtn").onclick = () => act("pause", { on: !state.cap?.paused });
 $("abortBtn").onclick = () => act("stop");
 // The capture's progress text: photos done, time so far, and about how long
@@ -1697,7 +1707,7 @@ function onCapture(m) {
   $("pauseBtn").disabled = !m.running;
   $("pauseBtn").textContent = m.paused ? "Resume" : "Pause";
   $("abortBtn").disabled = !m.running;
-  for (const id of ["pPhotos", "pMoving"]) $(id).disabled = m.running;
+  planLock();
   $("pSettle").disabled = m.running || $("pMoving").checked;
   $("capNote").textContent = m.running ? (m.paused ? "Paused." : m.note) : m.note; // progress: the bar (and a note, e.g. unwinding)
   draw();
