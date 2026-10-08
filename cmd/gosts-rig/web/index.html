@@ -190,6 +190,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .viewer { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.92); display: flex; flex-direction: column; }
 .viewer .stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 0 16px 16px; }
 .viewer img { width: 100%; height: 100%; object-fit: contain; } /* as large as the window allows, even past its own size */
+.viewer .stage, .viewer img { cursor: zoom-out; } /* a click goes back */
 .viewer-bar, .gallery-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; }
 .viewer-bar .cap { color: #e6e9ef; font: 12px var(--mono); }
 .viewer-bar .hint { color: #9aa3b2; }
@@ -781,7 +782,7 @@ function viewerButtons() {
   $("viewerNewer").hidden = $("viewerOlder").hidden = false; // (a sample's view hides them)
   $("viewerNewer").disabled = i < 0 || i >= state.photos.length - 1;
   $("viewerOlder").disabled = i <= 0;
-  $("viewerHint").textContent = `  ·  ← → to step, Esc ${gallery ? "for all photos" : "to close"}`;
+  $("viewerHint").textContent = `  ·  ← → to step, click or Esc ${gallery ? "for all photos" : "to close"}`;
 }
 function stepPhoto(d) { // +1 newer, -1 older
   const i = state.photos.findIndex((p) => p.n === state.viewing), j = i + d;
@@ -791,19 +792,10 @@ function closePhoto() { $("viewer").hidden = true; state.viewing = null; }
 $("viewerBack").onclick = closePhoto;
 $("viewerNewer").onclick = () => stepPhoto(1);
 $("viewerOlder").onclick = () => stepPhoto(-1);
-// A click beside the photo (not on it, nor on a button) goes back: to All
-// Photos where it was left, if the photo was opened from there, else to
-// the page. The picture fills the stage, letterboxed, so "on it" is where
-// it's drawn.
-function onPicture(e) {
-  const img = $("viewerImg"), r = img.getBoundingClientRect();
-  if (e.target !== img || !img.naturalWidth) return false;
-  const k = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
-  const w = img.naturalWidth * k, h = img.naturalHeight * k;
-  const x = r.left + (r.width - w) / 2, y = r.top + (r.height - h) / 2;
-  return e.clientX >= x && e.clientX <= x + w && e.clientY >= y && e.clientY <= y + h;
-}
-$("viewer").onclick = (e) => { if (!e.target.closest("button") && !onPicture(e)) closePhoto(); };
+// A click anywhere but on a button (on the photo too) goes back: to All
+// Photos where it was left, if the photo was opened from there, else to the
+// page (the pointer says so: zoom out).
+$("viewer").onclick = (e) => { if (!e.target.closest("button")) closePhoto(); };
 // ✕ on the photo closes All Photos too.
 $("viewerClose").onclick = () => { closePhoto(); closeGallery(); };
 document.addEventListener("keydown", (e) => {
@@ -1415,7 +1407,7 @@ $("sampleBox").onclick = () => {
   if (!state.sampleShown || state.selecting || state.justSelected) return;
   $("viewerImg").src = $("sampleImg").src;
   $("viewerCap").textContent = "Sample · " + $("sampleCaption").textContent;
-  $("viewerHint").textContent = "  ·  Esc to close";
+  $("viewerHint").textContent = "  ·  click or Esc to close";
   for (const id of ["viewerBack", "viewerNewer", "viewerOlder"]) $(id).hidden = true;
   state.viewing = null;
   $("viewer").hidden = false;
