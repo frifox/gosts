@@ -139,11 +139,12 @@ var nudgeSettle = 300 * time.Millisecond
 
 // ---------------------------------------------------------------- simulator
 
-// The simulated lens: focus is a position, sharp at 0; it starts off
-// (simFocusStart), autofocus puts it near (simAFLands: the camera's focus
-// area isn't quite the part that matters), a nudge moves it by its steps
-// (bigger steps further: 1, 2, 4…). Its photos blur with it.
-const simFocusStart, simAFLands = 9, 3
+// The simulated lens: focus is a position, sharp at 0; it starts sharp
+// (simFocusStart: the defaults take perfect photos), a nudge moves it by its
+// steps (bigger steps further: 1, 2, 4…), and autofocus puts it near
+// (simAFLands: the camera's focus area isn't quite the part that matters, so
+// the Focus tool's Auto has something to do). Its photos blur with it.
+const simFocusStart, simAFLands = 0, 3
 
 func (s *simCamera) Autofocus() (string, error) {
 	time.Sleep(600 * time.Millisecond) // finding it
