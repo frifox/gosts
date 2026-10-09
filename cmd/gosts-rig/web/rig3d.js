@@ -426,7 +426,7 @@ export function createRig(container) {
       if (c.pose) c.ball.position.copy(shotPos(c.pose.e, c.pose.az));
     }
     controls.target.copy(rig.target);
-    if (first) setView("3d");
+    if (first) setView("intro"); // index.html turns it to 3d once the rig connects
     update(last);
   }
 
@@ -436,12 +436,14 @@ export function createRig(container) {
   // camera on the left.
   // 3d (the default, and where a capture starts the view: see index.html):
   // from the camera's side, a little above, the camera and the object both
-  // in sight. glide: over about 0.7 s instead of at once.
+  // in sight. intro: from the other corner, higher (where the page opens, to
+  // turn to 3d on connecting: showing the view turns). glide: over about 0.7 s
+  // instead of at once, swinging around the target.
   let glideTo = null;
   function setView(name, glide = false) {
     const d = rig.d, t = rig.target;
     const far = Math.max(d.BaseX, d.BaseY, d.PostZ + 300) * 2.6;
-    const v = { "3d": [far * -0.86, t.y + far * 0.11, far * 0.47], front: [-far, t.y, 0], side: [0, t.y, far], top: [0, far * 1.1, 1] }[name] || null;
+    const v = { "3d": [far * -0.86, t.y + far * 0.11, far * 0.47], intro: [far * 0.7, t.y + far * 0.43, far * 0.54], front: [-far, t.y, 0], side: [0, t.y, far], top: [0, far * 1.1, 1] }[name] || null;
     if (!v) return;
     if (glide) {
       glideTo = { from: cam.position.clone(), fromT: controls.target.clone(), to: V(v[0], v[1], v[2]), toT: t.clone(), age: 0 };
@@ -458,8 +460,14 @@ export function createRig(container) {
     glideTo.age += dt;
     let f = Math.min(1, glideTo.age / 0.7);
     f = f * f * (3 - 2 * f);
-    cam.position.lerpVectors(glideTo.from, glideTo.to, f);
+    // Around the target (angles and distance eased), not straight across.
+    const a = new THREE.Spherical().setFromVector3(glideTo.from.clone().sub(glideTo.fromT));
+    const b = new THREE.Spherical().setFromVector3(glideTo.to.clone().sub(glideTo.toT));
+    let dTheta = b.theta - a.theta;
+    dTheta -= Math.round(dTheta / (2 * Math.PI)) * 2 * Math.PI; // the short way round
+    const s = new THREE.Spherical(a.radius + (b.radius - a.radius) * f, a.phi + (b.phi - a.phi) * f, a.theta + dTheta * f);
     controls.target.lerpVectors(glideTo.fromT, glideTo.toT, f);
+    cam.position.setFromSpherical(s).add(controls.target);
     if (f >= 1) glideTo = null;
   }
 

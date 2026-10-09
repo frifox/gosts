@@ -2037,6 +2037,9 @@ $("dSave").onclick = async () => {
 function draw() {
   const t = state.tele, cap = state.cap;
   if (!dimsEdited()) window.rig3d?.setDims(savedDims()); // while editing, the fields are shown
+  // The first time the rig is connected, the Rig View turns from where it
+  // opened to the 3D view: showing it's a view to turn.
+  if (window.rig3d && state.server?.connected && !state.introDone) { state.introDone = true; setView("3d", true); }
   const live = t && t.elevation !== null && t.elevation !== undefined;
   window.rig3d?.update({ elevation: live ? t.elevation : null, azimuth: t?.azimuth ?? null, time: t?.time, shots: cap?.shots, index: cap?.index, running: cap?.running,
     smooth: !!state.server?.config.Plan.Moving });
