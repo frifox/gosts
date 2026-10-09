@@ -379,12 +379,18 @@ func (c *capture) begin(p Plan) error {
 
 func (c *capture) run(ctx context.Context, p Plan) {
 	err := c.loop(ctx, p)
+	// The capture is done once the rig is back at 0°/0° and every photo's
+	// pictures are in: till then it runs (a note says which it's waiting for).
 	if err == nil { // all taken: back to 0°/0°
 		c.rig.logf("info", "capture: all photos taken, returning to 0°/0°")
+		c.setNote("Returning to 0°/0°…")
 		if herr := c.rig.home(); herr != nil {
 			c.rig.logf("error", "capture: couldn't return to 0°/0°: %v", herr)
+		} else if werr := c.rig.waitStill(ctx); werr != nil && !errors.Is(werr, context.Canceled) {
+			c.rig.logf("error", "capture: returning to 0°/0°: %v", werr)
 		}
 	}
+	c.waitPictures()
 	c.mu.Lock()
 	c.running, c.paused, c.cancel = false, false, nil
 	done := c.index
@@ -407,6 +413,27 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	if p.ExportFor != "" {
 		go c.exportAlignment(p.ExportFor)
 	}
+}
+
+// waitPictures waits for the photos asked for to come over from the camera
+// (each gives up after pictureWait at most), saying how many are left.
+func (c *capture) waitPictures() {
+	shown := -1
+	for deadline := time.Now().Add(pictureWait + 10*time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+		n := c.camera.backlog()
+		if n == 0 {
+			return
+		}
+		if n != shown {
+			shown = n
+			what := "photos"
+			if n == 1 {
+				what = "photo"
+			}
+			c.setNote(fmt.Sprintf("Downloading the last %d %s…", n, what))
+		}
+	}
+	c.rig.logf("error", "capture: %d photos didn't come over from the camera", c.camera.backlog())
 }
 
 // exportAlignment writes the capture's alignment data for app kind (see
