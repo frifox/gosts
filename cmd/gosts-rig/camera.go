@@ -304,6 +304,8 @@ type cameraConn struct {
 	inFlight       map[int]bool              // photos asked for whose picture hasn't come yet (nor failed): see backlog
 	unfired        []time.Time               // photos queued whose shutter hasn't gone yet: when each was asked for (see firingLate)
 	firedAt        []time.Time               // when the queued photos' shutters went, recently (see measurePace)
+	simRendered    map[int]bool              // simulated photos a page has rendered (coming over: see simPicture)
+	simLink        time.Time                 // the simulated camera's link is busy till then (see simDownload)
 }
 
 // maxPhotos is how many photos the timeline keeps in memory; the oldest go.
@@ -338,6 +340,11 @@ type simShootMsg struct {
 // simPictureWait is how long a simulated photo waits for a page's render
 // before a made-up picture stands in.
 var simPictureWait = 2 * time.Second
+
+// simDownload is how long a simulated photo's picture takes to come over,
+// one at a time, as over a real camera's USB link (an A6600's JPEG: about
+// 0.7 s). The page renders it as the shutter goes; it arrives this long after.
+var simDownload = 700 * time.Millisecond
 
 // photoMsg tells the page a photo was taken (it fetches /photo/{n}.jpg).
 type photoMsg struct {
@@ -608,7 +615,10 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 		c.out(simShootMsg{Type: "simShoot", N: n, Exposure: sim.exposure(), Settings: settings, Blur: sim.blur()})
 		gen := c.generation()
 		time.AfterFunc(simPictureWait, func() {
-			if c.current(gen) {
+			c.mu.Lock()
+			rendered := c.simRendered[n]
+			c.mu.Unlock()
+			if c.current(gen) && !rendered {
 				c.picture(n, photo{JPEG: simPictureJPEG(n), At: p.At})
 			}
 		})
@@ -737,7 +747,7 @@ func (c *cameraConn) timeline() photosMsg {
 // 1 again, and a new folder for its files.
 func (c *cameraConn) reset() {
 	c.mu.Lock()
-	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight = nil, nil, nil, nil, nil
+	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight, c.simRendered = nil, nil, nil, nil, nil, nil
 	c.count, c.pending = 0, 0
 	c.gen++
 	c.mu.Unlock()
@@ -746,8 +756,35 @@ func (c *cameraConn) reset() {
 }
 
 // simPicture sets simulated photo n's picture, rendered by a page.
+// It comes over after simDownload, after the ones before it; whether it's
+// taken is known at once (false: not waited for, or a late copy).
 func (c *cameraConn) simPicture(n int, jpg []byte) bool {
-	return c.picture(n, photo{JPEG: jpg, At: time.Now()})
+	if simDownload <= 0 {
+		return c.picture(n, photo{JPEG: jpg, At: time.Now()})
+	}
+	c.mu.Lock()
+	if !c.inFlight[n] || c.simRendered[n] {
+		c.mu.Unlock()
+		return false
+	}
+	if c.simRendered == nil {
+		c.simRendered = map[int]bool{}
+	}
+	c.simRendered[n] = true
+	start := time.Now()
+	if c.simLink.After(start) { // the one before is still coming over
+		start = c.simLink
+	}
+	done := start.Add(simDownload)
+	c.simLink = done
+	gen := c.gen
+	c.mu.Unlock()
+	time.AfterFunc(time.Until(done), func() {
+		if c.current(gen) {
+			c.picture(n, photo{JPEG: jpg, At: time.Now()})
+		}
+	})
+	return true
 }
 
 // lastPhoto is the newest photo on the timeline (empty if none), and its

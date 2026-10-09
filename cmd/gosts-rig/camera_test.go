@@ -8,13 +8,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
-// The tests' simulated camera is never busy (simBusy): they time things
-// themselves; TestSimCameraBusy checks it.
-func init() { simBusy = 0 }
+// The tests' simulated camera is never busy (simBusy) and its pictures come
+// over at once (simDownload): they time things themselves; TestSimCameraBusy
+// and TestSimDownload check those.
+func init() { simBusy, simDownload = 0, 0 }
 
 // The simulated camera is busy for simBusy after a photo: the next shutter
 // waits, as on a real camera (so measuring its pace finds about simBusy).
@@ -106,5 +108,53 @@ func TestGphoto2Error(t *testing.T) {
 	other := "*** Error ***\nERROR: Could not capture.\n\nFor debugging messages, please use the --debug option.\nmore"
 	if got := gphoto2Error([]byte(other)); got != "ERROR: Could not capture." {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// Simulated pictures come over one at a time, simDownload each, as over a
+// camera's USB link: three rendered at once arrive one download apart.
+func TestSimDownload(t *testing.T) {
+	defer func(d time.Duration) { simDownload = d }(simDownload)
+	simDownload = 100 * time.Millisecond
+	simPictureWait = 5 * time.Second // the pages' renders, not made-up ones
+	defer func() { simPictureWait = 2 * time.Second }()
+	var mu sync.Mutex
+	arrived := map[int]time.Time{}
+	c := &cameraConn{out: func(m any) {
+		if p, ok := m.(photoMsg); ok {
+			mu.Lock()
+			arrived[p.N] = time.Now()
+			mu.Unlock()
+		}
+	}}
+	if err := c.connect(simCameraID); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		if err := c.shoot(t.Context(), true, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	start := time.Now()
+	for n := 1; n <= 3; n++ {
+		if !c.simPicture(n, []byte("rendered")) {
+			t.Fatalf("picture %d refused", n)
+		}
+	}
+	if c.simPicture(2, []byte("again")) {
+		t.Fatal("a second copy taken")
+	}
+	time.Sleep(450 * time.Millisecond)
+	mu.Lock()
+	defer mu.Unlock()
+	for n := 1; n <= 3; n++ {
+		at, ok := arrived[n]
+		if !ok {
+			t.Fatalf("picture %d didn't come", n)
+		}
+		want := time.Duration(n) * simDownload
+		if d := at.Sub(start); d < want-30*time.Millisecond || d > want+80*time.Millisecond {
+			t.Fatalf("picture %d came after %v, want about %v", n, d, want)
+		}
 	}
 }
