@@ -754,6 +754,13 @@ func (c *cameraConn) lastPhoto() (photo, int) {
 }
 
 
+// photoCount is how many photos have been asked for (the last one's number).
+func (c *cameraConn) photoCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.count
+}
+
 // landed: photo n's picture came (or it failed): it's no longer in flight.
 func (c *cameraConn) landed(n int) {
 	c.mu.Lock()

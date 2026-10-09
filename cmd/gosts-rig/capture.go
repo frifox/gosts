@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -183,6 +184,7 @@ type capture struct {
 	running bool
 	paused  bool
 	holding bool // moving shots held for the camera to catch up (see pace)
+	first   int  // the capture's first photo's number (shot i is photo first+i: see exportAlignment)
 	note    string
 	cancel  context.CancelFunc
 	resume  chan struct{}
@@ -358,6 +360,7 @@ func (c *capture) begin(p Plan) error {
 		return errors.New("a capture is already running")
 	}
 	c.shots, c.index, c.running, c.paused, c.cancel = shots, 0, true, false, cancel
+	c.first = c.camera.photoCount() + 1
 	c.rows, c.spacing = rows, spacing
 	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
 	c.mu.Unlock()
@@ -401,6 +404,39 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	}
 	c.rig.logf(level, "capture: %s", note)
 	c.send()
+	if p.ExportOn && p.Export != "" {
+		go c.exportAlignment(p.Export)
+	}
+}
+
+// exportAlignment writes the capture's alignment data for app kind (see
+// writeExport) beside its photos, once their pictures are all in.
+func (c *capture) exportAlignment(kind string) {
+	for deadline := time.Now().Add(pictureWait + 10*time.Second); c.camera.backlog() > 0 && time.Now().Before(deadline); {
+		time.Sleep(200 * time.Millisecond)
+	}
+	c.mu.Lock()
+	shots, first := append([]shot(nil), c.shots[:c.index]...), c.first
+	c.mu.Unlock()
+	r := c.rig.cfg.get().Rig
+	var photos []exportPhoto
+	for i, s := range shots {
+		p, ok := c.camera.photo(first + i)
+		if !ok || len(p.Files) == 0 || s.ActualElevation == nil || s.ActualAzimuth == nil {
+			continue // no file (the simulated camera saves none), or no pose
+		}
+		photos = append(photos, exportPhoto{Path: p.Files[0], Pose: camPose(r, *s.ActualElevation, *s.ActualAzimuth)})
+	}
+	if len(photos) == 0 {
+		c.rig.logf("info", "capture: no photo files to export alignment data for")
+		return
+	}
+	dir := filepath.Dir(photos[0].Path)
+	if err := writeExport(kind, dir, photos, exportIntrinsics{FocalMM: c.camera.focalLength()}); err != nil {
+		c.rig.logf("error", "capture: exporting alignment data (%s): %v", kind, err)
+		return
+	}
+	c.rig.logf("info", "capture: alignment data for %s written in %s (%d photos)", kind, dir, len(photos))
 }
 
 // spiralRange is how far (turns) the platform servo's goals reach either way.

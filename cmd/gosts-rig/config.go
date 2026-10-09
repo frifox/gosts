@@ -99,6 +99,10 @@ type Plan struct {
 	// PathRings (rings of one elevation each, the elevation changing only
 	// between rings; fewer shots in the rings nearer the poles).
 	Path string `toml:"Path,omitempty"`
+	// ExportOn writes alignment data for the photogrammetry app Export
+	// (see writeExport) into the batch's folder when a capture ends.
+	ExportOn bool   `toml:"ExportOn,omitempty"`
+	Export   string `toml:"Export,omitempty"`
 }
 
 // The paths (Plan.Path).

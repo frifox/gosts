@@ -47,6 +47,12 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
   shooting RAW + JPEG: about one every 1.2 s). Keep moving spaces the photos at least that far apart, never fires
   while the camera is still busy with the last one, and slows down (holding still at 4 photos waiting) if the
   camera falls behind anyway, so no photo is lost.
+- **Export alignment data for** (under the buttons): when a capture ends, writes where each photo was taken from
+  (the rig's poses, as starting points the app refines) beside the photos, for: Agisoft Metashape
+  (`alignment-metashape.csv`: File → Import → Import Reference), RealityScan / RealityCapture (an `.xmp` per
+  photo), Nerfstudio / Gaussian splatting (`transforms.json`), COLMAP (a text model in `colmap/`), or Apple Object
+  Capture / PhotoCatch (`gravity.json`: Apple takes no poses, only which way is down, through a tool that passes it
+  on). Works best with a plain backdrop (the object turns, not the camera).
 - **Preview** plays the capture in the 3D view first, without moving the rig.
 - **Capture** takes the photos: while it runs, it turns into **Stop** and Preview into **Pause** (Resume). The
   progress bar shows the photos done, the time so far and about how long is left (and before you start, an
