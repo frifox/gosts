@@ -69,6 +69,8 @@ type gphoto2Camera struct {
 	fire, dl  time.Duration // recently: firing a photo, downloading its JPEG
 	confirm   time.Duration // and from firing to the camera saying it has it
 	apertures [2]int        // the lens's f-stops, as indexes of the camera's choices (see Probe; [1] 0: not probed)
+	zoomPath  string        // where the camera has the lens's zoom ("": none: see findZoom)
+	zoomFound bool          // looked for it
 	tmp       string        // the shell's folder, where files land
 }
 

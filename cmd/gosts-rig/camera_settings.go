@@ -34,6 +34,8 @@ type cameraSetting struct {
 	// F-stop: the focal length (mm) the photos are taken at, for the depth
 	// of field (0: not known yet: no photo).
 	Focal float64 `json:"focal,omitempty"`
+	// Unit: a range's (e.g. "K", "mm"; "": none).
+	Unit string `json:"unit,omitempty"`
 }
 
 // shiftLabel is a white balance shift as the camera shows it: "0", or the
@@ -64,6 +66,9 @@ const kelvinMode = "Choose Color Temperature"
 
 // colortempSetting is the colour temperature setting, as the dialog offers
 // it (under white balance, in Kelvin mode).
+// zoomLabel is the Zoom setting's name in the dialog.
+const zoomLabel = "Zoom"
+
 func colortempSetting(current string, min, max, step int) cameraSetting {
 	return cameraSetting{Key: "colortemp", Label: "Color temperature (K)", Current: current, Range: true, Min: min, Max: max, Step: step}
 }
@@ -90,16 +95,17 @@ type settingsCamera interface {
 	Set(key, value string) error
 }
 
-// settingKeys are the settings the Config dialog offers, in its order: the
-// exposure mode first (shutter, f-stop and ISO only hold in the modes that
-// leave them to you: M for all three).
+// settingKeys are the settings the Config dialog offers, in its order (after
+// the zoom, if the lens has one): the lens's focus, then the exposure mode
+// (shutter, f-stop and ISO only hold in the modes that leave them to you: M
+// for all three).
 var settingKeys = []struct{ key, label string }{
+	{"focus", "Focus"},
 	{"mode", "Exposure mode"},
 	{"shutter", "Shutter speed"},
 	{"aperture", "F-stop"},
 	{"iso", "ISO"},
 	{"whitebalance", "White balance"},
-	{"focus", "Focus"},
 }
 
 // keepChoice drops the choices the dialog doesn't offer: ISO's multi-frame
@@ -117,7 +123,7 @@ func keepChoice(key, choice string) bool {
 // settingsCaption is a photo's settings in short, e.g. "1/60 · f/8 · ISO 200 ·
 // Daylight · Manual".
 func settingsCaption(ss []cameraSetting) string {
-	var parts []string
+	var parts, lens []string // the exposure, then the lens (zoom, focus)
 	for _, s := range ss {
 		switch s.Key {
 		case "mode":
@@ -128,7 +134,14 @@ func settingsCaption(ss []cameraSetting) string {
 				continue
 			}
 		case "focus":
-			parts = append(parts, "focus: "+s.Current)
+			lens = append(lens, "focus: "+s.Current)
+			continue
+		case "zoom":
+			z := s.Current
+			if s.Unit != "" {
+				z += " " + s.Unit
+			}
+			lens = append([]string{z}, lens...) // before the focus
 			continue
 		case "whitebalance":
 			if s.Current == kelvinMode {
@@ -145,7 +158,7 @@ func settingsCaption(ss []cameraSetting) string {
 		}
 		parts = append(parts, s.Current)
 	}
-	return strings.Join(parts, " · ")
+	return strings.Join(append(parts, lens...), " · ")
 }
 
 // ---------------------------------------------------------------- gphoto2
@@ -241,8 +254,69 @@ func parseGphoto2Config(out string) (gphoto2Config, error) {
 	return c, nil
 }
 
-// Settings reads the dialog's settings from the camera.
+// zoomNames are the names cameras give the lens's zoom (a power zoom lens's)
+// in gphoto2's config, most likely first. The live view's and digital zoom
+// (cropping) aren't it.
+var zoomNames = []string{"zoom", "zoomposition", "zoompos", "zoomsetting", "zoomoperation", "zoomscale"}
+
+// pickZoom is the zoom's path among list-config's lines ("": none).
+func pickZoom(lines []string) string {
+	for _, name := range zoomNames {
+		for _, l := range lines {
+			p := strings.TrimSpace(l)
+			if strings.HasPrefix(p, "/") && strings.EqualFold(p[strings.LastIndex(p, "/")+1:], name) {
+				return p
+			}
+		}
+	}
+	return ""
+}
+
+// findZoom looks for the zoom in the camera's config, once a connection.
+func (g *gphoto2Camera) findZoom() string {
+	g.mu.Lock()
+	found, path := g.zoomFound, g.zoomPath
+	g.mu.Unlock()
+	if found {
+		return path
+	}
+	outs, err := g.runLines([]string{"list-config"})
+	if err != nil {
+		return ""
+	}
+	path = pickZoom(strings.Split(outs[0], "\n"))
+	g.mu.Lock()
+	g.zoomFound, g.zoomPath = true, path
+	g.mu.Unlock()
+	if path != "" {
+		log.Printf("camera: the lens's zoom is %s", path)
+	}
+	return path
+}
+
+// zoomSetting is the Zoom setting from the camera's config c: its choices,
+// or a range (in mm if its label says so).
+func zoomSetting(c gphoto2Config) cameraSetting {
+	s := cameraSetting{Key: "zoom", Label: zoomLabel, Current: c.current, ReadOnly: c.readOnly}
+	if len(c.choices) > 0 {
+		s.Choices = c.choices
+		return s
+	}
+	if c.top > c.bottom {
+		s.Range, s.Min, s.Max, s.Step = true, int(math.Round(c.bottom)), int(math.Round(c.top)), max(1, int(math.Round(c.step)))
+		if strings.Contains(strings.ToLower(c.label), "mm") || strings.Contains(strings.ToLower(c.label), "focal") {
+			s.Unit = "mm"
+		}
+		return s
+	}
+	s.ReadOnly = true // text: shown, not set
+	return s
+}
+
+// Settings reads the dialog's settings from the camera: the zoom first, if
+// the lens has one (a power zoom), then settingKeys'.
 func (g *gphoto2Camera) Settings() ([]cameraSetting, error) {
+	zoom := g.findZoom()
 	var lines []string
 	for _, k := range settingKeys {
 		lines = append(lines, "get-config "+gphoto2Settings[k.key])
@@ -250,6 +324,9 @@ func (g *gphoto2Camera) Settings() ([]cameraSetting, error) {
 	lines = append(lines, "get-config "+gphoto2Settings["colortemp"])
 	for _, sh := range gphoto2Shifts {
 		lines = append(lines, "get-config "+sh.path)
+	}
+	if zoom != "" {
+		lines = append(lines, "get-config "+zoom)
 	}
 	outs, err := g.runLines(lines)
 	if err != nil {
@@ -267,6 +344,11 @@ func (g *gphoto2Camera) Settings() ([]cameraSetting, error) {
 		}
 	}
 	var ss []cameraSetting
+	if zoom != "" {
+		if c, err := parseGphoto2Config(outs[len(outs)-1]); err == nil {
+			ss = append(ss, zoomSetting(c))
+		}
+	}
 	for i, k := range settingKeys {
 		c, err := parseGphoto2Config(outs[i])
 		if err != nil {
@@ -305,6 +387,9 @@ func (g *gphoto2Camera) Set(key, value string) error {
 		if sh.key == key {
 			return g.setShift(sh.path, sh.key, sh.label, sh.ends, value)
 		}
+	}
+	if key == "zoom" {
+		return g.setZoom(value)
 	}
 	path, ok := gphoto2Settings[key]
 	if !ok {
@@ -354,6 +439,50 @@ func (g *gphoto2Camera) Set(key, value string) error {
 	if err := g.awaitSetting(path, value, settingWait); err != nil {
 		return fmt.Errorf("the camera didn't take %s %s (maybe not in this exposure mode): %w", key, value, err)
 	}
+	return nil
+}
+
+// zoomWait is how long the lens may take to zoom.
+var zoomWait = 4 * time.Second
+
+// setZoom zooms the lens: to one of its choices, or a number in its range.
+func (g *gphoto2Camera) setZoom(value string) error {
+	path := g.findZoom()
+	if path == "" {
+		return errors.New("the lens can't be zoomed from here (not a power zoom lens?)")
+	}
+	outs, err := g.runLines([]string{"get-config " + path})
+	if err != nil {
+		return err
+	}
+	c, err := parseGphoto2Config(outs[0])
+	if err != nil {
+		return err
+	}
+	var line string
+	if len(c.choices) > 0 {
+		i := slices.Index(c.choices, value)
+		if i < 0 {
+			return fmt.Errorf("zoom: no choice %q", value)
+		}
+		line = fmt.Sprintf("set-config-index %s=%d", path, i)
+	} else {
+		v, err := strconv.ParseFloat(value, 64)
+		if err != nil || (c.top > c.bottom && (v < c.bottom || v > c.top)) {
+			return fmt.Errorf("zoom: %q isn't within %g–%g", value, c.bottom, c.top)
+		}
+		line = fmt.Sprintf("set-config %s=%s", path, value)
+	}
+	outs, err = g.runLines([]string{line})
+	if err != nil {
+		return err
+	}
+	if strings.Contains(outs[0], "*** Error") || strings.Contains(strings.ToLower(outs[0]), "failed") {
+		return fmt.Errorf("the camera refused zoom %s: %s", value, gphoto2Error([]byte(outs[0])))
+	}
+	// The lens takes a moment; a zoom moved by steps (wider, closer) reads
+	// back otherwise, so not having read it back isn't an error.
+	_ = g.awaitSetting(path, value, zoomWait)
 	return nil
 }
 
@@ -483,9 +612,9 @@ func (s *simCamera) Settings() ([]cameraSetting, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.settings == nil {
-		s.settings = map[string]string{"mode": "M", "shutter": "1/60", "aperture": "f/8", "iso": "200", "whitebalance": "Automatic", "focus": "Manual", "colortemp": "5500", "abshift": "0", "gmshift": "0"}
+		s.settings = map[string]string{"zoom": strconv.Itoa(simZoom[2]), "mode": "M", "shutter": "1/60", "aperture": "f/8", "iso": "200", "whitebalance": "Automatic", "focus": "Manual", "colortemp": "5500", "abshift": "0", "gmshift": "0"}
 	}
-	var ss []cameraSetting
+	ss := []cameraSetting{{Key: "zoom", Label: zoomLabel, Current: s.settings["zoom"], Range: true, Min: simZoom[0], Max: simZoom[1], Step: 1, Unit: "mm"}}
 	for _, k := range settingKeys {
 		st := cameraSetting{Key: k.key, Label: k.label, Current: s.settings[k.key], Choices: simSettingChoices[k.key]}
 		if k.key == "aperture" {
@@ -521,6 +650,19 @@ var simShifts = []simShift{
 	{"gmshift", "White balance shift (green–magenta)", 1, []string{"G", "M"}},
 }
 
+// simZoom is the simulated lens's zoom (a power zoom, as the E PZ 18-105mm):
+// widest, longest and where it starts (mm).
+var simZoom = [3]int{18, 105, 35}
+
+// focal is the simulated lens's focal length (mm): where it's zoomed.
+func (s *simCamera) focal() float64 {
+	s.Settings() // the defaults, first time
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, _ := strconv.ParseFloat(s.settings["zoom"], 64)
+	return f
+}
+
 // simLens is the simulated camera's lens: f/4 to f/16 (found by Probe).
 var simLens = []string{"f/4", "f/5.6", "f/8", "f/11", "f/16"}
 
@@ -545,6 +687,12 @@ func (s *simCamera) Set(key, value string) error {
 			return err
 		}
 		value = strconv.Itoa(k)
+	} else if key == "zoom" {
+		f, err := strconv.Atoi(value)
+		if err != nil || f < simZoom[0] || f > simZoom[1] {
+			return fmt.Errorf("zoom: %q isn't within %d–%d mm", value, simZoom[0], simZoom[1])
+		}
+		value = strconv.Itoa(f)
 	} else if i := slices.IndexFunc(simShifts, func(sh simShift) bool { return sh.key == key }); i >= 0 {
 		v, err := checkShift(value, -28, 28, simShifts[i].step)
 		if err != nil {

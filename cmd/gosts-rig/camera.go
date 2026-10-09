@@ -603,17 +603,13 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 	}
 }
 
-// simFocal is the simulated camera's focal length (mm): its pictures are
-// as an APS-C camera's with a 35 mm lens (see rig3d's snapshot).
-const simFocal = 35
-
 // focalLength is the focal length (mm) the camera's photos are taken at, as
 // its last one said (0: none yet).
 func (c *cameraConn) focalLength() float64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if _, sim := c.cam.(*simCamera); sim {
-		return simFocal
+	if s, sim := c.cam.(*simCamera); sim {
+		return s.focal() // its pictures are rendered at it (see rig3d's snapshot)
 	}
 	return c.focal
 }

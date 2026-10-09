@@ -69,9 +69,11 @@ saved in `~/Pictures/gosts-rig/`, a folder per batch named after its start time.
 The **gear** in the Camera card's title opens the camera's settings next to a sample shot, in a Settings card in place
 of Photos and Rig View (✕, Esc or the gear again closes it; the Rig card's gear opens Rig Setup there the same way).
 
-- Shutter, f-stop, ISO, white balance and focus, applied as you change them. **Take Sample Shot** shows how
-  they look, or **Show Live Preview** shows the camera's live view as you change them (lower resolution: use a
-  sample shot to check focus or use the gray card).
+- Zoom (with a power zoom lens, such as the E PZ 18-105mm), focus, shutter, f-stop, ISO and white balance, applied as
+  you change them. **Show Live Preview** shows the camera's live view as you change them, or **Take Sample Shot**
+  how they look (the live view is lower resolution: use a sample shot to check focus or use the gray card). The zoom
+  can't change during a capture; its focal length goes into the alignment data for the apps that take one
+  (RealityScan, Nerfstudio, COLMAP).
 - **Detect** next to the f-stop finds the range your lens really has (about half a minute).
 - Next to the f-stop: the **depth of field**, how deep the sharp zone is, for where the object sits on the rig.
 - **Gray Card** (with white balance on a color temperature): drag a box over a gray card in the sample. It

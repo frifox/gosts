@@ -189,6 +189,9 @@ func (a *app) exec(req request) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		if req.Key == "zoom" && a.cap.msg().Running {
+			return nil, errors.New("a capture is running: zooming would change its photos' focal length")
+		}
 		if err := sc.Set(req.Key, req.Value); err != nil {
 			return nil, err
 		}

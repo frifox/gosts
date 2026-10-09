@@ -458,8 +458,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="camcfg-params">
           <div id="camSettings"><div class="hint">Reading the camera's settings…</div></div>
           <div class="sample-btns">
-            <button class="btn primary" id="sampleBtn">Take Sample Shot</button>
             <button class="btn" id="liveBtn" title="The camera's live view, over and over: to frame the object and judge the exposure and white balance as you change them (lower resolution than a photo: use a sample shot for focus and the gray card)">Show Live Preview</button>
+            <button class="btn primary" id="sampleBtn">Take Sample Shot</button>
           </div>
           <div class="err" id="camConfigErr"></div>
         </div>
@@ -1100,7 +1100,7 @@ function rangeSetting(st, label) {
   num.className = "kelvin";
   const slider = document.createElement("input");
   slider.type = "range"; slider.min = st.min; slider.max = st.max; slider.step = st.step; slider.value = st.current;
-  slider.title = `${st.min}–${st.max} K`;
+  slider.title = `${st.min}–${st.max}${st.unit ? " " + st.unit : ""}`;
   let sent = st.current;
   const apply = async () => {
     const v = String(Math.round(Number(num.value) / st.step) * st.step); // on the camera's steps
@@ -1620,7 +1620,7 @@ async function liveLoop(run) {
       let blob;
       if ((r.headers.get("Content-Type") || "").includes("json")) { // the simulated camera: rendered here
         const p = await r.json();
-        blob = await window.rig3d.snapshot(960, p.exposure || 1, simGains(p.settings), (p.blur || 0) * 960 / 1200);
+        blob = await window.rig3d.snapshot(960, p.exposure || 1, simGains(p.settings), (p.blur || 0) * 960 / 1200, Number(p.settings?.zoom) || 35);
         await new Promise((res) => setTimeout(res, 60)); // about as often as a camera would
       } else blob = await r.blob();
       if (state.live !== run) break;
@@ -1716,7 +1716,7 @@ function simGains(settings) {
 }
 async function simShoot(n, exposure, settings, blur) {
   try {
-    const jpg = await window.rig3d.snapshot(1200, exposure || 1, simGains(settings), blur || 0);
+    const jpg = await window.rig3d.snapshot(1200, exposure || 1, simGains(settings), blur || 0, Number(settings?.zoom) || 35);
     await fetch(`/photo/sim?n=${n}`, { method: "POST", body: jpg, headers: { "Content-Type": "image/jpeg" } });
   } catch (e) { log(`simulated photo ${n}: ${e.message}`, "error"); }
 }

@@ -37,7 +37,7 @@ func TestParseGphoto2Config(t *testing.T) {
 func TestSimCameraSettings(t *testing.T) {
 	s := &simCamera{}
 	ss, _ := s.Settings()
-	if settingsCaption(ss) != "1/60 · f/8 · ISO 200 · Automatic · focus: Manual" {
+	if settingsCaption(ss) != "1/60 · f/8 · ISO 200 · Automatic · 35 mm · focus: Manual" {
 		t.Fatalf("caption %q", settingsCaption(ss))
 	}
 	if e := s.exposure(); math.Abs(e-1) > 1e-9 {
@@ -241,7 +241,7 @@ func TestColorTemperature(t *testing.T) {
 		}
 	}
 	ss, _ := s.Settings()
-	if got := settingsCaption(ss); got != "1/60 · f/8 · ISO 200 · 4300K · focus: Manual" {
+	if got := settingsCaption(ss); got != "1/60 · f/8 · ISO 200 · 4300K · 35 mm · focus: Manual" {
 		t.Fatalf("caption %q", got)
 	}
 }
@@ -325,5 +325,36 @@ func TestSimFocus(t *testing.T) {
 	s.Nudge(-2) // −1, −2: from 3 to 0
 	if b := s.blur(); b != 0 {
 		t.Errorf("stepped to sharp, blur %v", b)
+	}
+}
+
+// The lens's zoom is found among the camera's config by name, not the live
+// view's or the digital (cropping) one; a range in mm is offered as one.
+func TestZoomSetting(t *testing.T) {
+	lines := []string{"/main/actions/liveviewimagezoomratio", "/main/capturesettings/digitalzoom", "/main/capturesettings/zoom", "/main/other/d2dd"}
+	if p := pickZoom(lines); p != "/main/capturesettings/zoom" {
+		t.Fatalf("picked %q", p)
+	}
+	if p := pickZoom(lines[:2]); p != "" {
+		t.Fatalf("picked %q from none", p)
+	}
+	s := zoomSetting(gphoto2Config{label: "Focal Length (mm)", current: "35", bottom: 18, top: 105, step: 1})
+	if !s.Range || s.Min != 18 || s.Max != 105 || s.Unit != "mm" || s.Label != zoomLabel {
+		t.Fatalf("range: %+v", s)
+	}
+	if s := zoomSetting(gphoto2Config{label: "Zoom", current: "Wide", choices: []string{"Wide", "Tele"}}); s.Range || len(s.Choices) != 2 {
+		t.Fatalf("choices: %+v", s)
+	}
+
+	sim := &simCamera{}
+	if err := sim.Set("zoom", "200"); err == nil {
+		t.Fatal("zoomed past the lens")
+	}
+	if err := sim.Set("zoom", "70"); err != nil || sim.focal() != 70 {
+		t.Fatalf("zoom 70: %v, focal %v", err, sim.focal())
+	}
+	ss, _ := sim.Settings()
+	if ss[0].Key != "zoom" || ss[1].Key != "focus" {
+		t.Fatalf("order: %s, %s", ss[0].Key, ss[1].Key)
 	}
 }

@@ -877,8 +877,11 @@ export function createRig(container) {
   // exposure brightens (>1) or darkens the picture, as a camera's settings
   // would (the simulated camera's shutter, f-stop and ISO).
   // gains tints it, red, green and blue (a white balance set off the light).
-  function snapshot(width = 1200, exposure = 1, gains = null, blur = 0) {
+  // focal: the lens's focal length (mm), on an APS-C sensor (15.6 mm tall).
+  function snapshot(width = 1200, exposure = 1, gains = null, blur = 0, focal = 35) {
     const height = Math.round(width / photoCam.aspect);
+    photoCam.fov = 2 * Math.atan(15.6 / 2 / focal) * 180 / Math.PI;
+    photoCam.updateProjectionMatrix();
     if (!photoRenderer) {
       photoRenderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
       photoRenderer.shadowMap.enabled = true;
