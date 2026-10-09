@@ -142,6 +142,8 @@ td.mono { font-family: var(--mono); }
    View's), at least 120px. */
 #logCard { flex: 1 0 auto; display: flex; flex-direction: column; }
 #logCard > .card-body { flex: 1; display: flex; flex-direction: column; }
+#logCard.collapsed { flex: none; } /* folded: just its title */
+#logCard.collapsed > .card-body { display: none; }
 #log { font: 12px var(--mono); flex: 1; height: 0; min-height: 120px; overflow-y: auto; }
 #log div { padding: 1px 0; }
 #log .error { color: var(--bad); }
@@ -768,7 +770,7 @@ function onCamera(m) {
   // How often the camera keeps up taking photos (Measure finds it).
   $("paceText").textContent = m.pace ? `Keeps up with a photo every ${m.pace.toFixed(1)} s` : "Camera speed not measured yet";
   // A real camera's name beside the title, without gphoto2's mode note ("(PC Control)").
-  $("camDevName").textContent = m.connected && m.id !== "sim" ? (m.name || "").replace(/\s*\([^)]*\)\s*$/, "") : "";
+  $("camDevName").textContent = !m.connected ? "" : m.id === "sim" ? "Simulated" : (m.name || "").replace(/\s*\([^)]*\)\s*$/, "");
   $("cameraBody").hidden = $("camRefresh").hidden = m.connected;
   $("captureBody").hidden = !m.connected;
   setPill("cam", m.connected, m.connected ? `camera: ${m.id === "sim" ? "simulator" : m.name}` : "no camera");
@@ -1756,7 +1758,7 @@ function onState(m) {
   const first = !state.server;
   state.server = m;
   // A real rig's servos beside the Rig title (the rig is built on them).
-  $("rigDevName").textContent = m.connected && m.port !== "sim" ? "Waveshare ST3215" : "";
+  $("rigDevName").textContent = !m.connected ? "" : m.port === "sim" ? "Simulated" : "Waveshare ST3215";
   if (first) { // the devices used last are known now: pick again if picked before they were
     if (state.autoPort) renderPorts(state.ports);
     if (state.autoCamera) renderCameras(state.cameras);
