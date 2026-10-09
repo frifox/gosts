@@ -52,7 +52,7 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .grid2 label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
 /* Rig Setup: a line per part, its measurements side by side (columns lining up); two columns: the frame
    (base, posts, swing) on the left, the camera, turntable and elevation on the right. */
-.fgroups { display: grid; grid-template-rows: repeat(3, auto); grid-auto-flow: column; justify-content: start; gap: 10px 40px; }
+.fgroups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, auto); grid-auto-flow: column; gap: 10px 24px; }
 .fgroup { display: flex; align-items: flex-end; gap: 12px; }
 .fgroup label { width: 120px; flex: none; display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
 /* The Camera card's plan: photos and the progress beside them; then the path and shooting choices. */
@@ -162,7 +162,6 @@ td.mono { font-family: var(--mono); }
 /* Camera Settings: the settings on the left, the last sample shot on the right. */
 .settings-card { flex: 1; min-height: 0; overflow-y: auto; }
 .settings-card.fit { flex: none; } /* the rig's: as tall as its form, Rig View taking the rest */
-.settings-card #rigCfgModal .card-body { max-width: 900px; }
 .card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 18px var(--accent-weak); }
 .camcfg-body { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
 .camcfg-params label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 10px; }
