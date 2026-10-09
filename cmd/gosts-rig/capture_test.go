@@ -632,3 +632,28 @@ func TestCameraXFromOffset(t *testing.T) {
 		t.Errorf("saved:\n%s", data)
 	}
 }
+
+// TestExportForFromSwitch: a config from before ExportFor (a switch and an
+// app) reads as the app when the switch was on, none when it was off.
+func TestExportForFromSwitch(t *testing.T) {
+	for in, want := range map[string]string{
+		"[Plan]\n  ExportOn = true\n  Export = \"colmap\"\n": ExportColmap,
+		"[Plan]\n  Export = \"nerfstudio\"\n":                "",
+		"[Plan]\n  ExportFor = \"apple\"\n":                  ExportApple,
+	} {
+		path := filepath.Join(t.TempDir(), "config.toml")
+		if err := os.WriteFile(path, []byte(in), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := loadConfig(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := cfg.get().Plan.ExportFor; got != want {
+			t.Errorf("%q: export for %q, want %q", in, got, want)
+		}
+		if data, _ := os.ReadFile(path); strings.Contains(string(data), "ExportOn") || strings.Contains(string(data), "Export =") {
+			t.Errorf("%q saved with the old keys:\n%s", in, data)
+		}
+	}
+}

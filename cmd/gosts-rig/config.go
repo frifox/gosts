@@ -101,10 +101,12 @@ type Plan struct {
 	// PathRings (rings of one elevation each, the elevation changing only
 	// between rings; fewer shots in the rings nearer the poles).
 	Path string `toml:"Path,omitempty"`
-	// ExportOn writes alignment data for the photogrammetry app Export
-	// (see writeExport) into the batch's folder when a capture ends.
-	ExportOn bool   `toml:"ExportOn,omitempty"`
-	Export   string `toml:"Export,omitempty"`
+	// ExportFor writes alignment data for that photogrammetry app (see
+	// writeExport) into the batch's folder when a capture ends; "": none.
+	ExportFor string `toml:"ExportFor,omitempty"`
+	// (Before ExportFor: a switch and the app, read once into it.)
+	ExportOn bool   `toml:"ExportOn,omitempty,omitzero" json:"-"`
+	Export   string `toml:"Export,omitempty" json:"-"`
 }
 
 // The paths (Plan.Path).
@@ -159,6 +161,14 @@ func loadConfig(path string) (*configFile, error) {
 	changed := false
 	if p := f.c.Plan.path(); p != f.c.Plan.Path { // a name from before ("even", "linear", or none): saved as it's called now
 		f.c.Plan.Path = p
+		changed = true
+	}
+	if md.IsDefined("Plan", "ExportOn") || md.IsDefined("Plan", "Export") {
+		// From before ExportFor: the app, if the switch was on.
+		if f.c.Plan.ExportOn && !md.IsDefined("Plan", "ExportFor") {
+			f.c.Plan.ExportFor = f.c.Plan.Export
+		}
+		f.c.Plan.ExportOn, f.c.Plan.Export = false, ""
 		changed = true
 	}
 	if !md.IsDefined("Rig", "CameraX") && md.IsDefined("Rig", "CameraOffset") {

@@ -404,8 +404,8 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	}
 	c.rig.logf(level, "capture: %s", note)
 	c.send()
-	if p.ExportOn && p.Export != "" {
-		go c.exportAlignment(p.Export)
+	if p.ExportFor != "" {
+		go c.exportAlignment(p.ExportFor)
 	}
 }
 

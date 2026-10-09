@@ -340,8 +340,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <!-- Alignment data for a photogrammetry app: where each photo was taken from (the rig's poses),
              written beside the photos when a capture ends. -->
         <div class="export-line" title="When a capture ends, write where each photo was taken from (the rig's poses, as starting points the app refines) beside the photos, in the chosen app's format">
-          <label class="check"><input type="checkbox" id="pExportOn"> Export alignment data for</label>
+          <label for="pExport" class="check">Attach alignment data for</label>
           <select id="pExport">
+            <option value="">Select app…</option>
             <option value="metashape">Agisoft Metashape (camera positions, CSV)</option>
             <option value="realityscan">RealityScan / RealityCapture (XMP per photo)</option>
             <option value="nerfstudio">Nerfstudio / Gaussian splatting (transforms.json)</option>
@@ -1786,13 +1787,12 @@ function onTelemetry(m) {
 // ---------------------------------------------------------------- capture
 function planFromForm() {
   return { Photos: Number($("pPhotos").value), SettleMS: Number($("pSettle").value), Moving: $("pMoving").checked, Path: $("pPath").value,
-    ExportOn: $("pExportOn").checked, Export: $("pExport").value };
+    ExportFor: $("pExport").value };
 }
 function loadPlan(p) {
   $("pPhotos").value = p.Photos; $("pSettle").value = p.SettleMS; $("pMoving").checked = !!p.Moving;
   $("pPath").value = p.Path === "rings" || p.Path === "linear" ? "rings" : "sphere"; // (the names before: linear, even)
-  $("pExportOn").checked = !!p.ExportOn;
-  $("pExport").value = p.Export || "metashape";
+  $("pExport").value = p.ExportFor || "";
   segSync();
 }
 let planTimer = null;
@@ -1818,7 +1818,7 @@ $("shootSeg").onclick = (e) => {
   segSync();
   $("pMoving").dispatchEvent(new Event("change"));
 };
-for (const id of ["pPhotos", "pSettle", "pMoving", "pPath", "pExportOn", "pExport"]) {
+for (const id of ["pPhotos", "pSettle", "pMoving", "pPath", "pExport"]) {
   $(id).addEventListener(["pPhotos", "pSettle"].includes(id) ? "input" : "change", () => {
     if (["pPhotos", "pMoving", "pPath"].includes(id)) stopPreview(); // the path changes
     $("pSettle").disabled = !!state.cap?.running;
@@ -1854,7 +1854,7 @@ $("previewBtn").onclick = () => {
 // redrawn, the trail carrying on).
 function planLock() {
   const busy = !!(window.rig3d?.previewing() || state.cap?.running);
-  for (const id of ["pPhotos", "pMoving", "dElevMin", "dElevMax", "dDefaults", "paceBtn", "pExportOn", "pExport"]) $(id).disabled = busy;
+  for (const id of ["pPhotos", "pMoving", "dElevMin", "dElevMax", "dDefaults", "paceBtn", "pExport"]) $(id).disabled = busy;
   for (const b of [...$("pathSeg").children, ...$("shootSeg").children]) b.disabled = busy;
   for (const id of ["dElevMin", "dElevMax"]) $(id).title = busy ? "Set while no preview or capture runs: it changes the plan" : "";
 }

@@ -47,7 +47,7 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
   shooting RAW + JPEG: about one every 1.2 s). Keep moving spaces the photos at least that far apart, never fires
   while the camera is still busy with the last one, and slows down (holding still at 4 photos waiting) if the
   camera falls behind anyway, so no photo is lost.
-- **Export alignment data for** (under the buttons): when a capture ends, writes where each photo was taken from
+- **Attach alignment data for** (under the buttons; Select app… for none): when a capture ends, writes where each photo was taken from
   (the rig's poses, as starting points the app refines) beside the photos, for: Agisoft Metashape
   (`alignment-metashape.csv`: File → Import → Import Reference), RealityScan / RealityCapture (an `.xmp` per
   photo), Nerfstudio / Gaussian splatting (`transforms.json`), COLMAP (a text model in `colmap/`), or Apple Object
