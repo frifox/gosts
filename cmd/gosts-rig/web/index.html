@@ -38,6 +38,8 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .card > h2 { margin: 0; padding: 10px 14px; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
 .card-body { padding: 12px 14px; }
 .card > h2.toggle { cursor: pointer; user-select: none; }
+/* The real device connected, beside a card's title (none for a simulator). */
+.card > h2 .dev-name { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--muted); opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .card > h2 .btn.small { margin-block: -3px; } /* buttons in a title don't make it taller */
 .card.collapsed > h2 { border-bottom: 0; }
 .card.collapsed > .card-body { display: none; }
@@ -267,7 +269,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 <div class="layout">
   <div class="left">
     <section class="card" id="captureCard">
-      <h2>Camera <span class="spacer"></span>
+      <h2>Camera <span class="dev-name" id="camDevName"></span><span class="spacer"></span>
         <button class="btn small" id="camRefresh" style="text-transform:none;letter-spacing:0">Refresh</button>
         <span class="battery" id="camBattery" title="The camera's battery" hidden><svg viewBox="0 0 24 12" aria-hidden="true"><rect x="0.75" y="0.75" width="20" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="21.5" y="3.5" width="2" height="5" rx="0.8" fill="currentColor"/><rect id="camBatteryFill" x="2.5" y="2.5" width="16.5" height="7" rx="1" fill="currentColor"/></svg><span id="camBatteryText"></span></span>
         <button class="btn small icon" id="camConfigBtn" title="Camera settings, with sample shots and live preview" aria-label="Camera settings" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button>
@@ -298,7 +300,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     </section>
 
     <section class="card" id="rigCard">
-      <h2>Rig <span class="spacer"></span>
+      <h2>Rig <span class="dev-name" id="rigDevName"></span><span class="spacer"></span>
         <button class="btn small" id="refreshPorts" style="text-transform:none;letter-spacing:0">Refresh</button>
         <button class="btn small danger" id="stopBtn" title="Stop the rig where it is" style="text-transform:none;letter-spacing:0" hidden>Stop</button>
         <label class="switch" id="torqueSwitch" style="text-transform:none;letter-spacing:0;font-weight:400" hidden><input type="checkbox" id="torque"><span class="track"></span><span>Torque</span></label>
@@ -663,6 +665,8 @@ $("camConnectBtn").onclick = async () => {
 };
 function onCamera(m) {
   state.camera = m;
+  // A real camera's name beside the title, without gphoto2's mode note ("(PC Control)").
+  $("camDevName").textContent = m.connected && m.id !== "sim" ? (m.name || "").replace(/\s*\([^)]*\)\s*$/, "") : "";
   $("cameraBody").hidden = $("camRefresh").hidden = m.connected;
   $("captureBody").hidden = !m.connected;
   setPill("cam", m.connected, m.connected ? `camera: ${m.id === "sim" ? "simulator" : m.name}` : "no camera");
@@ -1602,6 +1606,8 @@ for (const id of ["mSpeed", "mAcc"]) {
 function onState(m) {
   const first = !state.server;
   state.server = m;
+  // A real rig's servos beside the Rig title (the rig is built on them).
+  $("rigDevName").textContent = m.connected && m.port !== "sim" ? "Waveshare ST3215" : "";
   if (first) { // the devices used last are known now: pick again if picked before they were
     if (state.autoPort) renderPorts(state.ports);
     if (state.autoCamera) renderCameras(state.cameras);
