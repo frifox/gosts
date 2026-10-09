@@ -287,6 +287,8 @@ type cameraConn struct {
 	battery        string                    // its battery level, last read (see pollBattery)
 	focal          float64                   // the focal length (mm) its last photo was taken at (EXIF), 0 if not known
 	inFlight       map[int]bool              // photos asked for whose picture hasn't come yet (nor failed): see backlog
+	unfired        []time.Time               // photos queued whose shutter hasn't gone yet: when each was asked for (see firingLate)
+	firedAt        []time.Time               // when the queued photos' shutters went, recently (see measurePace)
 }
 
 // maxPhotos is how many photos the timeline keeps in memory; the oldest go.
@@ -510,6 +512,7 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 		go c.shooter(c.queue)
 	}
 	q := c.queue
+	c.unfired = append(c.unfired, time.Now())
 	c.mu.Unlock()
 	q <- queuedShot{ctx: ctx, cam: cam, n: n, shutter: sh, asked: time.Now()}
 	return nil
@@ -527,7 +530,19 @@ type queuedShot struct {
 // shooter takes queued photos in turn.
 func (c *cameraConn) shooter(q chan queuedShot) {
 	for s := range q {
-		if err := s.cam.Shoot(s.ctx, s.shutter); err != nil {
+		err := s.cam.Shoot(s.ctx, s.shutter)
+		c.mu.Lock()
+		if len(c.unfired) > 0 {
+			c.unfired = c.unfired[1:]
+		}
+		if err == nil {
+			c.firedAt = append(c.firedAt, time.Now())
+			if len(c.firedAt) > 64 {
+				c.firedAt = c.firedAt[len(c.firedAt)-64:]
+			}
+		}
+		c.mu.Unlock()
+		if err != nil {
 			c.landed(s.n)
 			c.out(photoEventMsg{Type: "photoFailed", N: s.n})
 			if s.ctx.Err() == nil {
@@ -746,6 +761,18 @@ func (c *cameraConn) landed(n int) {
 	c.mu.Unlock()
 }
 
+// firingLate is how long the oldest queued photo has been waiting for its
+// shutter (0: none waiting): moving shots hold while it's late (see
+// capture.pace), so each is taken at its shot, not further along the path.
+func (c *cameraConn) firingLate() time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.unfired) == 0 {
+		return 0
+	}
+	return time.Since(c.unfired[0])
+}
+
 // backlog is how many photos have been asked for whose pictures haven't come
 // yet: queued to be taken, being taken, or coming over. Moving shots slow
 // down when it grows (see capture.pace).
@@ -790,6 +817,9 @@ func (c *cameraConn) measurePace(ctx context.Context) (float64, error) {
 	if c.backlog() > 0 {
 		return 0, errors.New("the camera is still busy with photos: try again once they're in")
 	}
+	c.mu.Lock()
+	firedBefore := len(c.firedAt)
+	c.mu.Unlock()
 	for i := 0; i < paceShots; i++ {
 		if err := c.take(ctx, false, nil, true); err != nil {
 			return 0, err
@@ -806,7 +836,15 @@ func (c *cameraConn) measurePace(ctx context.Context) (float64, error) {
 			arrived = append(arrived, time.Now())
 		}
 	}
+	// The slower of the two: the shutters going (each after the camera has
+	// the last photo), and the pictures coming over (in bursts, sometimes).
 	pace := arrived[len(arrived)-1].Sub(arrived[0]).Seconds() / float64(len(arrived)-1)
+	c.mu.Lock()
+	fired := append([]time.Time(nil), c.firedAt[max(0, min(firedBefore, len(c.firedAt)-paceShots)):]...)
+	c.mu.Unlock()
+	if len(fired) >= 2 {
+		pace = math.Max(pace, fired[len(fired)-1].Sub(fired[0]).Seconds()/float64(len(fired)-1))
+	}
 	pace = math.Round(pace*100) / 100
 	if c.cfg != nil {
 		err := c.cfg.update(func(cf *Config) {

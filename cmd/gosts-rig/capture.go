@@ -18,9 +18,11 @@ type shot struct {
 	Azimuth   float64 `json:"azimuth"`
 	Done      bool    `json:"done"`
 	// Where the rig really was when the photo was taken (a heavy arm can
-	// stop a little short of its goal).
-	ActualElevation float64 `json:"actualElevation,omitempty"`
-	ActualAzimuth   float64 `json:"actualAzimuth,omitempty"`
+	// stop a little short of its goal): nil till its shutter goes (which,
+	// with moving shots, is a moment after it's marked Done); 0 is a real
+	// 0°.
+	ActualElevation *float64 `json:"actualElevation,omitempty"`
+	ActualAzimuth   *float64 `json:"actualAzimuth,omitempty"`
 }
 
 // planShots spreads p.Photos points as evenly as possible over the band of
@@ -361,7 +363,7 @@ func (c *capture) photo(ctx context.Context, wait bool) error {
 		}
 		c.mu.Lock()
 		if i < len(c.shots) {
-			c.shots[i].ActualElevation, c.shots[i].ActualAzimuth = ae, aa
+			c.shots[i].ActualElevation, c.shots[i].ActualAzimuth = &ae, &aa
 		}
 		c.mu.Unlock()
 		if !wait {
@@ -473,8 +475,14 @@ func (c *capture) spiral(ctx context.Context) error {
 			as = append(as, s.Azimuth)
 		}
 		// Shots no closer together than the camera keeps up with: its measured
-		// pace (see measurePace), else as it's been going.
-		tr := newTrajectory(es, as, maxRate, accel, max(c.camera.minInterval(), c.camera.pace()).Seconds())
+		// pace (see measurePace) and a little, else as it's been going (an
+		// estimate from its timings, on the safe side). If it falls behind
+		// anyway, the path slows (see pace).
+		gap := c.camera.minInterval()
+		if p := c.camera.pace(); p > 0 {
+			gap = p * 11 / 10
+		}
+		tr := newTrajectory(es, as, maxRate, accel, gap.Seconds())
 		err = c.rig.follow(ctx, tr, func(k int) error {
 			if k < first {
 				return nil
@@ -506,10 +514,18 @@ func (c *capture) spiral(ctx context.Context) error {
 // it starts ignoring the shutter.
 const paceHold, paceSlow, paceGo = 4, 3, 2
 
+// fireLate is how long a photo may wait for its shutter (the camera busy
+// with the last) before moving shots hold for it.
+const fireLate = 150 * time.Millisecond
+
 // pace is how fast moving shots' path goes (1: as planned) for how far the
-// camera is behind: held at paceHold photos waiting till it's down to
-// paceGo, half speed at paceSlow.
+// camera is behind: held while a photo's shutter hasn't gone yet (so each
+// is taken at its shot, not further along), and at paceHold photos waiting
+// for their pictures till it's down to paceGo; half speed at paceSlow.
 func (c *capture) pace() float64 {
+	if c.camera.firingLate() > fireLate {
+		return 0
+	}
 	b := c.camera.backlog()
 	c.mu.Lock()
 	started := b >= paceHold && !c.holding

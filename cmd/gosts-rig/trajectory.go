@@ -195,5 +195,8 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 
 const stepsPerDegree = 4096.0 / 360
 
-// followCatchUp is the most (degrees) follow adds to a goal for the lag.
-const followCatchUp = 2.0
+// followCatchUp is the most (degrees) follow adds to a goal for the lag:
+// enough for the heavy arm trailing its path while it climbs (measured up
+// to about 5° on the rig), not so much that a rig held up far behind
+// lurches after it.
+const followCatchUp = 5.0
