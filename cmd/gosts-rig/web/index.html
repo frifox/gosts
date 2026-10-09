@@ -1766,7 +1766,6 @@ function onState(m) {
   $("rolesText").textContent = `Found on the bus: ${(m.found || []).map((id) => "#" + id).join(", ") || "none"}; ` +
     missing.map(([id, n]) => `#${id} (${n})`).join(", ") + (missing.length > 1 ? " aren't" : " isn't") + " among them.";
   if (!m.connected) $("stopBtn").hidden = true;
-  if (!m.connected) state.controlsSet = false; // refill from the rig after the next connect
   if (!m.connected) setPill("bus", false, "no board");
   else if (m.scanning) setPill("bus", false, `scanning ${m.port}…`, true);
   else {
@@ -1834,12 +1833,9 @@ function onTelemetry(m) {
   $("rAzim").innerHTML = $("oAzim").innerHTML = fmt(m.azimuth);
   const typing = document.activeElement?.tagName === "INPUT";
   if (!state.editing && m.target && !typing) setControls(m.target[0], m.target[1]);
-  // Until the first move there is no target: start the fields at where the
-  // rig is (once per connection, so they don't fight the user).
-  if (!m.target && !state.controlsSet && m.elevation !== null && m.azimuth !== null && !typing) {
-    setControls(m.elevation, m.azimuth);
-    state.controlsSet = true;
-  }
+  // No target (before the first move, or the servos moved in Servo Ctl): the
+  // fields follow where the rig is.
+  if (!m.target && !state.editing && m.elevation !== null && m.azimuth !== null && !typing) setControls(m.elevation, m.azimuth);
   const r = state.server?.config.Roles;
   const rows = Object.entries(m.servos).map(([id, s]) => {
     const ang = s.error ? "–" : `${(((s.pos * 360 / 4096) + 180) % 360 - 180).toFixed(1)}°`;

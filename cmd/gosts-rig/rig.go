@@ -170,6 +170,14 @@ func (r *rig) setRoles(ro Roles) error {
 	return nil
 }
 
+// forgetTarget drops the rig's goal (the servos moved some other way: Servo
+// Ctl): the page's controls then follow where the rig is.
+func (r *rig) forgetTarget() {
+	r.mu.Lock()
+	r.target.set = false
+	r.mu.Unlock()
+}
+
 // rolesFromGroups assigns the roles from the servo console's groups (members
 // leader first) when that's clear: three servos found and one group of two of
 // them, which is the elevation (its mirroring the console's), the third the

@@ -34,6 +34,13 @@ func (a *App) Handle(c *web.Client, req internal.Request) {
 	a.handle(c, req)
 }
 
+// movesServo: the requests that move servos, let them be moved (torque) or
+// change where their 0° is.
+var movesServo = map[string]bool{
+	"move": true, "angle": true, "jog": true, "step": true, "align": true, "stop": true, "wheel": true, "pwm": true,
+	"torque": true, "zeroHere": true, "zeroAt": true, "mode": true,
+}
+
 func (a *App) handle(c *web.Client, req internal.Request) {
 	var goal *int
 	var err error
@@ -56,6 +63,9 @@ func (a *App) handle(c *web.Client, req internal.Request) {
 		a.afterChange(c, req)
 		if a.OnChange != nil && (req.Type == "groupSave" || req.Type == "groupDelete" || req.Type == "mirror" || req.Type == "servoEdit") {
 			a.OnChange()
+		}
+		if a.OnMove != nil && movesServo[req.Type] {
+			a.OnMove()
 		}
 	}
 }

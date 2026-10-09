@@ -32,6 +32,10 @@ type App struct {
 	// OnChange, if set, is called after the groups or a servo's mirroring
 	// changed (gosts-rig assigns the rig's roles from them).
 	OnChange func()
+	// OnMove, if set, is called after a request that moves servos, or lets
+	// them be moved, or changes where their 0° is (gosts-rig's own goals for
+	// them no longer hold).
+	OnMove func()
 
 	mu      sync.Mutex
 	refresh map[uint8]*pendingRefresh
