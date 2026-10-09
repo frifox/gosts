@@ -440,6 +440,7 @@ export function createRig(container) {
   // camera's side, a little above, the camera and the object both in sight.
   // glide: over about 0.7 s instead of at once, swinging around the target.
   let glideTo = null;
+  controls.addEventListener("start", () => (glideTo = null)); // the user turning the view stops a glide
   function setView(name, glide = false) {
     const d = rig.d, t = rig.target;
     const far = Math.max(d.BaseX, d.BaseY, d.PostZ + 300) * 2.6;

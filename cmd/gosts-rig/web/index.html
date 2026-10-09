@@ -2093,7 +2093,7 @@ function setView(v, glide = false) {
   document.querySelectorAll("#views button").forEach((b) => b.classList.toggle("active", b.dataset.v === v));
   window.rig3d?.setView(v, glide);
 }
-$("views").addEventListener("click", (e) => { if (e.target.dataset.v) setView(e.target.dataset.v); });
+$("views").addEventListener("click", (e) => { if (e.target.dataset.v) setView(e.target.dataset.v, true); });
 
 connectWS();
 draw();
