@@ -561,7 +561,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   </section>
   <!-- Servo Ctl: gosts-ctl's console (served at /ctl/), on the rig's board, in the Rig View's place. -->
   <section class="card view" id="ctlCard" hidden>
-    <h2>Servo Ctl</h2>
+    <h2>Servo Ctl <span class="spacer"></span><button class="icon-btn" id="ctlClose" title="Close Servo Ctl (back to the Rig View)" aria-label="Close">✕</button></h2>
     <div class="card-body"><iframe id="ctlFrame" title="Servo console"></iframe></div>
   </section>
   </div>
@@ -1174,6 +1174,7 @@ function showCtl(on) {
   $("ctlFrame").src = on ? "/ctl/?embed" : "about:blank";
 }
 $("ctlBtn").onclick = () => showCtl(!state.ctlOpen);
+$("ctlClose").onclick = () => showCtl(false);
 // openCtl: the Rig settings with Servo Ctl open (the Rig card's gear → Servo Ctl).
 function openCtl() { $("setupModal").hidden = true; showSettings("rig"); showCtl(true); }
 $("rolesCtl").onclick = openCtl;
