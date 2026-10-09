@@ -427,7 +427,7 @@ export function createRig(container) {
       if (c.pose) c.ball.position.copy(shotPos(c.pose.e, c.pose.az));
     }
     controls.target.copy(rig.target);
-    if (first) setView("intro"); // index.html turns it to 3d once the rig connects
+    if (first) setView("3d");
     update(last);
   }
 
@@ -435,16 +435,15 @@ export function createRig(container) {
   // Front looks at the object from behind the camera (from -X); side looks along
   // the tilt axis (from +Y), the swing moving in the picture; top has the
   // camera on the left.
-  // 3d (the default, and where a capture starts the view: see index.html):
-  // from the camera's side, a little above, the camera and the object both
-  // in sight. intro: from the other corner, higher (where the page opens, to
-  // turn to 3d on connecting: showing the view turns). glide: over about 0.7 s
-  // instead of at once, swinging around the target.
+  // 3d (the default): from the corner opposite the camera, above. capture
+  // (where a capture starting turns the view: see index.html): from the
+  // camera's side, a little above, the camera and the object both in sight.
+  // glide: over about 0.7 s instead of at once, swinging around the target.
   let glideTo = null;
   function setView(name, glide = false) {
     const d = rig.d, t = rig.target;
     const far = Math.max(d.BaseX, d.BaseY, d.PostZ + 300) * 2.6;
-    const v = { "3d": [far * -0.86, t.y + far * 0.11, far * 0.47], intro: [far * 0.7, t.y + far * 0.43, far * 0.54], front: [-far, t.y, 0], side: [0, t.y, far], top: [0, far * 1.1, 1] }[name] || null;
+    const v = { "3d": [far * 0.7, t.y + far * 0.43, far * 0.54], capture: [far * -0.86, t.y + far * 0.11, far * 0.47], front: [-far, t.y, 0], side: [0, t.y, far], top: [0, far * 1.1, 1] }[name] || null;
     if (!v) return;
     if (glide) {
       glideTo = { from: cam.position.clone(), fromT: controls.target.clone(), to: V(v[0], v[1], v[2]), toT: t.clone(), age: 0 };
