@@ -102,6 +102,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
 .switch input:checked + .track { background: var(--ok); }
 .switch input:checked + .track::after { left: 16px; }
+/* Mixed (some on, some off): amber, the knob in the middle. */
+.switch input:indeterminate + .track { background: var(--warn); }
+.switch input:indeterminate + .track::after { left: 9px; }
 .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
 .err { color: var(--bad); font-size: 12px; margin-top: 6px; min-height: 0; }
 .ctl-link { color: var(--accent); text-decoration: none; }
@@ -1845,7 +1848,14 @@ function onTelemetry(m) {
   });
   $("servoRows").innerHTML = rows.join("");
   const tq = Object.values(m.servos).filter((s) => !s.error).map((s) => s.torque);
-  if (document.activeElement !== $("torque")) { $("torque").checked = tq.length > 0 && tq.every(Boolean); $("torque").indeterminate = tq.some(Boolean) && !tq.every(Boolean); }
+  // Mixed (a servo locked or let go in Servo Ctl): shown as neither; a click
+  // locks them all (unchecked + click = on).
+  if (document.activeElement !== $("torque")) {
+    const mixed = tq.some(Boolean) && !tq.every(Boolean);
+    $("torque").checked = tq.length > 0 && tq.every(Boolean);
+    $("torque").indeterminate = mixed;
+    $("torqueSwitch").title = mixed ? "Some servos are locked, some aren't: click to lock them all" : "";
+  }
   $("spreadHint").hidden = !(m.spread > 2);
   if (m.spread > 2) $("spreadDeg").textContent = `${m.spread.toFixed(1)}°`;
   draw();
