@@ -38,11 +38,13 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 
 - In the **Camera** card, choose how many photos you want. They're spread evenly round the object, as high and low as the
   camera may go.
-- **Moving Shots**: the rig doesn't stop for each photo. It glides along one smooth spiral instead, which is much
-  faster, for a quick enough shutter. Any number of photos works; on long spirals the rig pauses for a moment now
+- **Path Optimization**: **Even** spreads the photos as evenly as can be round the object; **Linear** takes them in
+  rows, the camera's height changing only between rows (fewer photos in the higher rows).
+- **Shooting**: **Settle first** stops at each shot and waits the settle time; **Keep moving** doesn't stop: the rig
+  glides along one smooth path instead, which is much faster, for a quick enough shutter. Any number of photos works; on long spirals the rig pauses for a moment now
   and then to reset the platform servo's turn count.
-- **Measure** (under the plan) times a few quick sample shots to find how often your camera keeps up (an A6600
-  shooting RAW + JPEG: about one every 1.2 s). Moving Shots spaces the photos at least that far apart, never fires
+- **Measure** (under the choices) times a few quick sample shots to find how often your camera keeps up (an A6600
+  shooting RAW + JPEG: about one every 1.2 s). Keep moving spaces the photos at least that far apart, never fires
   while the camera is still busy with the last one, and slows down (holding still at 4 photos waiting) if the
   camera falls behind anyway, so no photo is lost.
 - **Preview** plays the capture in the 3D view first, without moving the rig.

@@ -57,6 +57,9 @@ func planShots(p Plan, m Motion) (shots []shot, rows int, spacing float64, err e
 	spacing = deg(math.Sqrt(area / float64(n)))
 	// Rows: as many as the band's height holds at that spacing.
 	rows = max(1, min(n, int(math.Round((hi-lo)/spacing))))
+	if p.Path == "linear" {
+		return linearShots(n, rows, lo, hi, p.Moving), rows, spacing, nil
+	}
 	if p.Moving {
 		return spiralOrder(pts, rows, z0, z1), rows, spacing, nil
 	}
@@ -74,6 +77,67 @@ func planShots(p Plan, m Motion) (shots []shot, rows int, spacing float64, err e
 		}
 	}
 	return pts, rows, spacing, nil
+}
+
+// linearShots lays the shots out in rows, each at one elevation, evenly
+// apart from lo to hi (bottom up), the elevation changing only between rows.
+// Each row gets its share of the n shots by its length round the sphere
+// (cos of its elevation: the rows nearer the poles get fewer), at least one,
+// evenly round, every other row half a step on (so they don't line up).
+// Moving shots go round the same way row after row (the platform never
+// turns back); stopping shots go back and forth.
+func linearShots(n, rows int, lo, hi float64, moving bool) []shot {
+	el := make([]float64, rows)
+	w, sum := make([]float64, rows), 0.0
+	for r := range el {
+		el[r] = lo + (hi-lo)*(float64(r)+0.5)/float64(rows)
+		w[r] = math.Max(0.05, math.Cos(rad(el[r])))
+		sum += w[r]
+	}
+	// The shares: each row's by its weight, at least one, the rounding
+	// remainders going to the rows that lost most to it.
+	count, used := make([]int, rows), 0
+	type rem struct {
+		r int
+		f float64
+	}
+	var rems []rem
+	for r := range count {
+		x := float64(n) * w[r] / sum
+		count[r] = max(1, int(math.Floor(x)))
+		used += count[r]
+		rems = append(rems, rem{r, x - math.Floor(x)})
+	}
+	slices.SortStableFunc(rems, func(a, b rem) int { return cmp.Compare(b.f, a.f) })
+	for i := 0; used < n; i = (i + 1) % rows {
+		count[rems[i].r]++
+		used++
+	}
+	for i := len(rems) - 1; used > n; i = (i - 1 + rows) % rows { // more rows than shots: take back from the most
+		if r := rems[i].r; count[r] > 1 {
+			count[r]--
+			used--
+		}
+	}
+	var out []shot
+	for r := range el {
+		k := count[r]
+		step := 360 / float64(k)
+		off := 0.0
+		if r%2 == 1 {
+			off = step / 2
+		}
+		row := make([]shot, k)
+		for i := range row {
+			az := -180 + off + step*float64(i)
+			if !moving && r%2 == 1 { // back the other way
+				az = 180 - off - step*float64(i)
+			}
+			row[i] = shot{Ring: r, Elevation: round1(el[r]), Azimuth: round1(wrap180(az))}
+		}
+		out = append(out, row...)
+	}
+	return out
 }
 
 // spiralOrder orders the shots along one rising helix of `turns` windings,
@@ -225,7 +289,10 @@ func (c *capture) begin(p Plan) error {
 	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
 	c.mu.Unlock()
 	how := fmt.Sprintf("in %d rows, stopping for each", rows)
-	if p.Moving {
+	switch {
+	case p.Moving && p.Path == "linear":
+		how = fmt.Sprintf("in %d rows, without stopping", rows)
+	case p.Moving:
 		how = fmt.Sprintf("on a %d-turn spiral, without stopping", rows)
 	}
 	c.rig.logf("info", "capture started: %d photos about %.0f° apart, %s", len(shots), spacing, how)

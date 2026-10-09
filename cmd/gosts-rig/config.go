@@ -94,6 +94,11 @@ type Plan struct {
 	// one smooth spiral and each photo is taken as it passes its shot (needs
 	// a fast shutter). Otherwise the rig stops and settles for each photo.
 	Moving bool `toml:"Moving"`
+	// Path is how the shots are laid out: "even" (spread as evenly as can
+	// be over the sphere, on a golden-angle spiral; the default) or
+	// "linear" (rows of one elevation each, the elevation changing only
+	// between rows; fewer shots in the rows nearer the poles).
+	Path string `toml:"Path,omitempty"`
 }
 
 func defaultConfig() Config {

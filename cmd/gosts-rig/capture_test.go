@@ -552,3 +552,40 @@ func TestCapturePace(t *testing.T) {
 		}
 	}
 }
+
+// TestLinearShots: rows of one elevation each, bottom up, all n shots, the
+// rows nearer the poles with fewer; moving shots go round the same way each
+// row, stopping shots back and forth.
+func TestLinearShots(t *testing.T) {
+	m := Motion{ElevationMin: -20, ElevationMax: 80}
+	for _, moving := range []bool{false, true} {
+		shots, rows, _, err := planShots(Plan{Photos: 60, Moving: moving, Path: "linear"}, m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(shots) != 60 {
+			t.Fatalf("moving %v: %d shots, want 60", moving, len(shots))
+		}
+		per := map[int]int{}
+		el := map[int]float64{}
+		for i, s := range shots {
+			per[s.Ring]++
+			if e, ok := el[s.Ring]; ok && e != s.Elevation {
+				t.Fatalf("row %d: elevations %v and %v", s.Ring, e, s.Elevation)
+			}
+			el[s.Ring] = s.Elevation
+			if i > 0 && s.Ring < shots[i-1].Ring {
+				t.Fatalf("rows out of order at shot %d", i)
+			}
+			if i > 0 && s.Ring == shots[i-1].Ring {
+				d := wrap180(s.Azimuth - shots[i-1].Azimuth)
+				if (moving || s.Ring%2 == 0) && d <= 0 || !moving && s.Ring%2 == 1 && d >= 0 {
+					t.Fatalf("moving %v, row %d: azimuth %v → %v the wrong way", moving, s.Ring, shots[i-1].Azimuth, s.Azimuth)
+				}
+			}
+		}
+		if len(per) != rows || per[rows-1] >= per[0] {
+			t.Errorf("moving %v: %d rows (want %d), top row %d shots, bottom %d (want fewer at the top)", moving, len(per), rows, per[rows-1], per[0])
+		}
+	}
+}
