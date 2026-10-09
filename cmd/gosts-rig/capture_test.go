@@ -559,7 +559,7 @@ func TestCapturePace(t *testing.T) {
 func TestLinearShots(t *testing.T) {
 	m := Motion{ElevationMin: -20, ElevationMax: 80}
 	for _, moving := range []bool{false, true} {
-		shots, rows, _, err := planShots(Plan{Photos: 60, Moving: moving, Path: "linear"}, m)
+		shots, rows, _, err := planShots(Plan{Photos: 60, Moving: moving, Path: PathRings}, m)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -586,6 +586,27 @@ func TestLinearShots(t *testing.T) {
 		}
 		if len(per) != rows || per[rows-1] >= per[0] {
 			t.Errorf("moving %v: %d rows (want %d), top row %d shots, bottom %d (want fewer at the top)", moving, len(per), rows, per[rows-1], per[0])
+		}
+	}
+}
+
+// TestPlanPathNames: the paths' names before (even, linear) read as sphere
+// and rings.
+func TestPlanPathNames(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[Plan]\n  Photos = 30\n  Path = \"linear\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.get().Plan.Path; got != PathRings {
+		t.Errorf("linear read as %q, want %q", got, PathRings)
+	}
+	for in, want := range map[string]string{"": PathSphere, "even": PathSphere, "sphere": PathSphere, "rings": PathRings, "linear": PathRings} {
+		if got := (Plan{Path: in}).path(); got != want {
+			t.Errorf("path %q → %q, want %q", in, got, want)
 		}
 	}
 }

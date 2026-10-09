@@ -57,7 +57,7 @@ func planShots(p Plan, m Motion) (shots []shot, rows int, spacing float64, err e
 	spacing = deg(math.Sqrt(area / float64(n)))
 	// Rows: as many as the band's height holds at that spacing.
 	rows = max(1, min(n, int(math.Round((hi-lo)/spacing))))
-	if p.Path == "linear" {
+	if p.path() == PathRings {
 		return linearShots(n, rows, lo, hi, p.Moving), rows, spacing, nil
 	}
 	if p.Moving {
@@ -290,7 +290,7 @@ func (c *capture) begin(p Plan) error {
 	c.mu.Unlock()
 	how := fmt.Sprintf("in %d rows, stopping for each", rows)
 	switch {
-	case p.Moving && p.Path == "linear":
+	case p.Moving && p.path() == PathRings:
 		how = fmt.Sprintf("in %d rows, without stopping", rows)
 	case p.Moving:
 		how = fmt.Sprintf("on a %d-turn spiral, without stopping", rows)

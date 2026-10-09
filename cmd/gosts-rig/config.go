@@ -94,11 +94,27 @@ type Plan struct {
 	// one smooth spiral and each photo is taken as it passes its shot (needs
 	// a fast shutter). Otherwise the rig stops and settles for each photo.
 	Moving bool `toml:"Moving"`
-	// Path is how the shots are laid out: "even" (spread as evenly as can
-	// be over the sphere, on a golden-angle spiral; the default) or
-	// "linear" (rows of one elevation each, the elevation changing only
-	// between rows; fewer shots in the rows nearer the poles).
+	// Path is how the shots are laid out: PathSphere (spread as evenly as
+	// can be over the sphere, on a golden-angle spiral; the default) or
+	// PathRings (rings of one elevation each, the elevation changing only
+	// between rings; fewer shots in the rings nearer the poles).
 	Path string `toml:"Path,omitempty"`
+}
+
+// The paths (Plan.Path).
+const (
+	PathSphere = "sphere"
+	PathRings  = "rings"
+)
+
+// path is the plan's path: PathSphere or PathRings (the names before,
+// "even" and "linear", read as them).
+func (p Plan) path() string {
+	switch p.Path {
+	case PathRings, "linear":
+		return PathRings
+	}
+	return PathSphere
 }
 
 func defaultConfig() Config {
@@ -128,6 +144,12 @@ func loadConfig(path string) (*configFile, error) {
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	if p := f.c.Plan.path(); p != f.c.Plan.Path { // a name from before ("even", "linear", or none): saved as it's called now
+		f.c.Plan.Path = p
+		if err := f.save(); err != nil {
+			return nil, err
+		}
 	}
 	return f, nil
 }
