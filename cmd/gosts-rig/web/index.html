@@ -58,6 +58,8 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .plan-line.opts { margin-top: 12px; }
 .plan-line label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
 .plan-line .photos-field input { width: 7ch; box-sizing: content-box; }
+/* In the Photos field's place while previewing or capturing: how far along ("12 / 50"), a read-only field like it. */
+.plan-line .photos-field input.count-box { width: 11ch; box-sizing: content-box; cursor: default; }
 .plan-line .progress-field { flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 3px; }
 .plan-line .progress-field .progress { margin: 0; }
 .plan-line .settle-field input { width: 7ch; box-sizing: content-box; }
@@ -70,7 +72,7 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .mini { border: 0; background: none; padding: 0 2px; color: var(--accent); font: inherit; font-size: 13px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; }
 .label-head { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; line-height: 1.2; }
 .mini:hover { filter: brightness(1.35); } /* no underline */
-input[type=number], select { width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: 13px var(--mono); }
+input[type=number], input.count-box, select { width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: 13px var(--mono); }
 input[type=number]:disabled, select:disabled { opacity: .45; cursor: not-allowed; }
 label:has(> input:disabled) { color: var(--muted); }
 input[type=range] { width: 100%; accent-color: var(--accent); }
@@ -301,7 +303,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <!-- Camera connected: plan and run the capture. -->
       <div class="card-body" id="captureBody" hidden>
         <div class="plan-line">
-          <label class="photos-field">Photos<input type="number" id="pPhotos" min="1" max="2000" value="60"></label>
+          <label class="photos-field">Photos<input type="number" id="pPhotos" min="1" max="2000" value="60"><input type="text" class="count-box" id="pCount" readonly tabindex="-1" hidden></label>
           <div class="progress-field"><span class="opt-label">Progress</span>
             <div class="progress big"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div></div>
         </div>
@@ -1816,7 +1818,7 @@ $("previewBtn").onclick = () => {
   $("previewBtn").textContent = "Stop";
   $("previewBtn").classList.add("danger");
   // Only the view moves: at the end it returns to where the real rig is.
-  window.rig3d.startPreview(shots, $("pMoving").checked).then(() => { $("previewBtn").textContent = "Preview"; $("previewBtn").classList.remove("danger"); planLock(); });
+  window.rig3d.startPreview(shots, $("pMoving").checked).then(() => { $("previewBtn").textContent = "Preview"; $("previewBtn").classList.remove("danger"); planLock(); capCount(); });
   planLock();
 };
 // planLock: while a preview or a capture runs, what would change the plan
@@ -1839,12 +1841,20 @@ function capCount() {
   const m = state.cap;
   if (!m) return;
   const done = m.shots.filter((s) => s.done).length;
+  // How far along, in the Photos field's place, while a preview plays or a
+  // capture runs (the bar keeps the times).
+  const pv = window.rig3d?.previewProgress();
+  const along = m.running ? `${done} / ${m.total}` : pv ? `${pv.done} / ${pv.total}` : "";
+  $("pCount").value = along;
+  $("pCount").hidden = !along;
+  $("pPhotos").hidden = !!along;
+  if (!m.running) $("capBar").style.width = pv ? `${100 * pv.done / pv.total}%` : m.total ? `${100 * done / m.total}%` : "0";
   if (!m.total) { $("capCount").textContent = ""; return; }
-  let t = `${done} / ${m.total}`;
+  let t = "";
   if (m.running) {
     const since = m.paused ? 0 : (performance.now() - state.capAt) / 1000;
     const elapsed = m.elapsed + since;
-    t += ` · ${fmtDur(elapsed)}`;
+    t = fmtDur(elapsed);
     const base = state.capBase; // the first photo this page saw done: the pace is from there
     if (!m.paused && base && done > base.done && done < m.total) {
       const per = (m.elapsed - base.elapsed) / (done - base.done);
@@ -1860,7 +1870,7 @@ function fmtDur(sec) {
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
   return h ? `${h}h ${m}m` : `${m}m ${s}s`;
 }
-setInterval(() => { if (state.cap?.running) capCount(); }, 1000);
+setInterval(() => { if (state.cap?.running || window.rig3d?.previewing()) capCount(); }, 250);
 function onCapture(m) {
   const done = m.shots.filter((s) => s.done).length;
   if (!m.running || done === 0) state.capBase = null;

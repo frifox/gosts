@@ -896,5 +896,8 @@ export function createRig(container) {
     return rig.camera.localToWorld(rig.camera.userData.sensor.clone()).distanceTo(rig.objectCentre);
   }
 
-  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, speed, snapshot, focusDistance };
+  // previewProgress: the dots the preview has passed, and how many there are (null: none playing).
+  const previewProgress = () => (pv ? { done: Math.min(pv.consumed, pv.shots.length), total: pv.shots.length } : null);
+
+  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, previewProgress, speed, snapshot, focusDistance };
 }
