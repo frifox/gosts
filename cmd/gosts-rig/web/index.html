@@ -171,7 +171,7 @@ td.mono { font-family: var(--mono); }
 .camcfg-shot.taking::after { content: ""; position: absolute; width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--border);
   border-top-color: var(--accent); animation: spin .8s linear infinite; }
 .cap-btns { display: flex; gap: 8px; margin-top: 10px; }
-.export-line { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.export-line { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; color: var(--muted); }
 .export-line .check { display: flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer; }
 .export-line select { flex: 1; min-width: 0; width: auto; }
 .cap-btns .btn { flex: 1; }
@@ -329,18 +329,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         </div>
         <div class="pace-line"><span class="hint" id="paceText"></span>
           <button class="btn small" id="paceBtn" title="Takes a few sample shots back to back and times them coming over: how often the camera keeps up taking photos. Keep moving then spaces the photos at least that far apart (and slows down if the camera still falls behind).">Measure</button></div>
-        <!-- Two buttons: Preview and Capture. A preview playing: Preview is Stop. A capture running:
-             Capture is Stop, Preview is Pause (Resume). -->
-        <div class="cap-btns">
-          <button class="btn" id="previewBtn" title="Show the camera's path through the planned shots, played faster than the capture">Preview</button>
-          <button class="btn" id="pauseBtn" title="Pause the capture where it is (Resume carries on)" hidden>Pause</button>
-          <button class="btn primary" id="startBtn" title="Take the photos">Capture</button>
-          <button class="btn danger" id="abortBtn" title="Stop the capture (the photos taken stay)" hidden>Stop</button>
-        </div>
         <!-- Alignment data for a photogrammetry app: where each photo was taken from (the rig's poses),
              written beside the photos when a capture ends. -->
         <div class="export-line" title="When a capture ends, write where each photo was taken from (the rig's poses, as starting points the app refines) beside the photos, in the chosen app's format">
-          <label for="pExport" class="check">Attach alignment data for</label>
+          <label for="pExport" class="check">Capture alignment data for</label>
           <select id="pExport">
             <option value="">Select app…</option>
             <option value="metashape">Agisoft Metashape (camera positions, CSV)</option>
@@ -349,6 +341,14 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <option value="colmap">COLMAP (text model)</option>
             <option value="apple">Apple Object Capture / PhotoCatch (gravity, JSON)</option>
           </select>
+        </div>
+        <!-- Two buttons: Preview and Capture. A preview playing: Preview is Stop. A capture running:
+             Capture is Stop, Preview is Pause (Resume). -->
+        <div class="cap-btns">
+          <button class="btn" id="previewBtn" title="Show the camera's path through the planned shots, played faster than the capture">Preview</button>
+          <button class="btn" id="pauseBtn" title="Pause the capture where it is (Resume carries on)" hidden>Pause</button>
+          <button class="btn primary" id="startBtn" title="Take the photos">Capture</button>
+          <button class="btn danger" id="abortBtn" title="Stop the capture (the photos taken stay)" hidden>Stop</button>
         </div>
         <p class="hint" id="capNote"></p>
       </div>
