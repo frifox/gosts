@@ -148,6 +148,8 @@ td.mono { font-family: var(--mono); }
 .camcfg-shot.live { cursor: default; }
 .camcfg-shot.taking::after { content: ""; position: absolute; width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--border);
   border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.pace-line { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.pace-line .hint { margin: 0; flex: 1; }
 .sample-btns { display: flex; gap: 8px; margin-top: 14px; }
 .sample-btns .btn { flex: 1; }
 #sampleCaption { margin-top: 8px; line-height: 18px; min-height: 18px; } /* room kept for it before the first sample */
@@ -290,6 +292,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <label title="How long the rig waits after arriving, before each photo (not used with Moving Shots)">Settle (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
           <label class="switch" title="Take the photos without stopping: the rig keeps moving along one smooth spiral and each photo is taken as it passes its shot. Needs a fast shutter speed."><input type="checkbox" id="pMoving"><span class="track"></span><span>Moving Shots</span></label>
         </div>
+        <div class="pace-line"><span class="hint" id="paceText"></span>
+          <button class="btn small" id="paceBtn" title="Takes a few sample shots back to back and times them coming over: how often the camera keeps up taking photos. Moving Shots then spaces the photos at least that far apart (and slows down if the camera still falls behind).">Measure</button></div>
         <div class="progress big" style="margin-top:12px"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div>
         <div class="row" style="margin-top:10px">
           <button class="btn" id="previewBtn" title="Show the camera's path through the planned shots, played faster than the capture">Preview FF</button>
@@ -667,6 +671,8 @@ $("camConnectBtn").onclick = async () => {
 };
 function onCamera(m) {
   state.camera = m;
+  // How often the camera keeps up taking photos (Measure finds it).
+  $("paceText").textContent = m.pace ? `Keeps up with a photo every ${m.pace.toFixed(1)} s` : "Camera speed not measured yet";
   // A real camera's name beside the title, without gphoto2's mode note ("(PC Control)").
   $("camDevName").textContent = m.connected && m.id !== "sim" ? (m.name || "").replace(/\s*\([^)]*\)\s*$/, "") : "";
   $("cameraBody").hidden = $("camRefresh").hidden = m.connected;
@@ -1747,6 +1753,14 @@ for (const id of ["pPhotos", "pSettle", "pMoving"]) {
     planTimer = setTimeout(() => { if (!state.cap?.running) act("plan", { plan: planFromForm() }, $("capNote")); }, 300);
   });
 }
+$("paceBtn").onclick = async () => {
+  $("paceBtn").disabled = true;
+  $("paceBtn").textContent = "Measuring…";
+  $("capNote").textContent = "";
+  await act("measurePace", {}, $("capNote"));
+  $("paceBtn").textContent = "Measure";
+  $("paceBtn").disabled = false;
+};
 $("startBtn").onclick = () => { stopPreview(); $("capNote").textContent = ""; act("start", { plan: planFromForm() }, $("capNote")); };
 // Preview: the camera's path through the planned shots, animated in the rig
 // view. The button reads Stop while it plays.
@@ -1766,7 +1780,7 @@ $("previewBtn").onclick = () => {
 // redrawn, the trail carrying on).
 function planLock() {
   const busy = !!(window.rig3d?.previewing() || state.cap?.running);
-  for (const id of ["pPhotos", "pMoving", "dElevMin", "dElevMax", "dDefaults"]) $(id).disabled = busy;
+  for (const id of ["pPhotos", "pMoving", "dElevMin", "dElevMax", "dDefaults", "paceBtn"]) $(id).disabled = busy;
   for (const id of ["dElevMin", "dElevMax"]) $(id).title = busy ? "Set while no preview or capture runs: it changes the plan" : "";
 }
 $("pauseBtn").onclick = () => act("pause", { on: !state.cap?.paused });

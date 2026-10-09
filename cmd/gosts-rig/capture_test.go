@@ -523,3 +523,32 @@ func TestStartupDevice(t *testing.T) {
 		}
 	}
 }
+
+// TestCapturePace: moving shots go as planned with the camera keeping up,
+// at half speed at paceSlow photos waiting, and hold at paceHold till it's
+// back down to paceGo.
+func TestCapturePace(t *testing.T) {
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cam := &cameraConn{out: func(any) {}}
+	c := &capture{rig: &rig{cfg: cfg, out: func(any) {}}, camera: cam, out: func(any) {}}
+	waiting := func(n int) {
+		cam.mu.Lock()
+		cam.inFlight = map[int]bool{}
+		for i := 0; i < n; i++ {
+			cam.inFlight[i] = true
+		}
+		cam.mu.Unlock()
+	}
+	for _, step := range []struct {
+		waiting int
+		want    float64
+	}{{0, 1}, {2, 1}, {3, 0.5}, {4, 0}, {3, 0}, {2, 1}, {3, 0.5}} {
+		waiting(step.waiting)
+		if got := c.pace(); got != step.want {
+			t.Errorf("%d waiting: pace %v, want %v", step.waiting, got, step.want)
+		}
+	}
+}

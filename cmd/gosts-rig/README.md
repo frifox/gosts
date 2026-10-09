@@ -41,6 +41,10 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 - **Moving Shots**: the rig doesn't stop for each photo. It glides along one smooth spiral instead, which is much
   faster, for a quick enough shutter. Any number of photos works; on long spirals the rig pauses for a moment now
   and then to reset the platform servo's turn count.
+- **Measure** (under the plan) times a few quick sample shots to find how often your camera keeps up (an A6600
+  shooting RAW + JPEG: about one a second). Moving Shots spaces the photos at least that far apart, never fires
+  while the camera is still busy with the last one, and slows down (holding still at 4 photos waiting) if the
+  camera falls behind anyway, so no photo is lost.
 - **Preview** plays the capture in the 3D view first, without moving the rig.
 - **Start**, **Pause**, **Stop**. The progress bar shows the photos done and about how long is left.
 - **Take Photo** takes a single photo where the rig is.

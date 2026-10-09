@@ -116,6 +116,7 @@ type capture struct {
 	index   int // next shot
 	running bool
 	paused  bool
+	holding bool // moving shots held for the camera to catch up (see pace)
 	note    string
 	cancel  context.CancelFunc
 	resume  chan struct{}
@@ -471,8 +472,9 @@ func (c *capture) spiral(ctx context.Context) error {
 			es = append(es, math.Max(m.ElevationMin, math.Min(m.ElevationMax, s.Elevation)))
 			as = append(as, s.Azimuth)
 		}
-		// Shots no closer together than the camera can take them.
-		tr := newTrajectory(es, as, maxRate, accel, c.camera.minInterval().Seconds())
+		// Shots no closer together than the camera keeps up with: its measured
+		// pace (see measurePace), else as it's been going.
+		tr := newTrajectory(es, as, maxRate, accel, max(c.camera.minInterval(), c.camera.pace()).Seconds())
 		err = c.rig.follow(ctx, tr, func(k int) error {
 			if k < first {
 				return nil
@@ -482,7 +484,7 @@ func (c *capture) spiral(ctx context.Context) error {
 			c.mu.Lock()
 			defer c.mu.Unlock()
 			return c.paused
-		})
+		}, c.pace)
 		if errors.Is(err, errPaused) {
 			continue
 		}
@@ -496,6 +498,39 @@ func (c *capture) spiral(ctx context.Context) error {
 		}
 		return err
 	}
+}
+
+// paceHold, paceSlow, paceGo: the photos waiting for the camera (asked for,
+// their pictures not come yet) at which moving shots hold still, go at half
+// speed, and go on again after holding. The camera buffers a few; past that
+// it starts ignoring the shutter.
+const paceHold, paceSlow, paceGo = 4, 3, 2
+
+// pace is how fast moving shots' path goes (1: as planned) for how far the
+// camera is behind: held at paceHold photos waiting till it's down to
+// paceGo, half speed at paceSlow.
+func (c *capture) pace() float64 {
+	b := c.camera.backlog()
+	c.mu.Lock()
+	started := b >= paceHold && !c.holding
+	switch {
+	case started:
+		c.holding = true
+	case c.holding && b <= paceGo:
+		c.holding = false
+	}
+	holding := c.holding
+	c.mu.Unlock()
+	if started {
+		c.rig.logf("info", "capture: %d photos waiting for the camera: holding till it catches up", b)
+	}
+	switch {
+	case holding:
+		return 0
+	case b >= paceSlow:
+		return 0.5
+	}
+	return 1
 }
 
 // setNote says something on the page while the capture runs (e.g. that the

@@ -123,14 +123,26 @@ const (
 // at(k) is called as the path passes point k (the photo; an error stops
 // the rig and follow). When paused() says so the rig stops and follow
 // returns errPaused.
-func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, paused func() bool) error {
-	start := time.Now()
+func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, paused func() bool, pace func() float64) error {
+	// The path's own clock: it runs at pace() (1: as planned; slower, or
+	// held at 0, while the camera catches up with the photos asked of it),
+	// and stands still while a photo is being asked for.
+	vt, last, rate := 0.0, time.Now(), 1.0
+	clock := func() float64 {
+		now := time.Now()
+		rate = 1
+		if pace != nil {
+			rate = math.Max(0, math.Min(1, pace()))
+		}
+		vt += now.Sub(last).Seconds() * rate
+		last = now
+		return vt
+	}
 	next := 0 // next point
 	end := tr.duration()
 	for {
-		t := time.Since(start).Seconds()
+		t := clock()
 		for next < len(tr.pointT) && t >= tr.pointT[next] {
-			took := time.Now()
 			if err := at(next); err != nil {
 				return errors.Join(err, r.stop())
 			}
@@ -138,8 +150,7 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 			// A photo that held things up doesn't count as path time:
 			// the path waits for it instead of racing ahead (and the next
 			// photos being due at once, all taken from here).
-			start = start.Add(time.Since(took))
-			t = time.Since(start).Seconds()
+			last = time.Now()
 		}
 		if next >= len(tr.pointT) {
 			return nil
@@ -152,7 +163,9 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 		if err != nil {
 			return err
 		}
-		e1, a1 := tr.at(math.Min(t+followLookahead, end))
+		// The goal: just ahead on the path (as far ahead as the path moves:
+		// held, it's where the path is).
+		e1, a1 := tr.at(math.Min(t+followLookahead*rate, end))
 		// A servo trails a moving goal a little (its position loop): add how
 		// far behind the path it is to the goal, so it runs on the path.
 		// At most followCatchUp: a rig held up far behind eases back onto
@@ -167,8 +180,10 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 		}
 		// The next tick, or the next photo if that comes first.
 		wait := followTick
-		if d := time.Duration((tr.pointT[next] - time.Since(start).Seconds()) * float64(time.Second)); d < wait {
-			wait = max(0, d)
+		if rate > 0 {
+			if d := time.Duration((tr.pointT[next] - vt) / rate * float64(time.Second)); d < wait {
+				wait = max(0, d)
+			}
 		}
 		select {
 		case <-ctx.Done():

@@ -219,6 +219,11 @@ func (a *app) exec(req request) (any, error) {
 			return nil, err
 		}
 		return nil, fc.Nudge(req.N)
+	case "measurePace": // how often the camera keeps up taking photos (a few sample shots, timed)
+		if a.cap.msg().Running {
+			return nil, errors.New("a capture is running")
+		}
+		return a.camera.measurePace(context.Background())
 	case "sampleShot": // Config: a photo to judge the settings by
 		if a.cap.msg().Running {
 			return nil, errors.New("a capture is running")

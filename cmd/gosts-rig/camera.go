@@ -270,6 +270,7 @@ func (s *simCamera) Battery() (string, error) { return "100%", nil }
 // page's timeline, until Reset).
 type cameraConn struct {
 	out func(any)
+	cfg *configFile // for the cameras' measured pace (CameraPace)
 
 	mu             sync.Mutex
 	cam            Camera
@@ -285,6 +286,7 @@ type cameraConn struct {
 	gen            int                       // Resets so far (see generation)
 	battery        string                    // its battery level, last read (see pollBattery)
 	focal          float64                   // the focal length (mm) its last photo was taken at (EXIF), 0 if not known
+	inFlight       map[int]bool              // photos asked for whose picture hasn't come yet (nor failed): see backlog
 }
 
 // maxPhotos is how many photos the timeline keeps in memory; the oldest go.
@@ -337,6 +339,7 @@ type cameraMsg struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Battery   string `json:"battery,omitempty"` // e.g. "92%", if the camera says
+	Pace      float64 `json:"pace,omitempty"`   // how often (s) it keeps up taking photos, as measured (0: not yet)
 }
 
 // batteryCamera is a camera that tells its battery level.
@@ -385,7 +388,7 @@ func (c *cameraConn) readBattery() {
 func (c *cameraConn) msg() cameraMsg {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return cameraMsg{Type: "camera", Connected: c.cam != nil, ID: c.id, Name: c.name, Battery: c.battery}
+	return cameraMsg{Type: "camera", Connected: c.cam != nil, ID: c.id, Name: c.name, Battery: c.battery, Pace: c.paceOf(c.id)}
 }
 
 func (c *cameraConn) connect(id string) error {
@@ -469,6 +472,10 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 	c.mu.Lock()
 	c.count++
 	n, gen := c.count, c.gen
+	if c.inFlight == nil {
+		c.inFlight = map[int]bool{}
+	}
+	c.inFlight[n] = true
 	if sample {
 		if c.samples == nil {
 			c.samples = map[int]string{}
@@ -491,6 +498,7 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 	}
 	if wait {
 		if err := cam.Shoot(ctx, sh); err != nil {
+			c.landed(n)
 			c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: sample})
 			return err
 		}
@@ -520,6 +528,7 @@ type queuedShot struct {
 func (c *cameraConn) shooter(q chan queuedShot) {
 	for s := range q {
 		if err := s.cam.Shoot(s.ctx, s.shutter); err != nil {
+			c.landed(s.n)
 			c.out(photoEventMsg{Type: "photoFailed", N: s.n})
 			if s.ctx.Err() == nil {
 				c.warn("photo %d: %v", s.n, err)
@@ -549,6 +558,7 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 	_, sim := cam.(*simCamera)
 	switch {
 	case err != nil:
+		c.landed(n)
 		c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: c.isSample(n)})
 		c.warn("photo %d: %v", n, err)
 	case len(p.JPEG) > 0:
@@ -573,6 +583,7 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 			}
 		})
 	default: // taken, but nothing to show
+		c.landed(n)
 		c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: c.isSample(n)})
 	}
 }
@@ -642,6 +653,7 @@ func (c *cameraConn) delete(n int) {
 // picture sets photo n's picture, adding it to the timeline (once: a later
 // copy of the same photo is ignored).
 func (c *cameraConn) picture(n int, p photo) bool {
+	c.landed(n)
 	c.mu.Lock()
 	if _, ok := c.photos[n]; ok || c.deleted[n] || n > c.count || n <= c.count-maxPhotos {
 		c.mu.Unlock()
@@ -699,7 +711,7 @@ func (c *cameraConn) timeline() photosMsg {
 // 1 again, and a new folder for its files.
 func (c *cameraConn) reset() {
 	c.mu.Lock()
-	c.photos, c.deleted, c.samples, c.sampleSettings = nil, nil, nil, nil
+	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight = nil, nil, nil, nil, nil
 	c.count, c.pending = 0, 0
 	c.gen++
 	c.mu.Unlock()
@@ -724,4 +736,90 @@ func (c *cameraConn) lastPhoto() (photo, int) {
 		}
 	}
 	return c.photos[last], last
+}
+
+
+// landed: photo n's picture came (or it failed): it's no longer in flight.
+func (c *cameraConn) landed(n int) {
+	c.mu.Lock()
+	delete(c.inFlight, n)
+	c.mu.Unlock()
+}
+
+// backlog is how many photos have been asked for whose pictures haven't come
+// yet: queued to be taken, being taken, or coming over. Moving shots slow
+// down when it grows (see capture.pace).
+func (c *cameraConn) backlog() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.inFlight)
+}
+
+// paceOf is how often (s) camera id keeps up taking photos, as measured (0:
+// not measured).
+func (c *cameraConn) paceOf(id string) float64 {
+	if c.cfg == nil || id == "" {
+		return 0
+	}
+	return c.cfg.get().CameraPace[id]
+}
+
+// pace is the connected camera's, as a duration (0: not measured).
+func (c *cameraConn) pace() time.Duration {
+	c.mu.Lock()
+	id := c.id
+	c.mu.Unlock()
+	return time.Duration(c.paceOf(id) * float64(time.Second))
+}
+
+// paceShots is how many photos measurePace takes.
+const paceShots = 6
+
+// measurePace finds how often the camera keeps up taking photos: it asks
+// for paceShots sample shots at once (the camera takes them as fast as it
+// can, each when it's done with the last) and times them coming over, the
+// gaps between them once it's under way. The result is kept for the camera
+// (moving shots are spaced by it).
+func (c *cameraConn) measurePace(ctx context.Context) (float64, error) {
+	c.mu.Lock()
+	id, cam := c.id, c.cam
+	c.mu.Unlock()
+	if cam == nil {
+		return 0, errNoCamera
+	}
+	if c.backlog() > 0 {
+		return 0, errors.New("the camera is still busy with photos: try again once they're in")
+	}
+	for i := 0; i < paceShots; i++ {
+		if err := c.take(ctx, false, nil, true); err != nil {
+			return 0, err
+		}
+	}
+	var arrived []time.Time
+	deadline := time.Now().Add(paceShots * 15 * time.Second)
+	for left := paceShots; left > 0; {
+		if time.Now().After(deadline) {
+			return 0, errors.New("the photos didn't all come over")
+		}
+		time.Sleep(20 * time.Millisecond)
+		for b := c.backlog(); left > b; left-- {
+			arrived = append(arrived, time.Now())
+		}
+	}
+	pace := arrived[len(arrived)-1].Sub(arrived[0]).Seconds() / float64(len(arrived)-1)
+	pace = math.Round(pace*100) / 100
+	if c.cfg != nil {
+		err := c.cfg.update(func(cf *Config) {
+			if cf.CameraPace == nil {
+				cf.CameraPace = map[string]float64{}
+			}
+			cf.CameraPace[id] = pace
+		})
+		if err != nil {
+			return pace, err
+		}
+	}
+	log.Printf("camera: %s keeps up with a photo every %.2f s", id, pace)
+	c.out(c.msg())
+	return pace, nil
 }

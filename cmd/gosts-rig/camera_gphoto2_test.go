@@ -203,8 +203,8 @@ func TestGphoto2Leftovers(t *testing.T) {
 	photoDir = t.TempDir()
 	newBatch()
 	defer newBatch()
-	defer func(w time.Duration) { pictureWait = w }(pictureWait)
-	pictureWait = 300 * time.Millisecond
+	defer func(w, c time.Duration) { pictureWait, confirmWait = w, c }(pictureWait, confirmWait)
+	pictureWait, confirmWait = 300*time.Millisecond, 500*time.Millisecond
 
 	cam, _, err := openCamera(gphoto2Prefix + "usb:001,002")
 	if err != nil {
@@ -241,13 +241,15 @@ func TestGphoto2Leftovers(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if got[1] != "gave up" || got[2] != "JPEG 92" {
-		t.Fatalf("photo 1: %q, photo 2: %q; want gave up, JPEG 92 (not the leftover 90 or photo 1's late 91)", got[1], got[2])
+	// Photo 1's file only comes after another shutter: photo 2 waits for
+	// it, and photo 1 is fired again (92, an extra photo); photo 2 is 93.
+	if got[1] != "gave up" || got[2] != "JPEG 93" {
+		t.Fatalf("photo 1: %q, photo 2: %q; want gave up, JPEG 93 (not the leftover 90, photo 1's late 91 or its second firing's 92)", got[1], got[2])
 	}
 	// The leftovers are kept, not lost.
 	saved, _ := filepath.Glob(filepath.Join(photoDir, "*", "*.JPG"))
-	if len(saved) != 3 {
-		t.Errorf("saved %v, want all 3 JPEGs (two of them leftovers)", saved)
+	if len(saved) != 4 {
+		t.Errorf("saved %v, want all 4 JPEGs (three of them leftovers)", saved)
 	}
 }
 
@@ -299,9 +301,9 @@ func TestSampleFolder(t *testing.T) {
 	}
 }
 
-// fakeRefusingGphoto2 refuses the first photo (no file: as an A6600 in
-// AF-S/DMF that finds no focus), then takes the second as file 91: the
-// number the first would have had.
+// fakeRefusingGphoto2 ignores the first shutter (no file: as an A6600
+// busy with the last photo, or in AF-S/DMF finding no focus), then takes
+// each one after as the next number from 91.
 const fakeRefusingGphoto2 = `#!/bin/sh
 case "$*" in
 *--auto-detect*)
@@ -317,15 +319,15 @@ while IFS= read -r line; do
   trigger-capture) fired=$((fired+1));;
   wait-event-and-download*)
     if [ $left = 1 ]; then emit 90; left=0; fi
-    if [ $fired -ge 2 ] && [ $sent = 0 ]; then sent=1; emit 91; fi;;
+    while [ $sent -lt $((fired-1)) ]; do sent=$((sent+1)); emit $((90+sent)); done;;
   exit|quit) exit 0;;
   esac
   prompt
 done
 `
 
-// TestGphoto2Refused: a photo the camera never took gives up; the next
-// one's file has the number it had, and is the next one's (not a leftover).
+// TestGphoto2Refused: a shutter the camera ignores is fired again before
+// the next photo's, so every photo gets its own picture.
 func TestGphoto2Refused(t *testing.T) {
 	bin := t.TempDir()
 	if err := os.WriteFile(filepath.Join(bin, "gphoto2"), []byte(fakeRefusingGphoto2), 0o755); err != nil {
@@ -336,8 +338,8 @@ func TestGphoto2Refused(t *testing.T) {
 	photoDir = t.TempDir()
 	newBatch()
 	defer newBatch()
-	defer func(w, h time.Duration) { pictureWait, heldWait = w, h }(pictureWait, heldWait)
-	pictureWait, heldWait = 300*time.Millisecond, 300*time.Millisecond
+	defer func(w, h, c time.Duration) { pictureWait, heldWait, confirmWait = w, h, c }(pictureWait, heldWait, confirmWait)
+	pictureWait, heldWait, confirmWait = 2*time.Second, 300*time.Millisecond, 300*time.Millisecond
 
 	cam, _, err := openCamera(gphoto2Prefix + "usb:001,002")
 	if err != nil {
@@ -359,8 +361,7 @@ func TestGphoto2Refused(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	shoot(1)
-	time.Sleep(time.Second) // photo 1 gives up: the camera never took it
+	shoot(1) // ignored: fired again before photo 2's, and taken then
 	shoot(2)
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -374,8 +375,8 @@ func TestGphoto2Refused(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if got[1] != "gave up" || got[2] != "JPEG 91" {
-		t.Fatalf("photo 1: %q, photo 2: %q; want gave up, JPEG 91", got[1], got[2])
+	if got[1] != "JPEG 91" || got[2] != "JPEG 92" {
+		t.Fatalf("photo 1: %q, photo 2: %q; want JPEG 91, JPEG 92 (the shutter fired again for photo 1)", got[1], got[2])
 	}
 }
 

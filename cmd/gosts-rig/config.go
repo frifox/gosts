@@ -20,6 +20,9 @@ type Config struct {
 	Port       string `toml:"Port,omitempty"` // serial device connected on startup; empty = pick in the browser
 	Baud       int    `toml:"Baud,omitzero"`
 	Camera     string `toml:"Camera,omitempty"`   // camera connected on startup; empty = pick in the browser
+	// CameraPace is how often (s) each camera can take a photo and hand it
+	// over, keeping that up (measured: see cameraConn.measurePace), by its id.
+	CameraPace map[string]float64 `toml:"CameraPace,omitempty"`
 	PhotoDir   string `toml:"PhotoDir,omitempty"` // where real cameras' photos are saved (a folder a day); empty = ~/Pictures/gosts-rig
 	Roles      Roles  `toml:"Roles"`
 	Motion     Motion `toml:"Motion"`

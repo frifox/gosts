@@ -65,7 +65,7 @@ func main() {
 
 	a := &app{cfg: cfg, clients: map[*client]struct{}{}}
 	a.rig = &rig{cfg: cfg, out: a.broadcast}
-	a.camera = &cameraConn{out: a.broadcast}
+	a.camera = &cameraConn{out: a.broadcast, cfg: cfg}
 	a.cap = &capture{rig: a.rig, camera: a.camera, out: a.broadcast}
 	if err := a.cap.preview(c.Plan); err != nil {
 		log.Print(err)

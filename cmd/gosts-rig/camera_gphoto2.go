@@ -67,6 +67,7 @@ type gphoto2Camera struct {
 
 	mu        sync.Mutex
 	fire, dl  time.Duration // recently: firing a photo, downloading its JPEG
+	confirm   time.Duration // and from firing to the camera saying it has it
 	apertures [2]int        // the lens's f-stops, as indexes of the camera's choices (see Probe; [1] 0: not probed)
 	tmp       string        // the shell's folder, where files land
 }
@@ -140,7 +141,7 @@ func (g *gphoto2Camera) Shoot(ctx context.Context, sh shutter) error {
 func (g *gphoto2Camera) MinInterval() time.Duration {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return g.fire + g.dl + 200*time.Millisecond
+	return max(g.fire+g.dl, g.fire+g.confirm) + 200*time.Millisecond
 }
 
 // measured blends a new measurement into a recent average.
@@ -238,6 +239,10 @@ var gphoto2Added = regexp.MustCompile(`FILEADDED (\S+)`)
 // (e.g. the camera on RAW only: nothing comes over).
 var pictureWait = 30 * time.Second
 
+// confirmWait is how long after the shutter the camera gets to say it has
+// the photo before it's taken as ignored (and fired again).
+var confirmWait = 4 * time.Second
+
 // heldWait is how long a file that may be a given-up photo's, late, waits
 // for the next number to show it was (see gaveUp in work).
 var heldWait = 3 * time.Second
@@ -322,6 +327,22 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 		deliver(0, h.name, h.data)
 	}
 	open := true
+	// The shot fired last, till the camera says it has it (a file of it on
+	// the card, or its JPEG): the next waits for that, as a camera still
+	// busy with one ignores the shutter for the next (then there'd be fewer
+	// files than photos, and the pictures matched to the wrong ones).
+	var pend struct {
+		on      bool
+		num     int // its file number (0: not known yet)
+		at      time.Time
+		retries int
+	}
+	confirm := func(k int) {
+		if pend.on && (pend.num == 0 || k == 0 || k >= pend.num) {
+			pend.on = false
+			measured(&g.confirm, time.Since(pend.at), &g.mu)
+		}
+	}
 	collect := func(d time.Duration) {
 		start := time.Now()
 		out, err := sh.run(fmt.Sprintf("wait-event-and-download %dms", d.Milliseconds()), d+10*time.Second)
@@ -332,6 +353,7 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			if m := gphoto2Added.FindStringSubmatch(l); m != nil {
 				log.Printf("camera: on the card: %s", m[1])
 				k := cameraFileNumber(m[1])
+				confirm(k)
 				if k > 0 {
 					settle(k)
 				}
@@ -352,6 +374,7 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 				continue
 			}
 			k := cameraFileNumber(name)
+			confirm(k)
 			if k > 0 {
 				settle(k)
 			}
@@ -488,6 +511,25 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			r.fired <- r.ctx.Err()
 			continue
 		}
+		// The last shot first: till the camera has it. Not by now (it
+		// ignored the shutter): fired again, a time or two.
+		for pend.on {
+			if time.Since(pend.at) < confirmWait {
+				collect(250 * time.Millisecond)
+				continue
+			}
+			if pend.retries >= 2 {
+				log.Printf("camera: the camera didn't take a photo for its shutter, fired 3 times: going on")
+				pend.on = false
+				break
+			}
+			pend.retries++
+			log.Printf("camera: no photo %v after the shutter (the camera busy?): firing it again", confirmWait)
+			if _, err := sh.run("trigger-capture", 15*time.Second); err != nil {
+				log.Printf("camera: firing again: %v", err)
+			}
+			pend.at = time.Now()
+		}
 		r.firing()
 		start := time.Now()
 		out, err := sh.run("trigger-capture", 15*time.Second)
@@ -499,6 +541,7 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			continue
 		}
 		measured(&g.fire, time.Since(start), &g.mu)
+		pend.on, pend.num, pend.at, pend.retries = true, next, time.Now(), 0
 		queue = append(queue, waiting{got: r.got, since: time.Now(), dir: r.folder(), num: next})
 		if next > 0 {
 			next++
