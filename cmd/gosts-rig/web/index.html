@@ -267,6 +267,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .view .card-body { flex: 1; position: relative; padding: 0; min-height: 300px; }
+#ctlFrame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 0 0 12px 12px; background: var(--panel); }
 #rig { position: absolute; inset: 0; cursor: grab; touch-action: none; overflow: hidden; border-radius: 0 0 12px 12px; }
 #rig:active { cursor: grabbing; }
 #rig canvas { display: block; }
@@ -428,6 +429,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   <section class="card settings-card" id="settingsCard" hidden>
     <h2>Settings <span class="dev-name" id="settingsWhat"></span><span class="spacer"></span>
       <button class="btn small danger hdr-btn" id="camDisconnectBtn" title="Disconnect the camera (a capture running stops)" hidden>Disconnect</button>
+      <button class="btn small hdr-btn" id="ctlBtn" title="The servo console (gosts-ctl's) on the rig's board, in the Rig View's place: each servo's settings, tuning, limits, telemetry" hidden>Servo Ctl</button>
       <button class="btn small danger hdr-btn" id="rigDisconnectBtn" title="Disconnect the rig's board (a capture running stops)" hidden>Disconnect</button>
       <button class="icon-btn" id="settingsClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
     <div id="camConfigModal" hidden>
@@ -533,6 +535,11 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <span style="--c:var(--pending)">planned shot</span><span style="--c:var(--done)">taken</span><span style="--c:var(--accent)">next</span>
       </div>
     </div>
+  </section>
+  <!-- Servo Ctl: gosts-ctl's console (served at /ctl/), on the rig's board, in the Rig View's place. -->
+  <section class="card view" id="ctlCard" hidden>
+    <h2>Servo Ctl</h2>
+    <div class="card-body"><iframe id="ctlFrame" title="Servo console"></iframe></div>
   </section>
   </div>
 </div>
@@ -1121,15 +1128,31 @@ function showSettings(which) { // "camera" or "rig"
   $("rigCfgModal").hidden = which !== "rig";
   $("camDisconnectBtn").hidden = which !== "camera";
   $("rigDisconnectBtn").hidden = which !== "rig" || !state.server?.connected; // Rig Setup opens without a board too
+  $("ctlBtn").hidden = which !== "rig";
+  if (which !== "rig") showCtl(false);
   $("settingsWhat").textContent = which === "camera" ? "Camera" : "Rig";
   $("captureCard").classList.toggle("selected", which === "camera");
   $("rigCard").classList.toggle("selected", which === "rig");
   $("cameraCard").hidden = true;
-  $("viewCard").hidden = which !== "rig"; // the rig's: Rig View below, the changes live in it
+  $("viewCard").hidden = which !== "rig" || !!state.ctlOpen; // the rig's: Rig View below, the changes live in it
   $("settingsCard").classList.toggle("fit", which === "rig");
   $("settingsCard").hidden = false;
 }
+// showCtl opens Servo Ctl (gosts-ctl's console) in the Rig View's place, or
+// closes it. Closed, its page goes (so it stops streaming telemetry). Not
+// while a capture runs: it could move the servos.
+function showCtl(on) {
+  on = on && !state.cap?.running;
+  if (on === !!state.ctlOpen) return;
+  state.ctlOpen = on;
+  $("ctlBtn").classList.toggle("primary", on);
+  $("ctlCard").hidden = !on;
+  $("viewCard").hidden = on;
+  $("ctlFrame").src = on ? "/ctl/?embed" : "about:blank";
+}
+$("ctlBtn").onclick = () => showCtl(!state.ctlOpen);
 function hideSettings() {
+  showCtl(false);
   $("camConfigModal").hidden = $("rigCfgModal").hidden = true;
   $("captureCard").classList.remove("selected");
   $("rigCard").classList.remove("selected");
@@ -1933,7 +1956,8 @@ function onCapture(m) {
   $("startBtn").hidden = $("previewBtn").hidden = m.running;
   $("pauseBtn").hidden = $("abortBtn").hidden = !m.running;
   $("previewBtn").disabled = m.shots.length < 2;
-  if (m.running) stopPreview();
+  if (m.running) { stopPreview(); showCtl(false); }
+  $("ctlBtn").disabled = m.running;
   $("pauseBtn").textContent = m.paused ? "Resume" : "Pause";
   planLock();
   $("pSettle").disabled = m.running;
@@ -2080,7 +2104,7 @@ let skLast = 0;
 // Cards fold by their title (not by the buttons and switches in it). All
 // start open; each window remembers which were folded. Both Camera cards,
 // Rig, Rig View and Settings don't fold: they're what the page is for (only Log does).
-const UNFOLDING = ["captureCard", "rigCard", "cameraCard", "viewCard", "settingsCard"];
+const UNFOLDING = ["captureCard", "rigCard", "cameraCard", "viewCard", "settingsCard", "ctlCard"];
 (function cards() {
   let folded = {};
   try { folded = JSON.parse(localStorage.getItem("foldedCards") || "{}") || {}; } catch {}

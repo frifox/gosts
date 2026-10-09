@@ -27,8 +27,15 @@ type rig struct {
 	busMu sync.RWMutex
 	bus   *gosts.Bus
 
+	// attach, detach: the servo console (gosts-ctl's, in the page's Servo Ctl)
+	// working on the board too, given a view of the bus once the servos are
+	// found, let go of before the bus closes (nil: none).
+	attach func(bus *gosts.Bus, port string, baud int, ids []uint8)
+	detach func()
+
 	mu       sync.Mutex
 	port     string
+	baud     int
 	found    []uint8 // servos found by the last scan
 	scanning bool
 	target   struct {
@@ -80,7 +87,7 @@ func (r *rig) connect(ctx context.Context, port string, baud int) error {
 	r.bus = bus
 	r.busMu.Unlock()
 	r.mu.Lock()
-	r.port, r.found = port, nil
+	r.port, r.baud, r.found = port, baud, nil
 	r.mu.Unlock()
 	r.logf("info", "connected to %s", port)
 	return r.scan(ctx)
@@ -117,6 +124,9 @@ func newSim(ro Roles) *servosim.Port {
 }
 
 func (r *rig) disconnect() {
+	if r.detach != nil {
+		r.detach()
+	}
 	r.busMu.Lock()
 	if r.bus != nil {
 		r.bus.Close()
@@ -183,7 +193,14 @@ func (r *rig) scan(ctx context.Context) error {
 	if err == nil {
 		r.found = found
 	}
+	port, baud := r.port, r.baud
 	r.mu.Unlock()
+	if err == nil && r.attach != nil {
+		_ = r.withBus(func(bus *gosts.Bus) error {
+			r.attach(bus.View(), port, baud, found) // its own mirroring: the console's settings
+			return nil
+		})
+	}
 	if err != nil {
 		r.logf("error", "scan: %v", err)
 	} else {

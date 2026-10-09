@@ -21,7 +21,7 @@ type Port interface {
 // Bus is one half-duplex servo bus (one adapter / serial port). It is safe for
 // concurrent use; transactions are serialized.
 type Bus struct {
-	mu       sync.Mutex
+	mu       *sync.Mutex // shared with the bus's views (see View)
 	port     Port
 	closer   io.Closer
 	timeout  time.Duration
@@ -60,7 +60,7 @@ func WithStatusHandler(f func(id uint8, s Status)) Option {
 // NewBus wraps an already opened Port. If the port implements io.Closer it is
 // closed by Bus.Close.
 func NewBus(p Port, opts ...Option) (*Bus, error) {
-	b := &Bus{port: p, timeout: 50 * time.Millisecond, retries: 2, tmp: make([]byte, 512)}
+	b := &Bus{mu: &sync.Mutex{}, port: p, timeout: 50 * time.Millisecond, retries: 2, tmp: make([]byte, 512)}
 	if c, ok := p.(io.Closer); ok {
 		b.closer = c
 	}
@@ -71,6 +71,16 @@ func NewBus(p Port, opts ...Option) (*Bus, error) {
 		return nil, fmt.Errorf("gosts: set read timeout: %w", err)
 	}
 	return b, nil
+}
+
+// View returns another Bus on the same port: its transactions are serialized
+// with b's (the two never talk over each other), but it has its own mirroring
+// and motion ranges, none to start with. Two programs sharing one adapter,
+// each with its own idea of the servos, use one each. Closing either closes
+// the port.
+func (b *Bus) View() *Bus {
+	return &Bus{mu: b.mu, port: b.port, closer: b.closer, timeout: b.timeout, retries: b.retries,
+		noAck: b.noAck, onStatus: b.onStatus, tmp: make([]byte, len(b.tmp))}
 }
 
 // Close closes the underlying port.

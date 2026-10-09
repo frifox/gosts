@@ -45,6 +45,10 @@ func New(h Handler) *Server { return &Server{h: h, clients: map[*Client]struct{}
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(indexHTML)
 	})
@@ -88,6 +92,13 @@ func (c *Client) Push(msg any) {
 	case c.send <- msg:
 	default:
 	}
+}
+
+// Clients is how many windows are open.
+func (s *Server) Clients() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.clients)
 }
 
 // Broadcast sends msg to every window.

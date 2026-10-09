@@ -33,6 +33,7 @@ type Board struct {
 	bus   *gosts.Bus
 
 	mu         sync.Mutex
+	attached   bool // the bus is another program's (Attach): not closed here, no other connected
 	port       string
 	baud       int
 	ids        []uint8 // servos found by the last scan
@@ -135,12 +136,48 @@ func ListPorts() ([]internal.PortInfo, error) {
 	return out, nil
 }
 
+// Attach uses bus, which another program connected to port at baud, with the
+// servos it found: as Connect, but the bus isn't closed by Disconnect, and no
+// other board can be connected meanwhile.
+func (b *Board) Attach(bus *gosts.Bus, port string, baud int, ids []uint8) {
+	b.Disconnect()
+	b.applyConfig(bus)
+	b.busMu.Lock()
+	b.bus = bus
+	b.busMu.Unlock()
+	b.mu.Lock()
+	b.attached, b.port, b.baud, b.ids, b.scanned = true, port, baud, slices.Clone(ids), true
+	slices.Sort(b.ids)
+	b.mu.Unlock()
+	b.n.BroadcastState()
+}
+
+// Attached reports whether the bus is another program's (see Attach).
+func (b *Board) Attached() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.attached
+}
+
+// applyConfig puts the config's mirroring and motion ranges on bus.
+func (b *Board) applyConfig(bus *gosts.Bus) {
+	for id, sc := range b.cfg.All() {
+		bus.SetMirrored(id, sc.Mirrored)
+		if len(sc.Range) == 2 {
+			bus.SetRange(id, gosts.Range{Lo: sc.Range[0], Hi: sc.Range[1]})
+		}
+	}
+}
+
 // Connect opens port (SimPort for the simulator), closing any previous
 // connection. Mirroring and motion ranges from the config are applied to the
 // new bus.
 func (b *Board) Connect(port string, baud int) error {
 	if port == "" {
 		return errors.New("no port selected")
+	}
+	if b.Attached() {
+		return errors.New("the driver board is the rig's: it's connected there")
 	}
 	b.Disconnect()
 	if baud <= 0 {
@@ -156,12 +193,7 @@ func (b *Board) Connect(port string, baud int) error {
 	if err != nil {
 		return err
 	}
-	for id, sc := range b.cfg.All() {
-		bus.SetMirrored(id, sc.Mirrored)
-		if len(sc.Range) == 2 {
-			bus.SetRange(id, gosts.Range{Lo: sc.Range[0], Hi: sc.Range[1]})
-		}
-	}
+	b.applyConfig(bus)
 	b.busMu.Lock()
 	b.bus = bus
 	b.busMu.Unlock()
@@ -173,27 +205,30 @@ func (b *Board) Connect(port string, baud int) error {
 	return nil
 }
 
-// Disconnect stops a scan and closes the connection.
+// Disconnect stops a scan and closes the connection (an attached bus is only
+// let go of: see Attach).
 func (b *Board) Disconnect() {
 	b.mu.Lock()
 	if b.scanCancel != nil {
 		b.scanCancel(nil)
 	}
-	wasConnected := b.port != ""
+	wasConnected, attached := b.port != "", b.attached
 	b.mu.Unlock()
 
 	b.busMu.Lock() // waits for an in-flight scan or command to finish
-	if b.bus != nil {
+	if b.bus != nil && !attached {
 		b.bus.Close()
-		b.bus = nil
 	}
+	b.bus = nil
 	b.busMu.Unlock()
 
 	b.mu.Lock()
-	b.port, b.baud, b.ids, b.scanned = "", 0, nil, false
+	b.attached, b.port, b.baud, b.ids, b.scanned = false, "", 0, nil, false
 	b.mu.Unlock()
 	if wasConnected {
-		b.n.Logf("info", "disconnected")
+		if !attached {
+			b.n.Logf("info", "disconnected")
+		}
 		b.n.BroadcastState()
 	}
 }

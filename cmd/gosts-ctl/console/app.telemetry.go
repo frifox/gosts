@@ -1,4 +1,4 @@
-package main
+package console
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 // pollLoop reads the found servos' telemetry every a.poll, checks the groups'
 // health and streams both to every window.
-func (a *app) pollLoop(ctx context.Context) {
+func (a *App) pollLoop(ctx context.Context) {
 	t := time.NewTicker(a.poll)
 	defer t.Stop()
 	for {
@@ -21,7 +21,7 @@ func (a *app) pollLoop(ctx context.Context) {
 		case <-t.C:
 		}
 		st := a.board.Status()
-		if len(st.IDs) == 0 || st.Scanning {
+		if len(st.IDs) == 0 || st.Scanning || a.srv.Clients() == 0 { // no one to show it to
 			continue
 		}
 		states := map[string]internal.ServoState{}

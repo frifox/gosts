@@ -1,4 +1,4 @@
-package main
+package console
 
 import (
 	"fmt"
@@ -68,7 +68,7 @@ var changesServo = map[string]bool{
 	"mirror": true, "setid": true, "servoEdit": true, "weightComp": true, "zeroAt": true, "angle": true, "jog": true, "step": true, "align": true, "copyTuning": true,
 }
 
-func (a *app) afterChange(c *web.Client, req internal.Request) {
+func (a *App) afterChange(c *web.Client, req internal.Request) {
 	if !changesServo[req.Type] {
 		return
 	}
@@ -101,7 +101,7 @@ type pendingRefresh struct {
 // config read and broadcast per servo.
 const refreshDelay = 150 * time.Millisecond
 
-func (a *app) scheduleRefresh(id uint8, origin int) {
+func (a *App) scheduleRefresh(id uint8, origin int) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.refresh == nil {

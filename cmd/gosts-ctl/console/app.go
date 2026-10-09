@@ -1,9 +1,10 @@
-package main
+package console
 
 import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"slices"
 	"strconv"
 	"sync"
@@ -16,11 +17,11 @@ import (
 	"github.com/frifox/gosts/cmd/gosts-ctl/web"
 )
 
-// app ties gosts-ctl together: it builds the web server, the driver board and
+// App ties gosts-ctl together: it builds the web server, the driver board and
 // the servo controller, runs the browser's requests on them (as the web
 // package's Handler), polls telemetry, keeps every window in sync, and is the
 // Notifier the other packages report through.
-type app struct {
+type App struct {
 	cfg    *internal.Config
 	srv    *web.Server
 	board  *board.Board
@@ -33,10 +34,10 @@ type app struct {
 	at      *autotuneRun // current or last auto-tune run
 }
 
-// newApp builds the app. simIDs are the servos of the simulated board; poll is
+// New builds the app. simIDs are the servos of the simulated board; poll is
 // the telemetry interval; noSync polls servos one by one instead of SYNC READ.
-func newApp(cfg *internal.Config, simIDs []uint8, poll time.Duration, noSync bool) *app {
-	a := &app{cfg: cfg, poll: poll, noSync: noSync}
+func New(cfg *internal.Config, simIDs []uint8, poll time.Duration, noSync bool) *App {
+	a := &App{cfg: cfg, poll: poll, noSync: noSync}
 	a.srv = web.New(a)
 	a.board = board.New(cfg, a, simIDs)
 	a.ctl = servo.New(cfg, a)
@@ -44,22 +45,22 @@ func newApp(cfg *internal.Config, simIDs []uint8, poll time.Duration, noSync boo
 }
 
 // Logf logs a message and shows it in every window's log.
-func (a *app) Logf(level, format string, args ...any) {
+func (a *App) Logf(level, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	log.Print(msg)
 	a.srv.Broadcast(internal.LogMsg{Type: "log", Level: level, Message: msg})
 }
 
 // Broadcast sends a message to every window.
-func (a *app) Broadcast(msg any) { a.srv.Broadcast(msg) }
+func (a *App) Broadcast(msg any) { a.srv.Broadcast(msg) }
 
 // BroadcastState sends the current state to every window.
-func (a *app) BroadcastState() { a.srv.Broadcast(a.stateMsg()) }
+func (a *App) BroadcastState() { a.srv.Broadcast(a.stateMsg()) }
 
 // Refresh re-reads servo id's settings soon and sends them to every window.
-func (a *app) Refresh(id uint8) { a.scheduleRefresh(id, -1) }
+func (a *App) Refresh(id uint8) { a.scheduleRefresh(id, -1) }
 
-func (a *app) stateMsg() internal.StateMsg {
+func (a *App) stateMsg() internal.StateMsg {
 	st := a.board.Status()
 	mirrored, signed, names, colors, zeros, dialUps := []int{}, []int{}, map[string]string{}, map[string]string{}, map[string]float64{}, map[string]float64{}
 	ranges, weightComp, accs := map[string][]int{}, []int{}, map[string]int{}
@@ -101,10 +102,10 @@ func (a *app) stateMsg() internal.StateMsg {
 		Colors: colors, Zeros: zeros, DialUps: dialUps, Ranges: ranges, Groups: groupInfos(a.cfg.AllGroups())}
 }
 
-// run serves the console on addr until ctx is done. With port set it first
+// Run serves the console on addr until ctx is done. With port set it first
 // connects to that driver board (board.SimPort for the simulator) and scans
 // it for servos.
-func (a *app) run(ctx context.Context, addr, port string, baud int) error {
+func (a *App) Run(ctx context.Context, addr, port string, baud int) error {
 	if port != "" {
 		if err := a.board.Connect(port, baud); err != nil {
 			return err
@@ -118,3 +119,37 @@ func (a *app) run(ctx context.Context, addr, port string, baud int) error {
 	go a.pollLoop(ctx)
 	return a.srv.ListenAndServe(ctx, addr)
 }
+
+// Embedding: another program that owns the driver board (gosts-rig) serves
+// the console within its own page. It mounts Routes (the page at /, the
+// WebSocket at ws), runs Poll, and attaches the console to its bus while it's
+// connected.
+
+// Routes is the console's page (/) and WebSocket (ws), relative: mount it
+// under a prefix with http.StripPrefix. The page opened with ?embed hides its
+// own header and the choosing of the board.
+func (a *App) Routes() http.Handler { return a.srv.Routes() }
+
+// Poll streams telemetry to the console's windows (while there are any) until
+// ctx is done.
+func (a *App) Poll(ctx context.Context) { a.pollLoop(ctx) }
+
+// Attach works the console on bus, a board another program connected to port
+// at baud, with the servos it found (ids): the console doesn't close it, nor
+// connect to another. bus is best a view of that program's (gosts.Bus.View):
+// the console's mirroring and motion ranges are its own.
+func (a *App) Attach(bus *gosts.Bus, port string, baud int, ids []uint8) {
+	a.stopAutotune()
+	a.board.Attach(bus, port, baud, ids)
+}
+
+// Detach lets go of an attached bus (the other program disconnecting).
+func (a *App) Detach() {
+	a.stopAutotune()
+	a.board.Disconnect()
+}
+
+// LoadConfig reads the console's settings file (servo names, mirroring, zero,
+// ranges, groups), created on the first change; warnings are about entries
+// it ignored.
+func LoadConfig(path string) (*internal.Config, []string, error) { return internal.LoadConfig(path) }

@@ -264,7 +264,20 @@ td .num { width: 90px; padding: 3px 6px; }
 #log div { padding: 2px 0; border-bottom: 1px dashed var(--grid); }
 #log .error { color: var(--bad); }
 #log time { color: var(--muted); margin-right: 8px; }
+/* Embedded (opened with ?embed: gosts-rig's Servo Ctl, on the rig's board): no header, and no
+   choosing the board (the rig's), the page's own background the card's. */
+html.embed body { background: var(--panel); }
+html.embed header, html.embed .steps, html.embed #connectView, html.embed #backToBoard { display: none; }
+html.embed .wizard { margin-top: 16px; }
+html.embed .layout { padding: 14px; }
+html.embed::-webkit-scrollbar { width: 8px; }
+html.embed::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
+html.embed::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+html.embed::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+#embedWait { display: none; }
+html.embed #embedWait:not([hidden]) { display: block; }
 </style>
+<script>if (new URLSearchParams(location.search).has("embed")) document.documentElement.classList.add("embed");</script>
 </head>
 <body>
 <header>
@@ -311,6 +324,8 @@ td .num { width: 90px; padding: 3px 6px; }
         Set its jumper to USB mode and power the servos through its DC input.</p>
     </div>
   </section>
+
+  <p class="hint" id="embedWait" hidden>Connect the rig's driver board (in the Rig card) to work its servos here.</p>
 
   <section class="card" id="scanView" hidden>
     <h2>Find servos on <span id="scanBoard" style="text-transform:none;letter-spacing:0;font-family:var(--mono)"></span></h2>
@@ -754,7 +769,10 @@ const state = {
 
 // ---------------------------------------------------------------- websocket
 function connect() {
-  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
+  const url = new URL("ws", location.href); // beside the page: /ws, or /ctl/ws in gosts-rig
+  url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  url.search = "";
+  const ws = new WebSocket(url);
   state.ws = ws;
   ws.onopen = () => { setConn(true); send("ports").catch(() => {}); };
   ws.onclose = () => {
@@ -1847,6 +1865,7 @@ function renderView() {
   const v = currentView(), s = state.server;
   $("wizard").hidden = v === "console";
   $("connectView").hidden = v !== "connect";
+  $("embedWait").hidden = v !== "connect";
   $("scanView").hidden = v !== "scan";
   $("consoleView").hidden = v !== "console";
   const steps = { connect: 1, scan: 2, console: 3 }[v];

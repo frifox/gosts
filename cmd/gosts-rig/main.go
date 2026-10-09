@@ -5,7 +5,9 @@
 // the rig live.
 //
 // Set up and calibrate the servos with gosts-ctl first (IDs, zero, tuning,
-// limits); gosts-rig and gosts-ctl can't use the serial port at the same time.
+// limits); gosts-rig and gosts-ctl can't use the serial port at the same time,
+// but gosts-ctl's console is in gosts-rig too (Servo Ctl in the rig's settings,
+// served at /ctl/), on the rig's board.
 //
 //	go install github.com/frifox/gosts/cmd/gosts-rig@latest
 //
@@ -26,8 +28,12 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/frifox/gosts/cmd/gosts-ctl/console"
 )
 
 func main() {
@@ -38,6 +44,7 @@ func main() {
 	addr := flag.String("listen", "", "address to serve the page on, e.g. \":8081\", \"localhost:9000\" or just a port, 9000 (default: ListenAddr in the config file, \":8081\" if unset)")
 	flag.StringVar(addr, "addr", "", "the same as --listen (its old name)")
 	cfgPath := flag.String("config", defaultConfigPath(), "settings file, created if missing")
+	ctlPath := flag.String("ctl-config", ctlConfigPath(), "the servo console's settings file (Servo Ctl: gosts-ctl's, shared with it), created on the first change")
 	flag.Parse()
 
 	cfg, err := loadConfig(*cfgPath)
@@ -67,6 +74,16 @@ func main() {
 	a.rig = &rig{cfg: cfg, out: a.broadcast}
 	a.camera = &cameraConn{out: a.broadcast, cfg: cfg}
 	a.cap = &capture{rig: a.rig, camera: a.camera, out: a.broadcast}
+	// The servo console (Servo Ctl): gosts-ctl's, on the rig's board.
+	ctlCfg, warnings, err := console.LoadConfig(*ctlPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, w := range warnings {
+		log.Print(w)
+	}
+	ctl := console.New(ctlCfg, nil, 50*time.Millisecond, false)
+	a.rig.attach, a.rig.detach = ctl.Attach, ctl.Detach
 	if err := a.cap.preview(c.Plan); err != nil {
 		log.Print(err)
 	}
@@ -113,6 +130,7 @@ func main() {
 	defer a.camera.disconnect()
 	defer a.rig.disconnect()
 	go a.rig.pollLoop(ctx)
+	go ctl.Poll(ctx)
 	go a.camera.pollBattery(ctx)
 
 	mux := http.NewServeMux()
@@ -122,6 +140,7 @@ func main() {
 	mux.HandleFunc("GET /photo/{file}", a.handlePhoto)
 	mux.HandleFunc("POST /photo/sim", a.handleSimPhoto)
 	mux.HandleFunc("GET /camera/preview", a.handlePreview)
+	mux.Handle("/ctl/", http.StripPrefix("/ctl", ctl.Routes()))
 	hs := &http.Server{Addr: *addr, Handler: mux}
 	go func() {
 		<-ctx.Done()
@@ -136,6 +155,16 @@ func main() {
 	if err := hs.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+}
+
+// ctlConfigPath is gosts-ctl's settings file (gosts-ctl/config.toml in the
+// user's config directory), so Servo Ctl and gosts-ctl share it.
+func ctlConfigPath() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "gosts-ctl.toml"
+	}
+	return filepath.Join(dir, "gosts-ctl", "config.toml")
 }
 
 // startupDevice picks the device to connect on startup from the real ones

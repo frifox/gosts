@@ -1,4 +1,4 @@
-package main
+package console
 
 import (
 	"context"
@@ -37,13 +37,13 @@ func tunedValues(p autotune.Params) []internal.RegValue {
 }
 
 // tuning reports whether an auto-tune run is moving servo id.
-func (a *app) tuning(id uint8) bool {
+func (a *App) tuning(id uint8) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.at != nil && a.at.cancel != nil && slices.Contains(a.at.members, id)
 }
 
-func (a *app) autotuneTarget(bus *gosts.Bus, req internal.Request) (autotune.Target, *autotuneRun, error) {
+func (a *App) autotuneTarget(bus *gosts.Bus, req internal.Request) (autotune.Target, *autotuneRun, error) {
 	found := a.board.IDs()
 	if req.Group != "" {
 		gc, ok := a.cfg.Group(req.Group)
@@ -70,7 +70,7 @@ func (a *app) autotuneTarget(bus *gosts.Bus, req internal.Request) (autotune.Tar
 }
 
 // startAutotune runs in its own goroutine (it takes minutes).
-func (a *app) startAutotune(req internal.Request) error {
+func (a *App) startAutotune(req internal.Request) error {
 	return a.board.WithBus(func(bus *gosts.Bus) error {
 		target, run, err := a.autotuneTarget(bus, req)
 		if err != nil {
@@ -148,7 +148,7 @@ func (a *app) startAutotune(req internal.Request) error {
 }
 
 // finishAutotune saves or reverts the last result.
-func (a *app) finishAutotune(save bool) error {
+func (a *App) finishAutotune(save bool) error {
 	a.mu.Lock()
 	run := a.at
 	a.mu.Unlock()
@@ -210,7 +210,7 @@ func (a *app) finishAutotune(save bool) error {
 	return nil
 }
 
-func (a *app) stopAutotune() {
+func (a *App) stopAutotune() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.at != nil && a.at.cancel != nil {
@@ -220,7 +220,7 @@ func (a *app) stopAutotune() {
 
 // autotuneState is sent to a window that connects while a run is active or
 // has an unsaved result.
-func (a *app) autotuneState() *internal.AutotuneMsg {
+func (a *App) autotuneState() *internal.AutotuneMsg {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.at == nil {

@@ -1,6 +1,9 @@
 package gosts
 
-import "testing"
+import (
+	"sync"
+	"testing"
+)
 
 func physGoal(p *fakePort, id uint8) int {
 	return RegGoalPosition.decode(p.servos[id].mem[RegGoalPosition.Addr:])
@@ -135,5 +138,37 @@ func TestMirroredLimitsConfigAndID(t *testing.T) {
 	}
 	if b.Mirrored(3) || !b.Mirrored(4) {
 		t.Fatal("mirror flag should follow the ID")
+	}
+}
+
+// A view shares the port but not the mirroring: the same servo reads mirrored
+// on one and not the other, and both views' traffic gets through together.
+func TestViewMirroring(t *testing.T) {
+	p := newFakePort(1)
+	b, _ := NewBus(p)
+	v := b.View()
+	b.SetMirrored(1, true)
+	if !b.Mirrored(1) || v.Mirrored(1) {
+		t.Fatal("a view's mirroring isn't its own")
+	}
+	putU16(p.servos[1].mem[RegPresentPosition.Addr:], 1000)
+	var wg sync.WaitGroup
+	errs := make(chan error, 40)
+	for i := 0; i < 20; i++ {
+		wg.Add(2)
+		go func() { defer wg.Done(); _, err := b.Servo(1).Position(); errs <- err }()
+		go func() { defer wg.Done(); _, err := v.Servo(1).Position(); errs <- err }()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	pb, _ := b.Servo(1).Position()
+	pv, _ := v.Servo(1).Position()
+	if pv != 1000 || pb != 2*CenterPosition-1000 {
+		t.Fatalf("positions: bus %d, view %d", pb, pv)
 	}
 }
