@@ -610,3 +610,25 @@ func TestPlanPathNames(t *testing.T) {
 		}
 	}
 }
+
+// TestCameraXFromOffset: a config from before Camera X (the camera's offset
+// from its bar) reads as the sensor's distance from the turntable's centre,
+// and is saved so.
+func TestCameraXFromOffset(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[Rig]\n  SwingX = 600.0\n  CameraOffset = -50.0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The bar 290 mm out, the body 50 mm further, the sensor 8 mm back in: 332.
+	if r := cfg.get().Rig; r.CameraX != 332 || r.CameraOffset != 0 {
+		t.Fatalf("camera X %v, offset %v; want 332, 0", r.CameraX, r.CameraOffset)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), "CameraX = 332") || strings.Contains(string(data), "CameraOffset") {
+		t.Errorf("saved:\n%s", data)
+	}
+}

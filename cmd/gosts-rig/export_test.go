@@ -15,7 +15,7 @@ import (
 // its axes are at right angles.
 func TestCamPose(t *testing.T) {
 	r := defaultConfig().Rig
-	r.CameraOffset, r.CameraZ = 0, 0
+	r.CameraZ = 0
 	axis := vec3{0, 0, 20 + r.PostZ + 30 - r.TurntableZ} // the tilt axis' middle, from the turntable's top
 	for _, e := range []float64{0, 30, -20} {
 		for _, az := range []float64{0, 90, -135} {

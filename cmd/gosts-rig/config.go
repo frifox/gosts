@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -19,15 +20,15 @@ type Config struct {
 	ListenAddr string `toml:"ListenAddr"`
 	Port       string `toml:"Port,omitempty"` // serial device connected on startup; empty = pick in the browser
 	Baud       int    `toml:"Baud,omitzero"`
-	Camera     string `toml:"Camera,omitempty"`   // camera connected on startup; empty = pick in the browser
+	Camera     string `toml:"Camera,omitempty"` // camera connected on startup; empty = pick in the browser
 	// CameraPace is how often (s) each camera can take a photo and hand it
 	// over, keeping that up (measured: see cameraConn.measurePace), by its id.
 	CameraPace map[string]float64 `toml:"CameraPace,omitempty"`
-	PhotoDir   string `toml:"PhotoDir,omitempty"` // where real cameras' photos are saved (a folder a day); empty = ~/Pictures/gosts-rig
-	Roles      Roles  `toml:"Roles"`
-	Motion     Motion `toml:"Motion"`
-	Plan       Plan   `toml:"Plan"`
-	Rig        Rig    `toml:"Rig"`
+	PhotoDir   string             `toml:"PhotoDir,omitempty"` // where real cameras' photos are saved (a folder a day); empty = ~/Pictures/gosts-rig
+	Roles      Roles              `toml:"Roles"`
+	Motion     Motion             `toml:"Motion"`
+	Plan       Plan               `toml:"Plan"`
+	Rig        Rig                `toml:"Rig"`
 }
 
 // Rig is the rig's measurements in mm, seen from above: X along the base
@@ -36,14 +37,15 @@ type Config struct {
 type Rig struct {
 	BaseX        float64 `toml:"BaseX"` // base frame, outer
 	BaseY        float64 `toml:"BaseY"`
-	PostZ        float64 `toml:"PostZ"`        // vertical posts in the middle of the X sides
-	SwingX       float64 `toml:"SwingX"`       // tilting frame: arm length
-	SwingY       float64 `toml:"SwingY"`       // tilting frame: bar length (camera bar)
-	CameraOffset float64 `toml:"CameraOffset"` // camera from the camera bar; + towards the object
-	CameraZ      float64 `toml:"CameraZ"`      // camera up/down from the camera bar, square to the arms; + up
-	TurntableZ   float64 `toml:"TurntableZ"`   // turntable top height
-	TurntableD   float64 `toml:"TurntableD"`   // turntable diameter
-	ObjectZ      float64 `toml:"ObjectZ"`      // object height (the 3D view scales the model to it)
+	PostZ        float64 `toml:"PostZ"`                 // vertical posts in the middle of the X sides
+	SwingX       float64 `toml:"SwingX"`                // tilting frame: arm length
+	SwingY       float64 `toml:"SwingY"`                // tilting frame: bar length (camera bar)
+	CameraX      float64 `toml:"CameraX"`               // the camera's sensor (its ⦵ mark) from the turntable's centre, across, with the arm level
+	CameraOffset float64 `toml:"CameraOffset,omitzero"` // (before CameraX: the camera's body from the camera bar; read once into CameraX)
+	CameraZ      float64 `toml:"CameraZ"`               // camera up/down from the camera bar, square to the arms; + up
+	TurntableZ   float64 `toml:"TurntableZ"`            // turntable top height
+	TurntableD   float64 `toml:"TurntableD"`            // turntable diameter
+	ObjectZ      float64 `toml:"ObjectZ"`               // object height (the 3D view scales the model to it)
 }
 
 // check reports a measurement that can't be drawn.
@@ -52,7 +54,7 @@ func (r Rig) check() error {
 		name      string
 		v, lo, hi float64
 	}{{"base X", r.BaseX, 100, 3000}, {"base Y", r.BaseY, 100, 3000}, {"post Z", r.PostZ, 50, 3000},
-		{"swing X", r.SwingX, 50, 3000}, {"swing Y", r.SwingY, 50, 3000}, {"camera offset", r.CameraOffset, -500, 500}, {"camera Z offset", r.CameraZ, -500, 500},
+		{"swing X", r.SwingX, 50, 3000}, {"swing Y", r.SwingY, 50, 3000}, {"camera X", r.CameraX, 50, 3000}, {"camera Z offset", r.CameraZ, -500, 500},
 		{"turntable Z", r.TurntableZ, 0, 3000}, {"turntable diameter", r.TurntableD, 20, 2000}, {"object height", r.ObjectZ, 10, 2000}} {
 		if v.v < v.lo || v.v > v.hi {
 			return fmt.Errorf("%s must be %g–%g mm", v.name, v.lo, v.hi)
@@ -121,13 +123,18 @@ func (p Plan) path() string {
 	return PathSphere
 }
 
+// cameraSensorX is how far (mm) the camera's sensor is in front of its
+// body's middle (the A6600: the mount's face 26 mm in front, the sensor 18
+// mm behind it), as the 3D view draws it.
+const cameraSensorX = 8
+
 func defaultConfig() Config {
 	return Config{
 		ListenAddr: ":8081",
 		Roles:      Roles{ElevationLeader: 1, ElevationFollower: 2, Azimuth: 3, LeaderMirrored: true},
 		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80},
 		Plan:       Plan{Photos: 60, SettleMS: 800},
-		Rig:        Rig{BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, TurntableZ: 400, TurntableD: 150, ObjectZ: 100},
+		Rig:        Rig{BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraX: 332, TurntableZ: 400, TurntableD: 150, ObjectZ: 100},
 	}
 }
 
@@ -142,15 +149,28 @@ type configFile struct {
 // file is created so the settings are easy to find.
 func loadConfig(path string) (*configFile, error) {
 	f := &configFile{path: path, c: defaultConfig()}
-	_, err := toml.DecodeFile(path, &f.c)
+	md, err := toml.DecodeFile(path, &f.c)
 	if errors.Is(err, fs.ErrNotExist) {
 		return f, f.save()
 	}
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+	changed := false
 	if p := f.c.Plan.path(); p != f.c.Plan.Path { // a name from before ("even", "linear", or none): saved as it's called now
 		f.c.Plan.Path = p
+		changed = true
+	}
+	if !md.IsDefined("Rig", "CameraX") && md.IsDefined("Rig", "CameraOffset") {
+		// From before CameraX: the camera's body CameraOffset along the arms
+		// from its bar (SwingX/2 − 10 from the axis), its sensor 8 mm in
+		// front of the body's middle.
+		r := &f.c.Rig
+		r.CameraX = math.Round(r.SwingX/2 - 10 - r.CameraOffset - cameraSensorX)
+		r.CameraOffset = 0
+		changed = true
+	}
+	if changed {
 		if err := f.save(); err != nil {
 			return nil, err
 		}

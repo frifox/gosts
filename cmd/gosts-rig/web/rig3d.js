@@ -15,7 +15,7 @@ export const pivotHeight = (d) => P + d.PostZ + 30;
 
 // Default measurements (mm), as in gosts-rig's config: seen from above, X along
 // the base sides that carry the posts, Y along the tilt axis, Z up.
-export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, CameraZ: 0, TurntableZ: 400, TurntableD: 150, ObjectZ: 100 };
+export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraX: 332, CameraZ: 0, TurntableZ: 400, TurntableD: 150, ObjectZ: 100 };
 
 const rad = (d) => d * Math.PI / 180;
 
@@ -292,11 +292,12 @@ export function createRig(container) {
     const ax = d.SwingX / 2;
     for (const s of [-1, 1]) tilt.add(profile(V(-ax, 0, s * armZ), V(ax, 0, s * armZ)));
     for (const s of [-1, 1]) tilt.add(profile(V(s * barX, 0, -armZ + P / 2), V(s * barX, 0, armZ - P / 2)));
-    // The camera sits on the middle of the -X bar, looking at the axis,
-    // CameraOffset along the arms (+ towards the object), CameraZ square to
-    // them (+ up with the arm level).
+    // The camera sits on the -X side, looking at the axis: its sensor
+    // (8 mm in front of the body's middle) CameraX from the turntable's
+    // centre with the arm level, CameraZ above the arms (+ up with the arm
+    // level).
     const camera = a6600();
-    camera.position.set(-barX + d.CameraOffset, P / 2 + 34 + (d.CameraZ || 0), 0);
+    camera.position.set(-(d.CameraX ?? DEFAULT_RIG.CameraX) - 8, P / 2 + 34 + (d.CameraZ || 0), 0);
     tilt.add(camera);
     const sightGeo = new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), V(0, 0, 0)]);
     const sight = new THREE.Line(sightGeo, new THREE.LineDashedMaterial({ color: 0x5b8cff, dashSize: 14, gapSize: 10, transparent: true, opacity: 0.7 }));
@@ -337,7 +338,7 @@ export function createRig(container) {
     }
 
     rig = { d, root, tilt, turn, camera, sight, sightGeo, shotGroup, nextRing, shotMesh: null, shotKey: "", pops, shotR: 5,
-      orbit: barX - d.CameraOffset + 40, // camera (lens) distance from the tilt axis, along the arms
+      orbit: (d.CameraX ?? DEFAULT_RIG.CameraX) + 48, // where the shots' dots go: distance from the tilt axis, along the arms
       lift: d.CameraZ || 0, // and square to them
       objectCentre: V(0, d.TurntableZ + d.ObjectZ / 2, 0), // the object's middle
       target: V(0, d.TurntableZ - 12, 0) }; // the view orbits the bottom of the platform's disc (12 mm thick, see disc)

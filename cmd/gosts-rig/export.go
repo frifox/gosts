@@ -60,14 +60,14 @@ type cameraPose struct {
 // camPose is the pose for a photo taken at elevation e, azimuth az (the
 // rig's angles), from the rig's measurements: as the 3D view draws it (Y up
 // there): the swing tilts about the servos' axis, P + PostZ + 30 mm up; the
-// camera sits on its -X bar (CameraOffset along the arms, CameraZ above
-// them), its sensor 2 mm in front of the body's middle (the lens 10 mm
-// aside), looking along the arms at the axis.
+// camera's sensor is CameraX from the turntable's centre (with the arm
+// level), CameraZ above the arms (the body 34 mm over the bar, the lens
+// 2 mm below its middle and 10 mm aside), looking along the arms at the
+// axis.
 func camPose(r Rig, e, az float64) cameraPose {
 	const p = 20.0 // the profile
 	pivot := p + r.PostZ + 30
-	barX := r.SwingX/2 - p/2
-	s := vec3{-barX + r.CameraOffset + 2, p/2 + 34 + r.CameraZ - 2, 10} // the sensor, in the swing's frame
+	s := vec3{-r.CameraX, p/2 + 34 + r.CameraZ - 2, 10} // the sensor, in the swing's frame
 	ce, se := math.Cos(rad(e)), math.Sin(rad(e))
 	tilt := func(v vec3) vec3 { return vec3{v.X*ce + v.Y*se, -v.X*se + v.Y*ce, v.Z} } // the swing at elevation e
 	pos := tilt(s)
@@ -184,7 +184,7 @@ func exportRealityScan(photos []exportPhoto, in exportIntrinsics) error {
 // along −Z, Y up), metres.
 func exportNerfstudio(dir string, photos []exportPhoto, in exportIntrinsics) error {
 	type frame struct {
-		FilePath  string       `json:"file_path"`
+		FilePath  string        `json:"file_path"`
 		Transform [4][4]float64 `json:"transform_matrix"`
 	}
 	out := map[string]any{"camera_model": "OPENCV"}

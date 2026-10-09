@@ -336,12 +336,12 @@ type photoMsg struct {
 
 // cameraMsg tells the page which camera is connected.
 type cameraMsg struct {
-	Type      string `json:"type"` // "camera"
-	Connected bool   `json:"connected"`
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Battery   string `json:"battery,omitempty"` // e.g. "92%", if the camera says
-	Pace      float64 `json:"pace,omitempty"`   // how often (s) it keeps up taking photos, as measured (0: not yet)
+	Type      string  `json:"type"` // "camera"
+	Connected bool    `json:"connected"`
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Battery   string  `json:"battery,omitempty"` // e.g. "92%", if the camera says
+	Pace      float64 `json:"pace,omitempty"`    // how often (s) it keeps up taking photos, as measured (0: not yet)
 }
 
 // batteryCamera is a camera that tells its battery level.
@@ -752,7 +752,6 @@ func (c *cameraConn) lastPhoto() (photo, int) {
 	}
 	return c.photos[last], last
 }
-
 
 // photoCount is how many photos have been asked for (the last one's number).
 func (c *cameraConn) photoCount() int {

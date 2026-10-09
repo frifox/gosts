@@ -489,7 +489,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <label title="Swing bar length (camera bar)">Swing Y<input type="number" id="dSwingY" step="10"></label>
           <label title="Post height">Post Z<input type="number" id="dPostZ" step="10"></label>
           <label title="Turntable height"><span class="label-head">Turntable Z<button class="mini" id="dTurntableAuto" title="Auto: the height that puts the object's middle on the tilt axis, where the camera points" aria-label="Auto turntable height">⌖</button></span><input type="number" id="dTurntableZ" step="10"></label>
-          <label title="Camera position along the arms: + towards the object">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
+          <label title="From the turntable's centre to the camera's sensor (the ⦵ mark on its top), across, with the arm level">Camera X<input type="number" id="dCameraX" step="5"></label>
           <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z offset<input type="number" id="dCameraZ" step="5"></label>
           <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label>
           <label title="Turntable diameter">Turntable Dia<input type="number" id="dTurntableD" step="10"></label>
@@ -1941,8 +1941,8 @@ $("sSave").onclick = async () => {
 };
 
 // ---------------------------------------------------------------- params (measurements)
-const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraOffset", "CameraZ", "TurntableZ", "TurntableD", "ObjectZ"];
-const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraOffset: -50, CameraZ: 0, TurntableZ: 400, TurntableD: 150, ObjectZ: 100 };
+const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraX", "CameraZ", "TurntableZ", "TurntableD", "ObjectZ"];
+const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraX: 332, CameraZ: 0, TurntableZ: 400, TurntableD: 150, ObjectZ: 100 };
 // The card also holds the elevation limits (kept with the motion settings).
 const LIMITS_DEFAULT = { ElevationMin: -45, ElevationMax: 80 };
 const formDims = () => Object.fromEntries(DIMS.map((k) => [k, Number($("d" + k).value)]));

@@ -251,9 +251,9 @@ func (c *capture) estimate(p Plan, shots []shot) float64 {
 		return 0
 	}
 	m := c.rig.cfg.get().Motion
-	vmax := float64(m.Speed) / stepsPerDegree      // °/s
-	acc := float64(m.Acc) * 100 / stepsPerDegree    // °/s²
-	hop := func(d float64) float64 { // a move of d degrees: speeding up, at speed, slowing down
+	vmax := float64(m.Speed) / stepsPerDegree    // °/s
+	acc := float64(m.Acc) * 100 / stepsPerDegree // °/s²
+	hop := func(d float64) float64 {             // a move of d degrees: speeding up, at speed, slowing down
 		if d <= 0 || vmax <= 0 || acc <= 0 {
 			return 0
 		}
