@@ -2083,6 +2083,12 @@ $("dTurntableAuto").onclick = (e) => {
   $("dTurntableZ").value = z;
   dimsChanged();
 };
+// Enter in a field saves (as Save; nothing to save: nothing happens).
+$("rigCfgModal").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || !e.target.matches("input")) return;
+  e.preventDefault();
+  if (!$("dSave").disabled) $("dSave").click();
+});
 $("dRevert").onclick = () => { $("rigErr").textContent = ""; fillDims(savedDims(), savedLimits()); };
 $("dSave").onclick = async () => {
   $("rigErr").textContent = "";
