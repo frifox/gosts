@@ -141,7 +141,10 @@ td.mono { font-family: var(--mono); }
 .battery.low { color: var(--warn); }
 .battery.empty { color: var(--bad); }
 /* Camera: the timeline of photos (3:2), newest on the left, scrolling sideways. */
-.timeline { display: flex; gap: 8px; overflow-x: auto; min-width: 0; max-width: 100%; min-height: 120px; align-items: center; padding-bottom: 8px; }
+/* The same height with photos or none, with a scrollbar or not: 120px of thumbs, 8px apart from
+   where the 8px scrollbar goes. */
+.timeline { display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden; min-width: 0; max-width: 100%; box-sizing: border-box; height: 136px; align-items: flex-start; }
+#shotNone { height: 120px; display: flex; align-items: center; }
 /* Slim scrollbars in the theme's colours that stay visible (macOS otherwise hides them until
    scrolling): the timeline's, and the scrolling columns, log, photo grid and dialogs'. */
 .timeline::-webkit-scrollbar { height: 8px; }
