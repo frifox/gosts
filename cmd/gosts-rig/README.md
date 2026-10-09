@@ -38,7 +38,7 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 
 - In the **Camera** card, choose how many photos you want. They're spread evenly round the object, as high and low as the
   camera may go.
-- **Path**: **Even** spreads the photos as evenly as can be round the object; **Linear** takes them in
+- **Path**: **Sphere** spreads the photos as evenly as can be round the object; **Linear** takes them in
   rows, the camera's height changing only between rows (fewer photos in the higher rows).
 - **Shooting**: **Settle first** stops at each shot and waits the settle time; **Keep moving** doesn't stop: the rig
   glides along one smooth path instead, which is much faster, for a quick enough shutter. Any number of photos works; on long spirals the rig pauses for a moment now
