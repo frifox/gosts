@@ -50,7 +50,8 @@ saved in `~/Pictures/gosts-rig/`, a folder per batch named after its start time.
 
 ## Camera settings
 
-The **gear** in the Camera card's title opens the camera's settings next to a sample shot.
+The **gear** in the Camera card's title opens the camera's settings next to a sample shot, in a Settings card in place
+of Photos and Rig View (✕, Esc or the gear again closes it; the Rig card's gear opens Rig Setup there the same way).
 
 - Shutter, f-stop, ISO, white balance and focus, applied as you change them. **Take Sample Shot** shows how
   they look, or **Show Live Preview** shows the camera's live view as you change them (lower resolution: use a

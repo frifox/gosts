@@ -121,13 +121,13 @@ td.mono { font-family: var(--mono); }
 /* Slim scrollbars in the theme's colours that stay visible (macOS otherwise hides them until
    scrolling): the timeline's, and the scrolling columns, log, photo grid and dialogs'. */
 .timeline::-webkit-scrollbar { height: 8px; }
-.left::-webkit-scrollbar, #log::-webkit-scrollbar, .gallery-grid::-webkit-scrollbar, .modal::-webkit-scrollbar { width: 8px; }
+.left::-webkit-scrollbar, #log::-webkit-scrollbar, .gallery-grid::-webkit-scrollbar, .modal::-webkit-scrollbar, .settings-card::-webkit-scrollbar { width: 8px; }
 .timeline::-webkit-scrollbar-track, .left::-webkit-scrollbar-track, #log::-webkit-scrollbar-track,
-.gallery-grid::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
+.gallery-grid::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track, .settings-card::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
 .timeline::-webkit-scrollbar-thumb, .left::-webkit-scrollbar-thumb, #log::-webkit-scrollbar-thumb,
-.gallery-grid::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.gallery-grid::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb, .settings-card::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 .timeline::-webkit-scrollbar-thumb:hover, .left::-webkit-scrollbar-thumb:hover, #log::-webkit-scrollbar-thumb:hover,
-.gallery-grid::-webkit-scrollbar-thumb:hover, .modal::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.gallery-grid::-webkit-scrollbar-thumb:hover, .modal::-webkit-scrollbar-thumb:hover, .settings-card::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .timeline .thumb { flex: none; height: 120px; aspect-ratio: 3 / 2; position: relative; padding: 0; border: 1px solid var(--border); border-radius: 8px;
   overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
 .timeline .thumb:hover { border-color: var(--accent); }
@@ -136,7 +136,9 @@ td.mono { font-family: var(--mono); }
 .timeline .thumb.new { animation: thumbIn .35s ease-out; }
 @keyframes thumbIn { from { opacity: 0; transform: translateX(-12px); } }
 /* Camera Settings: the settings on the left, the last sample shot on the right. */
-.modal.camcfg { width: min(1180px, 100%); }
+.settings-card { flex: 1; min-height: 0; overflow-y: auto; }
+.settings-card #rigCfgModal .card-body { max-width: 640px; }
+.card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 18px var(--accent-weak); }
 .camcfg-body { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
 .camcfg-params label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 10px; }
 .camcfg-params label:first-child { margin-top: 0; }
@@ -390,6 +392,78 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       </div>
     </div>
   </section>
+  <!-- Settings: the camera's or the rig's (from the gear in its card's title, which card lights up), in
+       place of Photos and Rig View till ✕. -->
+  <section class="card settings-card" id="settingsCard" hidden>
+    <h2>Settings <span class="dev-name" id="settingsWhat"></span><span class="spacer"></span>
+      <button class="btn small danger hdr-btn" id="camDisconnectBtn" title="Disconnect the camera (a capture running stops)" hidden>Disconnect</button>
+      <button class="btn small danger hdr-btn" id="rigDisconnectBtn" title="Disconnect the rig's board (a capture running stops)" hidden>Disconnect</button>
+      <button class="icon-btn" id="settingsClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
+    <div id="camConfigModal" hidden>
+      <div class="card-body camcfg-body">
+        <div class="camcfg-params">
+          <div id="camSettings"><div class="hint">Reading the camera's settings…</div></div>
+          <div class="sample-btns">
+            <button class="btn primary" id="sampleBtn">Take Sample Shot</button>
+            <button class="btn" id="liveBtn" title="The camera's live view, over and over: to frame the object and judge the exposure and white balance as you change them (lower resolution than a photo: use a sample shot for focus and the gray card)">Show Live Preview</button>
+          </div>
+          <div class="err" id="camConfigErr"></div>
+        </div>
+        <div class="camcfg-preview">
+          <div class="camcfg-shot" id="sampleBox"><span class="hint" id="sampleNone">No sample shot yet.</span>
+            <img id="sampleImg" alt="The sample shot" hidden><div class="sel-rect" id="selRect" hidden></div>
+            <!-- White balance from a gray card in the sample: the steps and the result, over the photo's
+                 bottom, so the modal keeps its height. -->
+            <img id="liveImg" alt="The camera's live view" hidden>
+            <div class="shot-overlay"><div class="gray-hint" id="grayHint"></div><div class="gray-out" id="grayOut" hidden></div></div>
+            <!-- Focus: the part picked, large, to judge the focus by; and the focus controls. -->
+            <div class="focus-zoom" id="focusZoom" hidden>
+              <canvas id="focusCanvas"></canvas>
+              <div class="focus-bar">
+                <button class="btn small" id="focusAF" title="The app focuses on the part selected: the camera focuses first, then the app steps the lens, measuring the part's sharpness on a sample each step, till it's sharpest (half a minute or so; click again to stop)">Auto</button>
+                <span class="focus-nudge" title="Drive the focus by hand, towards near or far (small, medium, large steps)">
+                  <button class="btn small" data-n="-7">‹‹‹</button><button class="btn small" data-n="-3">‹‹</button><button class="btn small" data-n="-1">‹</button>
+                  <span class="focus-nf">near · far</span>
+                  <button class="btn small" data-n="1">›</button><button class="btn small" data-n="3">››</button><button class="btn small" data-n="7">›››</button>
+                </span>
+                <span class="focus-stat mono" id="focusStat"></span>
+                <span class="spacer"></span>
+                <button class="btn small" id="focusClose">Close</button>
+              </div>
+            </div></div>
+          <div class="hint mono" id="sampleCaption"></div>
+          <!-- Gray Card lives by the colour temperature slider (renderSettings puts it there); parked here meanwhile. -->
+          <div hidden id="focusPark"><button class="btn small" id="focusBtn" disabled title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again">Focus</button></div>
+          <div hidden id="grayPark"><button class="btn small" id="grayBtn" disabled title="Balance white from a gray card: drag a rectangle inside the card in the sample, and the app works out the colour temperature that makes it neutral">Gray Card</button></div>
+        </div>
+      </div>
+    </div>
+    <div id="rigCfgModal" hidden>
+      <div class="card-body">
+        <div class="grid4">
+          <label title="Base frame, along the sides that carry the posts">Base X<input type="number" id="dBaseX" step="10"></label>
+          <label title="Base frame, along the tilt axis">Base Y<input type="number" id="dBaseY" step="10"></label>
+          <label title="Swing arm length">Swing X<input type="number" id="dSwingX" step="10"></label>
+          <label title="Swing bar length (camera bar)">Swing Y<input type="number" id="dSwingY" step="10"></label>
+          <label title="Post height">Post Z<input type="number" id="dPostZ" step="10"></label>
+          <label title="Turntable height"><span class="label-head">Turntable Z<button class="mini" id="dTurntableAuto" title="Auto: the height that puts the object's middle on the tilt axis, where the camera points" aria-label="Auto turntable height">⌖</button></span><input type="number" id="dTurntableZ" step="10"></label>
+          <label title="Camera position along the arms: + towards the object">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
+          <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z offset<input type="number" id="dCameraZ" step="5"></label>
+          <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label>
+          <label title="Turntable diameter">Turntable Dia<input type="number" id="dTurntableD" step="10"></label>
+          <label>Min elevation °<input type="number" id="dElevMin" step="1"></label>
+          <label>Max elevation °<input type="number" id="dElevMax" step="1"></label>
+        </div>
+        <div class="err" id="rigErr"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn small" id="dDefaults">Defaults</button>
+          <span class="spacer"></span>
+          <button class="btn" id="dRevert" disabled>Revert</button>
+          <button class="btn primary" id="dSave" disabled>Save</button>
+        </div>
+      </div>
+    </div>
+  </section>
   </div>
 </div>
 
@@ -407,81 +481,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <button class="icon-btn" id="viewerClose" title="Close (Esc)" aria-label="Close">✕</button>
   </div>
   <div class="stage" id="viewerStage"><img id="viewerImg" alt=""></div>
-</div>
-<div class="modal-backdrop" id="camConfigModal" hidden>
-  <div class="modal card camcfg" role="dialog" aria-modal="true" aria-labelledby="camConfigTitle">
-    <h2><span id="camConfigTitle">Camera Settings</span><span class="spacer"></span>
-      <button class="btn small danger hdr-btn" id="camDisconnectBtn" title="Disconnect the camera (a capture running stops)">Disconnect</button>
-      <button class="icon-btn" id="camConfigClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
-    <div class="card-body camcfg-body">
-      <div class="camcfg-params">
-        <div id="camSettings"><div class="hint">Reading the camera's settings…</div></div>
-        <div class="sample-btns">
-          <button class="btn primary" id="sampleBtn">Take Sample Shot</button>
-          <button class="btn" id="liveBtn" title="The camera's live view, over and over: to frame the object and judge the exposure and white balance as you change them (lower resolution than a photo: use a sample shot for focus and the gray card)">Show Live Preview</button>
-        </div>
-        <div class="err" id="camConfigErr"></div>
-      </div>
-      <div class="camcfg-preview">
-        <div class="camcfg-shot" id="sampleBox"><span class="hint" id="sampleNone">No sample shot yet.</span>
-          <img id="sampleImg" alt="The sample shot" hidden><div class="sel-rect" id="selRect" hidden></div>
-          <!-- White balance from a gray card in the sample: the steps and the result, over the photo's
-               bottom, so the modal keeps its height. -->
-          <img id="liveImg" alt="The camera's live view" hidden>
-          <div class="shot-overlay"><div class="gray-hint" id="grayHint"></div><div class="gray-out" id="grayOut" hidden></div></div>
-          <!-- Focus: the part picked, large, to judge the focus by; and the focus controls. -->
-          <div class="focus-zoom" id="focusZoom" hidden>
-            <canvas id="focusCanvas"></canvas>
-            <div class="focus-bar">
-              <button class="btn small" id="focusAF" title="The app focuses on the part selected: the camera focuses first, then the app steps the lens, measuring the part's sharpness on a sample each step, till it's sharpest (half a minute or so; click again to stop)">Auto</button>
-              <span class="focus-nudge" title="Drive the focus by hand, towards near or far (small, medium, large steps)">
-                <button class="btn small" data-n="-7">‹‹‹</button><button class="btn small" data-n="-3">‹‹</button><button class="btn small" data-n="-1">‹</button>
-                <span class="focus-nf">near · far</span>
-                <button class="btn small" data-n="1">›</button><button class="btn small" data-n="3">››</button><button class="btn small" data-n="7">›››</button>
-              </span>
-              <span class="focus-stat mono" id="focusStat"></span>
-              <span class="spacer"></span>
-              <button class="btn small" id="focusClose">Close</button>
-            </div>
-          </div></div>
-        <div class="hint mono" id="sampleCaption"></div>
-        <!-- Gray Card lives by the colour temperature slider (renderSettings puts it there); parked here meanwhile. -->
-        <div hidden id="focusPark"><button class="btn small" id="focusBtn" disabled title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again">Focus</button></div>
-        <div hidden id="grayPark"><button class="btn small" id="grayBtn" disabled title="Balance white from a gray card: drag a rectangle inside the card in the sample, and the app works out the colour temperature that makes it neutral">Gray Card</button></div>
-      </div>
-    </div>
-  </div>
-</div>
-<!-- Rig Setup: the rig's measurements (for the 3D view) and how low and high the camera may go. -->
-<div class="modal-backdrop" id="rigCfgModal" hidden>
-  <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="rigCfgTitle">
-    <h2><span id="rigCfgTitle" title="The rig's measurements, for the 3D view">Rig Setup</span><span class="spacer"></span>
-      <button class="btn small danger hdr-btn" id="rigDisconnectBtn" title="Disconnect the rig's board (a capture running stops)" hidden>Disconnect</button>
-      <button class="icon-btn" id="rigCfgClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
-    <div class="card-body">
-      <div class="grid4">
-        <label title="Base frame, along the sides that carry the posts">Base X<input type="number" id="dBaseX" step="10"></label>
-        <label title="Base frame, along the tilt axis">Base Y<input type="number" id="dBaseY" step="10"></label>
-        <label title="Swing arm length">Swing X<input type="number" id="dSwingX" step="10"></label>
-        <label title="Swing bar length (camera bar)">Swing Y<input type="number" id="dSwingY" step="10"></label>
-        <label title="Post height">Post Z<input type="number" id="dPostZ" step="10"></label>
-        <label title="Turntable height"><span class="label-head">Turntable Z<button class="mini" id="dTurntableAuto" title="Auto: the height that puts the object's middle on the tilt axis, where the camera points" aria-label="Auto turntable height">⌖</button></span><input type="number" id="dTurntableZ" step="10"></label>
-        <label title="Camera position along the arms: + towards the object">Camera X offset<input type="number" id="dCameraOffset" step="5"></label>
-        <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z offset<input type="number" id="dCameraZ" step="5"></label>
-        <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label>
-        <label title="Turntable diameter">Turntable Dia<input type="number" id="dTurntableD" step="10"></label>
-        <label>Min elevation °<input type="number" id="dElevMin" step="1"></label>
-        <label>Max elevation °<input type="number" id="dElevMax" step="1"></label>
-      </div>
-      <div class="err" id="rigErr"></div>
-      <div class="row" style="margin-top:10px">
-        <button class="btn small" id="dDefaults">Defaults</button>
-        <span class="spacer"></span>
-        <button class="btn" id="dRevert" disabled>Revert</button>
-        <button class="btn primary" id="dSave" disabled>Save</button>
-      </div>
-    </div>
-  </div>
 </div>
 <div class="modal-backdrop" id="confirmModal" hidden>
   <div class="modal card" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" style="width:min(420px,100%)">
@@ -681,7 +680,7 @@ function onCamera(m) {
   $("camBattery").classList.toggle("low", pct < 20 && pct >= 10);
   $("camBattery").classList.toggle("empty", pct < 10);
   $("camBatteryFill").setAttribute("width", Number.isFinite(pct) ? (16.5 * Math.max(0, Math.min(100, pct)) / 100).toFixed(1) : "16.5");
-  if (!m.connected) closeCamConfig();
+  if (!m.connected && !$("camConfigModal").hidden) closeCamConfig();
   cameraButtons();
   if (!m.connected) { stopPreview(); send("cameras").then(renderCameras).catch(() => {}); }
 }
@@ -1032,15 +1031,38 @@ function openCamConfig() {
   $("camConfigErr").textContent = "";
   parkSettingButtons();
   $("camSettings").innerHTML = '<div class="hint">Reading the camera\'s settings…</div>';
-  $("camConfigModal").hidden = false;
+  showSettings("camera");
   sampleButton();
   loadSettings();
 }
-function closeCamConfig() { stopLive(); $("camConfigModal").hidden = true; }
-$("camConfigBtn").onclick = openCamConfig;
-$("camConfigClose").onclick = closeCamConfig;
-$("camConfigModal").onclick = (e) => { if (e.target === $("camConfigModal")) closeCamConfig(); };
+function closeCamConfig() { stopLive(); hideSettings(); }
+$("camConfigBtn").onclick = () => ($("camConfigModal").hidden ? openCamConfig() : closeCamConfig()); // the gear toggles
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented && !$("camConfigModal").hidden) closeCamConfig(); });
+
+// ---------------------------------------------------------------- settings card
+// The Settings card: the camera's or the rig's settings, in place of Photos
+// and Rig View (the gear in a card's title opens its own, and that card
+// lights up) till ✕, Esc, or that gear again.
+function showSettings(which) { // "camera" or "rig"
+  if (which !== "camera") stopLive();
+  $("camConfigModal").hidden = which !== "camera";
+  $("rigCfgModal").hidden = which !== "rig";
+  $("camDisconnectBtn").hidden = which !== "camera";
+  $("rigDisconnectBtn").hidden = which !== "rig" || !state.server?.connected; // Rig Setup opens without a board too
+  $("settingsWhat").textContent = which === "camera" ? "Camera" : "Rig";
+  $("captureCard").classList.toggle("selected", which === "camera");
+  $("rigCard").classList.toggle("selected", which === "rig");
+  $("cameraCard").hidden = $("viewCard").hidden = true;
+  $("settingsCard").hidden = false;
+}
+function hideSettings() {
+  $("camConfigModal").hidden = $("rigCfgModal").hidden = true;
+  $("captureCard").classList.remove("selected");
+  $("rigCard").classList.remove("selected");
+  $("settingsCard").hidden = true;
+  $("cameraCard").hidden = $("viewCard").hidden = false;
+}
+$("settingsClose").onclick = () => ($("camConfigModal").hidden ? closeRigCfg() : closeCamConfig());
 function sampleButton() {
   $("sampleBtn").disabled = !state.camera?.connected || !!state.cap?.running || state.sampleTaking;
   $("liveBtn").disabled = !state.live && $("sampleBtn").disabled;
@@ -1854,16 +1876,16 @@ function dimsChanged() {
 }
 for (const id of [...DIMS.map((k) => "d" + k), "dElevMin", "dElevMax"]) $(id).addEventListener("input", dimsChanged);
 $("dDefaults").onclick = () => fillDims(DIMS_DEFAULT, LIMITS_DEFAULT);
-// The Rig Setup dialog, from the gear in the Rig card's title (the same
-// gear as the camera's). Closing keeps any edits (the 3D view shows them,
-// Save and Revert still waiting).
+// Rig Setup, in the Settings card, from the gear in the Rig card's title
+// (the same gear as the camera's). Closing keeps any edits (the 3D view
+// shows them, Save and Revert still waiting).
 $("rigCfgBtn").innerHTML = $("camConfigBtn").innerHTML;
 $("rigCfgBtn").onclick = () => {
+  if (!$("rigCfgModal").hidden) return closeRigCfg(); // the gear toggles
   $("rigErr").textContent = "";
-  $("rigDisconnectBtn").hidden = !state.server?.connected; // the dialog opens without a board too
-  $("rigCfgModal").hidden = false;
+  showSettings("rig");
 };
-// Disconnect, from either dialog (beside its ✕): the device goes, so does the dialog.
+// Disconnect, in the Settings card's title (beside its ✕): the device goes, so do its settings.
 $("rigDisconnectBtn").onclick = async () => {
   $("rigDisconnectBtn").disabled = true;
   $("rigErr").textContent = "";
@@ -1878,9 +1900,7 @@ $("camDisconnectBtn").onclick = async () => {
   $("camDisconnectBtn").disabled = false;
   if (!$("camConfigErr").textContent) closeCamConfig();
 };
-const closeRigCfg = () => ($("rigCfgModal").hidden = true);
-$("rigCfgClose").onclick = closeRigCfg;
-$("rigCfgModal").onclick = (e) => { if (e.target === $("rigCfgModal")) closeRigCfg(); };
+function closeRigCfg() { hideSettings(); }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("rigCfgModal").hidden) { e.preventDefault(); closeRigCfg(); } });
 // Turntable Z auto: the object's middle on the tilt axis (the centre of the
 // camera's orbit, where it points), so it's centred in every shot.
