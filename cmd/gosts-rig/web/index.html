@@ -41,6 +41,7 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 /* The real device connected, beside a card's title (none for a simulator). */
 .card > h2 .dev-name { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--muted); opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .card > h2 .btn.small { margin-block: -3px; } /* buttons in a title don't make it taller */
+.card > h2 .hdr-btn { text-transform: none; letter-spacing: 0; }
 .card.collapsed > h2 { border-bottom: 0; }
 .card.collapsed > .card-body { display: none; }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
@@ -410,6 +411,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 <div class="modal-backdrop" id="camConfigModal" hidden>
   <div class="modal card camcfg" role="dialog" aria-modal="true" aria-labelledby="camConfigTitle">
     <h2><span id="camConfigTitle">Camera Settings</span><span class="spacer"></span>
+      <button class="btn small danger hdr-btn" id="camDisconnectBtn" title="Disconnect the camera (a capture running stops)">Disconnect</button>
       <button class="icon-btn" id="camConfigClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
     <div class="card-body camcfg-body">
       <div class="camcfg-params">
@@ -454,6 +456,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 <div class="modal-backdrop" id="rigCfgModal" hidden>
   <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="rigCfgTitle">
     <h2><span id="rigCfgTitle" title="The rig's measurements, for the 3D view">Rig Setup</span><span class="spacer"></span>
+      <button class="btn small danger hdr-btn" id="rigDisconnectBtn" title="Disconnect the rig's board (a capture running stops)" hidden>Disconnect</button>
       <button class="icon-btn" id="rigCfgClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
     <div class="card-body">
       <div class="grid4">
@@ -1855,7 +1858,26 @@ $("dDefaults").onclick = () => fillDims(DIMS_DEFAULT, LIMITS_DEFAULT);
 // gear as the camera's). Closing keeps any edits (the 3D view shows them,
 // Save and Revert still waiting).
 $("rigCfgBtn").innerHTML = $("camConfigBtn").innerHTML;
-$("rigCfgBtn").onclick = () => { $("rigErr").textContent = ""; $("rigCfgModal").hidden = false; };
+$("rigCfgBtn").onclick = () => {
+  $("rigErr").textContent = "";
+  $("rigDisconnectBtn").hidden = !state.server?.connected; // the dialog opens without a board too
+  $("rigCfgModal").hidden = false;
+};
+// Disconnect, from either dialog (beside its ✕): the device goes, so does the dialog.
+$("rigDisconnectBtn").onclick = async () => {
+  $("rigDisconnectBtn").disabled = true;
+  $("rigErr").textContent = "";
+  await act("disconnect", {}, $("rigErr"));
+  $("rigDisconnectBtn").disabled = false;
+  if (!$("rigErr").textContent) { closeRigCfg(); send("ports").then(renderPorts).catch(() => {}); }
+};
+$("camDisconnectBtn").onclick = async () => {
+  $("camDisconnectBtn").disabled = true;
+  $("camConfigErr").textContent = "";
+  await act("cameraDisconnect", {}, $("camConfigErr"));
+  $("camDisconnectBtn").disabled = false;
+  if (!$("camConfigErr").textContent) closeCamConfig();
+};
 const closeRigCfg = () => ($("rigCfgModal").hidden = true);
 $("rigCfgClose").onclick = closeRigCfg;
 $("rigCfgModal").onclick = (e) => { if (e.target === $("rigCfgModal")) closeRigCfg(); };
