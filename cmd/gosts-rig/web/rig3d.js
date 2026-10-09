@@ -434,14 +434,34 @@ export function createRig(container) {
   // Front looks at the object from behind the camera (from -X); side looks along
   // the tilt axis (from +Y), the swing moving in the picture; top has the
   // camera on the left.
-  function setView(name) {
+  // capture: from the camera's side, a little above, the camera and the
+  // object both in sight (where a capture starts the view: see index.html).
+  // glide: over about 0.7 s instead of at once.
+  let glideTo = null;
+  function setView(name, glide = false) {
     const d = rig.d, t = rig.target;
     const far = Math.max(d.BaseX, d.BaseY, d.PostZ + 300) * 2.6;
-    const v = { "3d": [far * 0.7, t.y + far * 0.43, far * 0.54], front: [-far, t.y, 0], side: [0, t.y, far], top: [0, far * 1.1, 1] }[name] || null;
+    const v = { "3d": [far * 0.7, t.y + far * 0.43, far * 0.54], front: [-far, t.y, 0], side: [0, t.y, far], top: [0, far * 1.1, 1],
+      capture: [far * -0.86, t.y + far * 0.11, far * 0.47] }[name] || null;
     if (!v) return;
+    if (glide) {
+      glideTo = { from: cam.position.clone(), fromT: controls.target.clone(), to: V(v[0], v[1], v[2]), toT: t.clone(), age: 0 };
+      return;
+    }
+    glideTo = null;
     cam.position.set(v[0], v[1], v[2]);
     controls.target.copy(t);
     controls.update();
+  }
+  // glideTick moves the view along a glide (eased), till it's there.
+  function glideTick(dt) {
+    if (!glideTo) return;
+    glideTo.age += dt;
+    let f = Math.min(1, glideTo.age / 0.7);
+    f = f * f * (3 - 2 * f);
+    cam.position.lerpVectors(glideTo.from, glideTo.to, f);
+    controls.target.lerpVectors(glideTo.fromT, glideTo.toT, f);
+    if (f >= 1) glideTo = null;
   }
 
   function resize() {
@@ -817,6 +837,7 @@ export function createRig(container) {
     captureTick(dt);
     axisRates(dt);
     flashTick(dt);
+    glideTick(dt);
     controls.update();
     renderer.render(scene, cam);
   });

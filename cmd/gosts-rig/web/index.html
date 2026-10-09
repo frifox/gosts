@@ -1911,6 +1911,8 @@ function fmtDur(sec) {
 }
 setInterval(() => { if (state.cap?.running || window.rig3d?.previewing()) capCount(); }, 250);
 function onCapture(m) {
+  // A capture starting (not a preview): the view goes to see the camera and the object from its side.
+  if (m.running && state.cap && !state.cap.running) { setView("capture", true); }
   const done = m.shots.filter((s) => s.done).length;
   if (!m.running || done === 0) state.capBase = null;
   else if (!state.capBase || (state.cap?.paused && !m.paused)) state.capBase = { done, elapsed: m.elapsed }; // (a pause isn't the pace)
@@ -2087,9 +2089,9 @@ const UNFOLDING = ["captureCard", "rigCard", "cameraCard", "viewCard"];
     });
   }
 })();
-function setView(v) {
+function setView(v, glide = false) {
   document.querySelectorAll("#views button").forEach((b) => b.classList.toggle("active", b.dataset.v === v));
-  window.rig3d?.setView(v);
+  window.rig3d?.setView(v, glide);
 }
 $("views").addEventListener("click", (e) => { if (e.target.dataset.v) setView(e.target.dataset.v); });
 
