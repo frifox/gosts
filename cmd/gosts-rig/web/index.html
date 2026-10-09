@@ -58,7 +58,8 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .plan-line.opts { margin-top: 12px; }
 .plan-line label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
 .plan-line .photos-field input { width: 7ch; box-sizing: content-box; }
-.plan-line > .progress { flex: 1; min-width: 120px; margin: 0; }
+.plan-line .progress-field { flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 3px; }
+.plan-line .progress-field .progress { margin: 0; }
 .plan-line .settle-field input { width: 7ch; box-sizing: content-box; }
 .plan-line .opt { display: flex; flex-direction: column; gap: 3px; }
 .plan-line .opt-label { color: var(--muted); font-size: 12px; }
@@ -301,7 +302,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <div class="card-body" id="captureBody" hidden>
         <div class="plan-line">
           <label class="photos-field">Photos<input type="number" id="pPhotos" min="1" max="2000" value="60"></label>
-          <div class="progress big"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div>
+          <div class="progress-field"><span class="opt-label">Progress</span>
+            <div class="progress big"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div></div>
         </div>
         <div class="plan-line opts">
           <div class="opt" title="Even: the photos spread as evenly as can be over the sphere round the object. Linear: rows of one elevation each, the camera's height changing only between rows (fewer photos in the higher rows)."><span class="opt-label">Path</span>
