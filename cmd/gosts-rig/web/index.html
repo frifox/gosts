@@ -160,6 +160,7 @@ td.mono { font-family: var(--mono); }
 @keyframes thumbIn { from { opacity: 0; transform: translateX(-12px); } }
 /* Camera Settings: the settings on the left, the last sample shot on the right. */
 .settings-card { flex: 1; min-height: 0; overflow-y: auto; }
+.settings-card.fit { flex: none; } /* the rig's: as tall as its form, Rig View taking the rest */
 .settings-card #rigCfgModal .card-body { max-width: 640px; }
 .card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 18px var(--accent-weak); }
 .camcfg-body { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
@@ -414,39 +415,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     </div>
   </section>
 
-  <section class="card view" id="viewCard">
-    <h2>Rig View <span class="views" id="views">
-      <button data-v="3d" class="active">3D</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button>
-    </span></h2>
-    <div class="card-body">
-      <div id="rig"></div>
-      <div class="nodata" id="noData" hidden></div>
-      <div class="overlay">
-        <div class="tile"><div class="k">Elevation</div><div class="v" id="oElev">–</div></div>
-        <div class="tile"><div class="k">Azimuth</div><div class="v" id="oAzim">–</div></div>
-      </div>
-      <div class="speedkey" id="speedKey" hidden>
-        <div class="sk-head"><span>Camera speed</span><b id="skNow">–</b></div>
-        <div class="sk-bar"><i id="skMark"></i></div>
-        <div class="sk-labels"><span>½×</span><span id="skNormal">normal</span><span>2×</span></div>
-        <!-- Each axis: how fast its servos turn, against their top speed (Setup). -->
-        <div class="sk-axis">
-          <div class="sk-head"><span>Elevation speed</span><b id="skElev">–</b></div>
-          <div class="sk-fill"><i id="skElevBar"></i></div>
-        </div>
-        <div class="sk-axis">
-          <div class="sk-head"><span>Azimuth speed</span><b id="skAzim">–</b></div>
-          <div class="sk-fill"><i id="skAzimBar"></i></div>
-          <div class="sk-labels"><span>0</span><span id="skMax">servo top speed</span></div>
-        </div>
-      </div>
-      <div class="legend">
-        <span style="--c:var(--pending)">planned shot</span><span style="--c:var(--done)">taken</span><span style="--c:var(--accent)">next</span>
-      </div>
-    </div>
-  </section>
   <!-- Settings: the camera's or the rig's (from the gear in its card's title, which card lights up), in
-       place of Photos and Rig View till ✕. -->
+       place of Photos (and Rig View, for the camera's; the rig's keep Rig View below, to see the changes) till ✕. -->
   <section class="card settings-card" id="settingsCard" hidden>
     <h2>Settings <span class="dev-name" id="settingsWhat"></span><span class="spacer"></span>
       <button class="btn small danger hdr-btn" id="camDisconnectBtn" title="Disconnect the camera (a capture running stops)" hidden>Disconnect</button>
@@ -522,6 +492,37 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <button class="btn" id="dRevert" disabled>Revert</button>
           <button class="btn primary" id="dSave" disabled>Save</button>
         </div>
+      </div>
+    </div>
+  </section>
+  <section class="card view" id="viewCard">
+    <h2>Rig View <span class="views" id="views">
+      <button data-v="3d" class="active">3D</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button>
+    </span></h2>
+    <div class="card-body">
+      <div id="rig"></div>
+      <div class="nodata" id="noData" hidden></div>
+      <div class="overlay">
+        <div class="tile"><div class="k">Elevation</div><div class="v" id="oElev">–</div></div>
+        <div class="tile"><div class="k">Azimuth</div><div class="v" id="oAzim">–</div></div>
+      </div>
+      <div class="speedkey" id="speedKey" hidden>
+        <div class="sk-head"><span>Camera speed</span><b id="skNow">–</b></div>
+        <div class="sk-bar"><i id="skMark"></i></div>
+        <div class="sk-labels"><span>½×</span><span id="skNormal">normal</span><span>2×</span></div>
+        <!-- Each axis: how fast its servos turn, against their top speed (Setup). -->
+        <div class="sk-axis">
+          <div class="sk-head"><span>Elevation speed</span><b id="skElev">–</b></div>
+          <div class="sk-fill"><i id="skElevBar"></i></div>
+        </div>
+        <div class="sk-axis">
+          <div class="sk-head"><span>Azimuth speed</span><b id="skAzim">–</b></div>
+          <div class="sk-fill"><i id="skAzimBar"></i></div>
+          <div class="sk-labels"><span>0</span><span id="skMax">servo top speed</span></div>
+        </div>
+      </div>
+      <div class="legend">
+        <span style="--c:var(--pending)">planned shot</span><span style="--c:var(--done)">taken</span><span style="--c:var(--accent)">next</span>
       </div>
     </div>
   </section>
@@ -1115,7 +1116,9 @@ function showSettings(which) { // "camera" or "rig"
   $("settingsWhat").textContent = which === "camera" ? "Camera" : "Rig";
   $("captureCard").classList.toggle("selected", which === "camera");
   $("rigCard").classList.toggle("selected", which === "rig");
-  $("cameraCard").hidden = $("viewCard").hidden = true;
+  $("cameraCard").hidden = true;
+  $("viewCard").hidden = which !== "rig"; // the rig's: Rig View below, the changes live in it
+  $("settingsCard").classList.toggle("fit", which === "rig");
   $("settingsCard").hidden = false;
 }
 function hideSettings() {
