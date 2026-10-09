@@ -57,9 +57,9 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .plan-line { display: flex; align-items: flex-end; gap: 10px 14px; flex-wrap: wrap; }
 .plan-line.opts { margin-top: 12px; }
 .plan-line label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
-.plan-line .photos-field input { width: 7ch; box-sizing: content-box; }
+.plan-line .photos-field input { width: 12ch; box-sizing: content-box; } /* room for "2000 / 2000", and a little */
 /* In the Photos field's place while previewing or capturing: how far along ("12 / 50"), a read-only field like it. */
-.plan-line .photos-field input.count-box { box-sizing: border-box; cursor: default; } /* as wide as the field (set in px: see capCount), a longer count's text shrinking to fit */
+.plan-line .photos-field input.count-box { cursor: default; }
 .plan-line .progress-field { flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 3px; }
 .plan-line .progress-field .progress { margin: 0; }
 .plan-line .settle-field input { width: 7ch; box-sizing: content-box; }
@@ -1845,14 +1845,9 @@ function capCount() {
   // capture runs (the bar keeps the times).
   const pv = window.rig3d?.previewProgress();
   const along = m.running ? `${done} / ${m.total}` : pv ? `${pv.done} / ${pv.total}` : "";
-  // As wide as the Photos field (measured while it shows: a width in ch
-  // would shrink with the text).
-  if (!$("pPhotos").hidden) state.photosW = $("pPhotos").getBoundingClientRect().width || state.photosW;
-  if (state.photosW) $("pCount").style.width = state.photosW + "px";
   $("pCount").value = along;
   $("pCount").hidden = !along;
   $("pPhotos").hidden = !!along;
-  fitText($("pCount"));
   if (!m.running) $("capBar").style.width = pv ? `${100 * pv.done / pv.total}%` : m.total ? `${100 * done / m.total}%` : "0";
   if (!m.total) { $("capCount").textContent = ""; return; }
   let t = "";
@@ -1867,17 +1862,6 @@ function capCount() {
     }
   }
   $("capCount").textContent = t;
-}
-// fitText shrinks a field's text to fit its width (measured with its own
-// font; 7px at the least).
-const fitCanvas = document.createElement("canvas").getContext("2d");
-function fitText(el) {
-  el.style.fontSize = "";
-  if (el.hidden || !el.value) return;
-  const cs = getComputedStyle(el), size = parseFloat(cs.fontSize);
-  fitCanvas.font = `${cs.fontWeight} ${size}px ${cs.fontFamily}`;
-  const room = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 1, w = fitCanvas.measureText(el.value).width;
-  if (w > room) el.style.fontSize = Math.max(7, Math.floor((size * room / w) * 2) / 2) + "px";
 }
 // fmtDur: "45s", "10m 3s", "1h 2m" (as Go writes durations, a space apart).
 function fmtDur(sec) {
