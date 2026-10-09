@@ -136,7 +136,7 @@ const simCameraID = "sim"
 // whatever gphoto2 finds attached over USB right now (the Sony A6600,
 // PTP-connected).
 func listCameras() []cameraInfo {
-	cams := []cameraInfo{{ID: simCameraID, Name: "Simulator", Detail: "Simulated camera: takes each photo after a short shutter lag, saves nothing"}}
+	cams := []cameraInfo{{ID: simCameraID, Name: "Simulator", Detail: "Simulated camera: takes a photo about every second, as a real one would, saves nothing"}}
 	for _, d := range gphoto2Detect() {
 		cams = append(cams, cameraInfo{ID: gphoto2Prefix + d.port, Name: d.model, Detail: "USB, " + d.port + " (gphoto2)"})
 	}
@@ -153,11 +153,18 @@ func openCamera(id string) (Camera, string, error) {
 	return nil, "", fmt.Errorf("no camera %q", id)
 }
 
+// simBusy is how long the simulated camera is busy after a photo (saving
+// it), as a real one: the next shutter waits till then. An A6600 shooting
+// RAW + JPEG keeps up with about one every 1.2 s, JPEG only a little faster.
+var simBusy = time.Second
+
 // simCamera "takes" a photo after a shutter lag. Its picture comes later:
 // cameraConn asks a page to render the Rig View from the camera (simShoot),
 // or makes one up if no page does.
 type simCamera struct {
 	lag      time.Duration
+	shootMu  sync.Mutex // one photo at a time
+	readyAt  time.Time  // busy with the last photo till then (see simBusy)
 	mu       sync.Mutex
 	n        int
 	settings map[string]string // see Settings
@@ -167,12 +174,20 @@ type simCamera struct {
 }
 
 func (s *simCamera) Shoot(ctx context.Context, sh shutter) error {
+	s.shootMu.Lock()
+	defer s.shootMu.Unlock()
+	select { // still saving the last one
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(time.Until(s.readyAt)):
+	}
 	sh.firing()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-time.After(s.lag):
 	}
+	s.readyAt = time.Now().Add(simBusy - s.lag)
 	s.mu.Lock()
 	s.n++
 	s.mu.Unlock()

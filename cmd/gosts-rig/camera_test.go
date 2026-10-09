@@ -9,7 +9,32 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+// The tests' simulated camera is never busy (simBusy): they time things
+// themselves; TestSimCameraBusy checks it.
+func init() { simBusy = 0 }
+
+// The simulated camera is busy for simBusy after a photo: the next shutter
+// waits, as on a real camera (so measuring its pace finds about simBusy).
+func TestSimCameraBusy(t *testing.T) {
+	defer func(b time.Duration) { simBusy = b }(simBusy)
+	simBusy = 150 * time.Millisecond
+	s := &simCamera{lag: 10 * time.Millisecond}
+	var fired []time.Time
+	for i := 0; i < 3; i++ {
+		sh := shutter{firing: func() { fired = append(fired, time.Now()) }, got: func(photo, error) {}}
+		if err := s.Shoot(t.Context(), sh); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 1; i < len(fired); i++ {
+		if gap := fired[i].Sub(fired[i-1]); gap < 140*time.Millisecond || gap > 300*time.Millisecond {
+			t.Fatalf("shutters %v apart, want about %v", gap, simBusy)
+		}
+	}
+}
 
 // tiffWithJPEGs is a little-endian TIFF whose IFD0 points to small, and a
 // SubIFD to big (as a RAW keeps its thumbnail and full preview).
