@@ -66,9 +66,10 @@ func (r Rig) check() error {
 	return nil
 }
 
-// Roles says which servo does what. Calibrate the servos in gosts-ctl so
-// their own 0° is the reference here ("Set 0° to"): the arm level for
-// elevation, the platform's front for azimuth.
+// Roles says which servo does what. Calibrate the servos in Servo Ctl (the
+// page's gosts-ctl console) or gosts-ctl so their own 0° is the reference
+// here ("Set 0° to"): the arm level for elevation, the platform's front for
+// azimuth.
 type Roles struct {
 	ElevationLeader   uint8 `toml:"ElevationLeader"`   // top servo, the group's leader
 	ElevationFollower uint8 `toml:"ElevationFollower"` // the other top servo
@@ -203,7 +204,7 @@ func (f *configFile) update(fn func(*Config)) error {
 }
 
 const configHeader = `# gosts-rig: photogrammetry rig settings. Edited by the web UI; read on startup.
-# Servo calibration (zero, tuning, limits) is done in gosts-ctl and stored on the servos.
+# Servo calibration (zero, tuning, limits) is done in Servo Ctl (gosts-ctl's console, in the Rig settings) and stored on the servos.
 
 `
 

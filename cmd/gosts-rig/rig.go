@@ -250,7 +250,7 @@ func (r *rig) scan(ctx context.Context) error {
 		ro := r.cfg.get().Roles
 		for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
 			if !slices.Contains(found, id) {
-				r.logf("error", "servo %d (in the rig's roles) was not found: check its power and cable, or change the roles in Setup", id)
+				r.logf("error", "servo %d (in the rig's roles) was not found: check its power and cable, or assign the roles: Setup, or a group of the elevation servos in Servo Ctl", id)
 			}
 		}
 	}
