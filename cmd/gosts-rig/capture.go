@@ -202,6 +202,9 @@ type captureMsg struct {
 	Elapsed float64 `json:"elapsed"` // s
 	Rows    int     `json:"rows"`
 	Spacing float64 `json:"spacing"` // degrees between neighbouring shots
+	// Estimate is about how long (s) the plan takes, not running (see
+	// capture.estimate).
+	Estimate float64 `json:"estimate,omitempty"`
 }
 
 func (c *capture) msg() captureMsg {
@@ -212,7 +215,77 @@ func (c *capture) msg() captureMsg {
 	if c.running {
 		m.Elapsed = time.Since(c.started).Seconds()
 	}
+	c.mu.Unlock()
+	if !m.Running { // (outside the lock: it asks the rig and the camera)
+		m.Estimate = math.Round(c.estimate(c.rig.cfg.get().Plan, m.Shots))
+	}
+	c.mu.Lock()
 	return m
+}
+
+// stillTime is about how long the rig takes to be seen to have stopped
+// (waitStill: three still readings 50 ms apart, and the last bit of
+// slowing down), for the estimate.
+const stillTime = 0.4
+
+// shotGap is how close together (s) moving shots may be: the camera's
+// measured pace and a little (see measurePace), else as it's been going.
+func (c *capture) shotGap() time.Duration {
+	if p := c.camera.pace(); p > 0 {
+		return p * 11 / 10
+	}
+	return c.camera.minInterval()
+}
+
+// estimate is about how long (s) a capture of these shots takes, from what's
+// known: the move to the first shot from where the rig is, then for moving
+// shots the timed path itself (the camera's pace in it) and the platform's
+// turn-count resets, for stopping ones each hop (at the servos' speed and
+// acceleration), coming to a stop, the settle time and the photo (the
+// camera's pace); then the return to 0°/0°. Not what it can't know: the
+// camera falling behind, the arm trailing its path.
+func (c *capture) estimate(p Plan, shots []shot) float64 {
+	if len(shots) == 0 {
+		return 0
+	}
+	m := c.rig.cfg.get().Motion
+	vmax := float64(m.Speed) / stepsPerDegree      // °/s
+	acc := float64(m.Acc) * 100 / stepsPerDegree    // °/s²
+	hop := func(d float64) float64 { // a move of d degrees: speeding up, at speed, slowing down
+		if d <= 0 || vmax <= 0 || acc <= 0 {
+			return 0
+		}
+		if d >= vmax*vmax/acc {
+			return d/vmax + vmax/acc
+		}
+		return 2 * math.Sqrt(d/acc)
+	}
+	move := func(e0, a0, e1, a1 float64) float64 {
+		return math.Max(hop(math.Abs(e1-e0)), hop(math.Abs(wrap180(a1-a0))))
+	}
+	clamp := func(e float64) float64 { return math.Max(m.ElevationMin, math.Min(m.ElevationMax, e)) }
+	e0, a0 := c.rig.where()
+	first, last := shots[0], shots[len(shots)-1]
+	total := move(e0, a0, clamp(first.Elevation), first.Azimuth) + stillTime
+	shot := c.camera.pace().Seconds()
+	if shot <= 0 {
+		shot = math.Max(1, c.camera.minInterval().Seconds())
+	}
+	if p.Moving {
+		es, as := make([]float64, len(shots)), make([]float64, len(shots))
+		for i, s := range shots {
+			es[i], as[i] = clamp(s.Elevation), s.Azimuth
+		}
+		total += newTrajectory(es, as, vmax, acc/2, c.shotGap().Seconds()).duration()
+		total += 2 * math.Floor(math.Abs(spiralTurns(shots))/(2*spiralRange)) // a stop and a reset a lap
+	} else {
+		total += shot // the first photo
+		for i := 1; i < len(shots); i++ {
+			total += move(clamp(shots[i-1].Elevation), shots[i-1].Azimuth, clamp(shots[i].Elevation), shots[i].Azimuth) +
+				stillTime + float64(p.SettleMS)/1000 + shot
+		}
+	}
+	return total + move(clamp(last.Elevation), last.Azimuth, 0, 0)
 }
 
 func (c *capture) send() { c.out(c.msg()) }
@@ -545,11 +618,7 @@ func (c *capture) spiral(ctx context.Context) error {
 		// pace (see measurePace) and a little, else as it's been going (an
 		// estimate from its timings, on the safe side). If it falls behind
 		// anyway, the path slows (see pace).
-		gap := c.camera.minInterval()
-		if p := c.camera.pace(); p > 0 {
-			gap = p * 11 / 10
-		}
-		tr := newTrajectory(es, as, maxRate, accel, gap.Seconds())
+		tr := newTrajectory(es, as, maxRate, accel, c.shotGap().Seconds())
 		err = c.rig.follow(ctx, tr, func(k int) error {
 			if k < first {
 				return nil

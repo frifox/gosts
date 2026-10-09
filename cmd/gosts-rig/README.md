@@ -49,7 +49,8 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
   camera falls behind anyway, so no photo is lost.
 - **Preview** plays the capture in the 3D view first, without moving the rig.
 - **Capture** takes the photos: while it runs, it turns into **Stop** and Preview into **Pause** (Resume). The
-  progress bar shows the photos done, the time so far and about how long is left.
+  progress bar shows the photos done, the time so far and about how long is left (and before you start, an
+  estimate of the whole capture: from the moves at the rig's speed, the settle time and the camera's measured pace).
 - **Take Photo** takes a single photo where the rig is.
 
 Photos appear in the **Photos** card as they arrive. Click one to see it full size, **View All** for a grid. They're

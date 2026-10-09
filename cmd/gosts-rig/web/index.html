@@ -1850,7 +1850,7 @@ function capCount() {
   $("pPhotos").hidden = !!along;
   if (!m.running) $("capBar").style.width = pv ? `${100 * pv.done / pv.total}%` : m.total ? `${100 * done / m.total}%` : "0";
   if (!m.total) { $("capCount").textContent = ""; return; }
-  let t = "";
+  let t = m.running || !m.estimate ? "" : `estimate: ${fmtDur(m.estimate)}`; // idle: about how long it'll take (the server's estimate)
   if (m.running) {
     const since = m.paused ? 0 : (performance.now() - state.capAt) / 1000;
     const elapsed = m.elapsed + since;

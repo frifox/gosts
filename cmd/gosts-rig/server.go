@@ -225,7 +225,9 @@ func (a *app) exec(req request) (any, error) {
 		if a.cap.msg().Running {
 			return nil, errors.New("a capture is running")
 		}
-		return a.camera.measurePace(context.Background())
+		pace, err := a.camera.measurePace(context.Background())
+		a.cap.send() // the estimate follows the pace
+		return pace, err
 	case "sampleShot": // Config: a photo to judge the settings by
 		if a.cap.msg().Running {
 			return nil, errors.New("a capture is running")
