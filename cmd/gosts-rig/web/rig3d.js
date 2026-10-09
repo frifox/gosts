@@ -256,6 +256,7 @@ export function createRig(container) {
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   let rig = null;       // the built rig: parts that move, and its measurements
   let pv = null;        // running path preview (see startPreview)
+  let pvFade = null;    // a finished preview's trail, running out (see fadeTick)
   let last = {};        // last update, re-applied after a rebuild
   let cv = null;        // running capture's comet (see captureTick)
   let samples = [];     // recent telemetry poses, for smooth motion (see livePose)
@@ -417,7 +418,7 @@ export function createRig(container) {
     const dims = { ...DEFAULT_RIG, ...(d || {}) };
     if (rig && JSON.stringify(rig.d) === JSON.stringify(dims)) return;
     const first = !rig;
-    const comets = [pv, cv].filter(Boolean);
+    const comets = [pv, pvFade, cv].filter(Boolean);
     for (const c of comets) rig.shotGroup.remove(c.ball, c.trail);
     build(dims);
     for (const c of comets) {
@@ -619,6 +620,7 @@ export function createRig(container) {
   // the rig somewhere it returns that pose ({e, az}), and the view goes there.
   function startPreview(shots, smooth, onEnd) {
     stopPreview();
+    dropFade();
     if (cv?.ended) { dropComet(cv); cv = null; update(last); } // a finished capture's fading trail
     if (!shots || shots.length < 2 || cv) return Promise.resolve();
     rig.nextRing.visible = false;
@@ -636,13 +638,28 @@ export function createRig(container) {
     pv.normal = total / times[times.length - 1]; // the average speed along the path
     return finished;
   }
-  function stopPreview() {
+  // fade: the camera and turntable are back, so the preview is done, but its
+  // trail runs out on its own (fadeTick) instead of going at once.
+  function stopPreview(fade = false) {
     if (!pv) return;
-    dropComet(pv);
+    dropFade();
+    if (fade && pv.history.length) { pvFade = pv; pvFade.ball.visible = false; }
+    else dropComet(pv);
     const done = pv.done;
     pv = null;
     update(last);
     done();
+  }
+  function dropFade() {
+    if (pvFade) dropComet(pvFade);
+    pvFade = null;
+  }
+  // fadeTick ages a finished preview's trail till it has run out.
+  function fadeTick(dt) {
+    if (!pvFade) return;
+    pvFade.t += dt;
+    drawTrail(pvFade, pvFade.t, pvFade.tail);
+    if (!pvFade.history.length) dropFade();
   }
   // previewState: the elevation and azimuth after t seconds. Stopping shots
   // ease in and out of each shot like the servos; moving shots keep going.
@@ -660,7 +677,7 @@ export function createRig(container) {
   // the camera holds there for HOLD seconds (none), then the swing and platform take
   // BACK seconds to return to the rig's pose. The trail keeps catching up with
   // the last shot at its own pace meanwhile, even once the camera has gone;
-  // the preview ends when the camera is back and the trail has run out.
+  // the preview is done when the camera is back, the trail running out after.
   const LEAD = 1, HOLD = 0, BACK = 1;
   // glide eases from pose `from` to `to` (elevation, azimuth the short way).
   function glide(from, to, f) {
@@ -749,10 +766,10 @@ export function createRig(container) {
     // catches up with the last shot at the same pace.
     if (pv.t <= end) record(pv, t, pv.ball.position);
     drawTrail(pv, pv.t, pv.tail);
-    // The end: back, the trail run out, and the rig where it was sent (so
-    // the view, showing the rig again, doesn't jump; at most 15 s).
+    // The end: back, and the rig where it was sent (so the view, showing the
+    // rig again, doesn't jump; at most 15 s). The trail runs out after.
     const there = (q, h) => Math.abs(q.e - h.e) < 1 && Math.abs(((q.az - h.az) % 360 + 540) % 360 - 180) < 1;
-    if (pv.t >= end + HOLD + BACK && !pv.history.length && (!pv.home || there(livePose(), pv.home) || pv.t > end + HOLD + BACK + 15)) stopPreview();
+    if (pv.t >= end + HOLD + BACK && (!pv.home || there(livePose(), pv.home) || pv.t > end + HOLD + BACK + 15)) stopPreview(true);
   }
 
   // ---------------------------------------------------------------- capture
@@ -765,6 +782,7 @@ export function createRig(container) {
   // tail runs out; then the dots come back, taken ones green.
   function startCapture() {
     stopPreview();
+    dropFade();
     cv = { ...makeComet(), clock: 0, index: last.index ?? 0, shotAt: [], tail: TAIL, dist: 0, moving: 0, flashes: [] };
   }
   function captureShots(u) {
@@ -841,6 +859,7 @@ export function createRig(container) {
     const dt = Math.min(clock.getDelta(), 0.1);
     if (!pv) { const q = livePose(); setPose(q.e, q.az); } // during a preview the preview poses the rig
     previewTick(dt);
+    fadeTick(dt);
     captureTick(dt);
     axisRates(dt);
     flashTick(dt);
