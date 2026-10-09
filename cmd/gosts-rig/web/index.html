@@ -53,7 +53,6 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 /* Rig Setup: a line per part, its measurements side by side (columns lining up). */
 .fgroups { display: flex; flex-direction: column; gap: 10px; }
 .fgroup { display: flex; align-items: flex-end; gap: 12px; }
-.fgroup.gap { margin-top: 12px; }
 .fgroup label { width: 120px; flex: none; display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
 /* The Camera card's plan: photos and the progress beside them; then the path and shooting choices. */
 .plan-line { display: flex; align-items: flex-end; gap: 10px 14px; flex-wrap: wrap; }
@@ -508,7 +507,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <div class="fgroup">
             <label><span class="label-head">Camera X<span class="help" tabindex="0" aria-label="How to measure Camera X" data-tip="Measure from the centre of the turntable's top to the camera's sensor: the ⦵ mark on the camera's top plate. Measure straight across, with the arm level (elevation 0°).">?</span></span><input type="number" id="dCameraX" step="5"></label>
             <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z<input type="number" id="dCameraZ" step="5"></label></div>
-          <div class="fgroup gap">
+          <div class="fgroup">
             <label title="Turntable height"><span class="label-head">Turntable Z<button class="mini" id="dTurntableAuto" title="Auto: the height that puts the object's middle on the tilt axis, where the camera points" aria-label="Auto turntable height">⌖</button></span><input type="number" id="dTurntableZ" step="10"></label>
             <label title="Turntable diameter">Turntable Dia<input type="number" id="dTurntableD" step="10"></label>
             <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label></div>
