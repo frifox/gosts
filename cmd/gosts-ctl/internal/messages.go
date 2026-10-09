@@ -22,7 +22,6 @@ type StateMsg struct {
 	Accs       map[string]int     `json:"accs"`       // servo ID -> tuned move acceleration
 	Names      map[string]string  `json:"names"`      // servo ID -> name from config.toml
 	Colors     map[string]string  `json:"colors"`     // servo ID -> color override from config.toml
-	Zeros      map[string]float64 `json:"zeros"`      // servo ID -> virtual 0° in degrees
 	DialUps    map[string]float64 `json:"dialUps"`    // servo ID -> factory-scale angle that is physically up
 	Ranges     map[string][]int   `json:"ranges"`     // servo ID -> motion range [lo, hi], encoder-scale steps
 	Groups     []GroupInfo        `json:"groups"`
@@ -114,7 +113,6 @@ type Request struct {
 	Values   []RegValue `json:"values"`  // for "tune"
 	Save     bool       `json:"save"`    // for "tune"/"copyTuning": persist instead of until power-off
 	Color    string     `json:"color"`   // for "color" and "servoEdit"
-	Zero     float64    `json:"zero"`    // for "servoEdit": virtual 0° in degrees
 	DialUp   float64    `json:"dialUp"`  // for "servoEdit": factory-scale angle that is physically up
 	Signed   bool       `json:"signed"`  // for "servoEdit": show angles as -180..180
 	Degrees  float64    `json:"degrees"` // for "zeroAt": where 0° goes, in degrees on the encoder scale (offset 0)

@@ -12,7 +12,7 @@ import (
 // in single-turn mode, written to the servo as angle limits.
 
 // SetLimits restricts the servo to the arc from req.MinDeg clockwise to
-// req.MaxDeg (console degrees: the servo reading minus the virtual 0°). The
+// req.MaxDeg (console degrees: the servo's reading). The
 // range is kept in config.toml on the encoder scale and enforced by the
 // library for every move (multi-turn too); in single-turn mode it is also
 // written to the servo as angle limits.
@@ -27,7 +27,7 @@ func (c *Controller) SetLimits(bus *gosts.Bus, sv *gosts.Servo, req internal.Req
 	if err != nil {
 		return err
 	}
-	lo := toSteps(wrap(req.MinDeg+c.cfg.Get(req.ID).Zero)) % gosts.StepsPerRev // reading
+	lo := toSteps(wrap(req.MinDeg)) % gosts.StepsPerRev // reading
 	r := gosts.Range{Lo: internal.WrapSteps(lo + zero), Hi: internal.WrapSteps(lo + zero + span)}
 	if err := c.cfg.Update(req.ID, func(c *internal.ServoConfig) { c.Range = []int{r.Lo, r.Hi} }); err != nil {
 		return err
@@ -74,8 +74,8 @@ func multiTurn(sv *gosts.Servo) (bool, error) {
 }
 
 // shiftZero moves the servo's 0 by shift steps (readings drop by shift) on
-// the servo and, if it is in a group, on every member alike, adjusting the
-// virtual 0° and dial orientation so the console angles stay the same. It
+// the servo and, if it is in a group, on every member alike, turning the dial
+// along so it still shows the arm where it is (the readings shift). It
 // returns the shift applied to servo id.
 func (c *Controller) shiftZero(bus *gosts.Bus, id uint8, shift int) (int, error) {
 	ids := []uint8{id}
@@ -101,7 +101,7 @@ func (c *Controller) shiftZero(bus *gosts.Bus, id uint8, shift int) (int, error)
 		applied := gosts.CircularDiff(z1, z0) // an offset of -2048 can't be stored: one step off
 		d := float64(applied) * gosts.DegreesPerStep
 		if err := c.cfg.Update(m, func(c *internal.ServoConfig) {
-			c.Zero, c.DialUp = round(c.Zero-d), round(c.DialUp-d)
+			c.DialUp = round(c.DialUp - d)
 		}); err != nil {
 			return 0, err
 		}
@@ -110,7 +110,7 @@ func (c *Controller) shiftZero(bus *gosts.Bus, id uint8, shift int) (int, error)
 		} else if err := c.refreshAngleLimits(sv, m); err != nil {
 			return 0, err
 		}
-		c.n.Logf("info", "servo %d: 0° moved by %.1f° (saved on the servo) so the range doesn't cross it; the console angles are unchanged", m, d)
+		c.n.Logf("info", "servo %d: 0° moved by %.1f° (saved on the servo) so the range doesn't cross it: its readings shift by that much", m, d)
 	}
 	c.n.BroadcastState()
 	return appliedTo, nil
@@ -141,9 +141,9 @@ func (c *Controller) refreshAngleLimits(sv *gosts.Servo, id uint8) error {
 // applyAngleLimits writes the servo's motion range as its angle limits
 // (single-turn). Limits are a plain min < max range of readings, so an arc
 // that crosses the servo's own 0 is first moved clear of it by shifting the
-// servo's zero; the virtual 0° and dial orientation shift along, so the
-// console shows the same angles. Group members share an axis, so all of
-// them get the same shift (their readings must keep agreeing).
+// servo's zero (the readings shift; the dial turns along, so it still shows
+// the arm where it is). Group members share an axis, so all of them get the
+// same shift (their readings must keep agreeing).
 func (c *Controller) applyAngleLimits(bus *gosts.Bus, id uint8) error {
 	sv := bus.Servo(id)
 	rg := c.cfg.Get(id).Range
@@ -159,8 +159,8 @@ func (c *Controller) applyAngleLimits(bus *gosts.Bus, id uint8) error {
 	lo := internal.WrapSteps(r.Lo - zero) // reading
 	if lo+span > gosts.StepsPerRev-1 {
 		// Readings drop by shift. Shift by whole quarter turns where that fits
-		// (any range up to 270°), so the virtual 0° moves by exactly 90° and
-		// the console angles stay exact; otherwise center the arc on 2048.
+		// (any range up to 270°), so the readings move by exactly 90°;
+		// otherwise center the arc on 2048.
 		shift, best := gosts.CircularDiff(lo, gosts.StepsPerRev/2-span/2), gosts.StepsPerRev
 		for k := 1; k < 4; k++ {
 			q := k * gosts.StepsPerRev / 4

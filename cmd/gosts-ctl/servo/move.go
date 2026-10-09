@@ -31,9 +31,8 @@ func (c *Controller) Move(bus *gosts.Bus, req internal.Request, ids []uint8) (in
 		goal = base + req.Position
 	} else {
 		// req.Degrees is the angle as the console shows it: the servo's
-		// reading minus the virtual 0°. Converted here, so a page with
-		// stale settings can't send the arm to the wrong place.
-		reading := int(math.Round((req.Degrees + c.cfg.Get(ids[0]).Zero) / gosts.DegreesPerStep))
+		// reading.
+		reading := int(math.Round(req.Degrees / gosts.DegreesPerStep))
 		if goal, err = lead.ShortestGoal(internal.WrapSteps(reading), turnWindow[0], turnWindow[1]); err != nil {
 			return 0, err
 		}

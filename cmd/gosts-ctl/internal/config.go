@@ -26,7 +26,6 @@ type ServoConfig struct {
 	Mirrored bool    `toml:"Mirrored,omitempty"`
 	Signed   bool    `toml:"Signed,omitempty"` // show angles as -180..180 instead of 0..360
 	Color    string  `toml:"Color,omitempty"`  // "#rrggbb"; empty = palette color by ID
-	Zero     float64 `toml:"Zero,omitzero"`    // virtual 0° (degrees, 0..360): shown angle = physical - Zero
 	DialUp   float64 `toml:"DialUp,omitzero"`  // encoder-scale angle at which the arm points physically up (dial orientation)
 	Range    []int   `toml:"Range,omitempty"`  // motion range [lo, hi]: clockwise arc in encoder-scale steps (0..4095, logical)
 	// WeightComp nudges the goal until a sagging arm reaches it (see servo.WeightComp).
@@ -35,7 +34,7 @@ type ServoConfig struct {
 }
 
 func (c ServoConfig) empty() bool {
-	return c.Name == "" && !c.Mirrored && !c.Signed && c.Color == "" && c.Zero == 0 && c.DialUp == 0 && len(c.Range) == 0 && !c.WeightComp && c.Acc == 0
+	return c.Name == "" && !c.Mirrored && !c.Signed && c.Color == "" && c.DialUp == 0 && len(c.Range) == 0 && !c.WeightComp && c.Acc == 0
 }
 
 // GroupConfig is a set of servos driven as one (see gosts.Group).
@@ -159,6 +158,10 @@ func LoadConfig(path string) (*Config, []string, error) {
 		c.servos[uint8(id)] = sc
 	}
 	for _, k := range md.Undecoded() {
+		if len(k) == 2 && k[1] == "Zero" { // the virtual 0° there was: the servo's own 0° is it now
+			warn("[%s] Zero (a virtual 0°) is no longer used, ignored: set the servo's 0° instead (Set 0° to)", k[0])
+			continue
+		}
 		warn("unknown key %q ignored", k.String())
 	}
 	// A servo can be in one group only; drop invalid or duplicate members.

@@ -146,22 +146,9 @@ func (c *Controller) GroupExec(bus *gosts.Bus, req internal.Request) error {
 		}
 		return errors.Join(errs...)
 	case "zeroHere":
-		// The pose the members are in now becomes 0° on each servo. The
-		// servos' own zero replaces a virtual one, so those are cleared.
+		// The pose the members are in now becomes 0° on each servo.
 		if err := g.SetPositionAs(0); err != nil {
 			return err
-		}
-		cleared := false
-		for _, id := range gc.Members {
-			if c.cfg.Get(id).Zero != 0 {
-				if err := c.cfg.Update(id, func(sc *internal.ServoConfig) { sc.Zero = 0 }); err != nil {
-					return err
-				}
-				cleared = true
-			}
-		}
-		if cleared {
-			c.n.BroadcastState()
 		}
 		c.n.Logf("info", "group %s: the current position is now 0° on every member (offsets saved on the servos)", gc.Name)
 		return nil

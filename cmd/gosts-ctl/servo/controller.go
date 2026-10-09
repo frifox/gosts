@@ -57,7 +57,7 @@ func (c *Controller) Exec(bus *gosts.Bus, req internal.Request) error {
 			return fmt.Errorf("mirrored is active but not saved: %w", err)
 		}
 		return nil
-	case "servoEdit": // the Edit servo dialog: name, color, mirrored and virtual zero at once
+	case "servoEdit": // the Edit servo dialog: name, color, mirrored, ±180° and where the arm is up at once
 		name, err := internal.ValidName(req.Name)
 		if err != nil {
 			return err
@@ -66,12 +66,12 @@ func (c *Controller) Exec(bus *gosts.Bus, req internal.Request) error {
 		if err != nil {
 			return err
 		}
-		if req.Zero < 0 || req.Zero >= 360 || req.DialUp < 0 || req.DialUp >= 360 {
+		if req.DialUp < 0 || req.DialUp >= 360 {
 			return fmt.Errorf("angles must be between 0 and 360 degrees")
 		}
 		bus.SetMirrored(req.ID, req.On)
 		if err := c.cfg.Update(req.ID, func(sc *internal.ServoConfig) {
-			sc.Name, sc.Color, sc.Mirrored, sc.Zero, sc.DialUp, sc.Signed = name, color, req.On, req.Zero, req.DialUp, req.Signed
+			sc.Name, sc.Color, sc.Mirrored, sc.DialUp, sc.Signed = name, color, req.On, req.DialUp, req.Signed
 		}); err != nil {
 			return err
 		}
@@ -98,19 +98,11 @@ func (c *Controller) Exec(bus *gosts.Bus, req internal.Request) error {
 	case "weightComp":
 		return c.SetWeightComp(bus, []uint8{req.ID}, req.On)
 	case "zeroAt":
-		// Absolute: where the servo's 0° goes on the encoder scale. The servo's
-		// own zero replaces a virtual one, so that is cleared.
-		vz := c.cfg.Get(req.ID).Zero
+		// Absolute: where the servo's 0° goes on the encoder scale.
 		d := math.Mod(math.Mod(req.Degrees, 360)+360, 360)
 		steps := int(math.Round(d/gosts.DegreesPerStep)) % gosts.StepsPerRev
 		if err := sv.SetZero(steps); err != nil {
 			return err
-		}
-		if vz != 0 {
-			if err := c.cfg.Update(req.ID, func(sc *internal.ServoConfig) { sc.Zero = 0 }); err != nil {
-				return err
-			}
-			c.n.BroadcastState()
 		}
 		c.n.Logf("info", "servo %d: 0° is now at the encoder's %.1f° mark (offset saved on the servo)", req.ID, d)
 		return nil

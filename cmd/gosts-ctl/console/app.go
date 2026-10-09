@@ -70,7 +70,7 @@ func (a *App) Refresh(id uint8) { a.scheduleRefresh(id, -1) }
 
 func (a *App) stateMsg() internal.StateMsg {
 	st := a.board.Status()
-	mirrored, signed, names, colors, zeros, dialUps := []int{}, []int{}, map[string]string{}, map[string]string{}, map[string]float64{}, map[string]float64{}
+	mirrored, signed, names, colors, dialUps := []int{}, []int{}, map[string]string{}, map[string]string{}, map[string]float64{}
 	ranges, weightComp, accs := map[string][]int{}, []int{}, map[string]int{}
 	for id, sc := range a.cfg.All() {
 		key := strconv.Itoa(int(id))
@@ -95,9 +95,6 @@ func (a *App) stateMsg() internal.StateMsg {
 		if sc.Color != "" {
 			colors[key] = sc.Color
 		}
-		if sc.Zero != 0 {
-			zeros[key] = sc.Zero
-		}
 		if sc.DialUp != 0 {
 			dialUps[key] = sc.DialUp
 		}
@@ -107,7 +104,7 @@ func (a *App) stateMsg() internal.StateMsg {
 	slices.Sort(weightComp)
 	return internal.StateMsg{Type: "state", Connected: st.Port != "", Port: st.Port, Baud: st.Baud,
 		Scanning: st.Scanning, Scanned: st.Scanned, IDs: internal.ToInts(st.IDs), Mirrored: mirrored, Signed: signed, WeightComp: weightComp, Accs: accs, Names: names,
-		Colors: colors, Zeros: zeros, DialUps: dialUps, Ranges: ranges, Groups: groupInfos(a.cfg.AllGroups())}
+		Colors: colors, DialUps: dialUps, Ranges: ranges, Groups: groupInfos(a.cfg.AllGroups())}
 }
 
 // Run serves the console on addr until ctx is done. With port set it first
