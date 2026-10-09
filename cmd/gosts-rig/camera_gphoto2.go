@@ -102,7 +102,10 @@ func openGphoto2Camera(port string) (Camera, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	sh, err := startGphoto2Shell(port, tmp, "--keep-raw", "--force-overwrite", "--filename", "%f.%C")
+	// Files keep the camera's names (no --filename: a pattern with %C fails
+	// on the live view's frame, which has no suffix; the camera's names
+	// already differ by extension, RAW and JPEG).
+	sh, err := startGphoto2Shell(port, tmp, "--keep-raw", "--force-overwrite")
 	if err != nil {
 		os.RemoveAll(tmp)
 		return nil, "", fmt.Errorf("gphoto2: %w", err)
