@@ -105,6 +105,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 /* Mixed (some on, some off): amber, the knob in the middle. */
 .switch input:indeterminate + .track { background: var(--warn); }
 .switch input:indeterminate + .track::after { left: 9px; }
+/* Pending (asked, not yet so): the knob, where it's going, is a spinner. */
+.switch.pending { cursor: progress; }
+.switch.pending .track::after { box-sizing: border-box; background: transparent; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; animation: spin .7s linear infinite; }
 .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
 .err { color: var(--bad); font-size: 12px; margin-top: 6px; min-height: 0; }
 .ctl-link { color: var(--accent); text-decoration: none; }
@@ -1763,6 +1766,7 @@ function onState(m) {
   // The Rig card: the board's port to connect to, or once connected the rig's controls.
   $("connectBody").hidden = $("refreshPorts").hidden = m.connected;
   $("controlBody").hidden = $("torqueSwitch").hidden = !m.connected;
+  if (!m.connected) $("torqueSwitch").classList.remove("pending"); // no readings to end it
   // The roles' servos not all on the bus: say which, and how to assign them.
   const roleNames = [[r.ElevationLeader, "elevation leader"], [r.ElevationFollower, "elevation follower"], [r.Azimuth, "azimuth"]];
   const missing = m.connected && !m.scanning ? roleNames.filter(([id]) => !(m.found || []).includes(id)) : [];
@@ -1823,7 +1827,18 @@ $("stopBtn").onclick = () => act("stop");
 // Go 0°: move one axis to 0°, leaving the other where it is.
 $("elevZero").onclick = () => { setControls(0, null); state.editing = false; act("move", { elevation: 0 }); };
 $("azimZero").onclick = () => { setControls(null, 0); state.editing = false; act("move", { azimuth: 0 }); };
-$("torque").onchange = (e) => act("torque", { on: e.target.checked });
+// Torque Lock: the switch goes where it was clicked at once, its knob a
+// spinner till the servos are so (locking checks each holds, ~½ s) and a
+// reading since says so; readings till then don't move it back.
+$("torque").onchange = async (e) => {
+  const sw = $("torqueSwitch");
+  sw.classList.add("pending");
+  state.torqueDone = null; // the request's not back yet
+  state.torqueWant = e.target.checked;
+  await act("torque", { on: e.target.checked });
+  state.torqueDone = performance.now();
+};
+$("torqueSwitch").addEventListener("click", (e) => { if ($("torqueSwitch").classList.contains("pending")) e.preventDefault(); }); // one at a time
 function setControls(e, a) {
   if (e !== null && e !== undefined) { $("elev").value = $("elevNum").value = (+e).toFixed(1); }
   if (a !== null && a !== undefined) { $("azim").value = $("azimNum").value = (+a).toFixed(1); }
@@ -1850,7 +1865,13 @@ function onTelemetry(m) {
   const tq = Object.values(m.servos).filter((s) => !s.error).map((s) => s.torque);
   // Mixed (a servo locked or let go in Servo Ctl): shown as neither; a click
   // locks them all (unchecked + click = on).
-  if (document.activeElement !== $("torque")) {
+  const sw = $("torqueSwitch");
+  // Pending: ends once the request is back and the readings say so (the
+  // server reads the switches right after), or 2 s after (it failed, or a
+  // servo didn't follow: the readings show how it is).
+  if (sw.classList.contains("pending") && state.torqueDone &&
+      ((tq.length && tq.every((on) => on === state.torqueWant)) || performance.now() - state.torqueDone > 2000)) sw.classList.remove("pending");
+  if (!sw.classList.contains("pending")) {
     const mixed = tq.some(Boolean) && !tq.every(Boolean);
     $("torque").checked = tq.length > 0 && tq.every(Boolean);
     $("torque").indeterminate = mixed;

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/frifox/gosts"
@@ -32,6 +33,8 @@ type rig struct {
 	// found, let go of before the bus closes (nil: none).
 	attach func(bus *gosts.Bus, port string, baud int, ids []uint8)
 	detach func()
+
+	torqueStale atomic.Bool // the torque switches changed: read them on the next poll, not in a second
 
 	mu       sync.Mutex
 	port     string
@@ -176,6 +179,7 @@ func (r *rig) forgetTarget() {
 	r.mu.Lock()
 	r.target.set = false
 	r.mu.Unlock()
+	r.torqueStale.Store(true) // Servo Ctl may have switched torque too
 }
 
 // rolesFromGroups assigns the roles from the servo console's groups (members
@@ -617,6 +621,7 @@ func (r *rig) torque(on bool) error {
 	if err != nil {
 		return err
 	}
+	defer r.torqueStale.Store(true)
 	ids := []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth}
 	if !on {
 		return r.withBus(func(bus *gosts.Bus) error { return bus.SyncTorque(false, ids...) })
@@ -740,7 +745,7 @@ func (r *rig) pollLoop(ctx context.Context) {
 		msg := telemetry{Type: "telemetry", Time: time.Now().UnixMilli(), Servos: map[string]servoStatus{}}
 		_ = r.withBus(func(bus *gosts.Bus) error {
 			res, _ := bus.SyncFeedback(ids...)
-			if n%10 == 0 { // torque switch once a second: not part of the feedback
+			if n%10 == 0 || r.torqueStale.Swap(false) { // torque switch once a second (not part of the feedback), or just changed
 				for _, id := range ids {
 					if on, err := bus.Servo(id).TorqueEnabled(); err == nil {
 						torque[id] = on
