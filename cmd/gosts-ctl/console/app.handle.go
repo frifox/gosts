@@ -54,6 +54,9 @@ func (a *App) handle(c *web.Client, req internal.Request) {
 	c.Push(res)
 	if err == nil {
 		a.afterChange(c, req)
+		if a.OnChange != nil && (req.Type == "groupSave" || req.Type == "groupDelete" || req.Type == "mirror" || req.Type == "servoEdit") {
+			a.OnChange()
+		}
 	}
 }
 

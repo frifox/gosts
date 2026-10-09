@@ -84,6 +84,7 @@ func main() {
 	}
 	ctl := console.New(ctlCfg, nil, 50*time.Millisecond, false)
 	a.rig.attach, a.rig.detach = ctl.Attach, ctl.Detach
+	ctl.OnChange = func() { a.rig.rolesFromGroups(ctl.Groups(), ctl.Mirrored) }
 	if err := a.cap.preview(c.Plan); err != nil {
 		log.Print(err)
 	}

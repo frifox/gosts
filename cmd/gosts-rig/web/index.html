@@ -104,6 +104,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .switch input:checked + .track::after { left: 16px; }
 .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
 .err { color: var(--bad); font-size: 12px; margin-top: 6px; min-height: 0; }
+.roles-note { border: 1px solid var(--warn); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; }
+.roles-note b { color: var(--warn); }
+.roles-note .row { display: flex; gap: 8px; margin-top: 8px; }
 .mono { font-family: var(--mono); }
 .readout { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .tile { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
@@ -381,6 +384,13 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       </div>
       <!-- Board connected: move the rig. -->
       <div class="card-body" id="controlBody" hidden>
+        <!-- A role's servo isn't on the bus (first time, or other servos): how to assign them. -->
+        <div class="roles-note" id="rolesNote" hidden>
+          <div><b>Assign the servos' roles.</b> <span id="rolesText"></span></div>
+          <div class="hint">With three servos: make a group of the two elevation servos (leader first) in Servo Ctl, and the
+            rig takes it as the elevation, the other servo as the azimuth. Or pick each servo's role in Setup.</div>
+          <div class="row"><button class="btn small primary" id="rolesCtl">Servo Ctl</button><button class="btn small" id="rolesSetup">Setup…</button></div>
+        </div>
         <div class="readout">
           <div class="tile"><div class="k">Elevation</div><div class="v" id="rElev">–</div></div>
           <div class="tile"><div class="k">Azimuth</div><div class="v" id="rAzim">–</div></div>
@@ -1151,6 +1161,8 @@ function showCtl(on) {
   $("ctlFrame").src = on ? "/ctl/?embed" : "about:blank";
 }
 $("ctlBtn").onclick = () => showCtl(!state.ctlOpen);
+$("rolesCtl").onclick = () => { showSettings("rig"); showCtl(true); };
+$("rolesSetup").onclick = () => $("setupBtn").click();
 function hideSettings() {
   showCtl(false);
   $("camConfigModal").hidden = $("rigCfgModal").hidden = true;
@@ -1739,6 +1751,12 @@ function onState(m) {
   // The Rig card: the board's port to connect to, or once connected the rig's controls.
   $("connectBody").hidden = $("refreshPorts").hidden = m.connected;
   $("controlBody").hidden = $("torqueSwitch").hidden = !m.connected;
+  // The roles' servos not all on the bus: say which, and how to assign them.
+  const roleNames = [[r.ElevationLeader, "elevation leader"], [r.ElevationFollower, "elevation follower"], [r.Azimuth, "azimuth"]];
+  const missing = m.connected && !m.scanning ? roleNames.filter(([id]) => !(m.found || []).includes(id)) : [];
+  $("rolesNote").hidden = !missing.length;
+  $("rolesText").textContent = `Found on the bus: ${(m.found || []).map((id) => "#" + id).join(", ") || "none"}; ` +
+    missing.map(([id, n]) => `#${id} (${n})`).join(", ") + (missing.length > 1 ? " aren't" : " isn't") + " among them.";
   if (!m.connected) $("stopBtn").hidden = true;
   if (!m.connected) state.controlsSet = false; // refill from the rig after the next connect
   if (!m.connected) setPill("bus", false, "no board");

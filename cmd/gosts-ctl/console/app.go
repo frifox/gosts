@@ -29,6 +29,10 @@ type App struct {
 	poll   time.Duration
 	noSync bool
 
+	// OnChange, if set, is called after the groups or a servo's mirroring
+	// changed (gosts-rig assigns the rig's roles from them).
+	OnChange func()
+
 	mu      sync.Mutex
 	refresh map[uint8]*pendingRefresh
 	at      *autotuneRun // current or last auto-tune run
@@ -148,6 +152,18 @@ func (a *App) Detach() {
 	a.stopAutotune()
 	a.board.Disconnect()
 }
+
+// Groups are the groups' members, each leader first.
+func (a *App) Groups() [][]uint8 {
+	var out [][]uint8
+	for _, g := range a.cfg.AllGroups() {
+		out = append(out, g.Members)
+	}
+	return out
+}
+
+// Mirrored reports whether servo id is mirrored in the console's settings.
+func (a *App) Mirrored(id uint8) bool { return a.cfg.Get(id).Mirrored }
 
 // LoadConfig reads the console's settings file (servo names, mirroring, zero,
 // ranges, groups), created on the first change; warnings are about entries

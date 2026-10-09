@@ -170,6 +170,47 @@ func (r *rig) setRoles(ro Roles) error {
 	return nil
 }
 
+// rolesFromGroups assigns the roles from the servo console's groups (members
+// leader first) when that's clear: three servos found and one group of two of
+// them, which is the elevation (its mirroring the console's), the third the
+// azimuth. Otherwise the roles are as they are (Setup assigns them).
+func (r *rig) rolesFromGroups(groups [][]uint8, mirrored func(uint8) bool) {
+	r.mu.Lock()
+	found := slices.Clone(r.found)
+	r.mu.Unlock()
+	if len(found) != 3 {
+		return
+	}
+	var pair []uint8
+	for _, g := range groups {
+		if len(g) == 2 && slices.Contains(found, g[0]) && slices.Contains(found, g[1]) {
+			if pair != nil {
+				return // two: which one?
+			}
+			pair = g
+		}
+	}
+	if pair == nil {
+		return
+	}
+	ro := r.cfg.get().Roles
+	old := ro
+	ro.ElevationLeader, ro.ElevationFollower = pair[0], pair[1]
+	ro.LeaderMirrored, ro.FollowerMirrored = mirrored(pair[0]), mirrored(pair[1])
+	for _, id := range found {
+		if !slices.Contains(pair, id) {
+			ro.Azimuth = id
+		}
+	}
+	if ro == old {
+		return
+	}
+	r.logf("info", "roles from Servo Ctl's group of #%d and #%d: they're the elevation, #%d the azimuth", pair[0], pair[1], ro.Azimuth)
+	if err := r.setRoles(ro); err != nil {
+		r.logf("error", "roles: %v", err)
+	}
+}
+
 // scan looks for servos 0..20 (the rig uses low IDs).
 func (r *rig) scan(ctx context.Context) error {
 	r.mu.Lock()
