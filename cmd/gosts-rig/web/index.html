@@ -72,6 +72,15 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .mini { border: 0; background: none; padding: 0 2px; color: var(--accent); font: inherit; font-size: 13px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; }
 .label-head { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; line-height: 1.2; }
 .mini:hover { filter: brightness(1.35); } /* no underline */
+/* A ? that explains a field on hover (or focus): its data-tip in a bubble below. */
+.help { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%;
+  border: 1px solid var(--muted); color: var(--muted); font: 600 10px/1 system-ui, sans-serif; cursor: help; flex: none; }
+.help:hover, .help:focus { color: var(--accent); border-color: var(--accent); outline: none; }
+.help::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: -8px; z-index: 50; width: 240px; padding: 8px 10px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font: 400 12px/1.4 system-ui, sans-serif;
+  white-space: normal; text-transform: none; letter-spacing: 0; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none;
+  opacity: 0; visibility: hidden; transition: opacity .12s; }
+.help:hover::after, .help:focus::after { opacity: 1; visibility: visible; }
 input[type=number], input.count-box, select { width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: 13px var(--mono); }
 input[type=number]:disabled, select:disabled { opacity: .45; cursor: not-allowed; }
 label:has(> input:disabled) { color: var(--muted); }
@@ -489,7 +498,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <label title="Swing bar length (camera bar)">Swing Y<input type="number" id="dSwingY" step="10"></label>
           <label title="Post height">Post Z<input type="number" id="dPostZ" step="10"></label>
           <label title="Turntable height"><span class="label-head">Turntable Z<button class="mini" id="dTurntableAuto" title="Auto: the height that puts the object's middle on the tilt axis, where the camera points" aria-label="Auto turntable height">⌖</button></span><input type="number" id="dTurntableZ" step="10"></label>
-          <label title="From the turntable's centre to the camera's sensor (the ⦵ mark on its top), across, with the arm level">Camera X<input type="number" id="dCameraX" step="5"></label>
+          <label><span class="label-head">Camera X<span class="help" tabindex="0" aria-label="How to measure Camera X" data-tip="Measure from the centre of the turntable's top to the camera's sensor: the ⦵ mark on the camera's top plate (on the A6600, left of the mode dial). Measure straight across, with the arm level (elevation 0°).">?</span></span><input type="number" id="dCameraX" step="5"></label>
           <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z offset<input type="number" id="dCameraZ" step="5"></label>
           <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label>
           <label title="Turntable diameter">Turntable Dia<input type="number" id="dTurntableD" step="10"></label>
