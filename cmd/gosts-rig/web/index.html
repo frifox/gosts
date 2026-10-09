@@ -285,8 +285,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 #rig:active { cursor: grabbing; }
 #rig canvas { display: block; }
 .nodata { position: absolute; left: 0; right: 0; bottom: 34px; text-align: center; color: var(--muted); font-size: 13px; pointer-events: none; }
-.overlay { position: absolute; left: 12px; top: 12px; display: flex; gap: 8px; pointer-events: none; }
-.overlay .tile { background: color-mix(in srgb, var(--panel) 85%, transparent); }
 .legend { position: absolute; left: 12px; bottom: 10px; display: flex; gap: 12px; font-size: 12px; color: var(--muted); pointer-events: none; }
 /* Trail speed key (colours as in rig3d.js speedColor): ½× … normal … 2×, log scale. */
 .speedkey { position: absolute; right: 12px; bottom: 10px; width: 210px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
@@ -535,10 +533,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <div class="card-body">
       <div id="rig"></div>
       <div class="nodata" id="noData" hidden></div>
-      <div class="overlay">
-        <div class="tile"><div class="k">Elevation</div><div class="v" id="oElev">–</div></div>
-        <div class="tile"><div class="k">Azimuth</div><div class="v" id="oAzim">–</div></div>
-      </div>
       <div class="speedkey" id="speedKey" hidden>
         <div class="sk-head"><span>Camera speed</span><b id="skNow">–</b></div>
         <div class="sk-bar"><i id="skMark"></i></div>
@@ -1851,8 +1845,8 @@ const fmt = (d) => d === null || d === undefined ? "–" : `${d.toFixed(1)}<smal
 function onTelemetry(m) {
   state.tele = m;
   $("stopBtn").hidden = !Object.values(m.servos).some((s) => s.moving && !s.error); // Stop: only while moving
-  $("rElev").innerHTML = $("oElev").innerHTML = fmt(m.elevation);
-  $("rAzim").innerHTML = $("oAzim").innerHTML = fmt(m.azimuth);
+  $("rElev").innerHTML = fmt(m.elevation);
+  $("rAzim").innerHTML = fmt(m.azimuth);
   const typing = document.activeElement?.tagName === "INPUT";
   if (!state.editing && m.target && !typing) setControls(m.target[0], m.target[1]);
   // No target (before the first move, or the servos moved in Servo Ctl): the
