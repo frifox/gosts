@@ -364,12 +364,12 @@ func (c *capture) begin(p Plan) error {
 	c.rows, c.spacing = rows, spacing
 	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
 	c.mu.Unlock()
-	how := fmt.Sprintf("in %d rows, stopping for each", rows)
+	how := fmt.Sprintf("in %d rows, Stop & Shoot", rows)
 	switch {
 	case p.Moving && p.path() == PathRings:
-		how = fmt.Sprintf("in %d rows, without stopping", rows)
+		how = fmt.Sprintf("in %d rows, Continuous", rows)
 	case p.Moving:
-		how = fmt.Sprintf("on a %d-turn spiral, without stopping", rows)
+		how = fmt.Sprintf("on a %d-turn spiral, Continuous", rows)
 	}
 	c.rig.logf("info", "capture started: %d photos about %.0f° apart, %s", len(shots), spacing, how)
 	c.send()

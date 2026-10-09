@@ -55,7 +55,7 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .fgroups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, auto); grid-auto-flow: column; gap: 10px 24px; }
 .fgroup { display: flex; align-items: flex-end; gap: 12px; }
 .fgroup label { width: 120px; flex: none; display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
-/* The Camera card's plan: photos and the progress beside them; then the path and shooting choices. */
+/* The Camera card's plan: photos and the progress beside them; then the path and rig motion choices. */
 .plan-line { display: flex; align-items: flex-end; gap: 10px 14px; flex-wrap: wrap; }
 .plan-line.opts { margin-top: 12px; }
 .plan-line label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
@@ -344,13 +344,13 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="plan-line opts">
           <div class="opt" title="Sphere: the photos spread as evenly as can be over the sphere round the object. Rings: rings of one elevation each, the camera's height changing only between rows (fewer photos in the higher rows)."><span class="opt-label">Path</span>
             <div class="views seg" id="pathSeg"><button data-v="sphere">Sphere</button><button data-v="rings">Rings</button></div></div>
-          <div class="opt" title="Keep moving: the rig doesn't stop, each photo taken as it passes its shot (needs a fast shutter). Settle first: the rig stops at each shot and waits a moment before the photo."><span class="opt-label">Shooting</span>
-            <div class="views seg" id="shootSeg"><button data-v="moving">Keep moving</button><button data-v="settle">Settle first</button></div></div>
+          <div class="opt" title="Continuous: the rig doesn't stop, each photo taken as it passes its shot (needs a fast shutter). Stop &amp; Shoot: the rig stops at each shot and waits a moment (the settle time) before the photo."><span class="opt-label">Rig motion</span>
+            <div class="views seg" id="shootSeg"><button data-v="moving">Continuous</button><button data-v="settle">Stop &amp; Shoot</button></div></div>
           <label class="settle-field" id="settleField" title="How long the rig waits after arriving, before each photo">Settle (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
           <input type="checkbox" id="pMoving" hidden><input type="hidden" id="pPath" value="sphere">
         </div>
         <div class="pace-line"><span class="hint" id="paceText"></span>
-          <button class="btn small" id="paceBtn" title="Takes a few sample shots back to back and times them coming over: how often the camera keeps up taking photos. Keep moving then spaces the photos at least that far apart (and slows down if the camera still falls behind).">Measure</button></div>
+          <button class="btn small" id="paceBtn" title="Takes a few sample shots back to back and times them coming over: how often the camera keeps up taking photos. Continuous then spaces the photos at least that far apart (and slows down if the camera still falls behind).">Measure</button></div>
         <!-- Alignment data for a photogrammetry app: where each photo was taken from (the rig's poses),
              written beside the photos when a capture ends. -->
         <div class="export-line" title="When a capture ends, write where each photo was taken from (the rig's poses, as starting points the app refines) beside the photos, in the chosen app's format">
@@ -1891,8 +1891,8 @@ function loadPlan(p) {
   segSync();
 }
 let planTimer = null;
-// The button groups (Path Optimization, Shooting) set the plan's hidden
-// fields (pPath, pMoving); the settle time only shows for settling first.
+// The button groups (Path, Rig motion) set the plan's hidden fields (pPath,
+// pMoving); the settle time only shows for Stop & Shoot.
 function segSync() {
   const moving = $("pMoving").checked, path = $("pPath").value || "sphere";
   for (const b of $("pathSeg").children) b.classList.toggle("active", b.dataset.v === path);
