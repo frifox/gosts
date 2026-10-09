@@ -38,7 +38,7 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 
 - In the **Camera** card, choose how many photos you want. They're spread evenly round the object, as high and low as the
   camera may go.
-- **Path Optimization**: **Even** spreads the photos as evenly as can be round the object; **Linear** takes them in
+- **Path**: **Even** spreads the photos as evenly as can be round the object; **Linear** takes them in
   rows, the camera's height changing only between rows (fewer photos in the higher rows).
 - **Shooting**: **Settle first** stops at each shot and waits the settle time; **Keep moving** doesn't stop: the rig
   glides along one smooth path instead, which is much faster, for a quick enough shutter. Any number of photos works; on long spirals the rig pauses for a moment now
@@ -48,7 +48,8 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
   while the camera is still busy with the last one, and slows down (holding still at 4 photos waiting) if the
   camera falls behind anyway, so no photo is lost.
 - **Preview** plays the capture in the 3D view first, without moving the rig.
-- **Start**, **Pause**, **Stop**. The progress bar shows the photos done and about how long is left.
+- **Capture** takes the photos: while it runs, it turns into **Stop** and Preview into **Pause** (Resume). The
+  progress bar shows the photos done, the time so far and about how long is left.
 - **Take Photo** takes a single photo where the rig is.
 
 Photos appear in the **Photos** card as they arrive. Click one to see it full size, **View All** for a grid. They're

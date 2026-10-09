@@ -158,6 +158,8 @@ td.mono { font-family: var(--mono); }
 .camcfg-shot.live { cursor: default; }
 .camcfg-shot.taking::after { content: ""; position: absolute; width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--border);
   border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.cap-btns { display: flex; gap: 8px; margin-top: 10px; }
+.cap-btns .btn { flex: 1; }
 .pace-line { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .pace-line .hint { margin: 0; flex: 1; }
 .sample-btns { display: flex; gap: 8px; margin-top: 14px; }
@@ -302,7 +304,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <div class="progress big"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div>
         </div>
         <div class="plan-line opts">
-          <div class="opt" title="Even: the photos spread as evenly as can be over the sphere round the object. Linear: rows of one elevation each, the camera's height changing only between rows (fewer photos in the higher rows)."><span class="opt-label">Path Optimization</span>
+          <div class="opt" title="Even: the photos spread as evenly as can be over the sphere round the object. Linear: rows of one elevation each, the camera's height changing only between rows (fewer photos in the higher rows)."><span class="opt-label">Path</span>
             <div class="views seg" id="pathSeg"><button data-v="even">Even</button><button data-v="linear">Linear</button></div></div>
           <div class="opt" title="Settle first: the rig stops at each shot and waits a moment before the photo. Keep moving: the rig doesn't stop, each photo taken as it passes its shot (needs a fast shutter)."><span class="opt-label">Shooting</span>
             <div class="views seg" id="shootSeg"><button data-v="settle">Settle first</button><button data-v="moving">Keep moving</button></div></div>
@@ -311,12 +313,13 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         </div>
         <div class="pace-line"><span class="hint" id="paceText"></span>
           <button class="btn small" id="paceBtn" title="Takes a few sample shots back to back and times them coming over: how often the camera keeps up taking photos. Keep moving then spaces the photos at least that far apart (and slows down if the camera still falls behind).">Measure</button></div>
-        <div class="row" style="margin-top:10px">
-          <button class="btn" id="previewBtn" title="Show the camera's path through the planned shots, played faster than the capture">Preview FF</button>
-          <span class="spacer"></span>
-          <button class="btn danger" id="abortBtn" disabled>Stop</button>
-          <button class="btn" id="pauseBtn" disabled>Pause</button>
-          <button class="btn primary" id="startBtn">Start</button>
+        <!-- Two buttons: Preview and Capture. A preview playing: Preview is Stop. A capture running:
+             Capture is Stop, Preview is Pause (Resume). -->
+        <div class="cap-btns">
+          <button class="btn" id="previewBtn" title="Show the camera's path through the planned shots, played faster than the capture">Preview</button>
+          <button class="btn" id="pauseBtn" title="Pause the capture where it is (Resume carries on)" hidden>Pause</button>
+          <button class="btn primary" id="startBtn" title="Take the photos">Capture</button>
+          <button class="btn danger" id="abortBtn" title="Stop the capture (the photos taken stay)" hidden>Stop</button>
         </div>
         <p class="hint" id="capNote"></p>
       </div>
@@ -1809,8 +1812,9 @@ $("previewBtn").onclick = () => {
   const shots = state.cap?.shots || [];
   if (shots.length < 2 || !window.rig3d) return;
   $("previewBtn").textContent = "Stop";
+  $("previewBtn").classList.add("danger");
   // Only the view moves: at the end it returns to where the real rig is.
-  window.rig3d.startPreview(shots, $("pMoving").checked).then(() => { $("previewBtn").textContent = "Preview FF"; planLock(); });
+  window.rig3d.startPreview(shots, $("pMoving").checked).then(() => { $("previewBtn").textContent = "Preview"; $("previewBtn").classList.remove("danger"); planLock(); });
   planLock();
 };
 // planLock: while a preview or a capture runs, what would change the plan
@@ -1864,12 +1868,12 @@ function onCapture(m) {
   cameraButtons(); // no Take Photo during a capture
   $("capBar").style.width = m.total ? `${100 * done / m.total}%` : "0";
   capCount();
-  $("startBtn").disabled = m.running;
-  $("previewBtn").disabled = m.running || m.shots.length < 2;
+  // Preview and Capture; while capturing, Pause and Stop in their places.
+  $("startBtn").hidden = $("previewBtn").hidden = m.running;
+  $("pauseBtn").hidden = $("abortBtn").hidden = !m.running;
+  $("previewBtn").disabled = m.shots.length < 2;
   if (m.running) stopPreview();
-  $("pauseBtn").disabled = !m.running;
   $("pauseBtn").textContent = m.paused ? "Resume" : "Pause";
-  $("abortBtn").disabled = !m.running;
   planLock();
   $("pSettle").disabled = m.running;
   $("capNote").textContent = m.running ? (m.paused ? "Paused." : m.note) : m.note; // progress: the bar (and a note, e.g. unwinding)
