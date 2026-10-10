@@ -429,6 +429,65 @@ html.embed #embedWait:not([hidden]) { display: block; }
     </section>
 
     <div class="col">
+    <section class="card group-only" id="gSetupCard" hidden>
+      <h2>Setup</h2>
+      <div class="card-body">
+        <div class="row" style="margin-top:0">
+          <label class="switch"><input type="checkbox" id="gMultiturn"><span class="track"></span><span>Enable multi-turn (allows crossing 0° line)</span></label>
+        </div>
+        <p class="hint" id="gMultiturnHint">Applies to every member.</p>
+        <hr class="sep">
+        <div class="row">
+          <span>Set 0° to</span>
+          <button class="btn" id="gZeroHere" title="Make the pose the members are in now 0° on every member">Current position</button>
+        </div>
+        <p class="hint">Sets each member's own zero where it is now, so all of them read 0° in this pose. Saved on the servos.</p>
+      </div>
+    </section>
+
+    <section class="card servo-only" id="setupCard">
+      <h2>Setup</h2>
+      <div class="card-body">
+        <div class="row" style="margin-top:0">
+          <span>Set 0° to</span>
+          <button class="btn" id="zeroAtHere" title="Make where the arm is now the servo's 0°">Current position</button>
+          <span>or</span>
+          <input class="num" type="number" id="zeroAtDeg" min="0" max="359.9" step="0.1" value="0" style="width:80px">
+          <span>°</span>
+          <button class="btn" id="zeroAtBtn">Set</button>
+        </div>
+        <hr class="sep">
+        <div class="row lim-row">
+          <span>Limit motion range to</span>
+          <input class="num" type="number" id="limMin" step="0.1" style="width:80px">
+          <span>° to</span>
+          <input class="num" type="number" id="limMax" step="0.1" style="width:80px">
+          <span>°</span>
+          <button class="btn" id="limSet">Set</button>
+          <button class="btn" id="limClear" title="Remove the motion range">Clear</button>
+        </div>
+        <div class="row lim-row">
+          <span>Set current position as</span>
+          <button class="btn small" id="limMinHere">Min</button>
+          <button class="btn small" id="limMaxHere">Max</button>
+        </div>
+        <p class="hint" id="limHint"></p>
+        <div class="row">
+          <label class="switch"><input type="checkbox" id="multiturn"><span class="track"></span><span>Enable multi-turn (allows crossing 0° line)</span></label>
+        </div>
+        <p class="hint">Multi-turn will disable the configured motion range limit on the servo (moves from this console still stay inside it).</p>
+        <hr class="sep">
+        <div class="row">
+          <span>Change Servo ID to</span>
+          <input class="num" type="number" id="newId" min="0" max="253" style="width:90px">
+          <button class="btn" id="setIdBtn">Set ID</button>
+        </div>
+        <p class="hint">New servos ship with ID 1. Connect one at a time when changing IDs.</p>
+        <hr class="sep">
+        <div class="row"><button class="btn" id="cfgBtn">Reload registers</button></div>
+      </div>
+    </section>
+
     <section class="card">
       <h2>Control</h2>
       <div class="card-body">
@@ -528,65 +587,6 @@ html.embed #embedWait:not([hidden]) { display: block; }
     </div>
 
     <div class="col">
-    <section class="card group-only" id="gSetupCard" hidden>
-      <h2>Setup</h2>
-      <div class="card-body">
-        <div class="row" style="margin-top:0">
-          <label class="switch"><input type="checkbox" id="gMultiturn"><span class="track"></span><span>Enable multi-turn (allows crossing 0° line)</span></label>
-        </div>
-        <p class="hint" id="gMultiturnHint">Applies to every member.</p>
-        <hr class="sep">
-        <div class="row">
-          <span>Set 0° to</span>
-          <button class="btn" id="gZeroHere" title="Make the pose the members are in now 0° on every member">Current position</button>
-        </div>
-        <p class="hint">Sets each member's own zero where it is now, so all of them read 0° in this pose. Saved on the servos.</p>
-      </div>
-    </section>
-
-    <section class="card servo-only" id="setupCard">
-      <h2>Setup</h2>
-      <div class="card-body">
-        <div class="row" style="margin-top:0">
-          <span>Set 0° to</span>
-          <button class="btn" id="zeroAtHere" title="Make where the arm is now the servo's 0°">Current position</button>
-          <span>or</span>
-          <input class="num" type="number" id="zeroAtDeg" min="0" max="359.9" step="0.1" value="0" style="width:80px">
-          <span>°</span>
-          <button class="btn" id="zeroAtBtn">Set</button>
-        </div>
-        <hr class="sep">
-        <div class="row lim-row">
-          <span>Limit motion range to</span>
-          <input class="num" type="number" id="limMin" step="0.1" style="width:80px">
-          <span>° to</span>
-          <input class="num" type="number" id="limMax" step="0.1" style="width:80px">
-          <span>°</span>
-          <button class="btn" id="limSet">Set</button>
-          <button class="btn" id="limClear" title="Remove the motion range">Clear</button>
-        </div>
-        <div class="row lim-row">
-          <span>Set current position as</span>
-          <button class="btn small" id="limMinHere">Min</button>
-          <button class="btn small" id="limMaxHere">Max</button>
-        </div>
-        <p class="hint" id="limHint"></p>
-        <div class="row">
-          <label class="switch"><input type="checkbox" id="multiturn"><span class="track"></span><span>Enable multi-turn (allows crossing 0° line)</span></label>
-        </div>
-        <p class="hint">Multi-turn will disable the configured motion range limit on the servo (moves from this console still stay inside it).</p>
-        <hr class="sep">
-        <div class="row">
-          <span>Change Servo ID to</span>
-          <input class="num" type="number" id="newId" min="0" max="253" style="width:90px">
-          <button class="btn" id="setIdBtn">Set ID</button>
-        </div>
-        <p class="hint">New servos ship with ID 1. Connect one at a time when changing IDs.</p>
-        <hr class="sep">
-        <div class="row"><button class="btn" id="cfgBtn">Reload registers</button></div>
-      </div>
-    </section>
-
     <section class="card" id="tuningCard">
       <h2>Tuning <span id="tuneScope" class="tune-scope"></span><span class="spacer"></span>
         <button class="btn small" id="autoTuneBtn" title="Find good values automatically by test moves">Auto…</button>
