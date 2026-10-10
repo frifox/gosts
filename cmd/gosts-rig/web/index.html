@@ -513,8 +513,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <label title="Turntable diameter">Turntable Dia<input type="number" id="dTurntableD" step="10"></label>
             <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label></div>
           <div class="fgroup">
-            <label title="How low the camera may go">Min elevation °<input type="number" id="dElevMin" step="1"></label>
-            <label title="How high the camera may go">Max elevation °<input type="number" id="dElevMax" step="1"></label></div>
+            <label title="How low the camera may go"><span class="label-head">Min elevation °<button class="mini" id="dElevMinHere" title="The rig's elevation now (rounded down), saved: move the camera to its lowest first (Torque Lock off, by hand, if it's past the limit)" aria-label="Min elevation: here">◉</button></span><input type="number" id="dElevMin" step="1"></label>
+            <label title="How high the camera may go"><span class="label-head">Max elevation °<button class="mini" id="dElevMaxHere" title="The rig's elevation now (rounded up), saved: move the camera to its highest first (Torque Lock off, by hand, if it's past the limit)" aria-label="Max elevation: here">◉</button></span><input type="number" id="dElevMax" step="1"></label></div>
         </div>
         <div class="err" id="rigErr"></div>
         <div class="row" style="margin-top:10px">
@@ -1958,7 +1958,7 @@ $("previewBtn").onclick = () => {
 // redrawn, the trail carrying on).
 function planLock() {
   const busy = !!(window.rig3d?.previewing() || state.cap?.running);
-  for (const id of ["pPhotos", "pMoving", "dElevMin", "dElevMax", "dDefaults", "paceBtn", "pExport"]) $(id).disabled = busy;
+  for (const id of ["pPhotos", "pMoving", "dElevMin", "dElevMax", "dElevMinHere", "dElevMaxHere", "dDefaults", "paceBtn", "pExport"]) $(id).disabled = busy;
   for (const b of [...$("pathSeg").children, ...$("shootSeg").children]) b.disabled = busy;
   for (const id of ["dElevMin", "dElevMax"]) $(id).title = busy ? "Set while no preview or capture runs: it changes the plan" : "";
 }
@@ -2135,6 +2135,27 @@ $("rigCfgModal").addEventListener("keydown", (e) => {
   e.preventDefault();
   if (!$("dSave").disabled) $("dSave").click();
 });
+// Min/Max elevation from where the rig is now (min rounded down, max up, so
+// the arm can still get there), then saved, as Save does.
+function elevationHere(id, round) {
+  return (e) => {
+    e.preventDefault();
+    const el = state.tele?.elevation;
+    if (!state.server?.connected || el === null || el === undefined) { $("rigErr").textContent = "Connect the rig first: its elevation is read from the servos."; return; }
+    const v = round(el);
+    const other = id === "dElevMin" ? Number($("dElevMax").value) : Number($("dElevMin").value);
+    if (id === "dElevMin" ? v >= other : v <= other) {
+      $("rigErr").textContent = `The camera is at ${el.toFixed(1)}°: that's ${id === "dElevMin" ? "not below the max" : "not above the min"} elevation (${other}°).`;
+      return;
+    }
+    $("rigErr").textContent = "";
+    $(id).value = v;
+    dimsChanged();
+    $("dSave").click();
+  };
+}
+$("dElevMinHere").onclick = elevationHere("dElevMin", Math.floor);
+$("dElevMaxHere").onclick = elevationHere("dElevMax", Math.ceil);
 $("dRevert").onclick = () => { $("rigErr").textContent = ""; fillDims(savedDims(), savedLimits()); };
 $("dSave").onclick = async () => {
   $("rigErr").textContent = "";
