@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -62,10 +63,13 @@ func TestSimCameraSettings(t *testing.T) {
 func TestSampleShot(t *testing.T) {
 	simPictureWait = 50 * time.Millisecond
 	defer func() { simPictureWait = 2 * time.Second }()
+	var mu sync.Mutex
 	var got []photoMsg
 	c := &cameraConn{out: func(m any) {
 		if p, ok := m.(photoMsg); ok {
+			mu.Lock()
 			got = append(got, p)
+			mu.Unlock()
 		}
 	}}
 	c.connect(simCameraID)
@@ -73,6 +77,8 @@ func TestSampleShot(t *testing.T) {
 		t.Fatal(err)
 	}
 	time.Sleep(150 * time.Millisecond)
+	mu.Lock()
+	defer mu.Unlock()
 	if len(got) != 1 || !got[0].Sample || got[0].Caption == "" {
 		t.Fatalf("got %+v", got)
 	}

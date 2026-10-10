@@ -481,3 +481,54 @@ func TestGphoto2Stuck(t *testing.T) {
 		t.Fatalf("after: %q, %v", out, err)
 	}
 }
+
+// fakeDeadGphoto2 finds a camera, but its shell never answers get-config
+// (a camera hung on USB).
+const fakeDeadGphoto2 = `#!/bin/sh
+case "$*" in
+*--auto-detect*) echo "Fake Camera (PC Control)       usb:001,002"; exit 0;;
+esac
+prompt() { printf 'gphoto2: {%s} /> ' "$PWD"; }
+prompt
+while IFS= read -r line; do
+  echo "$line"
+  case "$line" in
+  get-config*) exec sleep 100;;
+  exit|quit) exit 0;;
+  esac
+  prompt
+done
+`
+
+// TestGphoto2CloseStuck: disconnecting a camera that's stopped answering
+// doesn't wait on it: gphoto2 is stopped, and what was waiting gets an error.
+func TestGphoto2CloseStuck(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "gphoto2"), []byte(fakeDeadGphoto2), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	defer func(d time.Duration) { closeWait = d }(closeWait)
+	closeWait = 300 * time.Millisecond
+	cam, _, err := openCamera(gphoto2Prefix + "usb:001,002")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := cam.(*gphoto2Camera)
+	got := make(chan error, 1)
+	go func() { _, err := g.runLines([]string{"get-config /main/capturesettings/expprogram"}); got <- err }()
+	time.Sleep(300 * time.Millisecond) // it's stuck on it
+	start := time.Now()
+	cam.Close()
+	if d := time.Since(start); d > 3*time.Second {
+		t.Fatalf("closing took %v", d)
+	}
+	select {
+	case err := <-got:
+		if err == nil {
+			t.Fatal("the stuck command didn't fail")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the stuck command still waiting")
+	}
+}

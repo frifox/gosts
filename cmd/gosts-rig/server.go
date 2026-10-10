@@ -298,6 +298,15 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 		a.mu.Unlock()
 		close(done)
 	}()
+	// The camera's requests in turn, but beside the others: a camera not
+	// answering holds up only its own (and Disconnect skips them all).
+	camQ := make(chan func(), 64)
+	defer close(camQ)
+	go func() {
+		for f := range camQ {
+			f()
+		}
+	}()
 	for {
 		_, data, err := conn.ReadMessage()
 		if err != nil {
@@ -316,12 +325,26 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 			}
 			c.push(res)
 		}
-		if req.Type == "connect" || req.Type == "scan" { // slow: keep the window responsive
+		switch {
+		case req.Type == "connect" || req.Type == "scan" || req.Type == "disconnect" || req.Type == "cameraDisconnect": // slow, or must not wait: keep the window responsive
 			go run()
-		} else {
+		case cameraRequests[req.Type]:
+			select {
+			case camQ <- run:
+			default: // a long queue: the camera's stuck; it won't make this one later
+				go run()
+			}
+		default:
 			run()
 		}
 	}
+}
+
+// cameraRequests are the requests that talk to the camera (in turn, beside
+// the rest: see handleWS).
+var cameraRequests = map[string]bool{
+	"cameras": true, "cameraConnect": true, "shoot": true, "cameraSettings": true, "cameraSet": true, "cameraProbe": true,
+	"autofocus": true, "focusNudge": true, "measurePace": true, "sampleShot": true, "shootBurst": true, "gphoto2Shell": true,
 }
 
 // handlePhoto serves a photo on the timeline (/photo/{n}.jpg; ?thumb, its

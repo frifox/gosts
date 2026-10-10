@@ -22,8 +22,8 @@ func TestRolesFromGroups(t *testing.T) {
 	before := cfg.get().Roles
 
 	r.rolesFromGroups([][]uint8{{1, 2}, {2, 3}}, mirrored) // two groups: unclear
-	r.rolesFromGroups([][]uint8{{1, 2, 3}}, mirrored)       // not two servos
-	r.rolesFromGroups([][]uint8{{3, 9}}, mirrored)          // 9 isn't there
+	r.rolesFromGroups([][]uint8{{1, 2, 3}}, mirrored)      // not two servos
+	r.rolesFromGroups([][]uint8{{3, 9}}, mirrored)         // 9 isn't there
 	if cfg.get().Roles != before {
 		t.Fatalf("roles changed: %+v", cfg.get().Roles)
 	}

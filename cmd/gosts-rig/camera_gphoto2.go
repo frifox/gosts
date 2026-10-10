@@ -61,9 +61,12 @@ func gphoto2Detect() []gphoto2Device {
 // --keep-raw in force: only the JPEG comes over USB, the RAW stays on the
 // card (its name is logged).
 type gphoto2Camera struct {
-	port string
-	reqs chan gphoto2Req
-	done chan struct{} // closed when the worker has ended
+	port     string
+	reqs     chan gphoto2Req
+	done     chan struct{} // closed when the worker has ended
+	quit     chan struct{} // closed by Close: the worker finishes up (reqs is never closed: a sender may be sending)
+	quitOnce sync.Once
+	sh       *gphoto2Shell // the worker's (Close kills it if the worker won't end)
 
 	mu        sync.Mutex
 	fire, dl  time.Duration // recently: firing a photo, downloading its JPEG
@@ -100,7 +103,7 @@ func openGphoto2Camera(port string) (Camera, string, error) {
 		return nil, "", fmt.Errorf("no camera on %s (unplugged?)", port)
 	}
 	// Cautious until measured (the A6600: about 1.1 s and 0.7 s).
-	g := &gphoto2Camera{port: port, reqs: make(chan gphoto2Req, 64), done: make(chan struct{}), fire: 1200 * time.Millisecond, dl: 800 * time.Millisecond}
+	g := &gphoto2Camera{port: port, reqs: make(chan gphoto2Req, 64), done: make(chan struct{}), quit: make(chan struct{}), fire: 1200 * time.Millisecond, dl: 800 * time.Millisecond}
 	tmp, err := os.MkdirTemp("", "gosts-rig-camera-*")
 	if err != nil {
 		return nil, "", err
@@ -113,7 +116,7 @@ func openGphoto2Camera(port string) (Camera, string, error) {
 		os.RemoveAll(tmp)
 		return nil, "", fmt.Errorf("gphoto2: %w", err)
 	}
-	g.tmp = tmp
+	g.tmp, g.sh = tmp, sh
 	go g.work(sh, tmp)
 	return g, model, nil
 }
@@ -124,6 +127,8 @@ func (g *gphoto2Camera) Shoot(ctx context.Context, sh shutter) error {
 	r := gphoto2Req{ctx: ctx, fired: make(chan error, 1), shutter: sh}
 	select {
 	case g.reqs <- r:
+	case <-g.quit:
+		return errCameraClosed
 	case <-g.done:
 		return errors.New("the camera is closed")
 	case <-ctx.Done():
@@ -161,13 +166,29 @@ func (g *gphoto2Camera) Close() error {
 		return nil
 	default:
 	}
-	close(g.reqs)
+	g.quitOnce.Do(func() { close(g.quit) })
+	select { // what it's doing, done, and the shell closed
+	case <-g.done:
+		return nil
+	case <-time.After(closeWait):
+	}
+	// Still at it (the camera not answering, say): gphoto2 goes, so the
+	// worker's commands fail at once and it ends.
+	log.Printf("camera: closing: gphoto2 isn't done, stopping it")
+	g.sh.kill()
 	select {
 	case <-g.done:
-	case <-time.After(20 * time.Second):
+	case <-time.After(10 * time.Second):
+		log.Printf("camera: closing: the worker didn't end")
 	}
 	return nil
 }
+
+// errCameraClosed: the camera was disconnected.
+var errCameraClosed = errors.New("the camera is closed")
+
+// closeWait is how long Close lets the camera finish what it's doing.
+var closeWait = 3 * time.Second
 
 // lineTimeout is how long a shell line may take: reading the config is
 // quick when the camera answers at all; setting it, or anything else, may
@@ -185,10 +206,22 @@ func (g *gphoto2Camera) runLines(lines []string) ([]string, error) {
 	r := gphoto2Req{lines: lines, out: make(chan []string, 1), errc: make(chan error, 1)}
 	select {
 	case g.reqs <- r:
+	case <-g.quit:
+		return nil, errCameraClosed
 	case <-g.done:
-		return nil, errors.New("the camera is closed")
+		return nil, errCameraClosed
 	}
-	return <-r.out, <-r.errc
+	select { // its answer, or none: the worker ended first
+	case out := <-r.out:
+		return out, <-r.errc
+	case <-g.done:
+		select {
+		case out := <-r.out:
+			return out, <-r.errc
+		default:
+			return nil, errCameraClosed
+		}
+	}
 }
 
 // gphoto2Await is a setting to wait for: path to read value.
@@ -202,10 +235,22 @@ func (g *gphoto2Camera) awaitSetting(path, value string, timeout time.Duration) 
 	r := gphoto2Req{await: &gphoto2Await{path, value, timeout}, errc: make(chan error, 1)}
 	select {
 	case g.reqs <- r:
+	case <-g.quit:
+		return errCameraClosed
 	case <-g.done:
-		return errors.New("the camera is closed")
+		return errCameraClosed
 	}
-	return <-r.errc
+	select {
+	case err := <-r.errc:
+		return err
+	case <-g.done:
+		select {
+		case err := <-r.errc:
+			return err
+		default:
+			return errCameraClosed
+		}
+	}
 }
 
 // script runs shell lines on the camera's shell (development) and returns
@@ -355,9 +400,13 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			measured(&g.confirm, time.Since(pend.at), &g.mu)
 		}
 	}
+	ended := false // gphoto2 has gone: nothing more will come
 	collect := func(d time.Duration) {
 		start := time.Now()
 		out, err := sh.run(fmt.Sprintf("wait-event-and-download %dms", d.Milliseconds()), d+10*time.Second)
+		if errors.Is(err, errShellEnded) {
+			ended = true
+		}
 		if n := len(gphoto2Saved.FindAllString(out, -1)); n > 0 {
 			measured(&g.dl, time.Since(start)/time.Duration(n), &g.mu)
 		}
@@ -456,22 +505,27 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 	// First, whatever the camera still has to hand over (photos from before:
 	// they mustn't be taken for new ones). It also tells the numbers so far.
 	collect(1500 * time.Millisecond)
-	for open || len(queue) > 0 {
+	for open || (len(queue) > 0 && !ended) {
 		var r gphoto2Req
 		var ok bool
-		if len(queue) > 0 || !open {
+		if !open { // closing: only the waiting photos' pictures still to collect
+			collect(300 * time.Millisecond)
+			continue
+		}
+		if len(queue) > 0 {
 			select { // a photo or script asked for: right away; else collect a bit
 			case r, ok = <-g.reqs:
-				if !ok {
-					open = false
-				}
+			case <-g.quit:
+				open = false
+				continue
 			default:
 				collect(300 * time.Millisecond)
 				continue
 			}
 		} else {
-			r, ok = <-g.reqs
-			if !ok {
+			select {
+			case r, ok = <-g.reqs:
+			case <-g.quit:
 				open = false
 				continue
 			}
@@ -559,6 +613,9 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			next++
 		}
 		r.fired <- nil
+	}
+	for _, w := range queue { // gphoto2 gone before their pictures came
+		w.got(photo{}, errors.New("the camera was disconnected before its picture came over"))
 	}
 	if held != nil { // closing: whoever's it was, it's kept
 		keep(held.name, held.data, fmt.Sprintf("%s isn't any waiting photo's", held.name))
@@ -684,6 +741,9 @@ func startGphoto2Shell(port, dir string, args ...string) (*gphoto2Shell, error) 
 	return sh, nil
 }
 
+// errShellEnded: gphoto2 has gone (it quit, or was stopped: see kill).
+var errShellEnded = errors.New("gphoto2 ended")
+
 // errNoAnswer: gphoto2 didn't finish a command in time.
 var errNoAnswer = errors.New("gphoto2 didn't answer in time")
 
@@ -701,7 +761,7 @@ func (sh *gphoto2Shell) wait(timeout time.Duration) (string, error) {
 			if !ok {
 				out := sh.buf.String()
 				sh.buf.Reset()
-				return out, errors.New("gphoto2 ended")
+				return out, errShellEnded
 			}
 			sh.buf.WriteString(chunk)
 		case <-deadline:
@@ -733,6 +793,13 @@ func (sh *gphoto2Shell) run(line string, timeout time.Duration) (string, error) 
 	// The shell echoes the command first.
 	out = strings.TrimPrefix(strings.TrimPrefix(out, line+"\r\n"), line+"\n")
 	return out, err
+}
+
+// kill stops gphoto2 at once (it's not answering).
+func (sh *gphoto2Shell) kill() {
+	if sh.cmd.Process != nil {
+		sh.cmd.Process.Kill()
+	}
 }
 
 func (sh *gphoto2Shell) close() {
