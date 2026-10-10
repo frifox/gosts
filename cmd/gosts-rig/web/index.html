@@ -186,6 +186,8 @@ td.mono { font-family: var(--mono); }
 .camcfg-body { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
 .camcfg-params label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 10px; }
 .camcfg-params label:first-child { margin-top: 0; }
+.setting-trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 8px; }
+.setting-trio > label:first-child { margin-top: 10px; } /* a row in the list, not its start */
 .camcfg-shot { aspect-ratio: 3 / 2; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2);
   display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; cursor: zoom-in; }
 .camcfg-shot img { width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -950,7 +952,15 @@ function renderSettings(list) {
   const box = $("camSettings");
   box.innerHTML = "";
   if (!list?.length) { box.innerHTML = '<div class="hint">This camera has no settings to change here.</div>'; return; }
+  // Shutter speed, F-stop and ISO side by side, one row.
+  const TRIO = ["shutter", "aperture", "iso"];
+  let trio = null;
   for (const st of list) {
+    let into = box;
+    if (TRIO.includes(st.key)) {
+      if (!trio) { trio = document.createElement("div"); trio.className = "setting-trio"; box.appendChild(trio); }
+      into = trio;
+    }
     const label = document.createElement("label");
     label.textContent = st.label;
     if (st.key === "focus") { // with a ? on what the Focus button needs, and the depth of field at the right
@@ -968,7 +978,7 @@ function renderSettings(list) {
       label.textContent = "";
       label.appendChild(head);
     }
-    if (st.range) { box.appendChild(rangeSetting(st, label)); continue; }
+    if (st.range) { into.appendChild(rangeSetting(st, label)); continue; }
     const sel = document.createElement("select");
     sel.disabled = st.readOnly;
     for (const c of st.choices) sel.add(new Option(c, c, false, c === st.current));
@@ -986,11 +996,11 @@ function renderSettings(list) {
       row.className = "setting-row";
       row.append(sel, $("focusBtn"));
       label.appendChild(row);
-      box.appendChild(label);
+      into.appendChild(label);
       continue;
     }
     label.appendChild(sel);
-    box.appendChild(label);
+    into.appendChild(label);
   }
 }
 // ---------------------------------------------------------------- depth of field
