@@ -80,7 +80,7 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .help:hover, .help:focus { color: var(--accent); border-color: var(--accent); outline: none; }
 .help::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: -8px; z-index: 50; width: 240px; padding: 8px 10px;
   border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font: 400 12px/1.4 system-ui, sans-serif;
-  white-space: normal; text-transform: none; letter-spacing: 0; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none;
+  white-space: pre-line; text-transform: none; letter-spacing: 0; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none;
   opacity: 0; visibility: hidden; transition: opacity .12s; }
 .help:hover::after, .help:focus::after { opacity: 1; visibility: visible; }
 input[type=number], input.count-box, select { width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: 13px var(--mono); }
@@ -343,7 +343,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <div class="progress big"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div></div>
         </div>
         <div class="plan-line opts">
-          <div class="opt"><span class="opt-label label-head">Path<span class="help" tabindex="0" aria-label="Which path to use" data-tip="Sphere: photos spread evenly over the sphere. Best for Gaussian splatting and NeRF (Nerfstudio); the quickest with Continuous. Rings: full circles at a few heights. Best for photogrammetry (RealityScan, Metashape, Apple Object Capture): a steady overlap between neighbouring photos.">?</span></span>
+          <div class="opt"><span class="opt-label label-head">Path<span class="help" tabindex="0" aria-label="Which path to use" data-tip="Sphere: photos spread evenly over the sphere. Best for Gaussian splatting and NeRF (Nerfstudio); the quickest with Continuous.&#10;&#10;Rings: full circles at a few heights. Best for photogrammetry (RealityScan, Metashape, Apple Object Capture): a steady overlap between neighbouring photos.">?</span></span>
             <div class="views seg" id="pathSeg"><button data-v="sphere">Sphere</button><button data-v="rings">Rings</button></div></div>
           <div class="opt" title="Continuous: the rig doesn't stop, each photo taken as it passes its shot (needs a fast shutter). Stop &amp; Shoot: the rig stops at each shot and waits a moment (the settle time) before the photo."><span class="opt-label">Rig motion</span>
             <div class="views seg" id="shootSeg"><button data-v="moving">Continuous</button><button data-v="settle">Stop &amp; Shoot</button></div></div>
