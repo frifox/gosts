@@ -953,6 +953,19 @@ function renderSettings(list) {
   for (const st of list) {
     const label = document.createElement("label");
     label.textContent = st.label;
+    if (st.key === "focus") { // with a ? on what the Focus button needs
+      const head = document.createElement("span");
+      head.className = "label-head";
+      const help = document.createElement("span");
+      help.className = "help";
+      help.tabIndex = 0;
+      help.setAttribute("aria-label", "How to check the focus");
+      help.dataset.tip = "Focus checks a part of a photo up close, and focuses on it. It needs a sample shot: take one (Take Sample Shot), then the Focus button can be clicked; drag a rectangle over the part to check.";
+      help.textContent = "?";
+      head.append(st.label, help);
+      label.textContent = "";
+      label.appendChild(head);
+    }
     if (st.key === "aperture") { // its name and the depth of field, on one line
       const head = document.createElement("span");
       head.append(st.label, dofSpan(st));
