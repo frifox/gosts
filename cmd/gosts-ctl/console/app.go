@@ -36,6 +36,9 @@ type App struct {
 	// them be moved, or changes where their 0° is (gosts-rig's own goals for
 	// them no longer hold).
 	OnMove func()
+	// OnScan, if set, is called with the servos a scan found (gosts-rig
+	// takes them: its board's servos are the same).
+	OnScan func(ids []uint8)
 
 	mu      sync.Mutex
 	refresh map[uint8]*pendingRefresh
@@ -48,6 +51,11 @@ func New(cfg *internal.Config, simIDs []uint8, poll time.Duration, noSync bool) 
 	a := &App{cfg: cfg, poll: poll, noSync: noSync}
 	a.srv = web.New(a)
 	a.board = board.New(cfg, a, simIDs)
+	a.board.OnScan = func(ids []uint8) {
+		if a.OnScan != nil {
+			a.OnScan(ids)
+		}
+	}
 	a.ctl = servo.New(cfg, a)
 	return a
 }

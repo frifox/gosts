@@ -182,6 +182,27 @@ func (r *rig) forgetTarget() {
 	r.torqueStale.Store(true) // Servo Ctl may have switched torque too
 }
 
+// adoptFound takes the servos another scan of the board found (Servo Ctl's:
+// the servos turned on since the rig's own, say) as the rig's.
+func (r *rig) adoptFound(ids []uint8) {
+	r.mu.Lock()
+	if r.port == "" || r.scanning {
+		r.mu.Unlock()
+		return
+	}
+	found := slices.Clone(ids)
+	slices.Sort(found)
+	same := slices.Equal(found, r.found)
+	r.found = found
+	r.mu.Unlock()
+	if same {
+		return
+	}
+	r.logf("info", "found servos %v (Servo Ctl's scan)", found)
+	r.ensureMultiTurn(found)
+	r.sendState()
+}
+
 // rolesFromGroups assigns the roles from the servo console's groups (members
 // leader first) when that's clear: three servos found and one group of two of
 // them, which is the elevation (its mirroring the console's), the third the

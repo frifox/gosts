@@ -86,6 +86,7 @@ func main() {
 	a.rig.attach, a.rig.detach = ctl.Attach, ctl.Detach
 	ctl.OnChange = func() { a.rig.rolesFromGroups(ctl.Groups(), ctl.Mirrored) }
 	ctl.OnMove = a.rig.forgetTarget
+	ctl.OnScan = a.rig.adoptFound
 	if err := a.cap.preview(c.Plan); err != nil {
 		log.Print(err)
 	}

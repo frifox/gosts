@@ -410,7 +410,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <div><b>Assign the servos' roles.</b> <span id="rolesText"></span></div>
           <div class="hint">With three servos: make a group of the two elevation servos (leader first) in Servo Ctl, and the
             rig takes it as the elevation, the other servo as the azimuth. Or pick each servo's role in Setup.</div>
-          <div class="row"><button class="btn small primary" id="rolesCtl">Servo Ctl</button><button class="btn small" id="rolesSetup">Setup…</button></div>
+          <div class="row"><button class="btn small primary" id="rolesCtl">Servo Ctl</button><button class="btn small" id="rolesSetup">Setup…</button><button class="btn small" id="rolesScan" title="Look for the servos on the bus again (turned on since?)">Scan again</button></div>
         </div>
         <div class="readout">
           <div class="tile"><div class="k">Elevation</div><div class="v" id="rElev">–</div></div>
@@ -1183,6 +1183,11 @@ $("ctlClose").onclick = () => showCtl(false);
 // openCtl: the Rig settings with Servo Ctl open (the Rig card's gear → Servo Ctl).
 function openCtl() { $("setupModal").hidden = true; showSettings("rig"); showCtl(true); }
 $("rolesCtl").onclick = openCtl;
+$("rolesScan").onclick = async () => {
+  $("rolesScan").disabled = true;
+  try { await send("scan", {}); } catch (e) { log(e.message, "error"); }
+  $("rolesScan").disabled = false;
+};
 // Links in hints ("align them in Servo Ctl") open it.
 document.addEventListener("click", (e) => { if (e.target.closest(".ctl-link")) { e.preventDefault(); openCtl(); } });
 $("rolesSetup").onclick = () => $("setupBtn").click();

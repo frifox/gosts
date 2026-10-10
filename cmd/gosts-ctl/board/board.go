@@ -28,6 +28,10 @@ type Board struct {
 	n      internal.Notifier
 	simIDs []uint8
 
+	// OnScan, if set, is called with the servos a scan found (once it's
+	// done, not cancelled).
+	OnScan func(ids []uint8)
+
 	// busMu guards bus: users hold it for reading, Connect/Disconnect swap it.
 	busMu sync.RWMutex
 	bus   *gosts.Bus
@@ -274,6 +278,9 @@ func (b *Board) Scan(ctx context.Context, first, last uint8) error {
 		b.ids, b.scanned = found, true
 	}
 	b.mu.Unlock()
+	if err == nil && b.OnScan != nil {
+		b.OnScan(slices.Clone(found))
+	}
 	switch {
 	case early:
 		b.n.Logf("info", "scan stopped early, using %d servo(s) found so far: %v", len(found), found)
