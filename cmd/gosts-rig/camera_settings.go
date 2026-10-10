@@ -282,7 +282,7 @@ func (g *gphoto2Camera) findZoom() string {
 	}
 	outs, err := g.runLines([]string{"list-config"})
 	if err != nil {
-		return ""
+		return "" // not looked (the camera not answering?): again next time
 	}
 	path = pickZoom(strings.Split(outs[0], "\n"))
 	g.mu.Lock()

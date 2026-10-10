@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -428,5 +430,54 @@ func TestGphoto2Preview(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(cam.(*gphoto2Camera).tmp, "capture_preview.jpg")); err == nil {
 		t.Error("the frame's file was left behind")
+	}
+}
+
+// fakeHangingGphoto2 answers "hang" only after a while (a camera not
+// answering), anything else at once with "out:" and the line.
+const fakeHangingGphoto2 = `#!/bin/sh
+prompt() { printf 'gphoto2: {%s} /> ' "$PWD"; }
+prompt
+while IFS= read -r line; do
+  echo "$line"
+  case "$line" in
+  hang) sleep 1;;
+  exit|quit) exit 0;;
+  *) echo "out:$line";;
+  esac
+  prompt
+done
+`
+
+// TestGphoto2Stuck: a command the camera doesn't answer in time leaves the
+// shell stuck: the next fail at once (not each waiting its time), till the
+// late answer comes; it's dropped, and commands answer as before.
+func TestGphoto2Stuck(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "gphoto2"), []byte(fakeHangingGphoto2), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	defer func(d time.Duration) { stuckRetry = d }(stuckRetry)
+	stuckRetry = 100 * time.Millisecond
+	sh, err := startGphoto2Shell("usb:001,002", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sh.close()
+	if _, err := sh.run("hang", 200*time.Millisecond); !errors.Is(err, errCameraStuck) {
+		t.Fatalf("hang: %v", err)
+	}
+	start := time.Now()
+	if _, err := sh.run("a", 5*time.Second); !errors.Is(err, errCameraStuck) {
+		t.Fatalf("while stuck: %v", err)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Fatalf("waited %v while stuck", d)
+	}
+	time.Sleep(time.Second) // the late answer comes
+	out, err := sh.run("b", 5*time.Second)
+	if err != nil || !strings.Contains(out, "out:b") || strings.Contains(out, "hang") {
+		t.Fatalf("after: %q, %v", out, err)
 	}
 }

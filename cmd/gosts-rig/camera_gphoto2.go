@@ -169,6 +169,16 @@ func (g *gphoto2Camera) Close() error {
 	return nil
 }
 
+// lineTimeout is how long a shell line may take: reading the config is
+// quick when the camera answers at all; setting it, or anything else, may
+// take a while.
+func lineTimeout(line string) time.Duration {
+	if strings.HasPrefix(line, "get-config ") || line == "list-config" {
+		return 15 * time.Second
+	}
+	return 60 * time.Second
+}
+
 // runLines runs shell lines on the camera's shell, in turn with the photos,
 // and returns what each printed.
 func (g *gphoto2Camera) runLines(lines []string) ([]string, error) {
@@ -499,7 +509,7 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			var err error
 			for _, l := range r.lines {
 				var out string
-				out, err = sh.run(l, 60*time.Second)
+				out, err = sh.run(l, lineTimeout(l))
 				outs = append(outs, out)
 				if err != nil {
 					break
@@ -620,7 +630,19 @@ type gphoto2Shell struct {
 	in    io.WriteCloser
 	lines chan string // what it prints, a line at a time
 	buf   strings.Builder
+	// stuck: a command got no answer in time (the camera not answering
+	// gphoto2: its USB session hung, say). Till its late answer comes (it's
+	// dropped, so the next command's isn't taken for it), commands fail at
+	// once instead of each waiting out its time.
+	stuck bool
 }
+
+// errCameraStuck: the camera isn't answering gphoto2.
+var errCameraStuck = errors.New("the camera isn't answering: turn it off and on (or unplug and replug its USB cable), then connect it again")
+
+// stuckRetry is how long a command waits, the shell stuck, for the late
+// answer before it fails (and the shell's tried again by the next one).
+var stuckRetry = 2 * time.Second
 
 // gphoto2Prompt ends what the shell prints for a command.
 var gphoto2Prompt = regexp.MustCompile(`gphoto2: \{[^}]*\} [^>]*> $`)
@@ -662,6 +684,9 @@ func startGphoto2Shell(port, dir string, args ...string) (*gphoto2Shell, error) 
 	return sh, nil
 }
 
+// errNoAnswer: gphoto2 didn't finish a command in time.
+var errNoAnswer = errors.New("gphoto2 didn't answer in time")
+
 // wait collects output until the prompt (or timeout, or the shell ending).
 func (sh *gphoto2Shell) wait(timeout time.Duration) (string, error) {
 	deadline := time.After(timeout)
@@ -682,17 +707,29 @@ func (sh *gphoto2Shell) wait(timeout time.Duration) (string, error) {
 		case <-deadline:
 			out := sh.buf.String()
 			sh.buf.Reset()
-			return out, errors.New("gphoto2 didn't answer in time")
+			return out, errNoAnswer
 		}
 	}
 }
 
 // run sends one command and returns what it printed.
 func (sh *gphoto2Shell) run(line string, timeout time.Duration) (string, error) {
+	if sh.stuck { // the last command's answer first, if it's come by now
+		if _, err := sh.wait(stuckRetry); err != nil {
+			return "", errCameraStuck
+		}
+		sh.stuck = false
+		log.Printf("camera: answering again")
+	}
 	if _, err := io.WriteString(sh.in, line+"\n"); err != nil {
 		return "", err
 	}
 	out, err := sh.wait(timeout)
+	if errors.Is(err, errNoAnswer) {
+		sh.stuck = true
+		log.Printf("camera: no answer to %q in %v: the camera isn't answering gphoto2", line, timeout)
+		err = errCameraStuck
+	}
 	// The shell echoes the command first.
 	out = strings.TrimPrefix(strings.TrimPrefix(out, line+"\r\n"), line+"\n")
 	return out, err
