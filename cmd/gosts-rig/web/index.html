@@ -1197,11 +1197,19 @@ function sampleButton() {
   $("sampleBtn").disabled = !state.camera?.connected || !!state.cap?.running || state.sampleTaking;
   $("liveBtn").disabled = !state.live && $("sampleBtn").disabled;
 }
+// unfreeze: the live frame kept up (see stopLive) goes; the sample shows.
+function unfreeze() {
+  state.liveFrozen = false;
+  $("liveImg").hidden = true;
+  $("sampleImg").hidden = !state.sampleShown;
+  $("sampleNone").hidden = !!state.sampleShown;
+}
 $("sampleBtn").onclick = async () => {
-  stopLive();
+  stopLive(true); // the live frame stays till the sample replaces it
   $("camConfigErr").textContent = "";
   state.sampleTaking = true; sampleButton();
-  await act("sampleShot", {}, $("camConfigErr"));
+  try { await send("sampleShot", {}); }
+  catch (e) { $("camConfigErr").textContent = e.message; if (state.liveFrozen) unfreeze(); } // no sample coming
   state.sampleTaking = false; sampleButton();
 };
 function samplePending(n) { state.samplePending = n; $("sampleBox").classList.add("taking"); }
@@ -1218,14 +1226,18 @@ function sampleArrived(m) {
   $("sampleBox").classList.remove("taking");
   // A gray card measured on the last sample: measure it again on this one,
   // the same place (once it's loaded).
-  $("sampleImg").onload = () => { if (state.grayRect) { showGrayRect(); measureGrayRect(); } if (state.focusRect) drawFocus(true); state.focusWaiting?.(); };
+  // Shown at once; or, over a frozen live frame, once it's loaded (no flash
+  // of the last sample in between).
+  const show = () => { state.sampleShown = m.n; unfreeze(); };
+  $("sampleImg").onload = () => { if (state.liveFrozen) show(); if (state.grayRect) { showGrayRect(); measureGrayRect(); } if (state.focusRect) drawFocus(true); state.focusWaiting?.(); };
+  $("sampleImg").onerror = () => { if (state.liveFrozen) show(); };
   $("sampleImg").src = photoURL(m);
-  $("sampleImg").hidden = false;
-  $("sampleNone").hidden = true;
-  state.sampleCaption = `${m.caption || ""}${m.caption ? "  ·  " : ""}${new Date(m.at).toLocaleTimeString()}`;
+  if (!state.liveFrozen) show();
+  state.sampleCaption = m.caption || ""; // its settings (no time)
   $("sampleCaption").textContent = state.sampleCaption;
 }
 function sampleFailed(n) {
+  if (state.liveFrozen) unfreeze();
   state.focusWaiting?.();
   $("sampleBox").classList.remove("taking");
   $("camConfigErr").textContent = `The sample shot didn't come through.`;
@@ -1593,6 +1605,7 @@ function startLive() {
   stopSelecting();
   closeFocus();
   state.live = { frames: 0, since: performance.now() };
+  state.liveFrozen = false; // live again: no sample to wait for
   $("liveBtn").textContent = "Hide Live Preview";
   $("liveBtn").classList.add("primary");
   $("sampleBtn").classList.remove("primary");
@@ -1601,16 +1614,17 @@ function startLive() {
   sampleButtons(false);
   liveLoop(state.live);
 }
-function stopLive() {
+// stopLive ends the live preview. freeze: its last frame stays up till the
+// sample shot that's being taken replaces it (see sampleArrived, unfreeze).
+function stopLive(freeze = false) {
   if (!state.live) return;
   state.live = null;
   $("liveBtn").textContent = "Show Live Preview";
   $("liveBtn").classList.remove("primary");
   $("sampleBtn").classList.add("primary");
   $("sampleBox").classList.remove("live");
-  $("liveImg").hidden = true;
-  $("sampleImg").hidden = !state.sampleShown;
-  $("sampleNone").hidden = !!state.sampleShown;
+  state.liveFrozen = freeze && !$("liveImg").hidden;
+  if (!state.liveFrozen) unfreeze();
   sampleButtons(!!state.sampleShown);
   if (state.grayRect) showGrayRect();
   $("sampleCaption").textContent = state.sampleCaption || "";
@@ -2114,7 +2128,8 @@ $("rigDisconnectBtn").onclick = async () => {
     (running ? "The capture running stops. " : "") + "The servos keep their torque as they are. To use the rig again, connect its board in the Rig card.",
     "Disconnect")) return;
   $("rigDisconnectBtn").disabled = true;
-  const ok = (await act("disconnect", {})) !== undefined;
+  let ok = true;
+  try { await send("disconnect", {}); } catch (e) { ok = false; log(e.message, "error"); }
   $("rigDisconnectBtn").disabled = false;
   if (!ok) return;
   if (!$("rigCfgModal").hidden && state.ctlOpen) showCtl(false); // Servo Ctl needs the board; Rig Setup doesn't
@@ -2126,7 +2141,8 @@ $("camDisconnectBtn").onclick = async () => {
     (running ? "The capture running stops. " : "") + "Photos already taken stay on the timeline. To use the camera again, pick it in the Camera card.",
     "Disconnect")) return;
   $("camDisconnectBtn").disabled = true;
-  const ok = (await act("cameraDisconnect", {})) !== undefined;
+  let ok = true;
+  try { await send("cameraDisconnect", {}); } catch (e) { ok = false; log(e.message, "error"); }
   $("camDisconnectBtn").disabled = false;
   if (ok && !$("camConfigModal").hidden) closeCamConfig();
 };
