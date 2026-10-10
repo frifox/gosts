@@ -105,3 +105,25 @@ export function balance(srgb, setK) {
   const cast = ng / Math.sqrt(nr * nb) - 1;
   return { kelvin, warmer: kelvin < setK, cast, problem: "" };
 }
+
+// fromSamples works out the colour temperature from two samples of the same
+// card at different settings, as the camera really responds: points are
+// [{k: kelvin set, rb: the card's red/blue, linear}], the last two used. The
+// card's ln(red/blue) is taken as a straight line in mireds (1e6/K), where
+// white balance acts about evenly; where it crosses 0 the card is neutral.
+// (The black-body model alone falls short on a real camera, whose processing
+// moves the colours less: each suggestion, applied, would still be off the
+// same way.) null: no two usable samples.
+export function fromSamples(points) {
+  const ps = points.filter((p) => p.k > 0 && p.rb > 0);
+  if (ps.length < 2) return null;
+  const a = ps[ps.length - 2], b = ps[ps.length - 1];
+  const ma = 1e6 / a.k, mb = 1e6 / b.k;
+  if (Math.abs(ma - mb) < 5) return null; // the same setting, near enough: no slope
+  const ya = Math.log(a.rb), yb = Math.log(b.rb);
+  const slope = (yb - ya) / (mb - ma);
+  if (!(slope < 0)) return null; // a warmer setting must warm the card (red/blue up): else something else changed
+  const m0 = mb - yb / slope;
+  if (!(m0 > 1e6 / 20000 && m0 < 1e6 / 2000)) return null;
+  return 1e6 / m0;
+}

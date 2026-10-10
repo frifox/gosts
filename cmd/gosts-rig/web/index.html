@@ -1272,6 +1272,7 @@ function sampleFailed(n) {
 $("grayBtn").onclick = () => {
   if (state.selecting) return stopSelecting();
   state.grayRect = null; // a new one
+  state.grayHist = []; // and its samples
   state.selecting = "gray";
   $("sampleBox").classList.add("selecting");
   $("grayBtn").textContent = "Cancel";
@@ -1390,7 +1391,20 @@ function balanceFrom(rgb) {
   // A shift's new value: the sample's moved by d, on the camera's steps, within its range.
   const shiftTo = (st, from, d) => Math.min(st.max, Math.max(st.min, Math.round((Number(from) + d) / st.step) * st.step));
   const sh = gc.shifts(rgb);
-  const r = setK ? gc.balance(rgb, setK) : null;
+  let r = setK ? gc.balance(rgb, setK) : null;
+  // This card's samples so far (same rectangle, same shifts): with two at
+  // different temperatures, how the camera really responds (see fromSamples).
+  let learned = null;
+  if (setK && wb === "Choose Color Temperature" && r && !r.problem) {
+    const [lr, , lb] = rgb.map(gc.linear), key = `${set.abshift}|${set.gmshift}`;
+    const hist = (state.grayHist ||= []);
+    if (hist.length && hist[hist.length - 1].key !== key) hist.length = 0; // shifts changed: start over
+    const last = hist[hist.length - 1];
+    if (last?.n === state.sampleShown) last.rb = lr / lb; // the same sample measured again
+    else hist.push({ n: state.sampleShown, k: setK, rb: lr / lb, key });
+    const k2 = gc.fromSamples(hist);
+    if (k2) { learned = hist.slice(-2).map((p) => p.k); r = { ...r, kelvin: k2, warmer: k2 < setK }; }
+  }
   const ct = cs("colortemp");
   const kmin = ct?.min || 2500, kmax = ct?.max || 9900, kstep = ct?.step || 100;
   const k = r && !r.problem ? Math.min(kmax, Math.max(kmin, Math.round(r.kelvin / kstep) * kstep)) : 0;
@@ -1400,7 +1414,8 @@ function balanceFrom(rgb) {
   let head;
   if (r && !r.problem) {
     const off = Math.abs(Math.round(r.kelvin) - setK) < kstep ? "matches the" : r.warmer ? "is warmer than the" : "is cooler than the";
-    head = `The light is about <b>${Math.round(r.kelvin / 10) * 10} K</b>: it ${off} ${setK} K the sample was taken at.`;
+    head = `The light is about <b>${Math.round(r.kelvin / 10) * 10} K</b>: it ${off} ${setK} K the sample was taken at.` +
+      (learned ? ` <span class="hint">(from the samples at ${learned[0]} K and ${learned[1]} K: how this camera responds)</span>` : "");
   } else if (r?.problem) head = `Can't tell its temperature: ${r.problem}.`;
   else head = `White balance was on <b>${wb || "?"}</b>, not a known temperature` +
     (hasAB || hasGM ? ", so the shifts are the fix" : ": set a fixed one (Choose Color Temperature is best), take another sample, and measure the card again") +
