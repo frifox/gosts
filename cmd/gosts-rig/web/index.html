@@ -83,6 +83,13 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
   white-space: pre-line; text-transform: none; letter-spacing: 0; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none;
   opacity: 0; visibility: hidden; transition: opacity .12s; }
 .help:hover::after, .help:focus::after { opacity: 1; visibility: visible; }
+/* Focus and Gray Card, disabled till there's a sample shot: hovered, they say so (as the ? tips; a
+   disabled button takes no events, but is still :hover). */
+.needs-sample { position: relative; }
+.btn.needs-sample:disabled { opacity: 1; color: color-mix(in srgb, var(--text) 45%, transparent); } /* dimmed by colour: opacity would fade the tip too */
+.needs-sample:disabled:hover::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); right: 0; z-index: 50; width: max-content; max-width: 240px;
+  padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text);
+  font: 400 12px/1.4 system-ui, sans-serif; white-space: normal; text-align: left; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; }
 input[type=number], input.count-box, select { width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: 13px var(--mono); }
 input[type=number]:disabled, select:disabled { opacity: .45; cursor: not-allowed; }
 label:has(> input:disabled) { color: var(--muted); }
@@ -489,8 +496,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             </div></div>
           <div class="hint mono" id="sampleCaption"></div>
           <!-- Gray Card lives by the colour temperature slider (renderSettings puts it there); parked here meanwhile. -->
-          <div hidden id="focusPark"><button class="btn small" id="focusBtn" disabled title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again">Focus</button></div>
-          <div hidden id="grayPark"><button class="btn small" id="grayBtn" disabled title="Balance white from a gray card: drag a rectangle inside the card in the sample, and the app works out the colour temperature that makes it neutral">Gray Card</button></div>
+          <div hidden id="focusPark"><button class="btn small needs-sample" id="focusBtn" disabled data-title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again" data-tip="Focus needs a sample shot, please take one">Focus</button></div>
+          <div hidden id="grayPark"><button class="btn small needs-sample" id="grayBtn" disabled data-title="Balance white from a gray card: drag a rectangle inside the card in the sample, and the app works out the colour temperature that makes it neutral" data-tip="Gray Card needs a sample shot, please take one">Gray Card</button></div>
         </div>
       </div>
     </div>
@@ -945,6 +952,14 @@ function parkSettingButtons() {
   $("grayPark").appendChild($("grayBtn"));
   $("focusPark").appendChild($("focusBtn"));
 }
+// sampleButtons: Focus and Gray Card work on a sample shot: enabled with one
+// shown (their tooltip then what they do; disabled, the needs-sample tip).
+function sampleButtons(on) {
+  for (const b of [$("grayBtn"), $("focusBtn")]) {
+    b.disabled = !on;
+    b.title = on ? b.dataset.title : "";
+  }
+}
 function renderSettings(list) {
   queueMicrotask(focusControls); // what the focus mode allows
   state.camSettings = list || [];
@@ -966,24 +981,10 @@ function renderSettings(list) {
     // The depth of field at the right of Zoom's label (Focus's, with no zoom).
     const dofHere = st.key === (list.some((x) => x.key === "zoom") ? "zoom" : "focus");
     const ap = list.find((x) => x.key === "aperture");
-    if (st.key === "zoom" && dofHere && ap) {
+    if (dofHere && ap) {
       const head = document.createElement("span");
       head.className = "label-head dof-head";
       head.append(st.label, dofSpan(ap));
-      label.textContent = "";
-      label.appendChild(head);
-    }
-    if (st.key === "focus") { // with a ? on what the Focus button needs
-      const head = document.createElement("span");
-      head.className = "label-head dof-head";
-      const help = document.createElement("span");
-      help.className = "help";
-      help.tabIndex = 0;
-      help.setAttribute("aria-label", "How to check the focus");
-      help.dataset.tip = "Focus button needs a Sample Shot, please take one";
-      help.textContent = "?";
-      head.append(st.label, help);
-      if (dofHere && ap) head.append(dofSpan(ap));
       label.textContent = "";
       label.appendChild(head);
     }
@@ -1211,7 +1212,7 @@ function sampleArrived(m) {
     state.dofFocal = Number(m.settings.focal);
     showDof((state.camSettings || []).find((x) => x.key === "aperture")?.current);
   }
-  $("grayBtn").disabled = $("focusBtn").disabled = false;
+  sampleButtons(true);
   if (state.selecting) stopSelecting();
   if (!state.grayRect) $("grayOut").hidden = true;
   $("sampleBox").classList.remove("taking");
@@ -1597,7 +1598,7 @@ function startLive() {
   $("sampleBtn").classList.remove("primary");
   $("sampleBox").classList.add("live");
   $("camConfigErr").textContent = "";
-  $("grayBtn").disabled = $("focusBtn").disabled = true;
+  sampleButtons(false);
   liveLoop(state.live);
 }
 function stopLive() {
@@ -1610,7 +1611,7 @@ function stopLive() {
   $("liveImg").hidden = true;
   $("sampleImg").hidden = !state.sampleShown;
   $("sampleNone").hidden = !!state.sampleShown;
-  $("grayBtn").disabled = $("focusBtn").disabled = !state.sampleShown;
+  sampleButtons(!!state.sampleShown);
   if (state.grayRect) showGrayRect();
   $("sampleCaption").textContent = state.sampleCaption || "";
   sampleButton();
