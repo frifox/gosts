@@ -226,6 +226,7 @@ td.mono { font-family: var(--mono); }
 .focus-stat { color: #a9b0bd; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .focus-bar > .btn, .focus-nudge { flex: none; }
 .focus-zoom.busy canvas { opacity: .55; }
+.focus-warn { padding: 8px 12px; background: rgba(240,167,66,.14); border-top: 1px solid rgba(240,167,66,.5); color: #f0a742; font-size: 12px; line-height: 1.4; }
 .focus-pick { display: inline-flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .focus-pick .seg { flex: 1; display: flex; }
 .focus-pick .seg button { flex: 1; white-space: nowrap; }
@@ -501,6 +502,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <!-- Focus: the part picked, large, to judge the focus by; and the focus controls. -->
             <div class="focus-zoom" id="focusZoom" hidden>
               <canvas id="focusCanvas"></canvas>
+              <div class="focus-warn" id="focusWarn" hidden></div>
               <div class="focus-bar">
                 <button class="btn small" id="focusAF" title="The app focuses on the part selected: the camera focuses first, then the app steps the lens, measuring the part's sharpness on a sample each step, till it's sharpest (half a minute or so; click again to stop)">Auto</button>
                 <span class="focus-nudge" title="Drive the focus by hand, towards near or far (small, medium, large steps)">
@@ -1630,6 +1632,7 @@ function openFocus(rect, far = null) {
 function closeFocus() {
   state.focusRect = null;
   state.focusRect2 = null;
+  $("focusWarn").hidden = true;
   $("focusZoom").hidden = true;
 }
 $("focusClose").onclick = closeFocus;
@@ -1809,8 +1812,10 @@ $("focusAF").onclick = async () => {
 // better. Whether the depth of field reaches both is down to the zoom and
 // f-stop: if not, it says so.
 const NF_STEP = 3, NF_FINE = 1, NF_MAX = 12; // the steps (see Nudge); at most so many each way
+const NF_IDEAL = 85; // % of each card's sharpest both must reach, else the depth of field is too shallow (a warning)
 async function focusBetween() {
   const run = (state.focusAuto = { stop: false });
+  $("focusWarn").hidden = true;
   state.focusBusy = true;
   $("focusAF").textContent = "Stop";
   focusControls();
@@ -1853,10 +1858,18 @@ async function focusBetween() {
       }
     }
     const pa = Math.round(100 * cur.a / ma), pb = Math.round(100 * cur.b / mb);
-    const short = Math.min(pa, pb) < 70
-      ? " · the depth of field doesn't reach both: stop down (a higher f-number) or zoom out, then again" : "";
     state.focusSaid = `Near/far: ${run.stop ? "stopped" : "done"} (${pts.length} samples)`;
-    $("focusStat").textContent = `${state.focusSaid} · near card ${pa}% of its sharpest, far ${pb}%${short}`;
+    $("focusStat").textContent = `${state.focusSaid} · near card ${pa}% of its sharpest, far ${pb}%`;
+    // Both can't be in focus at once: the depth of field is too shallow for
+    // the cards' spread (at the best place between them, either is well off
+    // its sharpest).
+    if (!run.stop && Math.min(pa, pb) < NF_IDEAL) {
+      const w = `⚠ The depth of field isn't deep enough for both cards: at the best focus between them the near card is ${pa}% as sharp as it can be, the far card ${pb}%. ` +
+        "Stop down (a higher f-number) or zoom out (the estimated DoF by Zoom should be about the cards' distance apart), take a sample, and Focus between again.";
+      $("focusWarn").textContent = w;
+      $("focusWarn").hidden = false;
+      log(w.replace("⚠ ", ""), "error");
+    }
   } catch (e) { $("camConfigErr").textContent = e.message; say("stopped: " + e.message); }
   state.focusAuto = null; state.focusBusy = false;
   $("focusAF").textContent = "Focus between";
