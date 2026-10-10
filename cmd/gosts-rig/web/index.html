@@ -1028,7 +1028,7 @@ function showDof(fstop) {
   if (!n || !s) { sp.textContent = ""; return; }
   const mm = (v) => (v === Infinity ? "∞" : `${Math.round(v)}`);
   const a = dof(f, n, s, DOF_COC), b = dof(f, n, s, DOF_COC_STRICT);
-  sp.textContent = `estimated DoF: ${a.depth === Infinity ? "∞" : mm(a.depth) + "mm"}`;
+  sp.textContent = `estimated DoF ${a.depth === Infinity ? "∞" : mm(a.depth) + "mm"}`;
   sp.title = `Depth of field at f/${n}, ${f} mm, focused ${Math.round(s)} mm away (the object's middle, from the sensor, the rig as it stands):\n` +
     `• standard (0.02 mm blur): sharp ${mm(a.near)}–${mm(a.far)} mm, ${mm(a.depth)} mm deep\n` +
     `• strict (2 px, 0.008 mm): ${mm(b.near)}–${mm(b.far)} mm, ${mm(b.depth)} mm deep`;
