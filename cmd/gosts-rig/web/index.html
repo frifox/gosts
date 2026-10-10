@@ -227,6 +227,8 @@ td.mono { font-family: var(--mono); }
 .gray-btns { display: flex; flex-wrap: wrap; gap: 6px; }
 .setting-row { display: flex; gap: 6px; align-items: center; }
 .camcfg-params label .dof { display: inline; color: var(--muted); font-weight: normal; }
+.focus-head { display: flex; } /* the label's whole width: the depth of field at its right */
+.focus-head .dof { margin-left: auto; padding-left: 8px; }
 .setting-row input.kelvin { width: 84px; flex: none; }
 .setting-row .shift-val { width: 84px; flex: none; font-size: 13px; color: var(--text); text-align: center; }
 /* White balance shifts: the track runs from one end's colour to the other's. */
@@ -951,9 +953,9 @@ function renderSettings(list) {
   for (const st of list) {
     const label = document.createElement("label");
     label.textContent = st.label;
-    if (st.key === "focus") { // with a ? on what the Focus button needs
+    if (st.key === "focus") { // with a ? on what the Focus button needs, and the depth of field at the right
       const head = document.createElement("span");
-      head.className = "label-head";
+      head.className = "label-head focus-head";
       const help = document.createElement("span");
       help.className = "help";
       help.tabIndex = 0;
@@ -961,12 +963,8 @@ function renderSettings(list) {
       help.dataset.tip = "Focus checks a part of a photo up close, and focuses on it. It needs a sample shot: take one (Take Sample Shot), then the Focus button can be clicked; drag a rectangle over the part to check.";
       help.textContent = "?";
       head.append(st.label, help);
-      label.textContent = "";
-      label.appendChild(head);
-    }
-    if (st.key === "aperture") { // its name and the depth of field, on one line
-      const head = document.createElement("span");
-      head.append(st.label, dofSpan(st));
+      const ap = list.find((x) => x.key === "aperture");
+      if (ap) head.append(dofSpan(ap));
       label.textContent = "";
       label.appendChild(head);
     }
@@ -996,7 +994,7 @@ function renderSettings(list) {
   }
 }
 // ---------------------------------------------------------------- depth of field
-// Beside F-stop: how deep the sharp zone is at the f-stop chosen, focused on
+// By Focus (its label's right): how deep the sharp zone is at the f-stop chosen, focused on
 // the object's middle (the turntable's middle, up half the object's height:
 // its distance from the camera's sensor from the rig's geometry, as it
 // stands), at the focal length the last photo was taken at (EXIF). Sharp
@@ -1026,11 +1024,11 @@ function showDof(fstop) {
   if (!sp) return;
   const n = parseFloat(String(fstop).replace(/^f\//, "")), f = state.dofFocal;
   const s = window.rig3d?.focusDistance?.();
-  if (!f) { sp.textContent = " · need sample to estimate depth"; sp.title = "The focal length comes from a photo's EXIF: take a sample shot"; return; }
+  if (!f) { sp.textContent = "need sample to estimate DoF"; sp.title = "The focal length comes from a photo's EXIF: take a sample shot"; return; }
   if (!n || !s) { sp.textContent = ""; return; }
   const mm = (v) => (v === Infinity ? "∞" : `${Math.round(v)}`);
   const a = dof(f, n, s, DOF_COC), b = dof(f, n, s, DOF_COC_STRICT);
-  sp.textContent = ` · ${a.depth === Infinity ? "∞" : mm(a.depth) + " mm"} deep`;
+  sp.textContent = `estimated DoF: ${a.depth === Infinity ? "∞" : mm(a.depth) + "mm"}`;
   sp.title = `Depth of field at f/${n}, ${f} mm, focused ${Math.round(s)} mm away (the object's middle, from the sensor, the rig as it stands):\n` +
     `• standard (0.02 mm blur): sharp ${mm(a.near)}–${mm(a.far)} mm, ${mm(a.depth)} mm deep\n` +
     `• strict (2 px, 0.008 mm): ${mm(b.near)}–${mm(b.far)} mm, ${mm(b.depth)} mm deep`;
