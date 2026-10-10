@@ -199,6 +199,8 @@ td.mono { font-family: var(--mono); }
   display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; cursor: zoom-in; }
 .camcfg-shot img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .camcfg-shot.live { cursor: default; }
+/* Taking a sample: what's shown dims till the new one's up (the jump back says it's new). */
+.camcfg-shot.dim img { filter: brightness(.55); }
 .camcfg-shot.taking::after { content: ""; position: absolute; width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--border);
   border-top-color: var(--accent); animation: spin .8s linear infinite; }
 .cap-btns { display: flex; gap: 8px; margin-top: 10px; }
@@ -1206,10 +1208,11 @@ function unfreeze() {
 }
 $("sampleBtn").onclick = async () => {
   stopLive(true); // the live frame stays till the sample replaces it
+  $("sampleBox").classList.add("dim"); // till the new one shows
   $("camConfigErr").textContent = "";
   state.sampleTaking = true; sampleButton();
   try { await send("sampleShot", {}); }
-  catch (e) { $("camConfigErr").textContent = e.message; if (state.liveFrozen) unfreeze(); } // no sample coming
+  catch (e) { $("camConfigErr").textContent = e.message; $("sampleBox").classList.remove("dim"); if (state.liveFrozen) unfreeze(); } // no sample coming
   state.sampleTaking = false; sampleButton();
 };
 function samplePending(n) { state.samplePending = n; $("sampleBox").classList.add("taking"); }
@@ -1229,14 +1232,15 @@ function sampleArrived(m) {
   // Shown at once; or, over a frozen live frame, once it's loaded (no flash
   // of the last sample in between).
   const show = () => { state.sampleShown = m.n; unfreeze(); };
-  $("sampleImg").onload = () => { if (state.liveFrozen) show(); if (state.grayRect) { showGrayRect(); measureGrayRect(); } if (state.focusRect) drawFocus(true); state.focusWaiting?.(); };
-  $("sampleImg").onerror = () => { if (state.liveFrozen) show(); };
+  $("sampleImg").onload = () => { if (state.liveFrozen) show(); $("sampleBox").classList.remove("dim"); if (state.grayRect) { showGrayRect(); measureGrayRect(); } if (state.focusRect) drawFocus(true); state.focusWaiting?.(); };
+  $("sampleImg").onerror = () => { if (state.liveFrozen) show(); $("sampleBox").classList.remove("dim"); };
   $("sampleImg").src = photoURL(m);
   if (!state.liveFrozen) show();
   state.sampleCaption = m.caption || ""; // its settings (no time)
   $("sampleCaption").textContent = state.sampleCaption;
 }
 function sampleFailed(n) {
+  $("sampleBox").classList.remove("dim");
   if (state.liveFrozen) unfreeze();
   state.focusWaiting?.();
   $("sampleBox").classList.remove("taking");
@@ -1606,6 +1610,7 @@ function startLive() {
   closeFocus();
   state.live = { frames: 0, since: performance.now() };
   state.liveFrozen = false; // live again: no sample to wait for
+  $("sampleBox").classList.remove("dim");
   $("liveBtn").textContent = "Hide Live Preview";
   $("liveBtn").classList.add("primary");
   $("sampleBtn").classList.remove("primary");
