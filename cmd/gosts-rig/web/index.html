@@ -256,6 +256,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .setting-row .btn { white-space: nowrap; }
 .btn.busy::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; border-radius: 50%;
   border: 2px solid var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.btn.busy:disabled { opacity: 1; } /* busy, not unavailable: the spinner at full strength */
 @media (max-width: 860px) { .camcfg-body { grid-template-columns: 1fr; } }
 /* A photo full size, over the whole page. */
 .viewer { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.92); display: flex; flex-direction: column; }
@@ -728,7 +729,17 @@ function renderPorts(ports) {
   }
   $("connectBtn").disabled = !state.selectedPort;
 }
-$("refreshPorts").onclick = () => send("ports").then(renderPorts).catch((e) => ($("connectErr").textContent = e.message));
+// searching: a Refresh button, while it looks for devices: a spinner and
+// "Searching…", for at least a moment (so a quick search is seen to happen).
+async function searching(btn, work) {
+  const text = btn.textContent;
+  btn.disabled = true;
+  btn.classList.add("busy");
+  btn.textContent = "Searching…";
+  try { await Promise.all([work(), new Promise((r) => setTimeout(r, 600))]); }
+  finally { btn.disabled = false; btn.classList.remove("busy"); btn.textContent = text; }
+}
+$("refreshPorts").onclick = () => searching($("refreshPorts"), () => send("ports").then(renderPorts).catch((e) => ($("connectErr").textContent = e.message)));
 $("connectBtn").onclick = async () => {
   $("connectErr").textContent = "";
   $("connectBtn").disabled = true;
@@ -762,7 +773,7 @@ function renderCameras(list) {
   }
   $("camConnectBtn").disabled = !state.selectedCamera;
 }
-$("camRefresh").onclick = () => send("cameras").then(renderCameras).catch((e) => ($("camErr").textContent = e.message));
+$("camRefresh").onclick = () => searching($("camRefresh"), () => send("cameras").then(renderCameras).catch((e) => ($("camErr").textContent = e.message)));
 $("camConnectBtn").onclick = async () => {
   $("camErr").textContent = "";
   $("camConnectBtn").disabled = true;
