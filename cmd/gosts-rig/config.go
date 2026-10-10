@@ -97,10 +97,11 @@ type Plan struct {
 	// one smooth spiral and each photo is taken as it passes its shot (needs
 	// a fast shutter). Otherwise the rig stops and settles for each photo.
 	Moving bool `toml:"Moving"`
-	// Path is how the shots are laid out: PathSphere (spread as evenly as
-	// can be over the sphere, on a golden-angle spiral; the default) or
-	// PathRings (rings of one elevation each, the elevation changing only
-	// between rings; fewer shots in the rings nearer the poles).
+	// Path is how the shots are laid out: PathRings (rings of one elevation
+	// each, the elevation changing only between rings; fewer shots in the
+	// rings nearer the poles; the default: best for photogrammetry) or
+	// PathSphere (spread as evenly as can be over the sphere, on a
+	// golden-angle spiral).
 	Path string `toml:"Path,omitempty"`
 	// ExportFor writes alignment data for that photogrammetry app (see
 	// writeExport) into the batch's folder when a capture ends; "": none.
@@ -116,14 +117,14 @@ const (
 	PathRings  = "rings"
 )
 
-// path is the plan's path: PathSphere or PathRings (the names before,
-// "even" and "linear", read as them).
+// path is the plan's path: PathRings (none set: the default) or PathSphere
+// (the names before, "linear" and "even", read as them).
 func (p Plan) path() string {
 	switch p.Path {
-	case PathRings, "linear":
-		return PathRings
+	case PathSphere, "even":
+		return PathSphere
 	}
-	return PathSphere
+	return PathRings
 }
 
 // cameraSensorX is how far (mm) the camera's sensor is in front of its
@@ -136,7 +137,7 @@ func defaultConfig() Config {
 		ListenAddr: ":8081",
 		Roles:      Roles{ElevationLeader: 1, ElevationFollower: 2, Azimuth: 3, LeaderMirrored: true},
 		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80},
-		Plan:       Plan{Photos: 60, SettleMS: 800},
+		Plan:       Plan{Photos: 60, SettleMS: 800, Path: PathRings},
 		Rig:        Rig{BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraX: 332, TurntableZ: 400, TurntableD: 150, ObjectZ: 100},
 	}
 }

@@ -40,8 +40,9 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 
 - In the **Camera** card, choose how many photos you want. They're spread evenly round the object, as high and low as the
   camera may go.
-- **Path**: **Sphere** spreads the photos as evenly as can be round the object; **Rings** takes them in
-  rings, the camera's height changing only between rings (fewer photos in the higher rings).
+- **Path**: **Rings** (the default) takes the photos in rings, the camera's height changing only between rings
+  (fewer photos in the higher rings): best for photogrammetry (RealityScan, Metashape, Apple Object Capture).
+  **Sphere** spreads them as evenly as can be round the object: best for Gaussian splatting and NeRF.
 - **Rig motion**: **Continuous** doesn't stop: the rig
   glides along one smooth path, taking each photo as it passes, which is much faster, for a quick enough shutter. Any
   number of photos works; on long spirals the rig pauses for a moment now and then to reset the platform servo's turn

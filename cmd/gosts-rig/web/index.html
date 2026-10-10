@@ -343,12 +343,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <div class="progress big"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div></div>
         </div>
         <div class="plan-line opts">
-          <div class="opt"><span class="opt-label label-head">Path<span class="help" tabindex="0" aria-label="Which path to use" data-tip="Sphere: photos spread evenly over the sphere. Best for Gaussian splatting and NeRF (Nerfstudio); the quickest with Continuous.&#10;&#10;Rings: full circles at a few heights. Best for photogrammetry (RealityScan, Metashape, Apple Object Capture): a steady overlap between neighbouring photos.">?</span></span>
-            <div class="views seg" id="pathSeg"><button data-v="sphere">Sphere</button><button data-v="rings">Rings</button></div></div>
+          <div class="opt"><span class="opt-label label-head">Path<span class="help" tabindex="0" aria-label="Which path to use" data-tip="Rings: full circles at a few heights. Best for photogrammetry (RealityScan, Metashape, Apple Object Capture): a steady overlap between neighbouring photos.&#10;&#10;Sphere: photos spread evenly over the sphere. Best for Gaussian splatting and NeRF (Nerfstudio); the quickest with Continuous.">?</span></span>
+            <div class="views seg" id="pathSeg"><button data-v="rings">Rings</button><button data-v="sphere">Sphere</button></div></div>
           <div class="opt" title="Continuous: the rig doesn't stop, each photo taken as it passes its shot (needs a fast shutter). Stop &amp; Shoot: the rig stops at each shot and waits a moment (the settle time) before the photo."><span class="opt-label">Rig motion</span>
             <div class="views seg" id="shootSeg"><button data-v="moving">Continuous</button><button data-v="settle">Stop &amp; Shoot</button></div></div>
           <label class="settle-field" id="settleField" title="How long the rig waits after arriving, before each photo">Settle (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
-          <input type="checkbox" id="pMoving" hidden><input type="hidden" id="pPath" value="sphere">
+          <input type="checkbox" id="pMoving" hidden><input type="hidden" id="pPath" value="rings">
         </div>
         <div class="pace-line"><span class="hint" id="paceText"></span>
           <button class="btn small" id="paceBtn" title="Takes a few sample shots back to back and times them coming over: how often the camera keeps up taking photos. Continuous then spaces the photos at least that far apart (and slows down if the camera still falls behind).">Measure</button></div>
@@ -1894,7 +1894,7 @@ function planFromForm() {
 }
 function loadPlan(p) {
   $("pPhotos").value = p.Photos; $("pSettle").value = p.SettleMS; $("pMoving").checked = !!p.Moving;
-  $("pPath").value = p.Path === "rings" || p.Path === "linear" ? "rings" : "sphere"; // (the names before: linear, even)
+  $("pPath").value = p.Path === "sphere" || p.Path === "even" ? "sphere" : "rings"; // Rings unless set (the names before: linear, even)
   $("pExport").value = p.ExportFor || "";
   segSync();
 }
@@ -1902,7 +1902,7 @@ let planTimer = null;
 // The button groups (Path, Rig motion) set the plan's hidden fields (pPath,
 // pMoving); the settle time only shows for Stop & Shoot.
 function segSync() {
-  const moving = $("pMoving").checked, path = $("pPath").value || "sphere";
+  const moving = $("pMoving").checked, path = $("pPath").value || "rings";
   for (const b of $("pathSeg").children) b.classList.toggle("active", b.dataset.v === path);
   for (const b of $("shootSeg").children) b.classList.toggle("active", (b.dataset.v === "moving") === moving);
   $("settleField").hidden = moving;
