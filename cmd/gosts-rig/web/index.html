@@ -509,7 +509,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <label><span class="label-head">Camera X<span class="help" tabindex="0" aria-label="How to measure Camera X" data-tip="Measure from the centre of the turntable's top to the camera's sensor: the ⦵ mark on the camera's top plate. Measure straight across, with the arm level (elevation 0°).">?</span></span><input type="number" id="dCameraX" step="5"></label>
             <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z<input type="number" id="dCameraZ" step="5"></label></div>
           <div class="fgroup">
-            <label title="Turntable height"><span class="label-head">Turntable Z<button class="mini" id="dTurntableAuto" title="Auto: the height that puts the object's middle on the tilt axis, where the camera points" aria-label="Auto turntable height">⌖</button></span><input type="number" id="dTurntableZ" step="10"></label>
+            <label title="Turntable height">Turntable Z<input type="number" id="dTurntableZ" step="10"></label>
             <label title="Turntable diameter">Turntable Dia<input type="number" id="dTurntableD" step="10"></label>
             <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label></div>
           <div class="fgroup">
@@ -619,11 +619,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 <script type="module">
-import { createRig, pivotHeight } from "./rig3d.js";
+import { createRig } from "./rig3d.js";
 import * as graycard from "./graycard.js";
 window.graycard = graycard;
 window.rig3d = createRig(document.getElementById("rig"));
-window.rig3dPivot = pivotHeight;
 draw();
 </script>
 <script>
@@ -2118,17 +2117,6 @@ $("camDisconnectBtn").onclick = async () => {
 };
 function closeRigCfg() { hideSettings(); }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("rigCfgModal").hidden) { e.preventDefault(); closeRigCfg(); } });
-// Turntable Z auto: the object's middle on the tilt axis (the centre of the
-// camera's orbit, where it points), so it's centred in every shot.
-$("dTurntableAuto").onclick = (e) => {
-  e.preventDefault();
-  const d = formDims();
-  const z = Math.round(window.rig3dPivot(d) - d.ObjectZ / 2);
-  if (z < 0) { $("rigErr").textContent = "The object is too tall to centre on the tilt axis: raise post Z or lower the object height."; return; }
-  $("rigErr").textContent = "";
-  $("dTurntableZ").value = z;
-  dimsChanged();
-};
 // Enter in a field saves (as Save; nothing to save: nothing happens).
 $("rigCfgModal").addEventListener("keydown", (e) => {
   if (e.key !== "Enter" || !e.target.matches("input")) return;
