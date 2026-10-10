@@ -590,14 +590,14 @@ func TestLinearShots(t *testing.T) {
 	}
 }
 
-// A new config's path is Rings (the default: best for photogrammetry).
-func TestPlanPathDefault(t *testing.T) {
+// A new config's plan: Rings (best for photogrammetry), 150 photos.
+func TestPlanDefault(t *testing.T) {
 	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := cfg.get().Plan.Path; got != PathRings {
-		t.Fatalf("new config's path %q, want %q", got, PathRings)
+	if p := cfg.get().Plan; p.Path != PathRings || p.Photos != 150 {
+		t.Fatalf("new config's plan: path %q, %d photos", p.Path, p.Photos)
 	}
 }
 
