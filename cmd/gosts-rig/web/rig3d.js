@@ -127,6 +127,10 @@ function st3215() {
 }
 
 // ---------------------------------------------------------------- Sony A6600
+// A6600_LENS_ASIDE: how far (mm) the A6600's lens is off the body's middle,
+// sideways.
+const A6600_LENS_ASIDE = 10;
+
 // Rangefinder-style body about 120 × 67 × 69 mm with a deep grip, the EVF on
 // the top left, a short zoom and a ring flash round the lens. Built looking
 // along +x (lens towards +x), width along z.
@@ -145,7 +149,7 @@ function a6600() {
   // Rear screen.
   g.add(box(2, 46, 74, mat.screen, -D / 2 - 1, -4, 8));
   // Lens mount and lens (front, +x), centred a little left of the grip.
-  const lz = 10, ly = -2;
+  const lz = A6600_LENS_ASIDE, ly = -2;
   const mount = cylinder(30, 6, mat.horn, "x"); mount.position.set(D / 2 + 3, ly, lz); g.add(mount);
   const barrel = cylinder(32, 52, mat.lens, "x"); barrel.position.set(D / 2 + 6 + 26, ly, lz); g.add(barrel);
   const ring = cylinder(33, 10, mat.rubber, "x"); ring.position.set(D / 2 + 6 + 30, ly, lz); g.add(ring);
@@ -296,9 +300,10 @@ export function createRig(container) {
     // The camera sits on the -X side, looking at the axis: its sensor
     // (8 mm in front of the body's middle) CameraX from the turntable's
     // centre with the arm level, CameraZ above the arms (+ up with the arm
-    // level).
+    // level). Its lens is in line with the object's middle, square to the
+    // bar: the body (whose lens is 10 mm off its middle) 10 mm the other way.
     const camera = a6600();
-    camera.position.set(-(d.CameraX ?? DEFAULT_RIG.CameraX) - 8, P / 2 + 34 + (d.CameraZ || 0), 0);
+    camera.position.set(-(d.CameraX ?? DEFAULT_RIG.CameraX) - 8, P / 2 + 34 + (d.CameraZ || 0), -A6600_LENS_ASIDE);
     tilt.add(camera);
     const sightGeo = new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), V(0, 0, 0)]);
     const sight = new THREE.Line(sightGeo, new THREE.LineDashedMaterial({ color: 0x5b8cff, dashSize: 14, gapSize: 10, transparent: true, opacity: 0.7 }));
@@ -869,11 +874,14 @@ export function createRig(container) {
   });
   // ---------------------------------------------------------------- simulated photo
   // snapshot renders what the camera on the rig sees now (the Rig View's
-  // pose): from its lens, looking at the object's middle, like an APS-C
+  // pose): from its lens, looking along the camera body, like an APS-C
   // camera with a 35 mm lens (about 25° high, 3:2). The simulated camera's
   // photos are these. It resolves to a JPEG Blob.
   let photoRenderer = null;
   const photoCam = new THREE.PerspectiveCamera(25, 3 / 2, 5, 20000);
+  // lensAxis turns a three.js camera (looking down −Z) to look down the
+  // camera body's +X, its up +Y: the body's lens axis.
+  const lensAxis = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 2);
   // exposure brightens (>1) or darkens the picture, as a camera's settings
   // would (the simulated camera's shutter, f-stop and ISO).
   // gains tints it, red, green and blue (a white balance set off the light).
@@ -892,8 +900,13 @@ export function createRig(container) {
     }
     photoRenderer.setSize(width, height, false);
     rig.tilt.updateMatrixWorld(true);
+    // From the lens, looking where the camera body points: along the arm,
+    // square to the bar, the lens in line with the object's middle (as the
+    // rig is built, and the alignment export has it). Not aimed at the
+    // object: that would hide a Camera Z that's off (the object then sits
+    // high or low in the picture, as it would in the real one).
     photoCam.position.copy(rig.camera.localToWorld(rig.camera.userData.lensFront.clone()));
-    photoCam.lookAt(rig.objectCentre);
+    rig.camera.getWorldQuaternion(photoCam.quaternion).multiply(lensAxis);
     // Only the real things: no camera body in the way, no shots, trail or
     // sight line.
     // (The camera's parts, not its flash light: switching lights recompiles.)

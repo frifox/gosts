@@ -62,12 +62,12 @@ type cameraPose struct {
 // there): the swing tilts about the servos' axis, P + PostZ + 30 mm up; the
 // camera's sensor is CameraX from the turntable's centre (with the arm
 // level), CameraZ above the arms (the body 34 mm over the bar, the lens
-// 2 mm below its middle and 10 mm aside), looking along the arms at the
-// axis.
+// 2 mm below its middle), in line with the object's middle (square to the
+// bar), looking along the arms at the axis.
 func camPose(r Rig, e, az float64) cameraPose {
 	const p = 20.0 // the profile
 	pivot := p + r.PostZ + 30
-	s := vec3{-r.CameraX, p/2 + 34 + r.CameraZ - 2, 10} // the sensor, in the swing's frame
+	s := vec3{-r.CameraX, p/2 + 34 + r.CameraZ - 2, 0} // the sensor, in the swing's frame
 	ce, se := math.Cos(rad(e)), math.Sin(rad(e))
 	tilt := func(v vec3) vec3 { return vec3{v.X*ce + v.Y*se, -v.X*se + v.Y*ce, v.Z} } // the swing at elevation e
 	pos := tilt(s)
