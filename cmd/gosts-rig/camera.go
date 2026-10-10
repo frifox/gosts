@@ -168,7 +168,6 @@ type simCamera struct {
 	mu       sync.Mutex
 	n        int
 	settings map[string]string // see Settings
-	probed   bool              // the lens's f-stops found (see Probe)
 	focus    int               // the lens's focus: sharp at 0 (see Autofocus)
 	focusSet bool              // focus set (else it's simFocusStart)
 }

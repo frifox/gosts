@@ -243,8 +243,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .setting-row .btn { white-space: nowrap; }
 .btn.busy::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; border-radius: 50%;
   border: 2px solid var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
-.setting-note:empty { display: none; }
-.setting-note { margin: 4px 0 0; }
 @media (max-width: 860px) { .camcfg-body { grid-template-columns: 1fr; } }
 /* A photo full size, over the whole page. */
 .viewer { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.92); display: flex; flex-direction: column; }
@@ -993,34 +991,7 @@ function renderSettings(list) {
       box.appendChild(label);
       continue;
     }
-    if (!st.probe) {
-      label.appendChild(sel);
-      box.appendChild(label);
-      continue;
-    }
-    // Probe: find the choices that really work (the lens's f-stops; the
-    // camera lists every one there is). Slow: the menu waits meanwhile.
-    const row = document.createElement("div");
-    row.className = "setting-row";
-    const btn = document.createElement("button");
-    btn.className = "btn small";
-    btn.textContent = st.probed ? "Detect again" : "Detect";
-    btn.title = "Find the f-stops the lens really has (the camera steps the aperture to its limits, then back): about half a minute";
-    const note = document.createElement("div");
-    note.className = "hint setting-note";
-    if (st.probed) note.textContent = `The lens: ${st.choices[0]} to ${st.choices.at(-1)}`;
-    btn.onclick = async (e) => {
-      e.preventDefault();
-      $("camConfigErr").textContent = "";
-      sel.disabled = btn.disabled = true;
-      btn.classList.add("busy");
-      btn.textContent = "Probing…";
-      note.textContent = "Stepping the aperture to the lens's limits and back: about half a minute.";
-      try { renderSettings(await send("cameraProbe", { key: st.key })); }
-      catch (err) { $("camConfigErr").textContent = err.message; loadSettings(); }
-    };
-    row.append(sel, btn);
-    label.append(row, note);
+    label.appendChild(sel);
     box.appendChild(label);
   }
 }

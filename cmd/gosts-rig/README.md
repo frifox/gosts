@@ -76,7 +76,6 @@ of Photos and Rig View (✕, Esc or the gear again closes it; the Rig card's gea
   how they look (the live view is lower resolution: use a sample shot to check focus or use the gray card). The zoom
   can't change during a capture; its focal length goes into the alignment data for the apps that take one
   (RealityScan, Nerfstudio, COLMAP).
-- **Detect** next to the f-stop finds the range your lens really has (about half a minute).
 - Next to the f-stop: the **depth of field**, how deep the sharp zone is, for where the object sits on the rig.
 - **Gray Card** (with white balance on a color temperature): drag a box over a gray card in the sample. It
   suggests the color temperature and color shifts that make the card neutral, a button each to apply.
