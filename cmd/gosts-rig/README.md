@@ -63,7 +63,8 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
   estimate of the whole capture: from the moves at the rig's speed, the settle time and the camera's measured pace).
 - **Take Photo** takes a single photo where the rig is.
 
-Photos appear in the **Photos** card as they arrive. Click one to see it full size, **View All** for a grid. They're
+Photos appear in the **Photos** card as they arrive. Click one to see it full size (drag to move it, the wheel or the
+navigator at the bottom right to zoom, up to 200% of its own pixels), **View All** for a grid. They're
 saved in `~/Pictures/gosts-rig/`, a folder per batch named after its start time. **Reset** starts a new batch.
 
 ## Camera settings
