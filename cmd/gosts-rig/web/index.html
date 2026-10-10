@@ -226,6 +226,9 @@ td.mono { font-family: var(--mono); }
 .focus-stat { color: #a9b0bd; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .focus-bar > .btn, .focus-nudge { flex: none; }
 .focus-zoom.busy canvas { opacity: .55; }
+.focus-pick { display: inline-flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.focus-pick .seg { flex: 1; display: flex; }
+.focus-pick .seg button { flex: 1; white-space: nowrap; }
 .shot-overlay { position: absolute; left: 10px; right: 10px; bottom: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .gray-hint, .gray-out { padding: 8px 12px; border-radius: 10px; background: rgba(12, 14, 18, .82); color: #e8eaef; font-size: 13px;
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 2px 10px rgba(0,0,0,.35); }
@@ -512,7 +515,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             </div></div>
           <div class="hint mono" id="sampleCaption"></div>
           <!-- Gray Card lives by the colour temperature slider (renderSettings puts it there); parked here meanwhile. -->
-          <div hidden id="focusPark"><button class="btn small needs-sample" id="focusBtn" disabled data-title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again" data-tip="Focus needs a sample shot, please take one">Focus</button></div>
+          <div hidden id="focusPark"><button class="btn small needs-sample" id="focusBtn" disabled data-title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again" data-tip="Focus needs a sample shot, please take one">Focus</button><span class="focus-pick" id="focusPick" hidden><span class="views seg" id="focusModeSeg"><button data-m="single" title="Focus on one part: drag a rectangle around it">Single Point</button><button data-m="nearfar" title="Focus between two cards, the nearest and farthest the object reaches: the depth of field centred on them">Near/Far Points</button></span><button class="btn small" id="focusPickCancel" title="Cancel">✕</button><button class="btn small primary" id="focusStart">Start</button></span></div>
           <div hidden id="grayPark"><button class="btn small needs-sample" id="grayBtn" disabled data-title="Balance white from a gray card: drag a rectangle inside the card in the sample, and the app works out the colour temperature that makes it neutral" data-tip="Gray Card needs a sample shot, please take one">Gray Card</button></div>
         </div>
       </div>
@@ -1079,7 +1082,7 @@ document.addEventListener("keydown", (e) => {
 // or they'd be cleared with them.
 function parkSettingButtons() {
   $("grayPark").appendChild($("grayBtn"));
-  $("focusPark").appendChild($("focusBtn"));
+  $("focusPark").append($("focusBtn"), $("focusPick"));
 }
 // sampleButtons: Focus and Gray Card work on a sample shot: enabled with one
 // shown (their tooltip then what they do; disabled, the needs-sample tip).
@@ -1395,14 +1398,40 @@ $("grayBtn").onclick = () => {
   $("grayHint").textContent = "Drag a rectangle inside the gray card.";
   $("grayOut").hidden = true;
 };
+// Focus: the focus mode's list gives way to a choice of Single Point (one
+// part) or Near/Far Points (two cards, the nearest and farthest the object
+// reaches: focused between them), and Start, which has the rectangles
+// dragged on the sample (for Near/Far, the near card's, then the far's).
 $("focusBtn").onclick = (e) => {
   e.preventDefault();
   if (state.selecting) return stopSelecting();
   closeFocus();
-  state.selecting = "focus";
+  focusPick(true);
+};
+function focusPick(on) {
+  const row = $("focusBtn").parentElement, sel = row.querySelector("select");
+  if (sel) sel.hidden = on;
+  $("focusBtn").hidden = on;
+  if (on) row.appendChild($("focusPick"));
+  $("focusPick").hidden = !on;
+  for (const b of $("focusModeSeg").children) b.classList.toggle("active", b.dataset.m === (state.focusMode || "single"));
+}
+$("focusModeSeg").onclick = (e) => {
+  e.preventDefault();
+  const m = e.target.dataset?.m;
+  if (!m) return;
+  state.focusMode = m;
+  for (const b of $("focusModeSeg").children) b.classList.toggle("active", b.dataset.m === m);
+};
+$("focusPickCancel").onclick = (e) => { e.preventDefault(); focusPick(false); };
+$("focusStart").onclick = (e) => {
+  e.preventDefault();
+  focusPick(false);
+  const nearFar = state.focusMode === "nearfar";
+  state.selecting = nearFar ? "focusNear" : "focus";
   $("sampleBox").classList.add("selecting");
   $("focusBtn").textContent = "Cancel";
-  $("grayHint").textContent = "Drag a rectangle around the part to check the focus of.";
+  $("grayHint").textContent = nearFar ? "Drag a rectangle around the near card (the nearest the object reaches)." : "Drag a rectangle around the part to check the focus of.";
 };
 function stopSelecting() {
   state.selecting = false;
@@ -1448,9 +1477,16 @@ window.addEventListener("mouseup", () => {
   // measured (or shown, for focus) there too (till Dismiss, or a new one).
   const rect = { fx: (Math.min(x0, x1) - d.x) / d.w, fy: (Math.min(y0, y1) - d.y) / d.h,
     fw: Math.abs(x1 - x0) / d.w, fh: Math.abs(y1 - y0) / d.h };
-  const forFocus = state.selecting === "focus";
+  const sel = state.selecting;
+  if (sel === "focusNear") { // the far card next
+    state.nearRect = rect;
+    state.selecting = "focusFar";
+    $("grayHint").textContent = "Now drag a rectangle around the far card (the farthest the object reaches).";
+    return;
+  }
   stopSelecting();
-  if (forFocus) { openFocus(rect); return; }
+  if (sel === "focus") { openFocus(rect); return; }
+  if (sel === "focusFar") { openFocus(state.nearRect, rect); return; }
   state.grayRect = rect;
   showGrayRect();
   measureGrayRect();
@@ -1576,9 +1612,15 @@ function balanceFrom(rgb) {
 // its edges: higher is sharper, comparable only for the same part and
 // light). Autofocus or the near/far steps change the focus, then a new
 // sample is taken and the part shown from it; it stays till Close.
-function openFocus(rect) {
+// openFocus: the part (rect) shown large; with far, two: rect the near card,
+// far the far one, side by side, and Auto focuses between them.
+function openFocus(rect, far = null) {
   state.focusRect = rect;
+  state.focusRect2 = far;
   state.focusSharp = [];
+  state.focusSharp2 = [];
+  $("focusAF").textContent = far ? "Focus between" : "Auto";
+  $("focusAF").title = far ? "The app steps the lens through the near card's and the far card's sharpest, a sample each step, and leaves it where both are equally sharp (each against its own sharpest): the depth of field centred between them (a minute or so; click again to stop)" : $("focusAF").dataset.title || $("focusAF").title;
   state.focusSaid = "";
   $("focusZoom").hidden = false;
   $("focusStat").textContent = "";
@@ -1587,6 +1629,7 @@ function openFocus(rect) {
 }
 function closeFocus() {
   state.focusRect = null;
+  state.focusRect2 = null;
   $("focusZoom").hidden = true;
 }
 $("focusClose").onclick = closeFocus;
@@ -1612,11 +1655,26 @@ function drawFocus(fresh) {
   cv.width = Math.round(cv.clientWidth * dpr); cv.height = Math.round(cv.clientHeight * dpr);
   const ctx = cv.getContext("2d");
   ctx.fillStyle = "#0b0d10"; ctx.fillRect(0, 0, cv.width, cv.height);
-  const k = Math.min(cv.width / sw, cv.height / sh);
-  ctx.imageSmoothingEnabled = k < 1; // enlarged: pixels as they are, nothing smoothed over
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, sx, sy, sw, sh, (cv.width - sw * k) / 2, (cv.height - sh * k) / 2, sw * k, sh * k);
+  // One part over the whole; two (near, far) side by side, each labelled.
+  const part = (q, x0, wd, label) => {
+    const qx = q.fx * W, qy = q.fy * H, qw = Math.max(1, q.fw * W), qh = Math.max(1, q.fh * H);
+    const k = Math.min(wd / qw, cv.height / qh);
+    ctx.imageSmoothingEnabled = k < 1; // enlarged: pixels as they are, nothing smoothed over
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, qx, qy, qw, qh, x0 + (wd - qw * k) / 2, (cv.height - qh * k) / 2, qw * k, qh * k);
+    if (label) { ctx.font = `${12 * dpr}px system-ui`; ctx.fillStyle = "#e8eaef"; ctx.fillText(label, x0 + 8 * dpr, 18 * dpr); }
+  };
+  const r2 = state.focusRect2;
+  if (r2) { const half = cv.width / 2; part(r, 0, half - 2 * dpr, "Near"); part(r2, half + 2 * dpr, half - 2 * dpr, "Far"); }
+  else part(r, 0, cv.width, "");
   if (!fresh) return;
+  if (r2) { // both measured; said by each against its sharpest so far
+    const a = sharpness(img, sx, sy, sw, sh), b = sharpness(img, r2.fx * W, r2.fy * H, Math.max(1, r2.fw * W), Math.max(1, r2.fh * H));
+    state.focusSharp.push(a); state.focusSharp2.push(b);
+    const pa = Math.round(100 * a / Math.max(...state.focusSharp)), pb = Math.round(100 * b / Math.max(...state.focusSharp2));
+    $("focusStat").textContent = `${state.focusSaid ? state.focusSaid + " · " : ""}Near ${a} (${pa}% of its best) · Far ${b} (${pb}%)`;
+    return;
+  }
   const s = sharpness(img, sx, sy, sw, sh), list = state.focusSharp;
   list.push(s);
   const best = Math.max(...list), prev = list.at(-2);
@@ -1674,8 +1732,10 @@ async function focusSample() {
 // sharpest seen (the small steps are about the size of the noise), it goes
 // back there: the moves since, undone.
 const AUTO_STEPS = [3, 1], AUTO_MAX = 8; // the steps (see Nudge), at most so many each way
+$("focusAF").dataset.title = $("focusAF").title;
 $("focusAF").onclick = async () => {
   if (state.focusAuto) { state.focusAuto.stop = true; $("focusAF").textContent = "Stopping…"; return; }
+  if (state.focusRect2) return focusBetween();
   const run = (state.focusAuto = { stop: false });
   state.focusBusy = true;
   $("focusAF").textContent = "Stop";
@@ -1738,6 +1798,70 @@ $("focusAF").onclick = async () => {
   $("focusAF").textContent = "Auto";
   focusControls();
 };
+// Focus between (Near/Far Points): two cards, the nearest and the farthest
+// the object reaches. The lens is stepped (medium steps, a sample each)
+// nearer till the near card has been past its sharpest, then back and
+// further till the far card has too; each card's sharpness, against its own
+// sharpest, says how far out of focus it is (two printed cards: alike). The
+// lens goes to where the two are most nearly equal (the worse of them the
+// best it gets): both equally blurred, so the depth of field is centred
+// between them. Then small steps towards the worse card, while that gets
+// better. Whether the depth of field reaches both is down to the zoom and
+// f-stop: if not, it says so.
+const NF_STEP = 3, NF_FINE = 1, NF_MAX = 12; // the steps (see Nudge); at most so many each way
+async function focusBetween() {
+  const run = (state.focusAuto = { stop: false });
+  state.focusBusy = true;
+  $("focusAF").textContent = "Stop";
+  focusControls();
+  $("camConfigErr").textContent = "";
+  const say = (t) => ($("focusStat").textContent = "Near/far: " + t);
+  const pts = []; // {pos (in NF_STEPs from the start), a (near), b (far)}
+  let pos = 0;
+  const measure = async () => { const a = await focusSample(); const p = { pos, a, b: state.focusSharp2.at(-1) }; pts.push(p); return p; };
+  const step = async (d) => { await send("focusNudge", { n: d * NF_STEP }); pos += d; };
+  // Past its sharpest, going dir: its sharpest is behind, and it's well down from it.
+  const past = (key, dir) => {
+    const cur = pts.at(-1), best = pts.reduce((m, q) => (q[key] > m[key] ? q : m));
+    return (best.pos - cur.pos) * dir < 0 && cur[key] < 0.8 * best[key];
+  };
+  const score = (p, ma, mb) => Math.min(p.a / ma, p.b / mb);
+  try {
+    say("measuring here…");
+    await measure();
+    for (let i = 0; i < NF_MAX && !run.stop && !past("a", -1); i++) { say(`nearer, past the near card's sharpest (${i + 1})…`); await step(-1); await measure(); }
+    if (!run.stop) say("back…");
+    while (pos < 0 && !run.stop) await step(1); // (measured there already)
+    for (let i = 0; i < NF_MAX && !run.stop && !(past("a", 1) && past("b", 1)); i++) { say(`further, past the far card's sharpest (${i + 1})…`); await step(1); await measure(); }
+    let ma = Math.max(...pts.map((p) => p.a)), mb = Math.max(...pts.map((p) => p.b));
+    const best = pts.reduce((m, q) => (score(q, ma, mb) > score(m, ma, mb) ? q : m));
+    if (!run.stop) { say("to where both are as sharp as they can be together…"); while (pos !== best.pos && !run.stop) await step(Math.sign(best.pos - pos)); }
+    let cur = run.stop ? pts.at(-1) : await measure();
+    // Finer: small steps towards the worse card, while the worse gets better.
+    if (!run.stop) {
+      const dir = cur.a / ma < cur.b / mb ? -1 : 1; // the near card the worse: nearer
+      let sc = score(cur, ma, mb);
+      for (let i = 0; i < 6 && !run.stop; i++) {
+        say("fine steps…");
+        await send("focusNudge", { n: dir * NF_FINE });
+        const p = await measure();
+        ma = Math.max(ma, p.a); mb = Math.max(mb, p.b);
+        if (score(p, ma, mb) > sc) { sc = score(p, ma, mb); cur = p; continue; }
+        await send("focusNudge", { n: -dir * NF_FINE }); // past it: one back
+        cur = await measure();
+        break;
+      }
+    }
+    const pa = Math.round(100 * cur.a / ma), pb = Math.round(100 * cur.b / mb);
+    const short = Math.min(pa, pb) < 70
+      ? " · the depth of field doesn't reach both: stop down (a higher f-number) or zoom out, then again" : "";
+    state.focusSaid = `Near/far: ${run.stop ? "stopped" : "done"} (${pts.length} samples)`;
+    $("focusStat").textContent = `${state.focusSaid} · near card ${pa}% of its sharpest, far ${pb}%${short}`;
+  } catch (e) { $("camConfigErr").textContent = e.message; say("stopped: " + e.message); }
+  state.focusAuto = null; state.focusBusy = false;
+  $("focusAF").textContent = "Focus between";
+  focusControls();
+}
 for (const b of document.querySelectorAll(".focus-nudge .btn")) {
   const n = Number(b.dataset.n);
   b.onclick = () => focusAct(`Focusing ${n < 0 ? "nearer" : "further"}`, async () => { await send("focusNudge", { n }); return ""; });

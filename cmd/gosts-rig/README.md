@@ -80,8 +80,15 @@ of Photos and Rig View (✕, Esc or the gear again closes it; the Rig card's gea
 - By Zoom (or Focus, with no power zoom): the **estimated depth of field** (DoF) at the f-stop chosen, how deep the sharp zone is, for where the object sits on the rig.
 - **Gray Card** (with white balance on a color temperature): drag a box over a gray card in the sample. It
   suggests the color temperature and color shifts that make the card neutral, a button each to apply.
-- **Focus** (in Manual focus): drag a box over the part that matters to see it large. **Auto** focuses on that
-  part for you; the arrows nudge the focus nearer or further. Focus stays where you leave it for the capture.
+- **Focus** (in Manual focus) offers two ways, then **Start**:
+  - **Single Point**: drag a box over the part that matters to see it large. **Auto** focuses on that part for you;
+    the arrows nudge the focus nearer or further.
+  - **Near/Far Points**: put two printed contrast cards where the object comes nearest and farthest over a full
+    turn, then drag a box round the near card and one round the far card. **Focus between** steps the lens through
+    both cards' sharpest and leaves it where they're equally sharp: the depth of field centred between them. Set the
+    zoom and f-stop so the estimated DoF is about that deep; if it doesn't reach both cards, it says so.
+
+  Focus stays where you leave it for the capture.
 
 ## Tips
 
