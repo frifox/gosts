@@ -970,7 +970,7 @@ function renderSettings(list) {
       help.className = "help";
       help.tabIndex = 0;
       help.setAttribute("aria-label", "How to check the focus");
-      help.dataset.tip = "Focus checks a part of a photo up close, and focuses on it. It needs a sample shot: take one (Take Sample Shot), then the Focus button can be clicked; drag a rectangle over the part to check.";
+      help.dataset.tip = "Focus button needs a Sample Shot, please take one";
       help.textContent = "?";
       head.append(st.label, help);
       const ap = list.find((x) => x.key === "aperture");
