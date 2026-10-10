@@ -226,7 +226,9 @@ td.mono { font-family: var(--mono); }
 .focus-stat { color: #a9b0bd; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .focus-bar > .btn, .focus-nudge { flex: none; }
 .focus-zoom.busy canvas { opacity: .55; }
+/* The end of an auto-focus: how it went (ok: green), or what's wrong (amber). */
 .focus-warn { padding: 8px 12px; background: rgba(240,167,66,.14); border-top: 1px solid rgba(240,167,66,.5); color: #f0a742; font-size: 12px; line-height: 1.4; }
+.focus-warn.ok { background: rgba(60,207,122,.12); border-top-color: rgba(60,207,122,.5); color: #3ccf7a; }
 .focus-pick { display: inline-flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .focus-pick .seg { flex: 1; display: flex; }
 .focus-pick .seg button { flex: 1; white-space: nowrap; }
@@ -1739,6 +1741,7 @@ $("focusAF").dataset.title = $("focusAF").title;
 $("focusAF").onclick = async () => {
   if (state.focusAuto) { state.focusAuto.stop = true; $("focusAF").textContent = "Stopping…"; return; }
   if (state.focusRect2) return focusBetween();
+  $("focusWarn").hidden = true;
   const run = (state.focusAuto = { stop: false });
   state.focusBusy = true;
   $("focusAF").textContent = "Stop";
@@ -1795,6 +1798,9 @@ $("focusAF").onclick = async () => {
     state.focusSaid = `Auto: ${stopped() ? "stopped" : "done"} (${shots} samples; the camera: ${ind === "Focus Locked" ? "Focus Applied" : ind})`;
     drawFocus(false);
     const now = state.focusSharp.at(-1);
+    if (!stopped()) focusNote(now >= best.s * 0.95
+      ? `✓ In focus: sharpness ${now}, the sharpest found (${shots} samples).`
+      : `⚠ Sharpness ${now}, short of the sharpest seen (${best.s}): try Auto again, or the arrows.`, now >= best.s * 0.95);
     $("focusStat").textContent = `${state.focusSaid} · Sharpness ${now}${now < best.s * 0.95 ? ` (best seen ${best.s})` : ""}`;
   } catch (e) { $("camConfigErr").textContent = e.message; say("stopped: " + e.message); }
   state.focusAuto = null; state.focusBusy = false;
@@ -1813,6 +1819,12 @@ $("focusAF").onclick = async () => {
 // f-stop: if not, it says so.
 const NF_STEP = 3, NF_FINE = 1, NF_MAX = 12; // the steps (see Nudge); at most so many each way
 const NF_IDEAL = 85; // % of each card's sharpest both must reach, else the depth of field is too shallow (a warning)
+// focusNote shows how an auto-focus ended: ok (green) or a warning (amber).
+function focusNote(text, ok) {
+  $("focusWarn").textContent = text;
+  $("focusWarn").classList.toggle("ok", ok);
+  $("focusWarn").hidden = false;
+}
 async function focusBetween() {
   const run = (state.focusAuto = { stop: false });
   $("focusWarn").hidden = true;
@@ -1866,10 +1878,9 @@ async function focusBetween() {
     if (!run.stop && Math.min(pa, pb) < NF_IDEAL) {
       const w = `⚠ The depth of field isn't deep enough for both cards: at the best focus between them the near card is ${pa}% as sharp as it can be, the far card ${pb}%. ` +
         "Stop down (a higher f-number) or zoom out (the estimated DoF by Zoom should be about the cards' distance apart), take a sample, and Focus between again.";
-      $("focusWarn").textContent = w;
-      $("focusWarn").hidden = false;
+      focusNote(w, false);
       log(w.replace("⚠ ", ""), "error");
-    }
+    } else if (!run.stop) focusNote(`✓ Both cards in focus: the near card ${pa}% as sharp as it can be, the far card ${pb}% (${pts.length} samples). The depth of field is centred between them.`, true);
   } catch (e) { $("camConfigErr").textContent = e.message; say("stopped: " + e.message); }
   state.focusAuto = null; state.focusBusy = false;
   $("focusAF").textContent = "Focus between";
