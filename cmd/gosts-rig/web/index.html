@@ -343,7 +343,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <div class="progress big"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div></div>
         </div>
         <div class="plan-line opts">
-          <div class="opt" title="Sphere: the photos spread as evenly as can be over the sphere round the object. Rings: rings of one elevation each, the camera's height changing only between rows (fewer photos in the higher rows)."><span class="opt-label">Path</span>
+          <div class="opt"><span class="opt-label label-head">Path<span class="help" tabindex="0" aria-label="Which path to use" data-tip="Sphere: photos spread evenly over the sphere. Best for Gaussian splatting and NeRF (Nerfstudio); the quickest with Continuous. Rings: full circles at a few heights. Best for photogrammetry (RealityScan, Metashape, Apple Object Capture): a steady overlap between neighbouring photos.">?</span></span>
             <div class="views seg" id="pathSeg"><button data-v="sphere">Sphere</button><button data-v="rings">Rings</button></div></div>
           <div class="opt" title="Continuous: the rig doesn't stop, each photo taken as it passes its shot (needs a fast shutter). Stop &amp; Shoot: the rig stops at each shot and waits a moment (the settle time) before the photo."><span class="opt-label">Rig motion</span>
             <div class="views seg" id="shootSeg"><button data-v="moving">Continuous</button><button data-v="settle">Stop &amp; Shoot</button></div></div>
