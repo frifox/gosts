@@ -838,12 +838,22 @@ function setPhotos(list) {
   if (!$("gallery").hidden) renderGallery();
   photosShown();
 }
+// A photo with a placeholder takes its place as it is, no sliding in (the
+// placeholder did), once its thumbnail is ready (no blank in between); one
+// without slides in itself.
 function addPhoto(p, isNew) {
-  state.pending.delete(p.n);
+  const hadPlaceholder = state.pending.delete(p.n);
   if (state.photos.some((q) => q.n === p.n)) return;
   state.photos.push(p);
   state.photos.sort((a, b) => a.n - b.n);
-  for (const box of thumbBoxes()) putThumb(box, thumb(p, isNew && box === $("timeline")), p.n);
+  for (const box of thumbBoxes()) {
+    const el = thumb(p, isNew && !hadPlaceholder && box === $("timeline"));
+    if (!hadPlaceholder) { putThumb(box, el, p.n); continue; }
+    const img = el.querySelector("img");
+    img.loading = "eager";
+    const put = () => { if (state.photos.some((q) => q.n === p.n)) putThumb(box, el, p.n); }; // unless deleted meanwhile
+    img.decode().then(put, put);
+  }
   $("timeline").scrollLeft = 0; // the newest in view
   photosShown();
 }
