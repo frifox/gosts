@@ -260,9 +260,22 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 @media (max-width: 860px) { .camcfg-body { grid-template-columns: 1fr; } }
 /* A photo full size, over the whole page. */
 .viewer { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.92); display: flex; flex-direction: column; }
-.viewer .stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 0 16px 16px; }
-.viewer img { width: 100%; height: 100%; object-fit: contain; } /* as large as the window allows, even past its own size */
-.viewer .stage, .viewer img { cursor: zoom-out; } /* a click goes back */
+/* The photo, zoomed and moved over the stage (see viewer zoom): drag to move it; a click on the dark
+   around it goes back. The navigator (bottom right) shows where the view is, and sets the zoom. */
+.viewer .stage { flex: 1; min-height: 0; margin: 0 16px 16px; position: relative; overflow: hidden; cursor: zoom-out; touch-action: none; }
+#viewerImg { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; cursor: grab; user-select: none; -webkit-user-drag: none; }
+.viewer .stage.dragging, .viewer .stage.dragging #viewerImg { cursor: grabbing; }
+.vnav { position: absolute; right: 12px; bottom: 12px; width: 232px; padding: 8px; display: flex; flex-direction: column; gap: 6px; cursor: default;
+  background: rgba(15,18,24,.9); border: 1px solid #2a303c; border-radius: 10px; color: #e6e9ef; font: 12px var(--mono); }
+.vnav .presets { display: flex; gap: 4px; }
+.vnav .presets .btn { flex: 1; padding: 3px 0; text-transform: none; letter-spacing: 0; font: 11px var(--mono); }
+.vnav .presets .btn.on { border-color: var(--accent); color: var(--accent); }
+.vnav .map { position: relative; cursor: pointer; line-height: 0; }
+.vnav .map img { display: block; width: 100%; height: auto; }
+.vnav .vp { position: absolute; border: 2px solid #ff4d4d; box-shadow: 0 0 0 1px rgba(0,0,0,.5); cursor: move; box-sizing: border-box; }
+.vnav .zoomrow { display: flex; align-items: center; gap: 8px; }
+.vnav .zoomrow span { min-width: 40px; text-align: right; }
+.vnav .zoomrow input { flex: 1; }
 .viewer-bar, .gallery-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; }
 .viewer-bar .cap { color: #e6e9ef; font: 12px var(--mono); }
 .viewer-bar .hint { color: #9aa3b2; }
@@ -586,7 +599,13 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <button class="btn small" id="viewerOlder" title="Older photo (→)">Older ›</button>
     <button class="icon-btn" id="viewerClose" title="Close (Esc)" aria-label="Close">✕</button>
   </div>
-  <div class="stage" id="viewerStage"><img id="viewerImg" alt=""></div>
+  <div class="stage" id="viewerStage"><img id="viewerImg" alt="" draggable="false">
+    <div class="vnav" id="vnav">
+      <div class="presets" id="vnavPresets"><button class="btn small" data-z="fit" title="The whole photo in the window">Fit</button><button class="btn small" data-z="0.5">50%</button><button class="btn small" data-z="1" title="The photo's own pixels">100%</button><button class="btn small" data-z="1.5">150%</button><button class="btn small" data-z="2">200%</button></div>
+      <div class="map" id="vnavMap" title="Drag the rectangle (or click) to move the view"><img id="vnavImg" alt="" draggable="false"><div class="vp" id="vnavVp"></div></div>
+      <div class="zoomrow"><span id="vnavPct">100%</span><input type="range" id="vnavZoom" min="10" max="200" step="1" value="100" title="Zoom"></div>
+    </div>
+  </div>
 </div>
 <div class="modal-backdrop" id="confirmModal" hidden>
   <div class="modal card" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" style="width:min(420px,100%)">
@@ -921,6 +940,7 @@ function openPhoto(n) {
   $("viewerImg").src = photoURL(p);
   $("viewerCap").textContent = photoCaption(p);
   $("viewer").hidden = false;
+  vz.fit = true; requestAnimationFrame(vzApply); // (the same photo again: no load)
   viewerButtons();
 }
 function viewerButtons() {
@@ -929,7 +949,7 @@ function viewerButtons() {
   $("viewerNewer").hidden = $("viewerOlder").hidden = false; // (a sample's view hides them)
   $("viewerNewer").disabled = i < 0 || i >= state.photos.length - 1;
   $("viewerOlder").disabled = i <= 0;
-  $("viewerHint").textContent = `  ·  ← → to step, click or Esc ${gallery ? "for all photos" : "to close"}`;
+  $("viewerHint").textContent = `  ·  ← → to step, drag or wheel to look around, Esc ${gallery ? "for all photos" : "to close"}`;
 }
 function stepPhoto(d) { // +1 newer, -1 older
   const i = state.photos.findIndex((p) => p.n === state.viewing), j = i + d;
@@ -939,10 +959,106 @@ function closePhoto() { $("viewer").hidden = true; state.viewing = null; }
 $("viewerBack").onclick = closePhoto;
 $("viewerNewer").onclick = () => stepPhoto(1);
 $("viewerOlder").onclick = () => stepPhoto(-1);
-// A click anywhere but on a button (on the photo too) goes back: to All
-// Photos where it was left, if the photo was opened from there, else to the
-// page (the pointer says so: zoom out).
-$("viewer").onclick = (e) => { if (!e.target.closest("button")) closePhoto(); };
+// A click on the dark around the photo (not a drag, not the navigator, not a
+// button) goes back: to All Photos where it was left, if the photo was
+// opened from there, else to the page (the pointer says so: zoom out).
+$("viewer").onclick = (e) => {
+  if (e.target.closest("button, .vnav, #viewerImg") || vz.dragged || vz.onPhoto) return; // (onPhoto: pressed on it; the click comes from the stage, which held the pointer)
+  closePhoto();
+};
+
+// ---------------------------------------------------------------- viewer zoom
+// The photo in the viewer at a zoom (s: screen pixels per photo pixel; 100%
+// is the photo's own pixels) and place (x, y: its top left on the stage).
+// fit: as large as the stage allows, whole (kept so when the window
+// changes). Drag it to move it; the wheel zooms at the pointer. The
+// navigator shows the photo small with the part in view; its rectangle
+// drags the view, a click there centres it; presets and a slider set the
+// zoom (about the middle of the view).
+const vz = { s: 1, x: 0, y: 0, fit: true, dragged: false, onPhoto: false };
+const VZ_MIN = 0.1, VZ_MAX = 2;
+function vzNat() { const i = $("viewerImg"); return [i.naturalWidth || 1, i.naturalHeight || 1]; }
+function vzStage() { const st = $("viewerStage"); return [st.clientWidth, st.clientHeight]; }
+function vzFitScale() { const [w, h] = vzNat(), [W, H] = vzStage(); return Math.min(W / w, H / h); }
+function vzApply() {
+  const img = $("viewerImg"), [w, h] = vzNat(), [W, H] = vzStage();
+  if (vz.fit) vz.s = vzFitScale();
+  const dw = w * vz.s, dh = h * vz.s;
+  // Smaller than the stage: centred; larger: no gap at the edges.
+  vz.x = dw <= W ? (W - dw) / 2 : Math.min(0, Math.max(W - dw, vz.x));
+  vz.y = dh <= H ? (H - dh) / 2 : Math.min(0, Math.max(H - dh, vz.y));
+  img.style.width = w + "px"; img.style.height = h + "px";
+  img.style.transform = `translate(${vz.x}px, ${vz.y}px) scale(${vz.s})`;
+  const pct = Math.round(vz.s * 100);
+  $("vnavPct").textContent = pct + "%";
+  $("vnavZoom").value = Math.min(200, Math.max(10, pct));
+  for (const b of $("vnavPresets").children) b.classList.toggle("on", b.dataset.z === "fit" ? vz.fit : !vz.fit && Math.abs(Number(b.dataset.z) - vz.s) < 0.005);
+  // The navigator's rectangle: the part of the photo in view.
+  const mw = $("vnavMap").clientWidth, k = mw / w, vp = $("vnavVp");
+  const ix = Math.max(0, -vz.x / vz.s), iy = Math.max(0, -vz.y / vz.s);
+  const iw = Math.min(w, W / vz.s), ih = Math.min(h, H / vz.s);
+  vp.style.left = ix * k + "px"; vp.style.top = iy * k + "px";
+  vp.style.width = iw * k + "px"; vp.style.height = ih * k + "px";
+}
+// vzZoom: zoom s, keeping the photo point under (cx, cy) on the stage there.
+function vzZoom(s, cx, cy) {
+  s = Math.min(VZ_MAX, Math.max(Math.min(VZ_MIN, vzFitScale()), s));
+  const px = (cx - vz.x) / vz.s, py = (cy - vz.y) / vz.s;
+  vz.fit = false; vz.s = s; vz.x = cx - px * s; vz.y = cy - py * s;
+  vzApply();
+}
+function vzZoomMiddle(s) { const [W, H] = vzStage(); vzZoom(s, W / 2, H / 2); }
+// A new photo (or the same again): fitted, its copy in the navigator.
+$("viewerImg").addEventListener("load", () => { vz.fit = true; $("vnavImg").src = $("viewerImg").src; vzApply(); });
+$("vnavImg").addEventListener("load", vzApply);
+window.addEventListener("resize", () => { if (!$("viewer").hidden) vzApply(); });
+$("vnavPresets").onclick = (e) => {
+  const z = e.target.dataset?.z;
+  if (!z) return;
+  if (z === "fit") { vz.fit = true; vzApply(); } else vzZoomMiddle(Number(z));
+};
+$("vnavZoom").oninput = () => vzZoomMiddle(Number($("vnavZoom").value) / 100);
+$("viewerStage").addEventListener("wheel", (e) => {
+  if (e.target.closest(".vnav")) return;
+  e.preventDefault();
+  const b = $("viewerStage").getBoundingClientRect();
+  vzZoom(vz.s * Math.exp(-e.deltaY * 0.0015), e.clientX - b.left, e.clientY - b.top);
+}, { passive: false });
+// Drag the photo to move it (a few pixels' move is a drag, not a click).
+$("viewerStage").addEventListener("pointerdown", (e) => {
+  if (e.button !== 0 || e.target.closest(".vnav")) return;
+  const st = $("viewerStage"), x0 = vz.x, y0 = vz.y, sx = e.clientX, sy = e.clientY;
+  vz.dragged = false;
+  vz.onPhoto = !!e.target.closest("#viewerImg");
+  st.setPointerCapture(e.pointerId);
+  const move = (m) => {
+    const dx = m.clientX - sx, dy = m.clientY - sy;
+    if (!vz.dragged && Math.hypot(dx, dy) < 4) return;
+    vz.dragged = true; st.classList.add("dragging");
+    vz.x = x0 + dx; vz.y = y0 + dy; vzApply();
+  };
+  const up = () => {
+    st.removeEventListener("pointermove", move); st.removeEventListener("pointerup", up); st.removeEventListener("pointercancel", up);
+    st.classList.remove("dragging");
+    setTimeout(() => (vz.dragged = vz.onPhoto = false)); // after this click
+  };
+  st.addEventListener("pointermove", move); st.addEventListener("pointerup", up); st.addEventListener("pointercancel", up);
+});
+// The navigator: a click centres the view there; dragging (the rectangle,
+// or from the click) moves it.
+$("vnavMap").addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const map = $("vnavMap"), [w] = vzNat(), [W, H] = vzStage(), k = map.clientWidth / w;
+  const at = (ev) => { const b = map.getBoundingClientRect(); return [(ev.clientX - b.left) / k, (ev.clientY - b.top) / k]; }; // photo pixels
+  let [px, py] = at(e);
+  if (e.target !== $("vnavVp")) { vz.x = W / 2 - px * vz.s; vz.y = H / 2 - py * vz.s; vzApply(); } // centred where clicked
+  const x0 = vz.x, y0 = vz.y;
+  map.setPointerCapture(e.pointerId);
+  const move = (m) => { const [qx, qy] = at(m); vz.x = x0 - (qx - px) * vz.s; vz.y = y0 - (qy - py) * vz.s; vzApply(); };
+  const up = () => { map.removeEventListener("pointermove", move); map.removeEventListener("pointerup", up); map.removeEventListener("pointercancel", up); };
+  map.addEventListener("pointermove", move); map.addEventListener("pointerup", up); map.addEventListener("pointercancel", up);
+});
 // ✕ on the photo closes All Photos too.
 $("viewerClose").onclick = () => { closePhoto(); closeGallery(); };
 document.addEventListener("keydown", (e) => {
@@ -1715,10 +1831,11 @@ $("sampleBox").onclick = () => {
   if (!state.sampleShown || state.selecting || state.justSelected || state.live) return;
   $("viewerImg").src = $("sampleImg").src;
   $("viewerCap").textContent = "Sample · " + $("sampleCaption").textContent;
-  $("viewerHint").textContent = "  ·  click or Esc to close";
+  $("viewerHint").textContent = "  ·  drag or wheel to look around, Esc to close";
   for (const id of ["viewerBack", "viewerNewer", "viewerOlder"]) $(id).hidden = true;
   state.viewing = null;
   $("viewer").hidden = false;
+  vz.fit = true; requestAnimationFrame(vzApply);
 };
 
 $("takePhotoBtn").onclick = async () => {
