@@ -1614,9 +1614,14 @@ function stopLive() {
   $("sampleCaption").textContent = state.sampleCaption || "";
   sampleButton();
 }
+// The simulated lens zooms over a moment, as a power zoom does: from where
+// it is to the setting in SIM_ZOOM_TIME, eased in and out (on a log scale:
+// in and out alike), frames as fast as they render meanwhile.
+const SIM_ZOOM_TIME = 350; // ms
 async function liveLoop(run) {
   const img = $("liveImg");
   let url = null;
+  let focal = null, zoom = null; // the simulated lens's, as shown; and a zoom under way: {from, to, at}
   while (state.live === run) {
     try {
       const r = await fetch("/camera/preview", { cache: "no-store" });
@@ -1624,8 +1629,16 @@ async function liveLoop(run) {
       let blob;
       if ((r.headers.get("Content-Type") || "").includes("json")) { // the simulated camera: rendered here
         const p = await r.json();
-        blob = await window.rig3d.snapshot(960, p.exposure || 1, simGains(p.settings), (p.blur || 0) * 960 / 1200, Number(p.settings?.zoom) || 35);
-        await new Promise((res) => setTimeout(res, 60)); // about as often as a camera would
+        const want = Number(p.settings?.zoom) || 35, now = performance.now();
+        if (focal === null) focal = want;
+        if (focal !== want && zoom?.to !== want) zoom = { from: focal, to: want, at: now }; // from where it is
+        if (zoom) {
+          const f = Math.min(1, (now - zoom.at) / SIM_ZOOM_TIME), e = f * f * (3 - 2 * f);
+          focal = f >= 1 ? zoom.to : zoom.from * Math.pow(zoom.to / zoom.from, e);
+          if (f >= 1) zoom = null;
+        }
+        blob = await window.rig3d.snapshot(960, p.exposure || 1, simGains(p.settings), (p.blur || 0) * 960 / 1200, focal);
+        if (focal === want) await new Promise((res) => setTimeout(res, 60)); // about as often as a camera would (zooming: as fast as it renders)
       } else blob = await r.blob();
       if (state.live !== run) break;
       const next = URL.createObjectURL(blob);
