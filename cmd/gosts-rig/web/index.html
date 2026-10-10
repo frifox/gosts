@@ -229,8 +229,8 @@ td.mono { font-family: var(--mono); }
 .gray-btns { display: flex; flex-wrap: wrap; gap: 6px; }
 .setting-row { display: flex; gap: 6px; align-items: center; }
 .camcfg-params label .dof { display: inline; color: var(--muted); font-weight: normal; }
-.focus-head { display: flex; } /* the label's whole width: the depth of field at its right */
-.focus-head .dof { margin-left: auto; padding-left: 8px; }
+.dof-head { display: flex; } /* the label's whole width: the depth of field at its right */
+.dof-head .dof { margin-left: auto; padding-left: 8px; }
 .setting-row input.kelvin { width: 84px; flex: none; }
 .setting-row .shift-val { width: 84px; flex: none; font-size: 13px; color: var(--text); text-align: center; }
 /* White balance shifts: the track runs from one end's colour to the other's. */
@@ -963,9 +963,19 @@ function renderSettings(list) {
     }
     const label = document.createElement("label");
     label.textContent = st.label;
-    if (st.key === "focus") { // with a ? on what the Focus button needs, and the depth of field at the right
+    // The depth of field at the right of Zoom's label (Focus's, with no zoom).
+    const dofHere = st.key === (list.some((x) => x.key === "zoom") ? "zoom" : "focus");
+    const ap = list.find((x) => x.key === "aperture");
+    if (st.key === "zoom" && dofHere && ap) {
       const head = document.createElement("span");
-      head.className = "label-head focus-head";
+      head.className = "label-head dof-head";
+      head.append(st.label, dofSpan(ap));
+      label.textContent = "";
+      label.appendChild(head);
+    }
+    if (st.key === "focus") { // with a ? on what the Focus button needs
+      const head = document.createElement("span");
+      head.className = "label-head dof-head";
       const help = document.createElement("span");
       help.className = "help";
       help.tabIndex = 0;
@@ -973,8 +983,7 @@ function renderSettings(list) {
       help.dataset.tip = "Focus button needs a Sample Shot, please take one";
       help.textContent = "?";
       head.append(st.label, help);
-      const ap = list.find((x) => x.key === "aperture");
-      if (ap) head.append(dofSpan(ap));
+      if (dofHere && ap) head.append(dofSpan(ap));
       label.textContent = "";
       label.appendChild(head);
     }
@@ -1004,7 +1013,7 @@ function renderSettings(list) {
   }
 }
 // ---------------------------------------------------------------- depth of field
-// By Focus (its label's right): how deep the sharp zone is at the f-stop chosen, focused on
+// By Zoom (its label's right; Focus's, with no zoom): how deep the sharp zone is at the f-stop chosen, focused on
 // the object's middle (the turntable's middle, up half the object's height:
 // its distance from the camera's sensor from the rig's geometry, as it
 // stands), at the focal length the last photo was taken at (EXIF). Sharp
