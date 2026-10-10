@@ -2092,7 +2092,13 @@ $("rigCfgBtn").onclick = () => {
 // Disconnect (a plug pulled apart: Tabler's plug-connected-x, MIT), in the
 // Rig and Camera cards' titles (beside the gear): the
 // device goes, so do its settings if they're open (errors: in the log).
+// Both ask first: one click by mistake would drop the device (and stop a
+// capture).
 $("rigDisconnectBtn").onclick = async () => {
+  const running = !!state.cap?.running;
+  if (!await confirmDanger("Disconnect the rig?",
+    (running ? "The capture running stops. " : "") + "The servos keep their torque as they are. To use the rig again, connect its board in the Rig card.",
+    "Disconnect")) return;
   $("rigDisconnectBtn").disabled = true;
   const ok = (await act("disconnect", {})) !== undefined;
   $("rigDisconnectBtn").disabled = false;
@@ -2101,6 +2107,10 @@ $("rigDisconnectBtn").onclick = async () => {
   send("ports").then(renderPorts).catch(() => {});
 };
 $("camDisconnectBtn").onclick = async () => {
+  const running = !!state.cap?.running;
+  if (!await confirmDanger("Disconnect the camera?",
+    (running ? "The capture running stops. " : "") + "Photos already taken stay on the timeline. To use the camera again, pick it in the Camera card.",
+    "Disconnect")) return;
   $("camDisconnectBtn").disabled = true;
   const ok = (await act("cameraDisconnect", {})) !== undefined;
   $("camDisconnectBtn").disabled = false;
