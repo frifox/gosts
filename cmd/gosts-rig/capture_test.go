@@ -486,11 +486,12 @@ func TestSpiralFit(t *testing.T) {
 	}
 }
 
-// TestTurntableDiameterDefault: a config file from before the turntable
-// diameter has the default one.
-func TestTurntableDiameterDefault(t *testing.T) {
+// TestRigFixed: a config's rig is its posts' height (from before, the
+// other measurements too: left out, and not saved again); the rest is the
+// rig as built, the object's middle and the camera's lens on the tilt axis.
+func TestRigFixed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
-	old := "[Rig]\n  BaseX = 600.0\n  BaseY = 500.0\n  PostZ = 400.0\n  SwingX = 600.0\n  SwingY = 450.0\n  CameraOffset = -50.0\n  TurntableZ = 400.0\n  ObjectZ = 100.0\n"
+	old := "[Rig]\n  BaseX = 700.0\n  PostZ = 300.0\n  SwingX = 500.0\n  CameraX = 300.0\n  CameraOffset = -50.0\n  TurntableZ = 400.0\n  ObjectZ = 80.0\n"
 	if err := os.WriteFile(path, []byte(old), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -498,8 +499,21 @@ func TestTurntableDiameterDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r := cfg.get().Rig; r.TurntableD != 150 || r.check() != nil {
-		t.Fatalf("turntable diameter %v (%v), want 150", r.TurntableD, r.check())
+	r := cfg.get().Rig
+	if r.PostZ != 300 || r.BaseX != 600 || r.SwingX != 600 || r.CameraX != 335 || r.TurntableD != 100 || r.ObjectZ != 100 || r.check() != nil {
+		t.Fatalf("rig %+v (%v)", r, r.check())
+	}
+	axis := float64(rigProfile) + r.PostZ + rigAxisAbove
+	if mid := r.TurntableZ + r.ObjectZ/2; mid != axis {
+		t.Errorf("object's middle at %v, the tilt axis at %v", mid, axis)
+	}
+	if lens := rigProfile/2 + cameraBodyUp + r.CameraZ - cameraLensLow; lens != 0 {
+		t.Errorf("lens %v off the axis", lens)
+	}
+	cfg.update(func(c *Config) {})
+	data, _ := os.ReadFile(path)
+	if strings.Contains(string(data), "BaseX") || !strings.Contains(string(data), "PostZ = 300") {
+		t.Errorf("saved:\n%s", data)
 	}
 }
 
@@ -619,28 +633,6 @@ func TestPlanPathNames(t *testing.T) {
 		if got := (Plan{Path: in}).path(); got != want {
 			t.Errorf("path %q → %q, want %q", in, got, want)
 		}
-	}
-}
-
-// TestCameraXFromOffset: a config from before Camera X (the camera's offset
-// from its bar) reads as the sensor's distance from the turntable's centre,
-// and is saved so.
-func TestCameraXFromOffset(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(path, []byte("[Rig]\n  SwingX = 600.0\n  CameraOffset = -50.0\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := loadConfig(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// The bar 290 mm out, the body 50 mm further, the sensor 8 mm back in: 332.
-	if r := cfg.get().Rig; r.CameraX != 332 || r.CameraOffset != 0 {
-		t.Fatalf("camera X %v, offset %v; want 332, 0", r.CameraX, r.CameraOffset)
-	}
-	data, _ := os.ReadFile(path)
-	if !strings.Contains(string(data), "CameraX = 332") || strings.Contains(string(data), "CameraOffset") {
-		t.Errorf("saved:\n%s", data)
 	}
 }
 

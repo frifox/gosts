@@ -174,10 +174,10 @@ func (a *app) exec(req request) (any, error) {
 		if req.Rig == nil {
 			return nil, errors.New("no measurements")
 		}
-		if err := req.Rig.check(); err != nil {
+		if err := req.Rig.fixed().check(); err != nil {
 			return nil, err
 		}
-		err := a.cfg.update(func(c *Config) { c.Rig = *req.Rig })
+		err := a.cfg.update(func(c *Config) { c.Rig = req.Rig.fixed() })
 		a.rig.sendState()
 		return nil, err
 	case "pause":

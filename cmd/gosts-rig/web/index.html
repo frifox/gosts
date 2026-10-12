@@ -595,28 +595,16 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     </div>
     <div id="rigCfgModal" hidden>
       <div class="card-body">
-        <!-- The rig's measurements (mm) by part, a line each; then the turntable and object, and how low and
-             high the camera may go. -->
+        <!-- The posts' height (mm; the rest of the rig is fixed: see Rig.fixed), and how low and high the
+             camera may go. -->
         <div class="fgroups">
           <div class="fgroup">
-            <label title="Base frame, along the sides that carry the posts">Base X<input type="number" id="dBaseX" step="10"></label>
-            <label title="Base frame, along the tilt axis">Base Y<input type="number" id="dBaseY" step="10"></label></div>
-          <div class="fgroup">
             <label title="Height of the posts that carry the swing's servos">Side Posts Z<input type="number" id="dPostZ" step="10"></label></div>
-          <div class="fgroup">
-            <label title="Swing arm length">Swing X<input type="number" id="dSwingX" step="10"></label>
-            <label title="Swing bar length (camera bar)">Swing Y<input type="number" id="dSwingY" step="10"></label></div>
-          <div class="fgroup">
-            <label><span class="label-head">Camera X<span class="help" tabindex="0" aria-label="How to measure Camera X" data-tip="Measure from the centre of the turntable's top to the camera's sensor: the ⦵ mark on the camera's top plate. Measure straight across, with the arm level (elevation 0°).">?</span></span><input type="number" id="dCameraX" step="5"></label>
-            <label title="Camera position up/down from the camera bar, square to the arms: + up (with the arm level)">Camera Z<input type="number" id="dCameraZ" step="5"></label></div>
-          <div class="fgroup">
-            <label title="Turntable height">Turntable Z<input type="number" id="dTurntableZ" step="10"></label>
-            <label title="Turntable diameter">Turntable Dia<input type="number" id="dTurntableD" step="10"></label>
-            <label title="Object height (the model is scaled proportionally)">Object Height<input type="number" id="dObjectZ" step="10"></label></div>
           <div class="fgroup">
             <label title="How low the camera may go"><span class="label-head">Min elevation °<button class="mini" id="dElevMinHere" title="The rig's elevation now (rounded down): move the camera to its lowest first (Torque Lock off, by hand, if it's past the limit)" aria-label="Min elevation: here">◉</button></span><input type="number" id="dElevMin" step="1"></label>
             <label title="How high the camera may go"><span class="label-head">Max elevation °<button class="mini" id="dElevMaxHere" title="The rig's elevation now (rounded up): move the camera to its highest first (Torque Lock off, by hand, if it's past the limit)" aria-label="Max elevation: here">◉</button></span><input type="number" id="dElevMax" step="1"></label></div>
         </div>
+        <p class="hint" style="margin:10px 0 0">The rest is the rig as built: the base 600 × 500 mm, the swing 600 × 450 mm, a 100 mm turntable and object, the turntable as high as puts the object's middle on the tilt axis, and the camera's sensor 335 mm out with its lens in line with it.</p>
         <div class="err" id="rigErr"></div>
         <div class="row" style="margin-top:10px">
           <span class="spacer"></span>
@@ -2689,8 +2677,9 @@ $("sSave").onclick = async () => {
 };
 
 // ---------------------------------------------------------------- params (measurements)
-const DIMS = ["BaseX", "BaseY", "PostZ", "SwingX", "SwingY", "CameraX", "CameraZ", "TurntableZ", "TurntableD", "ObjectZ"];
-const DIMS_DEFAULT = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraX: 332, CameraZ: 0, TurntableZ: 400, TurntableD: 150, ObjectZ: 100 };
+// Only the posts' height is set; the 3D view works out the rest (rigFixed).
+const DIMS = ["PostZ"];
+const DIMS_DEFAULT = { PostZ: 400 };
 // The card also holds the elevation limits (kept with the motion settings).
 const LIMITS_DEFAULT = { ElevationMin: -45, ElevationMax: 80 };
 const formDims = () => Object.fromEntries(DIMS.map((k) => [k, Number($("d" + k).value)]));
@@ -2708,7 +2697,7 @@ function fillDims(d, lim) {
 function dimsChanged() {
   const d = formDims(), edited = dimsEdited();
   $("dSave").disabled = $("dRevert").disabled = !edited;
-  if (DIMS.every((k) => Number.isFinite(d[k])) && d.BaseX > 0 && d.BaseY > 0 && d.SwingX > 0 && d.SwingY > 0) window.rig3d?.setDims(d);
+  if (d.PostZ >= 100 && d.PostZ <= 3000) window.rig3d?.setDims(d);
 }
 for (const id of [...DIMS.map((k) => "d" + k), "dElevMin", "dElevMax"]) $(id).addEventListener("input", dimsChanged);
 $("dDefaults").onclick = () => fillDims(DIMS_DEFAULT, LIMITS_DEFAULT);

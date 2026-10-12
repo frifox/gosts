@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
-	"math"
 	"os"
 	"path/filepath"
 	"sync"
@@ -50,35 +49,50 @@ func (cd Cooldown) every() int {
 
 // Rig is the rig's measurements in mm, seen from above: X along the base
 // sides that carry the posts (and the swing arms), Y along the tilt axis,
-// Z up. Only the 3D view uses them.
+// Z up. Only the posts' height is set (and saved); the rest is the rig as
+// built (see fixed): the object's middle on the tilt axis, and the camera's
+// lens in line with it.
 type Rig struct {
-	BaseX        float64 `toml:"BaseX"` // base frame, outer
-	BaseY        float64 `toml:"BaseY"`
-	PostZ        float64 `toml:"PostZ"`                 // vertical posts in the middle of the X sides
-	SwingX       float64 `toml:"SwingX"`                // tilting frame: arm length
-	SwingY       float64 `toml:"SwingY"`                // tilting frame: bar length (camera bar)
-	CameraX      float64 `toml:"CameraX"`               // the camera's sensor (its ⦵ mark) from the turntable's centre, across, with the arm level
-	CameraOffset float64 `toml:"CameraOffset,omitzero"` // (before CameraX: the camera's body from the camera bar; read once into CameraX)
-	CameraZ      float64 `toml:"CameraZ"`               // camera up/down from the camera bar, square to the arms; + up
-	TurntableZ   float64 `toml:"TurntableZ"`            // turntable top height
-	TurntableD   float64 `toml:"TurntableD"`            // turntable diameter
-	ObjectZ      float64 `toml:"ObjectZ"`               // object height (the 3D view scales the model to it)
+	PostZ      float64 `toml:"PostZ"` // vertical posts in the middle of the X sides
+	BaseX      float64 `toml:"-"`     // base frame, outer
+	BaseY      float64 `toml:"-"`
+	SwingX     float64 `toml:"-"` // tilting frame: arm length
+	SwingY     float64 `toml:"-"` // tilting frame: bar length (camera bar)
+	CameraX    float64 `toml:"-"` // the camera's sensor (its ⦵ mark) from the turntable's centre, across, with the arm level
+	CameraZ    float64 `toml:"-"` // camera up/down from the camera bar, square to the arms; + up
+	TurntableZ float64 `toml:"-"` // turntable top height
+	TurntableD float64 `toml:"-"` // turntable diameter
+	ObjectZ    float64 `toml:"-"` // object height (the 3D view scales the model to it)
 }
 
-// check reports a measurement that can't be drawn.
+// The rig as built (mm), and as the 3D view draws it: the profile, and the
+// tilt axis above the posts; the camera's body 34 mm over the camera bar,
+// its lens 2 mm below the body's middle.
+const (
+	rigProfile    = 20
+	rigAxisAbove  = 30
+	cameraBodyUp  = 34
+	cameraLensLow = 2
+)
+
+// fixed is r with the measurements that aren't set: the base 600 × 500, the
+// swing 600 × 450, a 100 mm turntable and object; the turntable as high as
+// puts the object's middle on the tilt axis, and the camera's sensor 335 mm
+// out with its lens on the axis too (so the object stays in the middle of
+// the picture at any elevation).
+func (r Rig) fixed() Rig {
+	r.BaseX, r.BaseY, r.SwingX, r.SwingY = 600, 500, 600, 450
+	r.TurntableD, r.ObjectZ = 100, 100
+	r.TurntableZ = rigProfile + r.PostZ + rigAxisAbove - r.ObjectZ/2
+	r.CameraX = 335
+	r.CameraZ = -(rigProfile/2 + cameraBodyUp - cameraLensLow)
+	return r
+}
+
+// check reports a posts' height the rig can't have.
 func (r Rig) check() error {
-	for _, v := range []struct {
-		name      string
-		v, lo, hi float64
-	}{{"base X", r.BaseX, 100, 3000}, {"base Y", r.BaseY, 100, 3000}, {"post Z", r.PostZ, 50, 3000},
-		{"swing X", r.SwingX, 50, 3000}, {"swing Y", r.SwingY, 50, 3000}, {"camera X", r.CameraX, 50, 3000}, {"camera Z offset", r.CameraZ, -500, 500},
-		{"turntable Z", r.TurntableZ, 0, 3000}, {"turntable diameter", r.TurntableD, 20, 2000}, {"object height", r.ObjectZ, 10, 2000}} {
-		if v.v < v.lo || v.v > v.hi {
-			return fmt.Errorf("%s must be %g–%g mm", v.name, v.lo, v.hi)
-		}
-	}
-	if r.SwingY >= r.BaseY {
-		return errors.New("swing Y must be less than base Y: the swing hangs between the posts")
+	if r.PostZ < 100 || r.PostZ > 3000 {
+		return errors.New("side posts Z must be 100–3000 mm")
 	}
 	return nil
 }
@@ -144,10 +158,6 @@ func (p Plan) path() string {
 	return PathRings
 }
 
-// cameraSensorX is how far (mm) the camera's sensor is in front of its
-// body's middle (the A6600: the mount's face 26 mm in front, the sensor 18
-// mm behind it), as the 3D view draws it.
-const cameraSensorX = 8
 
 func defaultConfig() Config {
 	return Config{
@@ -156,7 +166,7 @@ func defaultConfig() Config {
 		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80},
 		Plan:       Plan{Photos: 150, SettleMS: 800, Path: PathRings},
 		Cooldown:   Cooldown{Shots: 50, Minutes: 2},
-		Rig:        Rig{BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraX: 332, TurntableZ: 400, TurntableD: 150, ObjectZ: 100},
+		Rig:        Rig{PostZ: 400}.fixed(),
 	}
 }
 
@@ -178,6 +188,7 @@ func loadConfig(path string) (*configFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+	f.c.Rig = f.c.Rig.fixed()
 	changed := false
 	if p := f.c.Plan.path(); p != f.c.Plan.Path { // a name from before ("even", "linear", or none): saved as it's called now
 		f.c.Plan.Path = p
@@ -189,15 +200,6 @@ func loadConfig(path string) (*configFile, error) {
 			f.c.Plan.ExportFor = f.c.Plan.Export
 		}
 		f.c.Plan.ExportOn, f.c.Plan.Export = false, ""
-		changed = true
-	}
-	if !md.IsDefined("Rig", "CameraX") && md.IsDefined("Rig", "CameraOffset") {
-		// From before CameraX: the camera's body CameraOffset along the arms
-		// from its bar (SwingX/2 − 10 from the axis), its sensor 8 mm in
-		// front of the body's middle.
-		r := &f.c.Rig
-		r.CameraX = math.Round(r.SwingX/2 - 10 - r.CameraOffset - cameraSensorX)
-		r.CameraOffset = 0
 		changed = true
 	}
 	if changed {
