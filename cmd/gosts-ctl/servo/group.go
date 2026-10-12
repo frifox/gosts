@@ -113,8 +113,8 @@ func (c *Controller) GroupExec(bus *gosts.Bus, req internal.Request) error {
 			c.ClearTrip(req.Group)
 		}
 		return g.EnableTorque(req.On)
-	case "move":
-		return g.MoveTo(req.Position, req.Speed, req.Acc)
+	case "move": // the leader's goal; the others in their own turn counts (see moveGroup)
+		return moveGroup(bus, gc.Members, req.Position, req.Speed, req.Acc)
 	case "step":
 		return g.StepBy(req.Position, req.Speed, req.Acc)
 	case "stop":
