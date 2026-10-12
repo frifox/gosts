@@ -952,16 +952,9 @@ export function createRig(container) {
     const v = cam.position.clone().sub(t).divideScalar(far);
     return { x: +v.x.toFixed(2), y: +v.y.toFixed(2), z: +v.z.toFixed(2) };
   }
-  // focusDistance is how far (mm) the object's middle (the middle of the
-  // turntable, up half the object's height) is from the camera's sensor, the
-  // rig as shown now: where it focuses, for the depth of field.
-  function focusDistance() {
-    rig.camera.updateWorldMatrix(true, false);
-    return rig.camera.localToWorld(rig.camera.userData.sensor.clone()).distanceTo(rig.objectCentre);
-  }
 
   // previewProgress: the dots the preview has passed, and how many there are (null: none playing).
   const previewProgress = () => (pv ? { done: Math.min(pv.consumed, pv.shots.length), total: pv.shots.length } : null);
 
-  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, previewProgress, speed, snapshot, focusDistance };
+  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, previewProgress, speed, snapshot };
 }

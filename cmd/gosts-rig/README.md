@@ -77,7 +77,6 @@ of Photos and Rig View (✕, Esc or the gear again closes it; the Rig card's gea
   how they look (the live view is lower resolution: use a sample shot to check focus or use the gray card). The zoom
   can't change during a capture; its focal length goes into the alignment data for the apps that take one
   (RealityScan, Nerfstudio, COLMAP).
-- By Zoom (or Focus, with no power zoom): the **estimated depth of field** (DoF) at the f-stop chosen, how deep the sharp zone is, for where the object sits on the rig.
 - **Pause for X minutes after Y shots** (below the buttons): a flash that gets hot gets a rest. During a capture,
   after every Y photos it pauses X minutes (the note counts down), then carries on by itself; **Resume** carries on
   sooner. The estimate includes the pauses.
@@ -88,8 +87,8 @@ of Photos and Rig View (✕, Esc or the gear again closes it; the Rig card's gea
     the arrows nudge the focus nearer or further.
   - **Near/Far Points**: put two printed contrast cards where the object comes nearest and farthest over a full
     turn, then drag a box round the near card and one round the far card. **Focus between** steps the lens through
-    both cards' sharpest and leaves it where they're equally sharp: the depth of field centred between them. Set the
-    zoom and f-stop so the estimated DoF is about that deep; if it doesn't reach both cards, it says so.
+    both cards' sharpest and leaves it where they're equally sharp: the depth of field centred between them. If the
+    depth of field doesn't reach both cards, it says so: stop down (a higher f-number) or zoom out, and try again.
 
   Focus stays where you leave it for the capture.
 

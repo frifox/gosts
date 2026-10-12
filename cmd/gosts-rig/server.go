@@ -452,11 +452,8 @@ func (a *app) cameraSettings() ([]cameraSetting, error) {
 	ss, err := sc.Settings()
 	_, focus := sc.(focusCamera)
 	for i := range ss {
-		switch {
-		case ss[i].Key == "focus" && focus:
+		if ss[i].Key == "focus" && focus {
 			ss[i].FocusModes = focusModes
-		case ss[i].Key == "aperture":
-			ss[i].Focal = a.camera.focalLength()
 		}
 	}
 	return ss, err
