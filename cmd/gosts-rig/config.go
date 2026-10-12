@@ -146,7 +146,6 @@ func (p Plan) path() string {
 	return PathRings
 }
 
-
 func defaultConfig() Config {
 	return Config{
 		ListenAddr: ":8081",
