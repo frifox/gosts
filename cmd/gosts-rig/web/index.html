@@ -311,9 +311,33 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   opacity: 0; transition: opacity .12s; }
 .thumb:hover .del, .thumb:focus-within .del { opacity: 1; }
 .thumb .del:hover { background: var(--bad); border-color: var(--bad); }
-.thumb .del svg { width: 14px; height: 14px; }
+.thumb .del svg, .thumb .edit svg { width: 14px; height: 14px; }
+.thumb .edit { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 7px; border: 1px solid rgba(255,255,255,.25);
+  background: rgba(15,18,24,.72); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer;
+  opacity: 0; transition: opacity .12s; }
+.thumb:hover .edit, .thumb:focus-within .edit { opacity: 1; }
+.thumb .edit:hover { background: var(--accent); border-color: var(--accent); }
+.gallery-grid.list .thumb .edit { position: static; flex: none; margin-right: 4px; }
 .thumb.pending { cursor: progress; border-style: dashed; display: flex; align-items: center; justify-content: center; }
 .gallery-grid .thumb.pending { aspect-ratio: 3 / 2; }
+/* Captures: a folder's tile (its middle photo, name and count); a photo's
+   details only in the list. */
+.gallery-bar .views.seg { margin-left: 0; }
+.thumb .meta { display: none; }
+.gallery-grid .folder { cursor: pointer; }
+.gallery-grid .folder .info { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 10px; font-size: 13px; min-width: 0; }
+.gallery-grid .folder .info b { flex: 1 0 100%; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gallery-grid .folder .info .count { color: var(--muted); font: 12px var(--mono); white-space: nowrap; }
+.gallery-grid.list { grid-template-columns: 1fr; gap: 4px; }
+.gallery-grid.list .thumb { display: flex; align-items: center; gap: 12px; padding: 4px; min-height: 0; }
+.gallery-grid.list .thumb img { width: 72px; flex: none; border-radius: 5px; }
+.gallery-grid.list .thumb .num { position: static; padding: 0; background: none; color: var(--text); font-size: 13px; }
+.gallery-grid.list .thumb .meta { display: inline; margin-left: auto; padding-right: 40px; color: var(--muted); font: 12px var(--mono); white-space: nowrap; }
+.gallery-grid.list .thumb .del { top: calc(50% - 13px); }
+.gallery-grid.list .thumb.pending { aspect-ratio: auto; height: 58px; justify-content: flex-start; padding-left: 29px; }
+.gallery-grid.list .folder .info { flex: 1; flex-wrap: nowrap; padding: 0 8px 0 0; }
+.gallery-grid.list .folder .info b { flex: 0 1 auto; }
+.gallery-grid.list .folder .info .count { margin-left: auto; }
 .thumb.pending::before { content: ""; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent);
   animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -473,7 +497,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 
   <div class="right">
   <section class="card" id="cameraCard">
-    <h2>Photos <span class="spacer"></span>
+    <h2>Photos <button class="btn small" id="openCaptureBtn" title="Browse the captures saved on this computer" style="text-transform:none;letter-spacing:0;margin-left:6px">Browse</button>
+      <span class="spacer"></span>
       <button class="btn small" id="viewAllBtn" title="All the photos, large" style="text-transform:none;letter-spacing:0" disabled>View All</button>
       <button class="btn small danger" id="resetPhotosBtn" title="Clear all photos from the timeline (asks first)" style="text-transform:none;letter-spacing:0" disabled>Reset</button>
       <button class="btn small primary" id="takePhotoBtn" style="text-transform:none;letter-spacing:0" disabled>Take Photo</button>
@@ -608,12 +633,14 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 </div>
 
 <div class="gallery" id="gallery" hidden>
-  <div class="gallery-bar"><h3 id="galleryTitle">All Photos</h3><span class="spacer"></span><button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
+  <div class="gallery-bar"><button class="btn small" id="galleryUp" title="All captures (Backspace)" hidden>‹ Captures</button><h3 id="galleryTitle">Captures</h3><span class="spacer"></span>
+    <span class="views seg" id="galleryViewSeg"><button data-v="grid">Thumbnails</button><button data-v="list">List</button></span>
+    <button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
   <div class="gallery-grid" id="galleryGrid"></div>
 </div>
 <div class="viewer" id="viewer" hidden>
   <div class="viewer-bar">
-    <button class="btn small" id="viewerBack" title="Back to all photos (Esc)">← All Photos</button>
+    <button class="btn small" id="viewerBack" title="Back to the photos (Esc)">← Current Batch</button>
     <span class="cap" id="viewerCap"></span><span class="hint" id="viewerHint"></span>
     <span class="spacer"></span>
     <button class="btn small" id="viewerNewer" title="Newer photo (←)">‹ Newer</button>
@@ -625,6 +652,20 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <div class="presets" id="vnavPresets"><button class="btn small" data-z="fit" title="The whole photo in the window">Fit</button><button class="btn small" data-z="0.5">50%</button><button class="btn small" data-z="1" title="The photo's own pixels">100%</button><button class="btn small" data-z="1.5">150%</button><button class="btn small" data-z="2">200%</button></div>
       <div class="map" id="vnavMap" title="Drag the rectangle (or click) to move the view"><img id="vnavImg" alt="" draggable="false"><div class="vp" id="vnavVp"></div></div>
       <div class="zoomrow"><span id="vnavPct">100%</span><input type="range" id="vnavZoom" min="10" max="200" step="1" value="100" title="Zoom"></div>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="renameModal" style="z-index:60" hidden>
+  <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="renameTitle" style="width:min(420px,100%)">
+    <h2 id="renameTitle">Rename Capture</h2>
+    <div class="card-body">
+      <label for="renameInput" class="hint" style="display:block;margin-bottom:6px">The folder's new name, in ~/Pictures/gosts-rig</label>
+      <input type="text" id="renameInput" spellcheck="false" autocomplete="off" style="width:100%;box-sizing:border-box">
+      <div class="err" id="renameErr" style="margin-top:6px"></div>
+      <div class="row" style="margin-top:14px"><span class="spacer"></span>
+        <button class="btn" id="renameNo">Cancel</button>
+        <button class="btn primary" id="renameYes">Rename</button>
+      </div>
     </div>
   </div>
 </div>
@@ -856,6 +897,7 @@ function thumb(p, isNew) {
   b.setAttribute("role", "button");
   b.title = photoCaption(p);
   b.innerHTML = `<img alt="" loading="lazy" decoding="async" src="${photoURL(p)}&thumb"><span class="num">${p.n}</span>` +
+    (p.at ? `<span class="meta">${new Date(p.at).toLocaleTimeString()}</span>` : "") +
     `<button class="del" title="Delete photo ${p.n} (from the timeline)" aria-label="Delete photo ${p.n}">${trashIcon}</button>`;
   b.onclick = (e) => { if (!e.target.closest(".del")) openPhoto(p.n); };
   b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) openPhoto(p.n); };
@@ -870,8 +912,10 @@ function placeholder(n) {
   b.innerHTML = `<span class="num">${n}</span>`;
   return b;
 }
-// The thumbnail containers: the timeline, and All Photos while it's open.
-const thumbBoxes = () => [$("timeline"), ...($("gallery").hidden ? [] : [$("galleryGrid")])];
+// The thumbnail containers: the timeline, and the gallery while it shows the
+// batch being taken.
+const galLive = () => !$("gallery").hidden && state.gal.where === "current";
+const thumbBoxes = () => [$("timeline"), ...(galLive() ? [$("galleryGrid")] : [])];
 // putThumb puts el (photo n) in box newest first, replacing n's placeholder.
 function putThumb(box, el, n) {
   box.querySelector(":scope > .hint:not(#shotNone)")?.remove(); // All Photos' "No photos yet."
@@ -883,7 +927,7 @@ function putThumb(box, el, n) {
 function photosShown() {
   $("shotNone").hidden = state.photos.length + state.pending.size > 0;
   cameraButtons();
-  if (!$("gallery").hidden) galleryTitle();
+  if (galLive()) galleryTitle();
   if (!$("viewer").hidden) viewerButtons();
 }
 // A photo's picture; its time in the address too, as numbers start again
@@ -895,8 +939,8 @@ function setPhotos(list) {
   tl.querySelectorAll(".thumb").forEach((t) => t.remove()); // placeholders too: a new batch
   state.pending.clear();
   for (const p of state.photos) putThumb(tl, thumb(p, false), p.n);
-  if (!$("viewer").hidden && !state.photos.some((p) => p.n === state.viewing)) closePhoto();
-  if (!$("gallery").hidden) renderGallery();
+  if (!$("viewer").hidden && !state.disk && !state.photos.some((p) => p.n === state.viewing)) closePhoto();
+  if (galLive()) renderGallery();
   photosShown();
 }
 // A photo with a placeholder takes its place as it is, no sliding in (the
@@ -932,24 +976,161 @@ function photoGone(n) {
   state.photos = state.photos.filter((p) => p.n !== n);
   document.querySelectorAll(`.thumb[data-n="${n}"]`).forEach((t) => t.remove());
   if (state.viewing === n) closePhoto();
-  if (!$("gallery").hidden && !state.photos.length && !state.pending.size) renderGallery();
+  if (galLive() && !state.photos.length && !state.pending.size) renderGallery();
   photosShown();
 }
 
-// All Photos: every photo in a grid, newest first, over the whole page.
-function galleryTitle() { $("galleryTitle").textContent = `All Photos (${state.photos.length})`; }
-function renderGallery() {
-  const g = $("galleryGrid");
-  g.innerHTML = "";
-  for (const p of state.photos) putThumb(g, thumb(p, false), p.n);
-  for (const n of state.pending) putThumb(g, placeholder(n), n);
-  if (!g.children.length) g.innerHTML = '<span class="hint">No photos yet.</span>';
-  galleryTitle();
+// The gallery, over the whole page: Captures (Open Capture), the batch
+// folders saved on this computer, newest first, each a tile of its middle
+// photo; a folder's photos by file name; or the batch being taken (View
+// All), newest first, kept up as photos come. Thumbnails or a list (the
+// choice kept). where: null (Captures), "current", or a folder's name.
+state.gal = { where: null, view: "grid", files: [], seq: 0, rootScroll: 0 };
+try { if (localStorage.getItem("galleryView") === "list") state.gal.view = "list"; } catch {}
+const escHTML = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const batchURL = (name, file) => `/batches/${encodeURIComponent(name)}/${encodeURIComponent(file)}`;
+async function getJSON(url) {
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+  return r.json();
 }
-function openGallery() { renderGallery(); $("gallery").hidden = false; $("galleryGrid").scrollTop = 0; }
-function closeGallery() { $("gallery").hidden = true; }
-$("viewAllBtn").onclick = openGallery;
+function galleryTitle() {
+  if (state.gal.where === "current") $("galleryTitle").textContent = `Current Batch (${state.photos.length})`;
+}
+const pencilIcon = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5l2.5 2.5L5.5 13H3v-2.5z"/><path d="M9.5 4l2.5 2.5"/></svg>';
+// folderTile: a capture's tile; a click opens it; ✎ (on hover) renames its
+// folder (one on disk: rename).
+function folderTile(name, count, img, current, open, rename) {
+  const b = document.createElement("div");
+  b.className = "thumb folder";
+  b.tabIndex = 0;
+  b.setAttribute("role", "button");
+  b.title = `Open ${name}`;
+  b.innerHTML = `<img alt="" loading="lazy" decoding="async" src="${img}"><div class="info"><b>${escHTML(name)}</b>` +
+    (current ? '<span class="badge">Current</span>' : "") + `<span class="count">${count} photo${count === 1 ? "" : "s"}</span></div>` +
+    (rename ? `<button class="edit" title="Rename ${escHTML(name)}" aria-label="Rename">${pencilIcon}</button>` : "");
+  b.onclick = (e) => { if (!e.target.closest(".edit")) open(); };
+  b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) open(); };
+  if (rename) b.querySelector(".edit").onclick = () => renameCapture(name);
+  return b;
+}
+// diskThumb: photo i of a folder; a click shows it large.
+function diskThumb(name, p, i) {
+  const b = document.createElement("div");
+  b.className = "thumb";
+  b.tabIndex = 0;
+  b.setAttribute("role", "button");
+  b.title = p.file;
+  b.innerHTML = `<img alt="" loading="lazy" decoding="async" src="${batchURL(name, p.file)}?thumb"><span class="num">${escHTML(p.file.replace(/\.[^.]+$/, ""))}</span>` +
+    `<span class="meta">${(p.size / 1e6).toFixed(1)} MB · ${new Date(p.at).toLocaleString()}</span>`;
+  b.onclick = () => openDiskPhoto(i);
+  b.onkeydown = (e) => { if (e.key === "Enter") openDiskPhoto(i); };
+  return b;
+}
+async function renderGallery() {
+  const g = $("galleryGrid"), where = state.gal.where, seq = ++state.gal.seq;
+  g.classList.toggle("list", state.gal.view === "list");
+  for (const b of $("galleryViewSeg").children) b.classList.toggle("active", b.dataset.v === state.gal.view);
+  $("galleryUp").hidden = where === null;
+  if (where === "current") {
+    g.innerHTML = "";
+    for (const p of state.photos) putThumb(g, thumb(p, false), p.n);
+    for (const n of state.pending) putThumb(g, placeholder(n), n);
+    if (!g.children.length) g.innerHTML = '<span class="hint">No photos yet.</span>';
+    galleryTitle();
+    return;
+  }
+  $("galleryTitle").textContent = where ?? "Captures";
+  if (!g.querySelector(".thumb")) g.innerHTML = '<span class="hint">Loading…</span>';
+  try {
+    if (where === null) {
+      const bs = await getJSON("/batches");
+      if (seq !== state.gal.seq) return;
+      g.innerHTML = "";
+      // The batch being taken with no folder (the simulated camera keeps
+      // its photos in memory only).
+      if (state.photos.length && !bs.some((b) => b.current))
+        g.appendChild(folderTile("Current Batch", state.photos.length, photoURL(state.photos[Math.floor((state.photos.length - 1) / 2)]) + "&thumb", true, () => galleryGo("current")));
+      for (const b of bs) g.appendChild(folderTile(b.name, b.count, batchURL(b.name, b.mid) + "?thumb", b.current, () => galleryGo(b.current ? "current" : b.name), true));
+      $("galleryTitle").textContent = `Captures (${g.children.length})`;
+      if (!g.children.length) g.innerHTML = '<span class="hint">No captures yet: they are saved in ~/Pictures/gosts-rig.</span>';
+    } else {
+      const ps = await getJSON(`/batches/${encodeURIComponent(where)}`);
+      if (seq !== state.gal.seq) return;
+      state.gal.files = ps;
+      g.innerHTML = "";
+      ps.forEach((p, i) => g.appendChild(diskThumb(where, p, i)));
+      $("galleryTitle").textContent = `${where} (${ps.length})`;
+      if (!ps.length) g.innerHTML = '<span class="hint">No photos in this folder.</span>';
+    }
+  } catch (e) {
+    if (seq === state.gal.seq) g.innerHTML = `<span class="hint">Couldn't read it: ${escHTML(e.message)}</span>`;
+  }
+}
+// galleryGo shows where (Captures again: where it was scrolled to).
+async function galleryGo(where) {
+  const g = $("galleryGrid");
+  if (state.gal.where === null && where !== null && !$("gallery").hidden) state.gal.rootScroll = g.scrollTop;
+  const back = where === null && state.gal.where !== null;
+  state.gal.where = where;
+  g.innerHTML = "";
+  g.scrollTop = 0;
+  await renderGallery();
+  if (back && state.gal.where === null) g.scrollTop = state.gal.rootScroll;
+}
+// renameCapture asks for a capture folder's new name and renames it on
+// disk (its samples' folder too); Captures shows it again.
+function renameCapture(name) {
+  const m = $("renameModal"), inp = $("renameInput"), err = $("renameErr");
+  inp.value = name;
+  err.textContent = "";
+  m.hidden = false;
+  inp.focus();
+  inp.select();
+  const done = () => {
+    m.hidden = true;
+    $("renameYes").onclick = $("renameNo").onclick = m.onclick = null;
+    document.removeEventListener("keydown", key, true);
+  };
+  const go = async () => {
+    const to = inp.value.trim();
+    if (!to || to === name) return done();
+    $("renameYes").disabled = true;
+    try {
+      const r = await fetch(`/batches/${encodeURIComponent(name)}/rename`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to }) });
+      if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+      done();
+      if (!$("gallery").hidden && state.gal.where === null) { state.gal.rootScroll = $("galleryGrid").scrollTop; galleryGo(null).then(() => ($("galleryGrid").scrollTop = state.gal.rootScroll)); }
+    } catch (e) {
+      err.textContent = e.message;
+    } finally {
+      $("renameYes").disabled = false;
+    }
+  };
+  const key = (e) => {
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(); }
+    else if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); go(); }
+    else if (e.key === "Backspace") e.stopPropagation(); // (editing the name, not leaving the folder)
+  };
+  $("renameYes").onclick = go;
+  $("renameNo").onclick = done;
+  m.onclick = (e) => { if (e.target === m) done(); };
+  document.addEventListener("keydown", key, true);
+}
+function openGallery(where) { state.gal.rootScroll = 0; $("gallery").hidden = false; galleryGo(where); }
+function closeGallery() { $("gallery").hidden = true; state.gal.seq++; }
+$("viewAllBtn").onclick = () => openGallery("current");
+$("openCaptureBtn").onclick = () => openGallery(null);
+$("galleryUp").onclick = () => galleryGo(null);
 $("galleryClose").onclick = closeGallery;
+$("galleryViewSeg").onclick = (e) => {
+  const v = e.target.dataset?.v;
+  if (!v || v === state.gal.view) return;
+  state.gal.view = v;
+  try { localStorage.setItem("galleryView", v); } catch {}
+  $("galleryGrid").classList.toggle("list", v === "list");
+  for (const b of $("galleryViewSeg").children) b.classList.toggle("active", b.dataset.v === v);
+};
 
 // One photo, as large as the window allows. ← newer, → older (as on the
 // timeline); Esc or ← All Photos goes back to All Photos if it's open,
@@ -958,25 +1139,50 @@ function openPhoto(n) {
   const p = state.photos.find((q) => q.n === n);
   if (!p) return;
   state.viewing = n;
+  state.disk = null;
   $("viewerImg").src = photoURL(p);
   $("viewerCap").textContent = photoCaption(p);
   $("viewer").hidden = false;
   vz.fit = true; requestAnimationFrame(vzApply); // (the same photo again: no load)
   viewerButtons();
 }
+// A photo of a saved capture (the folder open in the gallery): in file
+// name order, ← previous, → next.
+function openDiskPhoto(i) {
+  const fs = state.gal.files, p = fs[i], name = state.gal.where;
+  if (!p) return;
+  state.viewing = null;
+  state.disk = { name, i };
+  $("viewerImg").src = batchURL(name, p.file);
+  $("viewerCap").textContent = `${name} · ${p.file} · ${i + 1} / ${fs.length}`;
+  $("viewer").hidden = false;
+  vz.fit = true; requestAnimationFrame(vzApply);
+  viewerButtons();
+}
 function viewerButtons() {
-  const i = state.photos.findIndex((p) => p.n === state.viewing), gallery = !$("gallery").hidden;
+  const gallery = !$("gallery").hidden, d = state.disk;
   $("viewerBack").hidden = !gallery;
+  $("viewerBack").textContent = "← " + (d ? d.name : "Current Batch");
   $("viewerNewer").hidden = $("viewerOlder").hidden = false; // (a sample's view hides them)
+  $("viewerNewer").textContent = d ? "‹ Previous" : "‹ Newer";
+  $("viewerOlder").textContent = d ? "Next ›" : "Older ›";
+  if (d) {
+    $("viewerNewer").disabled = d.i <= 0;
+    $("viewerOlder").disabled = d.i >= state.gal.files.length - 1;
+    $("viewerHint").textContent = "  ·  ← → to step, drag or wheel to look around, Esc for the folder";
+    return;
+  }
+  const i = state.photos.findIndex((p) => p.n === state.viewing);
   $("viewerNewer").disabled = i < 0 || i >= state.photos.length - 1;
   $("viewerOlder").disabled = i <= 0;
   $("viewerHint").textContent = `  ·  ← → to step, drag or wheel to look around, Esc ${gallery ? "for all photos" : "to close"}`;
 }
-function stepPhoto(d) { // +1 newer, -1 older
+function stepPhoto(d) { // +1 newer, -1 older (a saved capture's: previous, next)
+  if (state.disk) return openDiskPhoto(state.disk.i - d);
   const i = state.photos.findIndex((p) => p.n === state.viewing), j = i + d;
   if (i >= 0 && j >= 0 && j < state.photos.length) openPhoto(state.photos[j].n);
 }
-function closePhoto() { $("viewer").hidden = true; state.viewing = null; }
+function closePhoto() { $("viewer").hidden = true; state.viewing = null; state.disk = null; }
 $("viewerBack").onclick = closePhoto;
 $("viewerNewer").onclick = () => stepPhoto(1);
 $("viewerOlder").onclick = () => stepPhoto(-1);
@@ -1089,6 +1295,7 @@ document.addEventListener("keydown", (e) => {
     else if (e.key === "ArrowRight") stepPhoto(-1);
     else return;
   } else if (!$("gallery").hidden && e.key === "Escape") closeGallery();
+  else if (!$("gallery").hidden && e.key === "Backspace" && state.gal.where !== null && !e.target.closest?.("input, textarea, select")) galleryGo(null);
   else return;
   e.preventDefault();
 });
@@ -1980,6 +2187,7 @@ $("sampleBox").onclick = () => {
   $("viewerHint").textContent = "  ·  drag or wheel to look around, Esc to close";
   for (const id of ["viewerBack", "viewerNewer", "viewerOlder"]) $(id).hidden = true;
   state.viewing = null;
+  state.disk = null;
   $("viewer").hidden = false;
   vz.fit = true; requestAnimationFrame(vzApply);
 };

@@ -143,6 +143,10 @@ func main() {
 	mux.HandleFunc("GET /photo/{file}", a.handlePhoto)
 	mux.HandleFunc("POST /photo/sim", a.handleSimPhoto)
 	mux.HandleFunc("GET /camera/preview", a.handlePreview)
+	mux.HandleFunc("GET /batches", a.handleBatches)
+	mux.HandleFunc("GET /batches/{name}", a.handleBatch)
+	mux.HandleFunc("GET /batches/{name}/{file}", a.handleBatchPhoto)
+	mux.HandleFunc("POST /batches/{name}/rename", a.handleBatchRename)
 	mux.Handle("/ctl/", http.StripPrefix("/ctl", ctl.Routes()))
 	hs := &http.Server{Addr: *addr, Handler: mux}
 	go func() {
