@@ -140,7 +140,8 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .rig-dial .dial-btns .torque-btn { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .rig-dial .dial-btns .torque-btn:not([hidden]) + .btn { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
 .rig-dial .dial-btns .btn { position: relative; }
-.rig-dial .dial-btns .btn:hover { z-index: 1; } /* (its border over the shared edge) */
+.rig-dial .dial-btns .torque-btn.on, .rig-dial .dial-btns .torque-btn.mixed { z-index: 1; } /* (its coloured border on the shared edge) */
+.rig-dial .dial-btns .btn:hover { z-index: 2; } /* (its border over the shared edge) */
 /* Torque Lock, as Go 0°: off the plain button, on green, mixed (one servo
    locked, the other not) yellow, both muted (a tint); switching: a spinner
    before the text. */
