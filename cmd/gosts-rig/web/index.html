@@ -132,6 +132,21 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .roles-note .row { display: flex; gap: 8px; margin-top: 8px; }
 .mono { font-family: var(--mono); }
 .readout { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* The Rig card's dials (as Servo Ctl's), side by side. */
+.rig-dials { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rig-dial { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.rig-dial .k { align-self: stretch; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.dial { width: 100%; max-width: 190px; height: auto; aspect-ratio: 1; cursor: crosshair; user-select: none; touch-action: none; }
+.dial .face { fill: var(--panel-2); stroke: var(--border); }
+.dial .tick { stroke: var(--muted); }
+.dial .lbl { fill: var(--muted); font-size: 11px; text-anchor: middle; dominant-baseline: middle; }
+.dial .forbid { fill: var(--bad); opacity: .14; }
+.dial .forbid-rim { fill: none; stroke: var(--bad); stroke-width: 6; opacity: .55; }
+.dial .needle { stroke: var(--accent); stroke-width: 4; stroke-linecap: round; }
+.dial .hub { fill: var(--accent); }
+.dial .goal { fill: var(--warn); }
+.dial .plate { fill: var(--panel); stroke: var(--border); }
+.dial .readout-t { fill: var(--text); font: 600 20px var(--mono); text-anchor: middle; }
 .tile { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
 .tile .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
 .tile .v { font: 600 20px var(--mono); margin-top: 2px; }
@@ -493,12 +508,14 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             rig takes it as the elevation, the other servo as the azimuth. Or pick each servo's role in Setup.</div>
           <div class="row"><button class="btn small primary" id="rolesCtl">Servo Ctl</button><button class="btn small" id="rolesSetup">Setup…</button><button class="btn small" id="rolesScan" title="Look for the servos on the bus again (turned on since?)">Scan again</button></div>
         </div>
-        <div class="readout">
-          <div class="tile"><div class="k">Elevation</div><div class="v" id="rElev">–</div></div>
-          <div class="tile"><div class="k">Azimuth</div><div class="v" id="rAzim">–</div></div>
+        <!-- Elevation and azimuth, a dial each (as Servo Ctl's): the needle where the rig is, the dot where
+             it's going; a click (or drag) on a dial moves there. The elevation's out-of-limits angles shaded. -->
+        <div class="rig-dials">
+          <div class="rig-dial"><div class="k">Elevation</div><svg class="dial" id="elevDial" viewBox="0 0 240 240" aria-label="Elevation dial"></svg>
+            <button class="btn small" id="elevZero" title="Move the elevation to 0° (camera level with the object)">Go 0°</button></div>
+          <div class="rig-dial"><div class="k">Azimuth</div><svg class="dial" id="azimDial" viewBox="0 0 240 240" aria-label="Azimuth dial"></svg>
+            <button class="btn small" id="azimZero" title="Turn the platform to 0°">Go 0°</button></div>
         </div>
-        <div class="field"><label>Elevation</label><input type="range" id="elev" min="-30" max="90" step="0.5" value="0"><input type="number" id="elevNum" step="0.5" value="0.0"><button class="btn small" id="elevZero" title="Move the elevation to 0° (camera level with the object)">Go 0°</button></div>
-        <div class="field"><label>Azimuth</label><input type="range" id="azim" min="-180" max="180" step="0.5" value="0"><input type="number" id="azimNum" step="0.5" value="0.0"><button class="btn small" id="azimZero" title="Turn the platform to 0°">Go 0°</button></div>
         <!-- How fast the servos move, saved as soon as a value is entered. -->
         <div class="grid2" style="margin-top:10px;grid-template-columns:1fr 1fr auto">
           <label title="The servos' top speed">Speed (°/s)<input type="number" id="mSpeed" min="5" max="298" step="1"></label>
@@ -2384,7 +2401,7 @@ function onState(m) {
     setPill("bus", !missing.length, missing.length ? `missing servo ${missing.join(", ")}` : `${m.port === "sim" ? "simulator" : m.port}`, !!missing.length);
   }
   // Motion limits for the elevation controls.
-  for (const id of ["elev"]) { $(id).min = c.Motion.ElevationMin; $(id).max = c.Motion.ElevationMax; }
+  elevDial.setLimits(c.Motion.ElevationMin, c.Motion.ElevationMax);
   if (!state.planLoaded) { loadPlan(c.Plan); state.planLoaded = true; }
   // Rig Setup: show the saved limits unless they are being edited.
   const prev = state.lastLimits, form = formLimits();
@@ -2396,40 +2413,97 @@ function onState(m) {
 }
 
 // ---------------------------------------------------------------- rig controls
-// pair links an axis' slider and number field, and moves the rig: while the
-// slider is dragged (a few times a second, then where it's let go), and when
-// a number is entered (Enter, or leaving the field).
-function pair(id, axis) {
-  const r = $(id), n = $(id + "Num");
+// A dial an axis (as Servo Ctl's): 0° at the top, + clockwise, labelled
+// −180…180. The needle is where the rig is, the dot where it's going (its
+// target). A click on it, or a drag (a few moves a second, then where it's
+// let go), moves the axis there; the elevation's limits shade what it can't
+// reach, and a move there stops at the nearest limit.
+const DC = 120, DR = 92;
+const dpolar = (deg, r) => { const a = (deg - 90) * Math.PI / 180; return [DC + r * Math.cos(a), DC + r * Math.sin(a)]; };
+const signed180 = (d) => { d = ((d % 360) + 360) % 360; return d > 180 ? d - 360 : d; };
+function makeDial(svg, axis) {
+  let ticks = "";
+  for (let d = 0; d < 360; d += 10) {
+    const major = d % 90 === 0, mid = d % 30 === 0;
+    const [x1, y1] = dpolar(d, DR + 10), [x2, y2] = dpolar(d, DR + 10 - (major ? 12 : mid ? 8 : 4));
+    ticks += `<line class="tick" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${major ? 2 : 1}"/>`;
+    if (mid) { const [lx, ly] = dpolar(d, DR - 14); ticks += `<text class="lbl" x="${lx}" y="${ly}">${signed180(d)}</text>`; }
+  }
+  svg.innerHTML = `<circle class="face" cx="120" cy="120" r="108"/><path class="forbid"/><path class="forbid-rim"/>${ticks}` +
+    `<circle class="goal" r="6" visibility="hidden"/><line class="needle" x1="120" y1="120" x2="120" y2="120" visibility="hidden"/><circle class="hub" cx="120" cy="120" r="7"/>` +
+    `<rect class="plate" x="70" y="146" width="100" height="34" rx="8"/><text class="readout-t" x="120" y="170">–</text>`;
+  const q = (c) => svg.querySelector(c);
+  const dial = { limits: null, dragging: false };
+  // set: where the rig is (deg, or null: not known) and where it's going.
+  dial.set = (deg, goal) => {
+    const n = q(".needle"), g = q(".goal");
+    n.setAttribute("visibility", deg === null || deg === undefined ? "hidden" : "visible");
+    if (deg !== null && deg !== undefined) { const [x, y] = dpolar(deg, DR - 4); n.setAttribute("x2", x); n.setAttribute("y2", y); }
+    q(".readout-t").textContent = deg === null || deg === undefined ? "–" : `${deg.toFixed(1)}°`;
+    if (!dial.dragging) dial.goal(goal);
+  };
+  dial.goal = (goal) => {
+    const g = q(".goal");
+    g.setAttribute("visibility", goal === null || goal === undefined ? "hidden" : "visible");
+    if (goal !== null && goal !== undefined) { const [x, y] = dpolar(goal, DR + 4); g.setAttribute("cx", x); g.setAttribute("cy", y); }
+  };
+  // setLimits shades outside [min, max] (null: none).
+  dial.setLimits = (min, max) => {
+    if (dial.limits && dial.limits[0] === min && dial.limits[1] === max) return;
+    dial.limits = min === null ? null : [min, max];
+    const f = q(".forbid"), rim = q(".forbid-rim");
+    if (min === null || max - min >= 360) { f.setAttribute("d", ""); rim.setAttribute("d", ""); return; }
+    // From max round clockwise to min (360 − (max − min) degrees).
+    const span = 360 - (max - min), large = span > 180 ? 1 : 0;
+    const [x0, y0] = dpolar(max, 108), [x1, y1] = dpolar(min, 108);
+    f.setAttribute("d", `M 120 120 L ${x0} ${y0} A 108 108 0 ${large} 1 ${x1} ${y1} Z`);
+    const [r0x, r0y] = dpolar(max, 105), [r1x, r1y] = dpolar(min, 105);
+    rim.setAttribute("d", `M ${r0x} ${r0y} A 105 105 0 ${large} 1 ${r1x} ${r1y}`);
+  };
+  // The angle under the pointer: −180…180, within the limits.
+  const at = (e) => {
+    const r = svg.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width * 240 - DC, y = (e.clientY - r.top) / r.height * 240 - DC;
+    let deg = signed180(Math.atan2(y, x) * 180 / Math.PI + 90);
+    if (dial.limits) {
+      const [lo, hi] = dial.limits;
+      if (deg < lo || deg > hi) deg = Math.abs(signed180(deg - lo)) < Math.abs(signed180(deg - hi)) ? lo : hi; // the nearer limit
+    }
+    return Math.round(deg * 2) / 2;
+  };
   const MOVE_EVERY = 120; // ms between moves while dragging
   let sent = 0, timer = null;
   const move = (v) => { sent = performance.now(); act("move", { [axis]: v }); };
-  r.oninput = () => {
-    n.value = (+r.value).toFixed(1); state.editing = true;
-    clearTimeout(timer);
-    const wait = MOVE_EVERY - (performance.now() - sent);
-    if (wait <= 0) move(+r.value); else timer = setTimeout(() => move(+r.value), wait);
-  };
-  r.onchange = () => { clearTimeout(timer); move(+r.value); state.editing = false; };
-  n.oninput = () => { r.value = n.value; state.editing = true; };
-  // Enter, or leaving the field after changing it: once per value.
-  let typed = null;
-  n.onfocus = () => { typed = n.value; };
-  const commit = () => {
-    if (n.value === "" || n.value === typed) return;
-    typed = n.value;
-    move(Number(n.value));
-    state.editing = false;
-  };
-  n.onchange = commit;
-  n.onkeydown = (e) => { if (e.key === "Enter") commit(); };
+  svg.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || !state.server?.connected) return;
+    e.preventDefault();
+    svg.setPointerCapture(e.pointerId);
+    dial.dragging = true;
+    let v = at(e);
+    dial.goal(v);
+    move(v);
+    const drag = (m) => {
+      v = at(m);
+      dial.goal(v);
+      clearTimeout(timer);
+      const wait = MOVE_EVERY - (performance.now() - sent);
+      if (wait <= 0) move(v); else timer = setTimeout(() => move(v), wait);
+    };
+    const up = () => {
+      svg.removeEventListener("pointermove", drag); svg.removeEventListener("pointerup", up); svg.removeEventListener("pointercancel", up);
+      clearTimeout(timer);
+      move(v);
+      dial.dragging = false;
+    };
+    svg.addEventListener("pointermove", drag); svg.addEventListener("pointerup", up); svg.addEventListener("pointercancel", up);
+  });
+  return dial;
 }
-pair("elev", "elevation");
-pair("azim", "azimuth");
+const elevDial = makeDial($("elevDial"), "elevation"), azimDial = makeDial($("azimDial"), "azimuth");
 $("stopBtn").onclick = () => act("stop");
 // Go 0°: move one axis to 0°, leaving the other where it is.
-$("elevZero").onclick = () => { setControls(0, null); state.editing = false; act("move", { elevation: 0 }); };
-$("azimZero").onclick = () => { setControls(null, 0); state.editing = false; act("move", { azimuth: 0 }); };
+$("elevZero").onclick = () => { elevDial.goal(0); act("move", { elevation: 0 }); };
+$("azimZero").onclick = () => { azimDial.goal(0); act("move", { azimuth: 0 }); };
 // Torque Lock: the switch goes where it was clicked at once, its knob a
 // spinner till the servos are so (locking checks each holds, ~½ s) and a
 // reading since says so; readings till then don't move it back.
@@ -2442,25 +2516,17 @@ $("torque").onchange = async (e) => {
   state.torqueDone = performance.now();
 };
 $("torqueSwitch").addEventListener("click", (e) => { if ($("torqueSwitch").classList.contains("pending")) e.preventDefault(); }); // one at a time
-function setControls(e, a) {
-  if (e !== null && e !== undefined) { $("elev").value = $("elevNum").value = (+e).toFixed(1); }
-  if (a !== null && a !== undefined) { $("azim").value = $("azimNum").value = (+a).toFixed(1); }
-}
 // A mirrored servo (faces its partner, so it turns the other way): this
 // beside its role.
 const mirrorIcon = '<span class="mirror-ic" data-tip="Mirrored"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-label="mirrored"><path d="M8 1.5v13" stroke-dasharray="1.6 1.6"/><path d="M6 4L1.5 12H6z" fill="currentColor"/><path d="M10 4l4.5 8H10z"/></svg></span>';
-const fmt = (d) => d === null || d === undefined ? "–" : `${d.toFixed(1)}<small>°</small>`;
 
 function onTelemetry(m) {
   state.tele = m;
   $("stopBtn").hidden = !Object.values(m.servos).some((s) => s.moving && !s.error); // Stop: only while moving
-  $("rElev").innerHTML = fmt(m.elevation);
-  $("rAzim").innerHTML = fmt(m.azimuth);
-  const typing = document.activeElement?.tagName === "INPUT";
-  if (!state.editing && m.target && !typing) setControls(m.target[0], m.target[1]);
-  // No target (before the first move, or the servos moved in Servo Ctl): the
-  // fields follow where the rig is.
-  if (!m.target && !state.editing && m.elevation !== null && m.azimuth !== null && !typing) setControls(m.elevation, m.azimuth);
+  // The dials: where the rig is, and where it's going (no target: before the
+  // first move, or the servos moved in Servo Ctl).
+  elevDial.set(m.elevation, m.target ? m.target[0] : null);
+  azimDial.set(m.azimuth, m.target ? m.target[1] : null);
   const r = state.server?.config.Roles;
   const rows = Object.entries(m.servos).map(([id, s]) => {
     const ang = s.error ? "–" : `${(((s.pos * 360 / 4096) + 180) % 360 - 180).toFixed(1)}°`;
