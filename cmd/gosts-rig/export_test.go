@@ -54,10 +54,8 @@ func TestWriteExport(t *testing.T) {
 		f.Close()
 		photos = append(photos, exportPhoto{Path: path, Pose: camPose(r, float64(i*10), float64(i*120))})
 	}
-	for _, kind := range exportKinds {
-		if err := writeExport(kind, dir, photos, exportIntrinsics{FocalMM: 18}); err != nil {
-			t.Fatalf("%s: %v", kind, err)
-		}
+	if err := writeExport(ExportAll, dir, photos, exportIntrinsics{FocalMM: 18}); err != nil { // every kind
+		t.Fatal(err)
 	}
 	for _, name := range []string{"alignment-metashape.csv", "capt_DSC00001.xmp", "transforms.json", "colmap/images.txt", "colmap/cameras.txt", "colmap/points3D.txt", "gravity.json"} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {

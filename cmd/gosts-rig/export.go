@@ -11,6 +11,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image/jpeg"
 	"math"
@@ -26,6 +27,7 @@ const (
 	ExportNerfstudio  = "nerfstudio"  // Nerfstudio, Gaussian splatting, instant-ngp: transforms.json
 	ExportColmap      = "colmap"      // COLMAP: a text model (cameras, images; points empty)
 	ExportApple       = "apple"       // Apple Object Capture: gravity per photo (JSON, for a companion tool)
+	ExportAll         = "all"         // every one of them
 )
 
 // exportKinds are the exports there are.
@@ -119,6 +121,14 @@ func writeExport(kind, dir string, photos []exportPhoto, in exportIntrinsics) er
 		}
 	}
 	switch kind {
+	case ExportAll:
+		var errs []error
+		for _, k := range exportKinds {
+			if err := writeExport(k, dir, photos, in); err != nil {
+				errs = append(errs, fmt.Errorf("%s: %w", k, err))
+			}
+		}
+		return errors.Join(errs...)
 	case ExportMetashape:
 		return exportMetashape(dir, photos)
 	case ExportRealityScan:
