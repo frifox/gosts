@@ -2436,14 +2436,21 @@ function makeDial(svg, axis, zero = 0) {
     `<rect class="plate" x="70" y="146" width="100" height="34" rx="8"/><text class="readout-t" x="120" y="170">–</text>`;
   const q = (c) => svg.querySelector(c);
   const dial = { limits: null, dragging: false };
-  // set: where the rig is (deg, or null: not known) and where it's going.
-  dial.set = (deg, goal) => {
-    const n = q(".needle"), g = q(".goal");
-    n.setAttribute("visibility", deg === null || deg === undefined ? "hidden" : "visible");
-    if (deg !== null && deg !== undefined) { const [x, y] = dpolar(deg + zero, DR - 4); n.setAttribute("x2", x); n.setAttribute("y2", y); }
-    q(".readout-t").textContent = deg === null || deg === undefined ? "–" : `${deg.toFixed(1)}°`;
-    if (!dial.dragging) dial.goal(goal);
+  // set: where the rig is (deg, or null: not known), every frame (see
+  // dialsTick): only what changed is drawn again.
+  let shownDeg, shownText;
+  dial.set = (deg) => {
+    const known = deg !== null && deg !== undefined;
+    if (deg === shownDeg) return;
+    shownDeg = deg;
+    const n = q(".needle");
+    n.setAttribute("visibility", known ? "visible" : "hidden");
+    if (known) { const [x, y] = dpolar(deg + zero, DR - 4); n.setAttribute("x2", x); n.setAttribute("y2", y); }
+    const text = known ? `${deg.toFixed(1)}°` : "–";
+    if (text !== shownText) q(".readout-t").textContent = shownText = text;
   };
+  // target: where it's going (null: no target), unless being dragged.
+  dial.target = (goal) => { if (!dial.dragging) dial.goal(goal); };
   dial.goal = (goal) => {
     const g = q(".goal");
     g.setAttribute("visibility", goal === null || goal === undefined ? "hidden" : "visible");
@@ -2502,6 +2509,17 @@ function makeDial(svg, axis, zero = 0) {
   return dial;
 }
 const elevDial = makeDial($("elevDial"), "elevation", 270), azimDial = makeDial($("azimDial"), "azimuth", 270);
+// dialsTick moves the dials' needles every frame, as the 3D view moves the
+// rig: telemetry comes ~10 times a second, played back smoothly between
+// frames (rig3d's livePose; the same pose, so the two keep together).
+function dialsTick() {
+  const t = state.tele, live = t && t.elevation !== null && t.elevation !== undefined;
+  const p = live ? window.rig3d?.livePose() : null;
+  elevDial.set(p ? p.e : null);
+  azimDial.set(p ? signed180(p.az) : null);
+  requestAnimationFrame(dialsTick);
+}
+requestAnimationFrame(dialsTick);
 $("stopBtn").onclick = () => act("stop");
 // Go 0°: move one axis to 0°, leaving the other where it is.
 $("elevZero").onclick = () => { elevDial.goal(0); act("move", { elevation: 0 }); };
@@ -2545,10 +2563,10 @@ const mirrorIcon = '<span class="mirror-ic" data-tip="Mirrored"><svg viewBox="0 
 function onTelemetry(m) {
   state.tele = m;
   $("stopBtn").hidden = !Object.values(m.servos).some((s) => s.moving && !s.error); // Stop: only while moving
-  // The dials: where the rig is, and where it's going (no target: before the
-  // first move, or the servos moved in Servo Ctl).
-  elevDial.set(m.elevation, m.target ? m.target[0] : null);
-  azimDial.set(m.azimuth, m.target ? m.target[1] : null);
+  // The dials' dots: where the rig is going (no target: before the first
+  // move, or the servos moved in Servo Ctl). Their needles: dialsTick.
+  elevDial.target(m.target ? m.target[0] : null);
+  azimDial.target(m.target ? m.target[1] : null);
   const r = state.server?.config.Roles;
   const rows = Object.entries(m.servos).map(([id, s]) => {
     const ang = s.error ? "–" : `${(((s.pos * 360 / 4096) + 180) % 360 - 180).toFixed(1)}°`;

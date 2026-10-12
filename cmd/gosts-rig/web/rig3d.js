@@ -961,5 +961,5 @@ export function createRig(container) {
   // previewProgress: the dots the preview has passed, and how many there are (null: none playing).
   const previewProgress = () => (pv ? { done: Math.min(pv.consumed, pv.shots.length), total: pv.shots.length } : null);
 
-  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, previewProgress, speed, snapshot };
+  return { update, setView, setDims, getView, startPreview, stopPreview, previewing: () => !!pv, previewProgress, speed, snapshot, livePose };
 }
