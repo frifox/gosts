@@ -57,7 +57,7 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
   photo), Nerfstudio / Gaussian splatting (`transforms.json`), COLMAP (a text model in `colmap/`), or Apple Object
   Capture / PhotoCatch (`gravity.json`: Apple takes no poses, only which way is down, through a tool that passes it
   on). Works best with a plain backdrop (the object turns, not the camera).
-- **Preview** plays the capture in the 3D view first, without moving the rig.
+- **Simulate** plays the capture in the 3D view first, without moving the rig.
 - **Capture** takes the photos: while it runs, it turns into **Stop** and Preview into **Pause** (Resume). The
   progress bar shows the photos done, the time so far and about how long is left (and before you start, an
   estimate of the whole capture: from the moves at the rig's speed, the settle time and the camera's measured pace).

@@ -448,10 +448,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <option value="apple">Apple Object Capture / PhotoCatch (gravity, JSON)</option>
           </select>
         </div>
-        <!-- Two buttons: Preview and Capture. A preview playing: Preview is Stop. A capture running:
-             Capture is Stop, Preview is Pause (Resume). -->
+        <!-- Two buttons: Simulate and Capture. A simulation playing: Simulate is Stop. A capture running:
+             Capture is Stop, Simulate is Pause (Resume). -->
         <div class="cap-btns">
-          <button class="btn" id="previewBtn" title="Show the camera's path through the planned shots, played faster than the capture">Preview</button>
+          <button class="btn" id="previewBtn" title="Show the camera's path through the planned shots, played faster than the capture">Simulate</button>
           <button class="btn" id="pauseBtn" title="Pause the capture where it is (Resume carries on)" hidden>Pause</button>
           <button class="btn primary" id="startBtn" title="Take the photos">Capture</button>
           <button class="btn danger" id="abortBtn" title="Stop the capture (the photos taken stay)" hidden>Stop</button>
@@ -2552,7 +2552,7 @@ $("previewBtn").onclick = () => {
   $("previewBtn").textContent = "Stop";
   $("previewBtn").classList.add("danger");
   // Only the view moves: at the end it returns to where the real rig is.
-  window.rig3d.startPreview(shots, $("pMoving").checked).then(() => { $("previewBtn").textContent = "Preview"; $("previewBtn").classList.remove("danger"); planLock(); capCount(); });
+  window.rig3d.startPreview(shots, $("pMoving").checked).then(() => { $("previewBtn").textContent = "Simulate"; $("previewBtn").classList.remove("danger"); planLock(); capCount(); });
   planLock();
 };
 // planLock: while a preview or a capture runs, what would change the plan
