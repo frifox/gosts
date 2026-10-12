@@ -142,6 +142,9 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .rig-dial .dial-btns .btn { position: relative; }
 .btn.icon-sm { display: inline-flex; align-items: center; justify-content: center; padding-left: 7px; padding-right: 7px; align-self: stretch; }
 .btn.icon-sm svg { width: 15px; height: 15px; }
+.rig-dial .dial-btns[hidden] { display: none; }
+#elevLimitsBtn svg { transition: transform .15s; }
+#elevLimitsBtn[aria-expanded="true"] svg { transform: rotate(180deg); }
 .rig-dial .dial-btns .torque-btn.on, .rig-dial .dial-btns .torque-btn.mixed { z-index: 1; } /* (its coloured border on the shared edge) */
 .rig-dial .dial-btns .btn:hover { z-index: 2; } /* (its border over the shared edge) */
 /* Torque Lock, as Go 0°: off the plain button, on green, mixed (one servo
@@ -537,8 +540,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="rig-dials">
           <div class="rig-dial"><div class="k">Elevation</div><svg class="dial" id="elevDial" viewBox="0 0 240 240" aria-label="Elevation dial"></svg>
             <div class="dial-btns"><button class="btn small torque-btn" id="elevTorque" aria-pressed="false" hidden>Torque Lock</button>
-              <button class="btn small" id="elevZero" title="Move the elevation to 0° (camera level with the object)">Go 0°</button></div>
-            <div class="dial-btns"><button class="btn small" id="elevSetMin" disabled title="The elevation now (rounded down) as the lowest the camera may go: move it there first (Torque Lock off, by hand, if it's past the limit)">Set Min</button>
+              <button class="btn small" id="elevZero" title="Move the elevation to 0° (camera level with the object)">Go 0°</button>
+              <button class="btn small icon-sm" id="elevLimitsBtn" title="Show the elevation limits' buttons (Set Min, Set Max, clear)" aria-label="Elevation limits" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div>
+            <div class="dial-btns" id="elevLimits" hidden><button class="btn small" id="elevSetMin" disabled title="The elevation now (rounded down) as the lowest the camera may go: move it there first (Torque Lock off, by hand, if it's past the limit)">Set Min</button>
               <button class="btn small" id="elevSetMax" disabled title="The elevation now (rounded up) as the highest the camera may go: move it there first (Torque Lock off, by hand, if it's past the limit)">Set Max</button>
               <button class="btn small icon-sm" id="elevClear" disabled title="Clear the limits: the elevation may go anywhere from −90° to 90°" aria-label="Clear the elevation limits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div></div>
           <div class="rig-dial"><div class="k">Azimuth</div><svg class="dial" id="azimDial" viewBox="0 0 240 240" aria-label="Azimuth dial"></svg>
@@ -2580,6 +2584,19 @@ async function setLimitHere(which) {
   } catch (e) { $("motionErr").textContent = e.message; }
 }
 $("elevSetMin").onclick = () => setLimitHere("min");
+// The chevron beside Go 0° shows or hides them (hidden at first; the choice
+// kept in this browser).
+function showLimits(on) {
+  $("elevLimits").hidden = !on;
+  $("elevLimitsBtn").setAttribute("aria-expanded", String(on));
+  $("elevLimitsBtn").title = (on ? "Hide" : "Show") + " the elevation limits' buttons (Set Min, Set Max, clear)";
+}
+$("elevLimitsBtn").onclick = () => {
+  const on = $("elevLimits").hidden;
+  showLimits(on);
+  try { localStorage.setItem("elevLimits", on ? "1" : ""); } catch {}
+};
+try { showLimits(localStorage.getItem("elevLimits") === "1"); } catch {}
 // Clear (✕): no limits, the whole −90…90°.
 $("elevClear").onclick = async () => {
   const mo = state.server?.config.Motion;
