@@ -538,7 +538,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <div class="dial-btns"><button class="btn small torque-btn" id="elevTorque" aria-pressed="false" hidden>Torque Lock</button>
               <button class="btn small" id="elevZero" title="Move the elevation to 0° (camera level with the object)">Go 0°</button></div>
             <div class="dial-btns"><button class="btn small" id="elevSetMin" disabled title="The elevation now (rounded down) as the lowest the camera may go: move it there first (Torque Lock off, by hand, if it's past the limit)">Set Min</button>
-              <button class="btn small" id="elevSetMax" disabled title="The elevation now (rounded up) as the highest the camera may go: move it there first (Torque Lock off, by hand, if it's past the limit)">Set Max</button></div></div>
+              <button class="btn small" id="elevSetMax" disabled title="The elevation now (rounded up) as the highest the camera may go: move it there first (Torque Lock off, by hand, if it's past the limit)">Set Max</button>
+              <button class="btn small" id="elevClear" disabled title="No limits: the elevation may go anywhere from −90° to 90° (asks first)">Clear</button></div></div>
           <div class="rig-dial"><div class="k">Azimuth</div><svg class="dial" id="azimDial" viewBox="0 0 240 240" aria-label="Azimuth dial"></svg>
             <div class="dial-btns"><button class="btn small torque-btn" id="azimTorque" aria-pressed="false" hidden>Torque Lock</button>
               <button class="btn small" id="azimZero" title="Turn the platform to 0°">Go 0°</button></div></div>
@@ -2604,6 +2605,19 @@ async function setLimitHere(which) {
   } catch (e) { $("motionErr").textContent = e.message; }
 }
 $("elevSetMin").onclick = () => setLimitHere("min");
+// Clear: no limits, the whole −90…90° (asks first: the limits keep the arm
+// off the frame).
+$("elevClear").onclick = async () => {
+  const mo = state.server?.config.Motion;
+  if (!mo || !await confirmDanger("Clear the elevation limits?",
+    `The camera may then go anywhere from −90° to 90° (now ${mo.ElevationMin}° to ${mo.ElevationMax}°): make sure the arm can't hit the frame or the object there.`,
+    "Clear limits")) return;
+  $("motionErr").textContent = "";
+  try {
+    await send("motion", { motion: { ...mo, ElevationMin: -90, ElevationMax: 90 } });
+    log("elevation limits cleared (−90° to 90°)");
+  } catch (e) { $("motionErr").textContent = e.message; }
+};
 $("elevSetMax").onclick = () => setLimitHere("max");
 const torques = [torqueSwitch("elevation", (r) => [r.ElevationLeader, r.ElevationFollower]), torqueSwitch("azimuth", (r) => [r.Azimuth])];
 // A mirrored servo (faces its partner, so it turns the other way): this
@@ -2635,6 +2649,8 @@ function onTelemetry(m) {
   for (const t of torques) t.show(m.servos, r);
   const noElev = m.elevation === null || m.elevation === undefined || !!state.cap?.running;
   $("elevSetMin").disabled = $("elevSetMax").disabled = noElev;
+  const mo = state.server?.config.Motion;
+  $("elevClear").disabled = !!state.cap?.running || !mo || (mo.ElevationMin <= -90 && mo.ElevationMax >= 90);
   $("spreadHint").hidden = !(m.spread > 2);
   if (m.spread > 2) $("spreadDeg").textContent = `${m.spread.toFixed(1)}°`;
   draw();
