@@ -278,6 +278,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .viewer .stage { flex: 1; min-height: 0; margin: 0 16px 16px; position: relative; overflow: hidden; cursor: zoom-out; touch-action: none; }
 #viewerImg { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; cursor: grab; user-select: none; -webkit-user-drag: none; }
 .viewer .stage.dragging, .viewer .stage.dragging #viewerImg { cursor: grabbing; }
+/* Opening a photo: a placeholder with a spinner (as a photo being taken)
+   till it's in, not the photo seen before. */
+.viewer .vload { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(80%, 120vh); max-height: 80%; aspect-ratio: 3 / 2;
+  border: 1px dashed rgba(255,255,255,.25); border-radius: 8px; background: rgba(255,255,255,.04); display: flex; align-items: center; justify-content: center; }
+.viewer .vload::before { content: ""; width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.viewer .stage.loading #viewerImg, .viewer .stage.loading .vnav { visibility: hidden; }
 .vnav { position: absolute; right: 12px; bottom: 12px; width: 232px; padding: 8px; display: flex; flex-direction: column; gap: 6px; cursor: default;
   background: rgba(15,18,24,.9); border: 1px solid #2a303c; border-radius: 10px; color: #e6e9ef; font: 12px var(--mono); }
 .vnav .presets { display: flex; gap: 4px; }
@@ -662,7 +668,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <button class="btn small" id="viewerOlder" title="Older photo (→)">Older ›</button>
     <button class="icon-btn" id="viewerClose" title="Close (Esc)" aria-label="Close">✕</button>
   </div>
-  <div class="stage" id="viewerStage"><img id="viewerImg" alt="" draggable="false">
+  <div class="stage" id="viewerStage"><img id="viewerImg" alt="" draggable="false"><div class="vload" id="viewerLoad" hidden></div>
     <div class="vnav" id="vnav">
       <div class="presets" id="vnavPresets"><button class="btn small" data-z="fit" title="The whole photo in the window">Fit</button><button class="btn small" data-z="0.5">50%</button><button class="btn small" data-z="1" title="The photo's own pixels">100%</button><button class="btn small" data-z="1.5">150%</button><button class="btn small" data-z="2">200%</button></div>
       <div class="map" id="vnavMap" title="Drag the rectangle (or click) to move the view"><img id="vnavImg" alt="" draggable="false"><div class="vp" id="vnavVp"></div></div>
@@ -1173,13 +1179,15 @@ function openDiskPhoto(i) {
   viewerButtons();
 }
 // viewerSrc shows the picture at src once it's loaded and decoded: till
-// then the one before stays (no blank, no half-loaded picture at the wrong
-// size); the navigator's copy changes with it.
+// then the one before stays when stepping (no blank, no half-loaded picture
+// at the wrong size), or a placeholder when the viewer opens (not the photo
+// seen last time); the navigator's copy changes with it.
 let viewerWant = "";
 function viewerSrc(src) {
   viewerWant = src;
   const img = $("viewerImg");
   if (img.getAttribute("src") === src) { vz.fit = true; requestAnimationFrame(vzApply); return; } // (the same photo again: no load)
+  viewerLoading($("viewer").hidden || $("viewerStage").classList.contains("loading"));
   const pre = new Image();
   pre.src = src;
   const show = () => { if (viewerWant === src) { img.src = src; $("vnavImg").src = src; } };
@@ -1265,7 +1273,12 @@ function vzZoom(s, cx, cy) {
 }
 function vzZoomMiddle(s) { const [W, H] = vzStage(); vzZoom(s, W / 2, H / 2); }
 // A new photo (or the same again): fitted, its copy in the navigator.
-$("viewerImg").addEventListener("load", () => { vz.fit = true; vzApply(); });
+function viewerLoading(on) {
+  $("viewerStage").classList.toggle("loading", on);
+  $("viewerLoad").hidden = !on;
+}
+$("viewerImg").addEventListener("load", () => { viewerLoading(false); vz.fit = true; vzApply(); });
+$("viewerImg").addEventListener("error", () => viewerLoading(false));
 $("vnavImg").addEventListener("load", vzApply);
 window.addEventListener("resize", () => { if (!$("viewer").hidden) vzApply(); });
 $("vnavPresets").onclick = (e) => {
