@@ -734,3 +734,48 @@ func TestCooldownDefaultOld(t *testing.T) {
 		t.Fatalf("cooldown %+v", cd)
 	}
 }
+
+// TestTorqueAxis: torque for one axis switches only its servos.
+func TestTorqueAxis(t *testing.T) {
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	ro := cfg.get().Roles
+	locked := func() (out []bool) {
+		r.withBus(func(bus *gosts.Bus) error {
+			for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
+				on, _ := bus.Servo(id).TorqueEnabled()
+				out = append(out, on)
+			}
+			return nil
+		})
+		return out
+	}
+	if err := r.torque(true); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.torque(false, "azimuth"); err != nil {
+		t.Fatal(err)
+	}
+	if l := locked(); !l[0] || !l[1] || l[2] {
+		t.Fatalf("after azimuth off: %v, want elevation locked, azimuth not", l)
+	}
+	if err := r.torque(false, "elevation"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.torque(true, "azimuth"); err != nil {
+		t.Fatal(err)
+	}
+	if l := locked(); l[0] || l[1] || !l[2] {
+		t.Fatalf("after elevation off, azimuth on: %v", l)
+	}
+	if err := r.torque(true, "tilt"); err == nil {
+		t.Error("an unknown axis was taken")
+	}
+}

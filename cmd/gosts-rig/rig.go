@@ -637,13 +637,26 @@ func (r *rig) stop() error {
 	})
 }
 
-func (r *rig) torque(on bool) error {
+// torque switches torque on (holding) or off for an axis' servos:
+// "elevation" (the two), "azimuth", or "" all three.
+func (r *rig) torque(on bool, axis ...string) error {
 	ro, err := r.ready()
 	if err != nil {
 		return err
 	}
 	defer r.torqueStale.Store(true)
 	ids := []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth}
+	if len(axis) > 0 {
+		switch axis[0] {
+		case "elevation":
+			ids = ids[:2]
+		case "azimuth":
+			ids = ids[2:]
+		case "":
+		default:
+			return fmt.Errorf("no axis %q", axis[0])
+		}
+	}
 	if !on {
 		return r.withBus(func(bus *gosts.Bus) error { return bus.SyncTorque(false, ids...) })
 	}

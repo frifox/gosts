@@ -135,6 +135,8 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 /* The Rig card's dials (as Servo Ctl's), side by side. */
 .rig-dials { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .rig-dial { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.rig-dial .dial-btns { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.rig-dial .switch { font-size: 13px; color: var(--text); }
 .rig-dial .k { align-self: stretch; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
 .dial { width: 100%; max-width: 190px; height: auto; aspect-ratio: 1; cursor: crosshair; user-select: none; touch-action: none; }
 .dial .face { fill: var(--panel-2); stroke: var(--border); }
@@ -512,16 +514,16 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
              it's going; a click (or drag) on a dial moves there. The elevation's out-of-limits angles shaded. -->
         <div class="rig-dials">
           <div class="rig-dial"><div class="k">Elevation</div><svg class="dial" id="elevDial" viewBox="0 0 240 240" aria-label="Elevation dial"></svg>
-            <button class="btn small" id="elevZero" title="Move the elevation to 0° (camera level with the object)">Go 0°</button></div>
+            <div class="dial-btns"><button class="btn small" id="elevZero" title="Move the elevation to 0° (camera level with the object)">Go 0°</button>
+              <label class="switch" id="elevTorqueSwitch" hidden><input type="checkbox" id="elevTorque"><span class="track"></span><span>Torque Lock</span></label></div></div>
           <div class="rig-dial"><div class="k">Azimuth</div><svg class="dial" id="azimDial" viewBox="0 0 240 240" aria-label="Azimuth dial"></svg>
-            <button class="btn small" id="azimZero" title="Turn the platform to 0°">Go 0°</button></div>
+            <div class="dial-btns"><button class="btn small" id="azimZero" title="Turn the platform to 0°">Go 0°</button>
+              <label class="switch" id="azimTorqueSwitch" hidden><input type="checkbox" id="azimTorque"><span class="track"></span><span>Torque Lock</span></label></div></div>
         </div>
         <!-- How fast the servos move, saved as soon as a value is entered. -->
-        <div class="grid2" style="margin-top:10px;grid-template-columns:1fr 1fr auto">
+        <div class="grid2" style="margin-top:10px">
           <label title="The servos' top speed">Speed (°/s)<input type="number" id="mSpeed" min="5" max="298" step="1"></label>
           <label title="How quickly they speed up and slow down: lower is gentler on the frame">Acceleration (°/s²)<input type="number" id="mAcc" min="9" max="2232"></label>
-          <!-- Torque, at the row's right, level with the fields. -->
-          <label class="switch" id="torqueSwitch" style="flex-direction:row;align-self:end;justify-self:end;color:var(--text);font-size:13px;min-height:30px" hidden><input type="checkbox" id="torque"><span class="track"></span><span>Torque Lock</span></label>
         </div>
         <p class="hint" id="motionHint"></p>
         <div class="err" id="motionErr"></div>
@@ -615,10 +617,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <!-- How low and high the camera may go (the rig's measurements are fixed: see rigBuilt). -->
         <div class="fgroups">
           <div class="fgroup">
-            <label title="How low the camera may go"><span class="label-head">Min elevation °<button class="mini" id="dElevMinHere" title="The rig's elevation now (rounded down): move the camera to its lowest first (Torque Lock off, by hand, if it's past the limit)" aria-label="Min elevation: here">◉</button></span><input type="number" id="dElevMin" step="1"></label>
-            <label title="How high the camera may go"><span class="label-head">Max elevation °<button class="mini" id="dElevMaxHere" title="The rig's elevation now (rounded up): move the camera to its highest first (Torque Lock off, by hand, if it's past the limit)" aria-label="Max elevation: here">◉</button></span><input type="number" id="dElevMax" step="1"></label></div>
+            <label title="How low the camera may go"><span class="label-head">Min elevation °<button class="mini" id="dElevMinHere" title="The rig's elevation now (rounded down): move the camera to its lowest first (the elevation's Torque Lock off, by hand, if it's past the limit)" aria-label="Min elevation: here">◉</button></span><input type="number" id="dElevMin" step="1"></label>
+            <label title="How high the camera may go"><span class="label-head">Max elevation °<button class="mini" id="dElevMaxHere" title="The rig's elevation now (rounded up): move the camera to its highest first (the elevation's Torque Lock off, by hand, if it's past the limit)" aria-label="Max elevation: here">◉</button></span><input type="number" id="dElevMax" step="1"></label></div>
         </div>
-        <p class="hint" style="margin:10px 0 0">The rig itself is fixed: the base 600 × 500 mm, 400 mm side posts, the swing 600 × 450 mm, a 100 mm turntable and object, the turntable as high as puts the object's middle on the tilt axis, and the camera's sensor 335 mm out with its lens in line with it.</p>
         <div class="err" id="rigErr"></div>
         <div class="row" style="margin-top:10px">
           <span class="spacer"></span>
@@ -2385,8 +2386,8 @@ function onState(m) {
   motionFields(c.Motion);
   // The Rig card: the board's port to connect to, or once connected the rig's controls.
   $("connectBody").hidden = $("refreshPorts").hidden = m.connected;
-  $("controlBody").hidden = $("torqueSwitch").hidden = !m.connected;
-  if (!m.connected) $("torqueSwitch").classList.remove("pending"); // no readings to end it
+  $("controlBody").hidden = !m.connected;
+  for (const t of torques) { t.sw.hidden = !m.connected; if (!m.connected) t.sw.classList.remove("pending"); } // (no readings to end it)
   // The roles' servos not all on the bus: say which, and how to assign them.
   const roleNames = [[r.ElevationLeader, "elevation leader"], [r.ElevationFollower, "elevation follower"], [r.Azimuth, "azimuth"]];
   const missing = m.connected && !m.scanning ? roleNames.filter(([id]) => !(m.found || []).includes(id)) : [];
@@ -2505,18 +2506,38 @@ $("stopBtn").onclick = () => act("stop");
 // Go 0°: move one axis to 0°, leaving the other where it is.
 $("elevZero").onclick = () => { elevDial.goal(0); act("move", { elevation: 0 }); };
 $("azimZero").onclick = () => { azimDial.goal(0); act("move", { azimuth: 0 }); };
-// Torque Lock: the switch goes where it was clicked at once, its knob a
-// spinner till the servos are so (locking checks each holds, ~½ s) and a
-// reading since says so; readings till then don't move it back.
-$("torque").onchange = async (e) => {
-  const sw = $("torqueSwitch");
-  sw.classList.add("pending");
-  state.torqueDone = null; // the request's not back yet
-  state.torqueWant = e.target.checked;
-  await act("torque", { on: e.target.checked });
-  state.torqueDone = performance.now();
-};
-$("torqueSwitch").addEventListener("click", (e) => { if ($("torqueSwitch").classList.contains("pending")) e.preventDefault(); }); // one at a time
+// Torque Lock, an axis each (under its dial): the switch goes where it was
+// clicked at once, its knob a spinner till the axis' servos are so (locking
+// checks each holds, ~½ s) and a reading since says so; readings till then
+// don't move it back. ids: the axis' servos (from the roles).
+function torqueSwitch(axis, ids) {
+  const t = { sw: $(axis.slice(0, 4) + "TorqueSwitch"), box: $(axis.slice(0, 4) + "Torque"), want: null, done: null, ids };
+  t.box.onchange = async (e) => {
+    t.sw.classList.add("pending");
+    t.done = null; // the request's not back yet
+    t.want = e.target.checked;
+    await act("torque", { on: e.target.checked, axis });
+    t.done = performance.now();
+  };
+  t.sw.addEventListener("click", (e) => { if (t.sw.classList.contains("pending")) e.preventDefault(); }); // one at a time
+  // show: the readings (m.servos); mixed (a servo locked or let go in Servo
+  // Ctl): shown as neither, a click locks them (unchecked + click = on).
+  t.show = (servos, r) => {
+    const tq = (r ? t.ids(r) : []).map((id) => servos[id]).filter((s) => s && !s.error).map((s) => s.torque);
+    // Pending: ends once the request is back and the readings say so (the
+    // server reads the switches right after), or 2 s after (it failed, or a
+    // servo didn't follow: the readings show how it is).
+    if (t.sw.classList.contains("pending") && t.done &&
+        ((tq.length && tq.every((on) => on === t.want)) || performance.now() - t.done > 2000)) t.sw.classList.remove("pending");
+    if (t.sw.classList.contains("pending")) return;
+    const mixed = tq.some(Boolean) && !tq.every(Boolean);
+    t.box.checked = tq.length > 0 && tq.every(Boolean);
+    t.box.indeterminate = mixed;
+    t.sw.title = mixed ? "One servo is locked, the other isn't: click to lock both" : "";
+  };
+  return t;
+}
+const torques = [torqueSwitch("elevation", (r) => [r.ElevationLeader, r.ElevationFollower]), torqueSwitch("azimuth", (r) => [r.Azimuth])];
 // A mirrored servo (faces its partner, so it turns the other way): this
 // beside its role.
 const mirrorIcon = '<span class="mirror-ic" data-tip="Mirrored"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-label="mirrored"><path d="M8 1.5v13" stroke-dasharray="1.6 1.6"/><path d="M6 4L1.5 12H6z" fill="currentColor"/><path d="M10 4l4.5 8H10z"/></svg></span>';
@@ -2543,21 +2564,7 @@ function onTelemetry(m) {
     const old = tb.rows[i].cells[j];
     if (old.innerHTML !== c.innerHTML || old.title !== c.title) old.replaceWith(c.cloneNode(true));
   }));
-  const tq = Object.values(m.servos).filter((s) => !s.error).map((s) => s.torque);
-  // Mixed (a servo locked or let go in Servo Ctl): shown as neither; a click
-  // locks them all (unchecked + click = on).
-  const sw = $("torqueSwitch");
-  // Pending: ends once the request is back and the readings say so (the
-  // server reads the switches right after), or 2 s after (it failed, or a
-  // servo didn't follow: the readings show how it is).
-  if (sw.classList.contains("pending") && state.torqueDone &&
-      ((tq.length && tq.every((on) => on === state.torqueWant)) || performance.now() - state.torqueDone > 2000)) sw.classList.remove("pending");
-  if (!sw.classList.contains("pending")) {
-    const mixed = tq.some(Boolean) && !tq.every(Boolean);
-    $("torque").checked = tq.length > 0 && tq.every(Boolean);
-    $("torque").indeterminate = mixed;
-    $("torqueSwitch").title = mixed ? "Some servos are locked, some aren't: click to lock them all" : "";
-  }
+  for (const t of torques) t.show(m.servos, r);
   $("spreadHint").hidden = !(m.spread > 2);
   if (m.spread > 2) $("spreadDeg").textContent = `${m.spread.toFixed(1)}°`;
   draw();

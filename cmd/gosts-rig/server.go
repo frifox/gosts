@@ -65,6 +65,7 @@ type request struct {
 	Elevation *float64  `json:"elevation"`
 	Azimuth   *float64  `json:"azimuth"`
 	On        bool      `json:"on"`
+	Axis      string    `json:"axis"` // torque: "elevation", "azimuth", or "" (all)
 	Roles     *Roles    `json:"roles"`
 	Motion    *Motion   `json:"motion"`
 	Plan      *Plan     `json:"plan"`
@@ -135,7 +136,7 @@ func (a *app) exec(req request) (any, error) {
 		a.cap.stop()
 		return nil, a.rig.stop()
 	case "torque":
-		return nil, a.rig.torque(req.On)
+		return nil, a.rig.torque(req.On, req.Axis)
 	case "cooldown": // pausing a capture now and then (see Cooldown): applies from the next photo
 		if req.Cooldown == nil {
 			return nil, errors.New("no cooldown")
