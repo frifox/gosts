@@ -1140,10 +1140,9 @@ function openPhoto(n) {
   if (!p) return;
   state.viewing = n;
   state.disk = null;
-  $("viewerImg").src = photoURL(p);
+  viewerSrc(photoURL(p));
   $("viewerCap").textContent = photoCaption(p);
   $("viewer").hidden = false;
-  vz.fit = true; requestAnimationFrame(vzApply); // (the same photo again: no load)
   viewerButtons();
 }
 // A photo of a saved capture (the folder open in the gallery): in file
@@ -1153,11 +1152,23 @@ function openDiskPhoto(i) {
   if (!p) return;
   state.viewing = null;
   state.disk = { name, i };
-  $("viewerImg").src = batchURL(name, p.file);
+  viewerSrc(batchURL(name, p.file));
   $("viewerCap").textContent = `${name} · ${p.file} · ${i + 1} / ${fs.length}`;
   $("viewer").hidden = false;
-  vz.fit = true; requestAnimationFrame(vzApply);
   viewerButtons();
+}
+// viewerSrc shows the picture at src once it's loaded and decoded: till
+// then the one before stays (no blank, no half-loaded picture at the wrong
+// size); the navigator's copy changes with it.
+let viewerWant = "";
+function viewerSrc(src) {
+  viewerWant = src;
+  const img = $("viewerImg");
+  if (img.getAttribute("src") === src) { vz.fit = true; requestAnimationFrame(vzApply); return; } // (the same photo again: no load)
+  const pre = new Image();
+  pre.src = src;
+  const show = () => { if (viewerWant === src) { img.src = src; $("vnavImg").src = src; } };
+  pre.decode().then(show, show);
 }
 function viewerButtons() {
   const gallery = !$("gallery").hidden, d = state.disk;
@@ -1208,7 +1219,9 @@ function vzNat() { const i = $("viewerImg"); return [i.naturalWidth || 1, i.natu
 function vzStage() { const st = $("viewerStage"); return [st.clientWidth, st.clientHeight]; }
 function vzFitScale() { const [w, h] = vzNat(), [W, H] = vzStage(); return Math.min(W / w, H / h); }
 function vzApply() {
-  const img = $("viewerImg"), [w, h] = vzNat(), [W, H] = vzStage();
+  const img = $("viewerImg");
+  if (!img.complete || !img.naturalWidth) return; // (loading: sized when it's in)
+  const [w, h] = vzNat(), [W, H] = vzStage();
   if (vz.fit) vz.s = vzFitScale();
   const dw = w * vz.s, dh = h * vz.s;
   // Smaller than the stage: centred; larger: no gap at the edges.
@@ -1222,6 +1235,7 @@ function vzApply() {
   for (const b of $("vnavPresets").children) b.classList.toggle("on", b.dataset.z === "fit" ? vz.fit : !vz.fit && Math.abs(Number(b.dataset.z) - vz.s) < 0.005);
   // The navigator's rectangle: the part of the photo in view.
   const mw = $("vnavMap").clientWidth, k = mw / w, vp = $("vnavVp");
+  vp.hidden = $("vnavImg").getAttribute("src") !== img.getAttribute("src") || !$("vnavImg").complete; // (its copy not in yet)
   const ix = Math.max(0, -vz.x / vz.s), iy = Math.max(0, -vz.y / vz.s);
   const iw = Math.min(w, W / vz.s), ih = Math.min(h, H / vz.s);
   vp.style.left = ix * k + "px"; vp.style.top = iy * k + "px";
@@ -1236,7 +1250,7 @@ function vzZoom(s, cx, cy) {
 }
 function vzZoomMiddle(s) { const [W, H] = vzStage(); vzZoom(s, W / 2, H / 2); }
 // A new photo (or the same again): fitted, its copy in the navigator.
-$("viewerImg").addEventListener("load", () => { vz.fit = true; $("vnavImg").src = $("viewerImg").src; vzApply(); });
+$("viewerImg").addEventListener("load", () => { vz.fit = true; vzApply(); });
 $("vnavImg").addEventListener("load", vzApply);
 window.addEventListener("resize", () => { if (!$("viewer").hidden) vzApply(); });
 $("vnavPresets").onclick = (e) => {
@@ -2182,14 +2196,13 @@ async function liveLoop(run) {
 // The sample full size, in the photo viewer.
 $("sampleBox").onclick = () => {
   if (!state.sampleShown || state.selecting || state.justSelected || state.live) return;
-  $("viewerImg").src = $("sampleImg").src;
+  viewerSrc($("sampleImg").getAttribute("src"));
   $("viewerCap").textContent = "Sample · " + $("sampleCaption").textContent;
   $("viewerHint").textContent = "  ·  drag or wheel to look around, Esc to close";
   for (const id of ["viewerBack", "viewerNewer", "viewerOlder"]) $(id).hidden = true;
   state.viewing = null;
   state.disk = null;
   $("viewer").hidden = false;
-  vz.fit = true; requestAnimationFrame(vzApply);
 };
 
 $("takePhotoBtn").onclick = async () => {
