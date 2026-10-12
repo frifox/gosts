@@ -237,7 +237,6 @@ td.mono { font-family: var(--mono); }
 @keyframes thumbIn { from { opacity: 0; transform: translateX(-12px); } }
 /* Camera Settings: the settings on the left, the last sample shot on the right. */
 .settings-card { flex: 1; min-height: 0; overflow-y: auto; }
-.settings-card.fit { flex: none; } /* the rig's: as tall as its form, Rig View taking the rest */
 .card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 18px var(--accent-weak); }
 .camcfg-body { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
 .camcfg-params label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 10px; }
@@ -514,14 +513,14 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <button class="btn small" id="refreshPorts" style="text-transform:none;letter-spacing:0">Refresh</button>
         <button class="btn small danger" id="stopBtn" title="Stop the rig where it is" style="text-transform:none;letter-spacing:0" hidden>Stop</button>
         <button class="btn small icon danger" id="rigDisconnectBtn" title="Disconnect the rig's board (a capture running stops)" aria-label="Disconnect the rig's board" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 16l-4 4M16 16l4 4M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5zM17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5zM3 21l2.5 -2.5M18.5 5.5l2.5 -2.5M10 11l-2 2M13 14l-2 2"/></svg></button>
-        <button class="btn small icon" id="rigCfgBtn" title="Rig setup: its measurements, and how low and high the camera may go" aria-label="Rig setup"></button>
+        <button class="btn small icon" id="rigCfgBtn" title="Servo settings: each servo's settings, tuning, limits and telemetry (gosts-ctl's console)" aria-label="Servo settings" disabled></button>
       </h2>
       <!-- No board: pick its port and connect. -->
       <div class="card-body" id="connectBody">
         <div class="ports" id="ports"><div class="hint">Looking for serial ports…</div></div>
         <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="connectBtn" disabled>Connect</button></div>
         <p class="hint">Close gosts-ctl first: only one program can use the serial port. Once the board is connected,
-          its console is here too: Servo Ctl, in the Rig settings (the gear).</p>
+          its console is here too: Servo Settings, the gear in this card's title.</p>
         <div class="err" id="connectErr"></div>
       </div>
       <!-- Board connected: move the rig. -->
@@ -529,9 +528,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <!-- A role's servo isn't on the bus (first time, or other servos): how to assign them. -->
         <div class="roles-note" id="rolesNote" hidden>
           <div><b>Assign the servos' roles.</b> <span id="rolesText"></span></div>
-          <div class="hint">With three servos: make a group of the two elevation servos (leader first) in Servo Ctl, and the
+          <div class="hint">With three servos: make a group of the two elevation servos (leader first) in Servo Settings, and the
             rig takes it as the elevation, the other servo as the azimuth. Or pick each servo's role in Setup.</div>
-          <div class="row"><button class="btn small primary" id="rolesCtl">Servo Ctl</button><button class="btn small" id="rolesSetup">Setup…</button><button class="btn small" id="rolesScan" title="Look for the servos on the bus again (turned on since?)">Scan again</button></div>
+          <div class="row"><button class="btn small primary" id="rolesCtl">Servo Settings</button><button class="btn small" id="rolesSetup">Setup…</button><button class="btn small" id="rolesScan" title="Look for the servos on the bus again (turned on since?)">Scan again</button></div>
         </div>
         <!-- Elevation and azimuth, a dial each (as Servo Ctl's): the needle where the rig is, the dot where
              it's going; a click (or drag) on a dial moves there. The elevation's out-of-limits angles shaded. -->
@@ -559,7 +558,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <tbody id="servoRows"></tbody>
         </table>
         <p class="hint" id="spreadHint" hidden>The two elevation servos disagree by <span id="spreadDeg"></span>: align them in
-          <a href="#" class="ctl-link">Servo Ctl</a> (the elevation group → Align to leader).</p>
+          <a href="#" class="ctl-link">Servo Settings</a> (the elevation group → Align to leader).</p>
       </div>
     </section>
 
@@ -585,11 +584,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     </div>
   </section>
 
-  <!-- Settings: the camera's or the rig's (from the gear in its card's title, which card lights up), in
-       place of Photos (and Rig View, for the camera's; the rig's keep Rig View below, to see the changes) till ✕. -->
+  <!-- Settings: the camera's (from the gear in its card's title, which card lights up), in place of Photos
+       and Rig View till ✕. -->
   <section class="card settings-card" id="settingsCard" hidden>
     <h2>Settings <span class="dev-name" id="settingsWhat"></span><span class="spacer"></span>
-      <button class="btn small hdr-btn" id="ctlBtn" title="The servo console (gosts-ctl's) on the rig's board, in the Rig View's place: each servo's settings, tuning, limits, telemetry" hidden>Servo Ctl</button>
       <button class="icon-btn" id="settingsClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
     <div id="camConfigModal" hidden>
       <div class="card-body camcfg-body">
@@ -638,23 +636,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         </div>
       </div>
     </div>
-    <div id="rigCfgModal" hidden>
-      <div class="card-body">
-        <!-- How low and high the camera may go (the rig's measurements are fixed: see rigBuilt). -->
-        <div class="fgroups">
-          <div class="fgroup">
-            <label title="How low the camera may go"><span class="label-head">Min elevation °<button class="mini" id="dElevMinHere" title="The rig's elevation now (rounded down): move the camera to its lowest first (the elevation's Torque Lock off, by hand, if it's past the limit)" aria-label="Min elevation: here">◉</button></span><input type="number" id="dElevMin" step="1"></label>
-            <label title="How high the camera may go"><span class="label-head">Max elevation °<button class="mini" id="dElevMaxHere" title="The rig's elevation now (rounded up): move the camera to its highest first (the elevation's Torque Lock off, by hand, if it's past the limit)" aria-label="Max elevation: here">◉</button></span><input type="number" id="dElevMax" step="1"></label></div>
-        </div>
-        <div class="err" id="rigErr"></div>
-        <div class="row" style="margin-top:10px">
-          <span class="spacer"></span>
-          <button class="btn" id="dDefaults">Defaults</button>
-          <button class="btn" id="dRevert" disabled>Revert</button>
-          <button class="btn primary" id="dSave" disabled>Save</button>
-        </div>
-      </div>
-    </div>
   </section>
   <section class="card view" id="viewCard">
     <h2>Rig View <span class="views" id="views">
@@ -683,9 +664,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       </div>
     </div>
   </section>
-  <!-- Servo Ctl: gosts-ctl's console (served at /ctl/), on the rig's board, in the Rig View's place. -->
+  <!-- Servo Settings: gosts-ctl's console (served at /ctl/), on the rig's board, the right side's only
+       card (from the gear in the Rig card's title) till ✕. -->
   <section class="card view" id="ctlCard" hidden>
-    <h2>Servo Ctl <span class="spacer"></span><button class="icon-btn" id="ctlClose" title="Close Servo Ctl (back to the Rig View)" aria-label="Close">✕</button></h2>
+    <h2>Servo Settings <span class="spacer"></span><button class="icon-btn" id="ctlClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
     <div class="card-body"><iframe id="ctlFrame" title="Servo console"></iframe></div>
   </section>
   </div>
@@ -755,7 +737,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <label class="switch" style="flex-direction:row"><input type="checkbox" id="sInvE"><span class="track"></span><span>Invert elevation</span></label>
         <label class="switch" style="flex-direction:row"><input type="checkbox" id="sInvA"><span class="track"></span><span>Invert azimuth</span></label>
       </div>
-      <p class="hint">The two top servos move together as one group, the leader deciding the goal. Mark the servo that faces its partner as mirrored, so the same command tilts both the same way. Elevation 0° is the camera level with the object (the servos' own 0°, set in <a href="#" class="ctl-link">Servo Ctl</a> → Set 0° to), positive is up; invert if it goes the wrong way. Azimuth 0° is the platform's own 0°.</p>
+      <p class="hint">The two top servos move together as one group, the leader deciding the goal. Mark the servo that faces its partner as mirrored, so the same command tilts both the same way. Elevation 0° is the camera level with the object (the servos' own 0°, set in <a href="#" class="ctl-link">Servo Settings</a> → Set 0° to), positive is up; invert if it goes the wrong way. Azimuth 0° is the platform's own 0°.</p>
       <p class="hint">The rig's servos are always switched to multi-turn mode when gosts-rig connects, so every move can take the short way: in single-turn mode a move across a servo's 0/360° point goes the long way, nearly a full turn, which could swing the frame into the posts.</p>
       <p class="hint">Found on the bus: <span id="sFound" class="mono">–</span> <button class="btn small" id="sScan">Scan again</button></p>
       <div class="err" id="setupErr"></div>
@@ -1527,7 +1509,7 @@ function openCamConfig() {
   $("camConfigErr").textContent = "";
   parkSettingButtons();
   $("camSettings").innerHTML = '<div class="hint">Reading the camera\'s settings…</div>';
-  showSettings("camera");
+  showSettings();
   sampleButton();
   loadSettings();
 }
@@ -1536,39 +1518,35 @@ $("camConfigBtn").onclick = () => ($("camConfigModal").hidden ? openCamConfig() 
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented && !$("camConfigModal").hidden) closeCamConfig(); });
 
 // ---------------------------------------------------------------- settings card
-// The Settings card: the camera's or the rig's settings, in place of Photos
-// and Rig View (the gear in a card's title opens its own, and that card
-// lights up) till ✕, Esc, or that gear again.
-function showSettings(which) { // "camera" or "rig"
-  if (which !== "camera") stopLive();
-  $("camConfigModal").hidden = which !== "camera";
-  $("rigCfgModal").hidden = which !== "rig";
-  $("ctlBtn").hidden = which !== "rig";
-  if (which !== "rig") showCtl(false);
-  $("settingsWhat").textContent = which === "camera" ? "Camera" : "Rig";
-  $("captureCard").classList.toggle("selected", which === "camera");
-  $("rigCard").classList.toggle("selected", which === "rig");
-  $("cameraCard").hidden = true;
-  $("viewCard").hidden = which !== "rig" || !!state.ctlOpen; // the rig's: Rig View below, the changes live in it
-  $("settingsCard").classList.toggle("fit", which === "rig");
+// The Settings card: the camera's settings, in place of Photos and Rig View
+// (the gear in the Camera card's title, which lights up) till ✕, Esc, or
+// that gear again.
+function showSettings() {
+  showCtl(false);
+  $("camConfigModal").hidden = false;
+  $("settingsWhat").textContent = "Camera";
+  $("captureCard").classList.add("selected");
+  $("cameraCard").hidden = $("viewCard").hidden = true;
   $("settingsCard").hidden = false;
 }
-// showCtl opens Servo Ctl (gosts-ctl's console) in the Rig View's place, or
-// closes it. Closed, its page goes (so it stops streaming telemetry). Not
-// while a capture runs: it could move the servos.
+// showCtl opens Servo Settings (gosts-ctl's console) as the right side's
+// only card (the Rig card lit up), or closes it. Closed, its page goes (so
+// it stops streaming telemetry). Not while a capture runs (it could move
+// the servos), nor without the board.
 function showCtl(on) {
-  on = on && !state.cap?.running;
+  on = on && !state.cap?.running && !!state.server?.connected;
   if (on === !!state.ctlOpen) return;
+  if (on && !$("settingsCard").hidden) closeCamConfig();
   state.ctlOpen = on;
-  $("ctlBtn").classList.toggle("primary", on);
   $("ctlCard").hidden = !on;
-  $("viewCard").hidden = on;
+  $("cameraCard").hidden = $("viewCard").hidden = on;
+  $("rigCard").classList.toggle("selected", on);
   $("ctlFrame").src = on ? "/ctl/?embed" : "about:blank";
 }
-$("ctlBtn").onclick = () => showCtl(!state.ctlOpen);
 $("ctlClose").onclick = () => showCtl(false);
-// openCtl: the Rig settings with Servo Ctl open (the Rig card's gear → Servo Ctl).
-function openCtl() { $("setupModal").hidden = true; showSettings("rig"); showCtl(true); }
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented && state.ctlOpen && $("setupModal").hidden && $("confirmModal").hidden) showCtl(false); });
+// openCtl: Servo Settings (from a hint's link, or the roles note).
+function openCtl() { $("setupModal").hidden = true; showCtl(true); }
 $("rolesCtl").onclick = openCtl;
 $("rolesScan").onclick = async () => {
   $("rolesScan").disabled = true;
@@ -1579,14 +1557,12 @@ $("rolesScan").onclick = async () => {
 document.addEventListener("click", (e) => { if (e.target.closest(".ctl-link")) { e.preventDefault(); openCtl(); } });
 $("rolesSetup").onclick = () => $("setupBtn").click();
 function hideSettings() {
-  showCtl(false);
-  $("camConfigModal").hidden = $("rigCfgModal").hidden = true;
+  $("camConfigModal").hidden = true;
   $("captureCard").classList.remove("selected");
-  $("rigCard").classList.remove("selected");
   $("settingsCard").hidden = true;
   $("cameraCard").hidden = $("viewCard").hidden = false;
 }
-$("settingsClose").onclick = () => ($("camConfigModal").hidden ? closeRigCfg() : closeCamConfig());
+$("settingsClose").onclick = () => closeCamConfig();
 function sampleButton() {
   $("sampleBtn").disabled = !state.camera?.connected || !!state.cap?.running || state.sampleTaking;
   $("liveBtn").disabled = !state.live && $("sampleBtn").disabled;
@@ -2433,11 +2409,8 @@ function onState(m) {
   // Motion limits for the elevation controls.
   elevDial.setLimits(c.Motion.ElevationMin, c.Motion.ElevationMax);
   if (!state.planLoaded) { loadPlan(c.Plan); state.planLoaded = true; }
-  // Rig Setup: show the saved limits unless they are being edited.
-  const prev = state.lastLimits, form = formLimits();
-  if (!prev || Object.keys(prev).every((k) => form[k] === prev[k])) fillLimits(c.Motion);
-  state.lastLimits = { ElevationMin: c.Motion.ElevationMin, ElevationMax: c.Motion.ElevationMax };
-  limitsChanged();
+  $("rigCfgBtn").disabled = !m.connected || !!state.cap?.running;
+  if (!m.connected) showCtl(false);
   if (!$("setupModal").hidden) fillSetup();
   draw();
 }
@@ -2720,14 +2693,11 @@ $("previewBtn").onclick = () => {
   planLock();
 };
 // planLock: while a preview or a capture runs, what would change the plan
-// (the photos, moving shots, the elevation limits, and Defaults, which
-// resets them) can't be changed; the rig's measurements can (the view is
-// redrawn, the trail carrying on).
+// (the photos, moving shots, the path) can't be changed.
 function planLock() {
   const busy = !!(window.rig3d?.previewing() || state.cap?.running);
-  for (const id of ["pPhotos", "pMoving", "dElevMin", "dElevMax", "dElevMinHere", "dElevMaxHere", "dDefaults", "paceBtn", "pExport"]) $(id).disabled = busy;
+  for (const id of ["pPhotos", "pMoving", "paceBtn", "pExport"]) $(id).disabled = busy;
   for (const b of [...$("pathSeg").children, ...$("shootSeg").children]) b.disabled = busy;
-  for (const id of ["dElevMin", "dElevMax"]) $(id).title = busy ? "Set while no preview or capture runs: it changes the plan" : "";
 }
 $("pauseBtn").onclick = () => act("pause", { on: !state.cap?.paused });
 $("abortBtn").onclick = () => act("stop");
@@ -2793,7 +2763,7 @@ function onCapture(m) {
   $("pauseBtn").hidden = $("abortBtn").hidden = !m.running;
   $("previewBtn").disabled = m.shots.length < 2;
   if (m.running) { stopPreview(); showCtl(false); }
-  $("ctlBtn").disabled = m.running;
+  $("rigCfgBtn").disabled = m.running || !state.server?.connected; // (Servo Settings: not while capturing)
   $("pauseBtn").textContent = m.paused ? "Resume" : "Pause";
   planLock();
   $("pSettle").disabled = m.running;
@@ -2832,30 +2802,10 @@ $("sSave").onclick = async () => {
   } catch (e) { $("setupErr").textContent = e.message; }
 };
 
-// ---------------------------------------------------------------- rig settings
-// The rig's measurements are fixed (rig3d.js' DEFAULT_RIG); its settings are
-// how low and high the camera may go (kept with the motion settings).
-const LIMITS_DEFAULT = { ElevationMin: -45, ElevationMax: 80 };
-const formLimits = () => ({ ElevationMin: Number($("dElevMin").value), ElevationMax: Number($("dElevMax").value) });
-const savedLimits = () => state.server ? { ElevationMin: state.server.config.Motion.ElevationMin, ElevationMax: state.server.config.Motion.ElevationMax } : LIMITS_DEFAULT;
-const limitsEdited = () => formLimits().ElevationMin !== savedLimits().ElevationMin || formLimits().ElevationMax !== savedLimits().ElevationMax;
-function fillLimits(lim) {
-  $("dElevMin").value = lim.ElevationMin; $("dElevMax").value = lim.ElevationMax;
-  limitsChanged();
-}
-// limitsChanged enables Save/Revert.
-function limitsChanged() { $("dSave").disabled = $("dRevert").disabled = !limitsEdited(); }
-for (const id of ["dElevMin", "dElevMax"]) $(id).addEventListener("input", limitsChanged);
-$("dDefaults").onclick = () => fillLimits(LIMITS_DEFAULT);
-// Rig Setup, in the Settings card, from the gear in the Rig card's title
-// (the same gear as the camera's). Closing keeps any edits (the 3D view
-// shows them, Save and Revert still waiting).
+// Servo Settings, from the gear in the Rig card's title (the same gear as
+// the camera's): the gear toggles it.
 $("rigCfgBtn").innerHTML = $("camConfigBtn").innerHTML;
-$("rigCfgBtn").onclick = () => {
-  if (!$("rigCfgModal").hidden) return closeRigCfg(); // the gear toggles
-  $("rigErr").textContent = "";
-  showSettings("rig");
-};
+$("rigCfgBtn").onclick = () => showCtl(!state.ctlOpen);
 // Disconnect (a plug pulled apart: Tabler's plug-connected-x, MIT), in the
 // Rig and Camera cards' titles (beside the gear): the
 // device goes, so do its settings if they're open (errors: in the log).
@@ -2871,7 +2821,7 @@ $("rigDisconnectBtn").onclick = async () => {
   try { await send("disconnect", {}); } catch (e) { ok = false; log(e.message, "error"); }
   $("rigDisconnectBtn").disabled = false;
   if (!ok) return;
-  if (!$("rigCfgModal").hidden && state.ctlOpen) showCtl(false); // Servo Ctl needs the board; Rig Setup doesn't
+  showCtl(false); // Servo Settings needs the board
   send("ports").then(renderPorts).catch(() => {});
 };
 $("camDisconnectBtn").onclick = async () => {
@@ -2884,41 +2834,6 @@ $("camDisconnectBtn").onclick = async () => {
   try { await send("cameraDisconnect", {}); } catch (e) { ok = false; log(e.message, "error"); }
   $("camDisconnectBtn").disabled = false;
   if (ok && !$("camConfigModal").hidden) closeCamConfig();
-};
-function closeRigCfg() { hideSettings(); }
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("rigCfgModal").hidden) { e.preventDefault(); closeRigCfg(); } });
-// Enter in a field saves (as Save; nothing to save: nothing happens).
-$("rigCfgModal").addEventListener("keydown", (e) => {
-  if (e.key !== "Enter" || !e.target.matches("input")) return;
-  e.preventDefault();
-  if (!$("dSave").disabled) $("dSave").click();
-});
-// Min/Max elevation from where the rig is now (min rounded down, max up, so
-// the arm can still get there); Save (or Enter) keeps it, as any edit.
-function elevationHere(id, round) {
-  return (e) => {
-    e.preventDefault();
-    const el = state.tele?.elevation;
-    if (!state.server?.connected || el === null || el === undefined) { $("rigErr").textContent = "Connect the rig first: its elevation is read from the servos."; return; }
-    const v = round(el);
-    const other = id === "dElevMin" ? Number($("dElevMax").value) : Number($("dElevMin").value);
-    if (id === "dElevMin" ? v >= other : v <= other) {
-      $("rigErr").textContent = `The camera is at ${el.toFixed(1)}°: that's ${id === "dElevMin" ? "not below the max" : "not above the min"} elevation (${other}°).`;
-      return;
-    }
-    $("rigErr").textContent = "";
-    $(id).value = v;
-    limitsChanged();
-  };
-}
-$("dElevMinHere").onclick = elevationHere("dElevMin", Math.floor);
-$("dElevMaxHere").onclick = elevationHere("dElevMax", Math.ceil);
-$("dRevert").onclick = () => { $("rigErr").textContent = ""; fillLimits(savedLimits()); };
-$("dSave").onclick = async () => {
-  $("rigErr").textContent = "";
-  try {
-    await send("motion", { motion: { ...state.server.config.Motion, ...formLimits() } });
-  } catch (e) { $("rigErr").textContent = e.message; }
 };
 
 // ---------------------------------------------------------------- live rig (3D: see rig3d.js)

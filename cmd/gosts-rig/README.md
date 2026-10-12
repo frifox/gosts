@@ -29,10 +29,10 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 
 1. Set up the servos with [gosts-ctl](../gosts-ctl) first: IDs, tuning, and zero (elevation 0° = camera level with
    the object, azimuth 0° = the platform's front). Close it after: only one program can use the serial port.
-   Once the rig is connected, the same console is in gosts-rig too: **Servo Ctl** in the Rig settings (gear) opens it
-   in the Rig View's place, on the rig's board, with gosts-ctl's settings (names, groups, …).
+   Once the rig is connected, the same console is in gosts-rig too: the **gear** in the Rig card's title opens it as
+   **Servo Settings**, the right side's only card, on the rig's board, with gosts-ctl's settings (names, groups, …).
 2. In gosts-rig, **Setup** picks which servo does what (by default #1 and #2 elevation, #3 azimuth).
-3. The **gear** in the Rig card's title opens **Rig Setup**: how low and high the camera may go. The rig itself is fixed: the base 600 × 500 mm, 400 mm side posts, the swing 600 × 450 mm, a 100 mm turntable and object, the turntable as high as puts the object's middle on the tilt axis, and the camera's sensor 335 mm out with its lens in line with it. The Rig card's two dials, elevation and azimuth, show where the rig is (the needle) and where it's going (the dot); click or drag on one to move there, or **Go 0°** below it; beside that, each axis' **Torque Lock** (off: its servos let go, to move by hand). Under the elevation's, **Set Min** and **Set Max** save where the camera is now as its lowest or highest elevation. The ✕ beside them clears both (the whole −90° to 90°). The elevation's out-of-limits angles are shaded red: a move there stops at the nearest limit.
+3. The rig itself is fixed: the base 600 × 500 mm, 400 mm side posts, the swing 600 × 450 mm, a 100 mm turntable and object, the turntable as high as puts the object's middle on the tilt axis, and the camera's sensor 335 mm out with its lens in line with it. The Rig card's two dials, elevation and azimuth, show where the rig is (the needle) and where it's going (the dot); click or drag on one to move there, or **Go 0°** below it; beside that, each axis' **Torque Lock** (off: its servos let go, to move by hand). Under the elevation's, **Set Min** and **Set Max** save where the camera is now as its lowest or highest elevation. The ✕ beside them clears both (the whole −90° to 90°). The elevation's out-of-limits angles are shaded red: a move there stops at the nearest limit.
 4. Set the camera to **RAW & JPEG** (on a Sony in PC Remote: save to PC+Camera). The RAWs stay on the card,
    and only the JPEGs come over USB.
 
@@ -73,7 +73,7 @@ capture (on hover) renames its folder.
 ## Camera settings
 
 The **gear** in the Camera card's title opens the camera's settings next to a sample shot, in a Settings card in place
-of Photos and Rig View (✕, Esc or the gear again closes it; the Rig card's gear opens Rig Setup there the same way).
+of Photos and Rig View (✕, Esc or the gear again closes it; the Rig card's gear opens Servo Settings the same way, in place of both).
 
 - Zoom (on a camera that zooms by remote, with a power zoom lens; the A6600 doesn't: zoom on the camera), focus,
   shutter, f-stop, ISO and white balance, applied as
