@@ -283,7 +283,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .viewer .vload { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(80%, 120vh); max-height: 80%; aspect-ratio: 3 / 2;
   border: 1px dashed rgba(255,255,255,.25); border-radius: 8px; background: rgba(255,255,255,.04); display: flex; align-items: center; justify-content: center; }
 .viewer .vload::before { content: ""; width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
-.viewer .stage.loading #viewerImg, .viewer .stage.loading .vnav { visibility: hidden; }
+.viewer .stage.loading #viewerImg, .viewer .stage.loading .vnav, .viewer .stage.loading .histo { visibility: hidden; }
 .vnav { position: absolute; right: 12px; bottom: 12px; width: 232px; padding: 8px; display: flex; flex-direction: column; gap: 6px; cursor: default;
   background: rgba(15,18,24,.9); border: 1px solid #2a303c; border-radius: 10px; color: #e6e9ef; font: 12px var(--mono); }
 .vnav .presets { display: flex; gap: 4px; }
@@ -669,6 +669,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <button class="icon-btn" id="viewerClose" title="Close (Esc)" aria-label="Close">✕</button>
   </div>
   <div class="stage" id="viewerStage"><img id="viewerImg" alt="" draggable="false"><div class="vload" id="viewerLoad" hidden></div>
+    <canvas class="histo" id="viewerHisto" hidden title="Histogram: how many pixels at each brightness, red, green and blue (dark on the left, bright on the right)"></canvas>
     <div class="vnav" id="vnav">
       <div class="presets" id="vnavPresets"><button class="btn small" data-z="fit" title="The whole photo in the window">Fit</button><button class="btn small" data-z="0.5">50%</button><button class="btn small" data-z="1" title="The photo's own pixels">100%</button><button class="btn small" data-z="1.5">150%</button><button class="btn small" data-z="2">200%</button></div>
       <div class="map" id="vnavMap" title="Drag the rectangle (or click) to move the view"><img id="vnavImg" alt="" draggable="false"><div class="vp" id="vnavVp"></div></div>
@@ -1277,7 +1278,7 @@ function viewerLoading(on) {
   $("viewerStage").classList.toggle("loading", on);
   $("viewerLoad").hidden = !on;
 }
-$("viewerImg").addEventListener("load", () => { viewerLoading(false); vz.fit = true; vzApply(); });
+$("viewerImg").addEventListener("load", () => { viewerLoading(false); vz.fit = true; vzApply(); histogram($("viewerImg"), $("viewerHisto")); });
 $("viewerImg").addEventListener("error", () => viewerLoading(false));
 $("vnavImg").addEventListener("load", vzApply);
 window.addEventListener("resize", () => { if (!$("viewer").hidden) vzApply(); });
@@ -1549,15 +1550,14 @@ function sampleButton() {
   $("sampleBtn").disabled = !state.camera?.connected || !!state.cap?.running || state.sampleTaking;
   $("liveBtn").disabled = !state.live && $("sampleBtn").disabled;
 }
-// histogram draws the picture's histogram (img: the sample or a live frame)
-// over its top right: 256 levels a channel, from the picture shrunk to 256
+// histogram draws the picture's histogram (img: the sample or a live frame,
+// or the photo viewer's photo, on cv) over its top right: 256 levels a channel, from the picture shrunk to 256
 // wide (enough to count); each channel's area added (overlaps: cyan, yellow,
 // magenta, white). Heights by square root (a plain backdrop's one tall bar
 // would flatten the rest), to the tallest bar but black's and white's (0 and
 // 255: clipping), which may run off the top.
 let histoTmp = null;
-function histogram(img) {
-  const cv = $("histo");
+function histogram(img, cv = $("histo")) {
   if (!img?.naturalWidth) { cv.hidden = true; return; }
   const w = 256, h = Math.max(1, Math.round(256 * img.naturalHeight / img.naturalWidth));
   histoTmp ||= document.createElement("canvas");
