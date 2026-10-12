@@ -46,7 +46,8 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 - **Rig motion**: **Continuous** doesn't stop: the rig
   glides along one smooth path, taking each photo as it passes, which is much faster, for a quick enough shutter. Any
   number of photos works; on long spirals the rig pauses for a moment now and then to reset the platform servo's turn
-  count. **Stop & Shoot** stops at each shot and waits the settle time before the photo.
+  count. **Stop & Shoot** stops at each shot and waits the settle time before the photo, and after it keeps still
+  while the shutter's open (the camera's shutter speed, read as the capture starts, and 0.1 s to spare from 1/15 s on).
 - **Measure** (under the choices) times a few quick sample shots to find how often your camera keeps up (an A6600
   shooting RAW + JPEG: about one every 1.2 s). Continuous spaces the photos at least that far apart, never fires
   while the camera is still busy with the last one, and slows down (holding still at 4 photos waiting) if the

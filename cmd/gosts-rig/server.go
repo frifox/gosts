@@ -440,6 +440,9 @@ func (a *app) cameraSettings() ([]cameraSetting, error) {
 		return nil, err
 	}
 	ss, err := sc.Settings()
+	if err == nil {
+		a.camera.noteSettings(ss)
+	}
 	_, focus := sc.(focusCamera)
 	for i := range ss {
 		if ss[i].Key == "focus" && focus {

@@ -305,6 +305,7 @@ type cameraConn struct {
 	firedAt        []time.Time               // when the queued photos' shutters went, recently (see measurePace)
 	simRendered    map[int]bool              // simulated photos a page has rendered (coming over: see simPicture)
 	simLink        time.Time                 // the simulated camera's link is busy till then (see simDownload)
+	exposed        time.Duration             // the shutter speed last read (see exposure), for the estimate
 }
 
 // maxPhotos is how many photos the timeline keeps in memory; the oldest go.
@@ -579,6 +580,57 @@ func (c *cameraConn) shooter(q chan queuedShot) {
 
 // minInterval is how soon after one photo the connected camera can take the
 // next (0: at once).
+// exposure reads the shutter speed set on the camera: how long its shutter
+// stays open (0: not known, or Bulb). Kept for the estimate (see exposedLast).
+func (c *cameraConn) exposure() time.Duration {
+	c.mu.Lock()
+	cam := c.cam
+	c.mu.Unlock()
+	sc, ok := cam.(settingsCamera)
+	if !ok {
+		return 0
+	}
+	ss, err := sc.Settings()
+	if err != nil {
+		return 0
+	}
+	c.noteSettings(ss)
+	return c.exposedLast()
+}
+
+// noteSettings keeps the shutter speed from settings read (by the page, too).
+func (c *cameraConn) noteSettings(ss []cameraSetting) {
+	for _, st := range ss {
+		if st.Key == "shutter" {
+			d := time.Duration(0)
+			if t, err := parseShutter(st.Current); err == nil && t > 0 {
+				d = time.Duration(t * float64(time.Second))
+			}
+			c.mu.Lock()
+			c.exposed = d
+			c.mu.Unlock()
+		}
+	}
+}
+
+func (c *cameraConn) exposedLast() time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.exposed
+}
+
+// shutterHold is how long a Stop & Shoot shot keeps the rig still after its
+// shutter's been fired: the camera takes the command (~1.1 s on the A6600)
+// before the exposure's over, so a long one would blur as the rig moves on.
+// The shutter time, and a margin; a fast shutter (under 1/15 s) is over
+// before the rig, just starting to move, has gone anywhere: no margin.
+func shutterHold(exposure time.Duration) time.Duration {
+	if exposure < time.Second/15 {
+		return exposure
+	}
+	return exposure + 100*time.Millisecond
+}
+
 func (c *cameraConn) minInterval() time.Duration {
 	c.mu.Lock()
 	cam := c.cam

@@ -188,7 +188,8 @@ type capture struct {
 	note    string
 	cancel  context.CancelFunc
 	resume  chan struct{}
-	cooling time.Time // paused to cool till then (see cooldown); zero: not
+	cooling time.Time     // paused to cool till then (see cooldown); zero: not
+	hold    time.Duration // Stop & Shoot: kept still this long after each shutter (see shutterHold)
 	started time.Time
 	rows    int
 	spacing float64
@@ -279,6 +280,7 @@ func (c *capture) estimate(p Plan, shots []shot) float64 {
 	if shot <= 0 {
 		shot = math.Max(1, c.camera.minInterval().Seconds())
 	}
+	hold := shutterHold(c.camera.exposedLast()).Seconds() // (the shutter speed last read)
 	if p.Moving {
 		es, as := make([]float64, len(shots)), make([]float64, len(shots))
 		for i, s := range shots {
@@ -287,10 +289,10 @@ func (c *capture) estimate(p Plan, shots []shot) float64 {
 		total += newTrajectory(es, as, vmax, acc/2, c.shotGap().Seconds()).duration()
 		total += 2 * math.Floor(math.Abs(spiralTurns(shots))/(2*spiralRange)) // a stop and a reset a lap
 	} else {
-		total += shot // the first photo
+		total += shot + hold // the first photo
 		for i := 1; i < len(shots); i++ {
 			total += move(clamp(shots[i-1].Elevation), shots[i-1].Azimuth, clamp(shots[i].Elevation), shots[i].Azimuth) +
-				stillTime + float64(p.SettleMS)/1000 + shot
+				stillTime + float64(p.SettleMS)/1000 + shot + hold
 		}
 	}
 	// The pauses to cool (after every so many photos, not the last).
@@ -382,6 +384,18 @@ func (c *capture) begin(p Plan) error {
 		how = fmt.Sprintf("on a %d-turn spiral, Continuous", rows)
 	}
 	c.rig.logf("info", "capture started: %d photos about %.0f° apart, %s", len(shots), spacing, how)
+	if !p.Moving {
+		// Stop & Shoot keeps still while the shutter's open (see shutterHold).
+		exp := c.camera.exposure()
+		c.mu.Lock()
+		c.hold = shutterHold(exp)
+		c.mu.Unlock()
+		if exp >= time.Second/15 {
+			c.rig.logf("info", "capture: holding still %v after each shutter (the shutter's open %v)", c.hold.Round(time.Millisecond), exp.Round(time.Millisecond))
+		} else if exp == 0 {
+			c.rig.logf("info", "capture: the shutter speed isn't known (Bulb?): no holding still after each shutter")
+		}
+	}
 	c.send()
 	go c.run(ctx, p)
 	return nil
@@ -555,6 +569,16 @@ func (c *capture) loop(ctx context.Context, p Plan) error {
 		}
 		if err := c.photo(ctx, true); err != nil {
 			return err
+		}
+		c.mu.Lock()
+		hold := c.hold
+		c.mu.Unlock()
+		if hold > 0 { // the shutter still open, maybe
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(hold):
+			}
 		}
 	}
 }

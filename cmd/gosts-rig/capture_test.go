@@ -779,3 +779,63 @@ func TestTorqueAxis(t *testing.T) {
 		t.Error("an unknown axis was taken")
 	}
 }
+
+// TestShutterHold: Stop & Shoot keeps still while a slow shutter's open
+// (read from the camera at the start), and the estimate counts it; a fast
+// one adds nothing to speak of.
+func TestShutterHold(t *testing.T) {
+	if h := shutterHold(time.Second / 250); h != time.Second/250 {
+		t.Errorf("1/250: hold %v", h)
+	}
+	if h := shutterHold(2 * time.Second); h != 2100*time.Millisecond {
+		t.Errorf("2 s: hold %v", h)
+	}
+	if h := shutterHold(0); h != 0 {
+		t.Errorf("unknown: hold %v", h)
+	}
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	camera := &cameraConn{out: func(any) {}}
+	if err := camera.connect(simCameraID); err != nil {
+		t.Fatal(err)
+	}
+	camera.mu.Lock()
+	sc := camera.cam.(settingsCamera)
+	camera.mu.Unlock()
+	if err := sc.Set("shutter", "1/8"); err != nil {
+		t.Fatal(err)
+	}
+	c := &capture{rig: r, camera: camera, out: func(any) {}}
+	p := Plan{Photos: 4, SettleMS: 0}
+	shots, _, _, _ := planShots(p, cfg.get().Motion)
+	before := c.estimate(p, shots)
+	if err := c.start(p); err != nil {
+		t.Fatal(err)
+	}
+	c.mu.Lock()
+	hold := c.hold
+	c.mu.Unlock()
+	if hold != 225*time.Millisecond {
+		t.Errorf("1/8 s: holding %v, want 225ms", hold)
+	}
+	if d := c.estimate(p, shots) - before; math.Abs(d-4*0.225) > 0.01 {
+		t.Errorf("the hold adds %.3f s to the estimate, want 0.9", d)
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	for c.msg().Running {
+		if time.Now().After(deadline) {
+			t.Fatal("capture didn't finish")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if n := c.msg().Index; n != 4 {
+		t.Errorf("%d photos taken, want 4", n)
+	}
+}
