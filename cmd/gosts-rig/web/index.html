@@ -137,10 +137,12 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .rig-dial { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .rig-dial .dial-btns { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
 /* Torque Lock, as Go 0°: off the plain button, on green, mixed (one servo
-   locked, the other not) yellow; switching: a spinner before the text. */
-.torque-btn.on { background: var(--ok); border-color: var(--ok); color: #fff; }
-.torque-btn.mixed { background: var(--warn); border-color: var(--warn); color: #fff; }
-.torque-btn.on:hover:not(:disabled), .torque-btn.mixed:hover:not(:disabled) { filter: brightness(1.1); }
+   locked, the other not) yellow, both muted (a tint); switching: a spinner
+   before the text. */
+.torque-btn.on { background: color-mix(in srgb, var(--ok) 16%, var(--panel-2)); border-color: color-mix(in srgb, var(--ok) 45%, var(--border)); color: color-mix(in srgb, var(--ok) 75%, var(--text)); }
+.torque-btn.mixed { background: color-mix(in srgb, var(--warn) 16%, var(--panel-2)); border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); color: color-mix(in srgb, var(--warn) 75%, var(--text)); }
+.torque-btn.on:hover:not(:disabled) { border-color: var(--ok); }
+.torque-btn.mixed:hover:not(:disabled) { border-color: var(--warn); }
 .torque-btn { display: inline-flex; align-items: center; gap: 6px; }
 .torque-btn.pending { cursor: progress; }
 .torque-btn.pending::before { content: ""; width: 9px; height: 9px; border-radius: 50%; border: 2px solid color-mix(in srgb, currentColor 35%, transparent); border-top-color: currentColor; animation: spin .7s linear infinite; }
