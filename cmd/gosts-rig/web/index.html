@@ -136,7 +136,14 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .rig-dials { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .rig-dial { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .rig-dial .dial-btns { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
-.rig-dial .switch { font-size: 13px; color: var(--text); }
+/* Torque Lock, as Go 0°: off the plain button, on green, mixed (one servo
+   locked, the other not) yellow; switching: a spinner before the text. */
+.torque-btn.on { background: var(--ok); border-color: var(--ok); color: #fff; }
+.torque-btn.mixed { background: var(--warn); border-color: var(--warn); color: #fff; }
+.torque-btn.on:hover:not(:disabled), .torque-btn.mixed:hover:not(:disabled) { filter: brightness(1.1); }
+.torque-btn { display: inline-flex; align-items: center; gap: 6px; }
+.torque-btn.pending { cursor: progress; }
+.torque-btn.pending::before { content: ""; width: 9px; height: 9px; border-radius: 50%; border: 2px solid color-mix(in srgb, currentColor 35%, transparent); border-top-color: currentColor; animation: spin .7s linear infinite; }
 .rig-dial .k { align-self: stretch; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
 .dial { width: 100%; max-width: 190px; height: auto; aspect-ratio: 1; cursor: crosshair; user-select: none; touch-action: none; }
 .dial .face { fill: var(--panel-2); stroke: var(--border); }
@@ -515,10 +522,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="rig-dials">
           <div class="rig-dial"><div class="k">Elevation</div><svg class="dial" id="elevDial" viewBox="0 0 240 240" aria-label="Elevation dial"></svg>
             <div class="dial-btns"><button class="btn small" id="elevZero" title="Move the elevation to 0° (camera level with the object)">Go 0°</button>
-              <label class="switch" id="elevTorqueSwitch" hidden><input type="checkbox" id="elevTorque"><span class="track"></span><span>Torque Lock</span></label></div></div>
+              <button class="btn small torque-btn" id="elevTorque" aria-pressed="false" hidden>Torque Lock</button></div></div>
           <div class="rig-dial"><div class="k">Azimuth</div><svg class="dial" id="azimDial" viewBox="0 0 240 240" aria-label="Azimuth dial"></svg>
             <div class="dial-btns"><button class="btn small" id="azimZero" title="Turn the platform to 0°">Go 0°</button>
-              <label class="switch" id="azimTorqueSwitch" hidden><input type="checkbox" id="azimTorque"><span class="track"></span><span>Torque Lock</span></label></div></div>
+              <button class="btn small torque-btn" id="azimTorque" aria-pressed="false" hidden>Torque Lock</button></div></div>
         </div>
         <!-- How fast the servos move, saved as soon as a value is entered. -->
         <div class="grid2" style="margin-top:10px">
@@ -2524,22 +2531,31 @@ $("stopBtn").onclick = () => act("stop");
 // Go 0°: move one axis to 0°, leaving the other where it is.
 $("elevZero").onclick = () => { elevDial.goal(0); act("move", { elevation: 0 }); };
 $("azimZero").onclick = () => { azimDial.goal(0); act("move", { azimuth: 0 }); };
-// Torque Lock, an axis each (under its dial): the switch goes where it was
-// clicked at once, its knob a spinner till the axis' servos are so (locking
-// checks each holds, ~½ s) and a reading since says so; readings till then
-// don't move it back. ids: the axis' servos (from the roles).
+// Torque Lock, an axis each (a button under its dial): it shows the new
+// state at once, with a spinner till the axis' servos are so (locking checks
+// each holds, ~½ s) and a reading since says so; readings till then don't
+// change it back. ids: the axis' servos (from the roles).
 function torqueSwitch(axis, ids) {
-  const t = { sw: $(axis.slice(0, 4) + "TorqueSwitch"), box: $(axis.slice(0, 4) + "Torque"), want: null, done: null, ids };
-  t.box.onchange = async (e) => {
+  const t = { sw: $(axis.slice(0, 4) + "Torque"), on: false, want: null, done: null, ids };
+  // A click: unlocked or mixed locks (both), locked lets go.
+  t.sw.onclick = async () => {
+    if (t.sw.classList.contains("pending")) return; // one at a time
+    t.want = !t.on;
+    t.paint(t.want, false);
     t.sw.classList.add("pending");
     t.done = null; // the request's not back yet
-    t.want = e.target.checked;
-    await act("torque", { on: e.target.checked, axis });
+    await act("torque", { on: t.want, axis });
     t.done = performance.now();
   };
-  t.sw.addEventListener("click", (e) => { if (t.sw.classList.contains("pending")) e.preventDefault(); }); // one at a time
+  t.paint = (on, mixed) => {
+    t.on = on;
+    t.sw.classList.toggle("on", on && !mixed);
+    t.sw.classList.toggle("mixed", mixed);
+    t.sw.setAttribute("aria-pressed", mixed ? "mixed" : String(on));
+    t.sw.title = mixed ? "One servo is locked, the other isn't: click to lock both" : on ? "Locked: click to let the servos go (to move by hand)" : "Free: click to lock the servos where they are";
+  };
   // show: the readings (m.servos); mixed (a servo locked or let go in Servo
-  // Ctl): shown as neither, a click locks them (unchecked + click = on).
+  // Ctl): yellow, a click locks them.
   t.show = (servos, r) => {
     const tq = (r ? t.ids(r) : []).map((id) => servos[id]).filter((s) => s && !s.error).map((s) => s.torque);
     // Pending: ends once the request is back and the readings say so (the
@@ -2548,10 +2564,7 @@ function torqueSwitch(axis, ids) {
     if (t.sw.classList.contains("pending") && t.done &&
         ((tq.length && tq.every((on) => on === t.want)) || performance.now() - t.done > 2000)) t.sw.classList.remove("pending");
     if (t.sw.classList.contains("pending")) return;
-    const mixed = tq.some(Boolean) && !tq.every(Boolean);
-    t.box.checked = tq.length > 0 && tq.every(Boolean);
-    t.box.indeterminate = mixed;
-    t.sw.title = mixed ? "One servo is locked, the other isn't: click to lock both" : "";
+    t.paint(tq.length > 0 && tq.every(Boolean), tq.some(Boolean) && !tq.every(Boolean));
   };
   return t;
 }
