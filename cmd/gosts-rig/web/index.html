@@ -193,8 +193,14 @@ td.mono { font-family: var(--mono); }
 #logCard.collapsed { flex: none; } /* folded: just its title */
 #logCard.collapsed > .card-body { display: none; }
 #log { font: 12px var(--mono); flex: 1; height: 0; min-height: 120px; overflow-y: auto; }
-#log div { padding: 1px 0; }
-#log .error { color: var(--bad); }
+/* A line each, a rule between: the time as a badge, the message beside it
+   (wrapping under itself, not under the time). */
+#log > div { display: flex; align-items: baseline; gap: 8px; padding: 2px 0; line-height: 1.45; }
+#log > div + div { border-top: 1px solid var(--border); }
+#log .at { flex: none; font-size: 11px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2); color: var(--muted); white-space: nowrap; }
+#log .msg { min-width: 0; overflow-wrap: anywhere; }
+#log .error .msg { color: var(--bad); }
+#log .error .at { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--border)); }
 .right { display: flex; flex-direction: column; gap: 14px; min-height: 0; min-width: 0; }
 .right .view { flex: 1; }
 .view { position: relative; min-height: 0; display: flex; flex-direction: column; }
@@ -830,7 +836,10 @@ function setPill(which, ok, text, warn) {
 function log(msg, level = "info") {
   const d = document.createElement("div");
   d.className = level;
-  d.textContent = `${new Date().toLocaleTimeString()} ${msg}`;
+  const at = document.createElement("span"), m = document.createElement("span");
+  at.className = "at"; at.textContent = new Date().toLocaleTimeString();
+  m.className = "msg"; m.textContent = msg;
+  d.append(at, m);
   $("log").prepend(d);
   while ($("log").childElementCount > 200) $("log").lastChild.remove();
 }
