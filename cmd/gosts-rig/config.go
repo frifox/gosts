@@ -29,6 +29,23 @@ type Config struct {
 	Motion     Motion             `toml:"Motion"`
 	Plan       Plan               `toml:"Plan"`
 	Rig        Rig                `toml:"Rig"`
+	Cooldown   Cooldown           `toml:"Cooldown"`
+}
+
+// Cooldown pauses a capture now and then (a flash that gets hot): after
+// every Shots photos, for Minutes, then it carries on by itself.
+type Cooldown struct {
+	On      bool    `toml:"On"`
+	Shots   int     `toml:"Shots"`
+	Minutes float64 `toml:"Minutes"`
+}
+
+// every is how many photos go between pauses (0: none).
+func (cd Cooldown) every() int {
+	if !cd.On || cd.Shots < 1 || cd.Minutes <= 0 {
+		return 0
+	}
+	return cd.Shots
 }
 
 // Rig is the rig's measurements in mm, seen from above: X along the base
@@ -138,6 +155,7 @@ func defaultConfig() Config {
 		Roles:      Roles{ElevationLeader: 1, ElevationFollower: 2, Azimuth: 3, LeaderMirrored: true},
 		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80},
 		Plan:       Plan{Photos: 150, SettleMS: 800, Path: PathRings},
+		Cooldown:   Cooldown{Shots: 50, Minutes: 2},
 		Rig:        Rig{BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraX: 332, TurntableZ: 400, TurntableD: 150, ObjectZ: 100},
 	}
 }

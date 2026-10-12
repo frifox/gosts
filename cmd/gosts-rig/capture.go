@@ -188,22 +188,25 @@ type capture struct {
 	note    string
 	cancel  context.CancelFunc
 	resume  chan struct{}
+	cooling time.Time // paused to cool till then (see cooldown); zero: not
 	started time.Time
 	rows    int
 	spacing float64
 }
 
 type captureMsg struct {
-	Type    string  `json:"type"` // "capture"
-	Running bool    `json:"running"`
-	Paused  bool    `json:"paused"`
-	Index   int     `json:"index"`
-	Total   int     `json:"total"`
-	Shots   []shot  `json:"shots"`
-	Note    string  `json:"note"`
-	Elapsed float64 `json:"elapsed"` // s
-	Rows    int     `json:"rows"`
-	Spacing float64 `json:"spacing"` // degrees between neighbouring shots
+	Type    string `json:"type"` // "capture"
+	Running bool   `json:"running"`
+	Paused  bool   `json:"paused"`
+	Index   int    `json:"index"`
+	Total   int    `json:"total"`
+	Shots   []shot `json:"shots"`
+	Note    string `json:"note"`
+	// CoolUntil: paused to cool (see Cooldown) till then (ms since 1970).
+	CoolUntil int64   `json:"coolUntil,omitempty"`
+	Elapsed   float64 `json:"elapsed"` // s
+	Rows      int     `json:"rows"`
+	Spacing   float64 `json:"spacing"` // degrees between neighbouring shots
 	// Estimate is about how long (s) the plan takes, not running (see
 	// capture.estimate).
 	Estimate float64 `json:"estimate,omitempty"`
@@ -216,6 +219,9 @@ func (c *capture) msg() captureMsg {
 		Shots: append([]shot(nil), c.shots...), Note: c.note, Rows: c.rows, Spacing: c.spacing}
 	if c.running {
 		m.Elapsed = time.Since(c.started).Seconds()
+	}
+	if !c.cooling.IsZero() {
+		m.CoolUntil = c.cooling.UnixMilli()
 	}
 	c.mu.Unlock()
 	if !m.Running { // (outside the lock: it asks the rig and the camera)
@@ -286,6 +292,10 @@ func (c *capture) estimate(p Plan, shots []shot) float64 {
 			total += move(clamp(shots[i-1].Elevation), shots[i-1].Azimuth, clamp(shots[i].Elevation), shots[i].Azimuth) +
 				stillTime + float64(p.SettleMS)/1000 + shot
 		}
+	}
+	// The pauses to cool (after every so many photos, not the last).
+	if every := c.rig.cfg.get().Cooldown.every(); every > 0 {
+		total += float64((len(shots)-1)/every) * c.rig.cfg.get().Cooldown.Minutes * 60
 	}
 	return total + move(clamp(last.Elevation), last.Azimuth, 0, 0)
 }
@@ -392,7 +402,7 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	}
 	c.waitPictures()
 	c.mu.Lock()
-	c.running, c.paused, c.cancel = false, false, nil
+	c.running, c.paused, c.cancel, c.cooling = false, false, nil, time.Time{}
 	done := c.index
 	switch {
 	case errors.Is(err, context.Canceled):
@@ -579,9 +589,34 @@ func (c *capture) photo(ctx context.Context, wait bool) error {
 	c.mu.Lock()
 	c.shots[i].Done = true
 	c.index++
+	n, total := c.index, len(c.shots)
 	c.mu.Unlock()
+	if every := c.rig.cfg.get().Cooldown.every(); every > 0 && n%every == 0 && n < total {
+		c.cooldown()
+	}
 	c.send()
 	return nil
+}
+
+// cooldown pauses the capture for the Cooldown's minutes (the flash
+// cooling), then carries on by itself; Resume carries on sooner. Moving
+// shots stop where they are, the photos asked for already still taken.
+func (c *capture) cooldown() {
+	d := time.Duration(c.rig.cfg.get().Cooldown.Minutes * float64(time.Minute))
+	until := time.Now().Add(d)
+	c.mu.Lock()
+	n := c.index
+	c.paused, c.cooling = true, until
+	c.mu.Unlock()
+	c.rig.logf("info", "capture: pausing %v after %d photos, to let the flash cool", d.Round(time.Second), n)
+	time.AfterFunc(d, func() {
+		c.mu.Lock()
+		mine := c.running && c.paused && c.cooling.Equal(until) // not resumed (or stopped) meanwhile
+		c.mu.Unlock()
+		if mine {
+			c.pause(false)
+		}
+	})
 }
 
 // spiral takes moving shots: the rig goes to the first shot, then runs
@@ -766,6 +801,7 @@ func (c *capture) pause(on bool) error {
 	if c.paused && !on {
 		close(c.resume)
 		c.resume = make(chan struct{})
+		c.cooling = time.Time{} // (cooling over, or cut short)
 	}
 	c.paused = on
 	go c.send()

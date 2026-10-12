@@ -229,6 +229,10 @@ td.mono { font-family: var(--mono); }
 /* The end of an auto-focus: how it went (ok: green), or what's wrong (amber). */
 .focus-warn { padding: 8px 12px; background: rgba(240,167,66,.14); border-top: 1px solid rgba(240,167,66,.5); color: #f0a742; font-size: 12px; line-height: 1.4; }
 .focus-warn.ok { background: rgba(60,207,122,.12); border-top-color: rgba(60,207,122,.5); color: #3ccf7a; }
+.cooldown { display: flex; align-items: center; gap: 4px; margin-top: 12px; font-size: 13px; color: var(--text); white-space: nowrap; }
+.camcfg-params .cooldown label { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--text); cursor: pointer; }
+.cooldown input[type=number] { width: 46px; padding: 4px 6px; text-align: center; }
+.cooldown input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
 .focus-pick { display: inline-flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .focus-pick .seg { flex: 1; display: flex; }
 .focus-pick .seg button { flex: 1; white-space: nowrap; }
@@ -491,6 +495,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <div class="sample-btns">
             <button class="btn" id="liveBtn" title="The camera's live view, over and over: to frame the object and judge the exposure and white balance as you change them (lower resolution than a photo: use a sample shot for focus and the gray card)">Show Live Preview</button>
             <button class="btn primary" id="sampleBtn">Take Sample Shot</button>
+          </div>
+          <!-- Cooldown: a capture pauses now and then (a flash that gets hot), and carries on by itself. -->
+          <div class="cooldown" title="During a capture: after every so many photos, pause this long (the flash cooling), then carry on. Resume carries on sooner.">
+            <label><input type="checkbox" id="coolOn"> Pause for</label>
+            <input type="number" id="coolMin" min="0.5" max="120" step="0.5"> minutes after
+            <input type="number" id="coolShots" min="1" step="1"> shots
           </div>
           <div class="err" id="camConfigErr"></div>
         </div>
@@ -2086,9 +2096,28 @@ for (const id of ["mSpeed", "mAcc"]) {
   $(id).addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
 }
 
+// The Cooldown fields from the config (not while one's being typed in).
+function coolFields(cd) {
+  if (!cd) return;
+  const typing = ["coolMin", "coolShots"].includes(document.activeElement?.id);
+  $("coolOn").checked = !!cd.On;
+  if (!typing) { $("coolMin").value = cd.Minutes; $("coolShots").value = cd.Shots; }
+}
+async function saveCool() {
+  $("camConfigErr").textContent = "";
+  const cd = { On: $("coolOn").checked, Minutes: Number($("coolMin").value), Shots: Math.round(Number($("coolShots").value)) };
+  try { await send("cooldown", { cooldown: cd }); }
+  catch (e) { $("camConfigErr").textContent = e.message; coolFields(state.server?.config.Cooldown); }
+}
+$("coolOn").onchange = saveCool;
+for (const id of ["coolMin", "coolShots"]) {
+  $(id).onchange = saveCool;
+  $(id).onkeydown = (e) => { if (e.key === "Enter") $(id).blur(); };
+}
 function onState(m) {
   const first = !state.server;
   state.server = m;
+  coolFields(m.config.Cooldown);
   // A real rig's servos beside the Rig title (the rig is built on them).
   $("rigDevName").textContent = !m.connected ? "" : m.port === "sim" ? "Simulated" : "Waveshare ST3215";
   $("rigDisconnectBtn").hidden = !m.connected;
@@ -2297,7 +2326,15 @@ $("abortBtn").onclick = () => act("stop");
 // is left, by the pace since the first photo (the move to it isn't the
 // pace; a page opened mid-capture: since the first it saw); counted on
 // between messages.
+// coolNote: a capture pausing to cool (see Cooldown): how long it has left.
+function coolNote() {
+  const m = state.cap;
+  if (!m?.running || !m.coolUntil) return;
+  const s = Math.max(0, Math.round((m.coolUntil - Date.now()) / 1000));
+  $("capNote").textContent = `Cooling the flash: ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")} left (Resume carries on now).`;
+}
 function capCount() {
+  coolNote();
   const m = state.cap;
   if (!m) return;
   const done = m.shots.filter((s) => s.done).length;
@@ -2352,6 +2389,7 @@ function onCapture(m) {
   planLock();
   $("pSettle").disabled = m.running;
   $("capNote").textContent = m.running ? (m.paused ? "Paused." : m.note) : m.note; // progress: the bar (and a note, e.g. unwinding)
+  coolNote();
   draw();
 }
 

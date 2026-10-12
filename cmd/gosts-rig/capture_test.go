@@ -668,3 +668,77 @@ func TestExportForFromSwitch(t *testing.T) {
 		}
 	}
 }
+
+// Cooldown: after every so many photos the capture pauses (the flash
+// cooling), says till when, and carries on by itself; the time goes into the
+// estimate.
+func TestCaptureCooldown(t *testing.T) {
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cd := cfg.get().Cooldown; cd.On || cd.Shots != 50 || cd.Minutes != 2 {
+		t.Fatalf("default cooldown %+v", cd)
+	}
+	cfg.update(func(c *Config) { c.Cooldown = Cooldown{On: true, Shots: 2, Minutes: 0.005} }) // 0.3 s
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	camera := &cameraConn{out: func(any) {}}
+	if err := camera.connect(simCameraID); err != nil {
+		t.Fatal(err)
+	}
+	c := &capture{rig: r, camera: camera, out: func(any) {}}
+	p := Plan{Photos: 5, SettleMS: 0}
+	shots, _, _, _ := planShots(p, cfg.get().Motion)
+	with := c.estimate(p, shots)
+	cfg.update(func(c *Config) { c.Cooldown.On = false })
+	if d := with - c.estimate(p, shots); math.Abs(d-2*0.3) > 0.01 { // two pauses: after 2 and 4, not 5
+		t.Fatalf("the pauses add %.2f s to the estimate, want 0.6", d)
+	}
+	cfg.update(func(c *Config) { c.Cooldown.On = true })
+	if err := c.start(p); err != nil {
+		t.Fatal(err)
+	}
+	cooled := map[int]bool{} // the photos done when it was seen cooling
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		m := c.msg()
+		if !m.Running {
+			break
+		}
+		if m.CoolUntil > 0 {
+			if !m.Paused {
+				t.Fatal("cooling, not paused")
+			}
+			cooled[m.Index] = true
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("capture didn't finish")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if m := c.msg(); m.Index != 5 || m.CoolUntil != 0 {
+		t.Fatalf("%d of 5 done, cooling %d", m.Index, m.CoolUntil)
+	}
+	if !cooled[2] || !cooled[4] || len(cooled) != 2 {
+		t.Fatalf("cooled after %v photos, want 2 and 4", cooled)
+	}
+}
+
+// A config from before Cooldown gets its defaults (off; 50 photos, 2 minutes).
+func TestCooldownDefaultOld(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[Plan]\n  Photos = 30\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cd := cfg.get().Cooldown; cd.On || cd.Shots != 50 || cd.Minutes != 2 {
+		t.Fatalf("cooldown %+v", cd)
+	}
+}

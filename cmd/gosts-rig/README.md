@@ -78,6 +78,9 @@ of Photos and Rig View (✕, Esc or the gear again closes it; the Rig card's gea
   can't change during a capture; its focal length goes into the alignment data for the apps that take one
   (RealityScan, Nerfstudio, COLMAP).
 - By Zoom (or Focus, with no power zoom): the **estimated depth of field** (DoF) at the f-stop chosen, how deep the sharp zone is, for where the object sits on the rig.
+- **Pause for X minutes after Y shots** (below the buttons): a flash that gets hot gets a rest. During a capture,
+  after every Y photos it pauses X minutes (the note counts down), then carries on by itself; **Resume** carries on
+  sooner. The estimate includes the pauses.
 - **Gray Card** (with white balance on a color temperature): drag a box over a gray card in the sample. It
   suggests the color temperature and color shifts that make the card neutral, a button each to apply.
 - **Focus** (in Manual focus) offers two ways, then **Start**:

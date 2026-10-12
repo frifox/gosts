@@ -58,22 +58,23 @@ func (a *app) broadcast(msg any) {
 
 // request is a command from the browser; only the fields for Type are set.
 type request struct {
-	Seq       int      `json:"seq"`
-	Type      string   `json:"type"`
-	Port      string   `json:"port"`
-	Baud      int      `json:"baud"`
-	Elevation *float64 `json:"elevation"`
-	Azimuth   *float64 `json:"azimuth"`
-	On        bool     `json:"on"`
-	Roles     *Roles   `json:"roles"`
-	Motion    *Motion  `json:"motion"`
-	Plan      *Plan    `json:"plan"`
-	Rig       *Rig     `json:"rig"`
-	Camera    string   `json:"camera"`
-	N         int      `json:"n"`
-	Lines     []string `json:"lines"`
-	Key       string   `json:"key"`
-	Value     string   `json:"value"`
+	Seq       int       `json:"seq"`
+	Type      string    `json:"type"`
+	Port      string    `json:"port"`
+	Baud      int       `json:"baud"`
+	Elevation *float64  `json:"elevation"`
+	Azimuth   *float64  `json:"azimuth"`
+	On        bool      `json:"on"`
+	Roles     *Roles    `json:"roles"`
+	Motion    *Motion   `json:"motion"`
+	Plan      *Plan     `json:"plan"`
+	Rig       *Rig      `json:"rig"`
+	Cooldown  *Cooldown `json:"cooldown"`
+	Camera    string    `json:"camera"`
+	N         int       `json:"n"`
+	Lines     []string  `json:"lines"`
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
 }
 
 type resultMsg struct {
@@ -136,6 +137,20 @@ func (a *app) exec(req request) (any, error) {
 		return nil, a.rig.stop()
 	case "torque":
 		return nil, a.rig.torque(req.On)
+	case "cooldown": // pausing a capture now and then (see Cooldown): applies from the next photo
+		if req.Cooldown == nil {
+			return nil, errors.New("no cooldown")
+		}
+		cd := *req.Cooldown
+		if cd.Shots < 1 || cd.Minutes <= 0 || cd.Minutes > 120 {
+			return nil, errors.New("pause after 1 or more shots, for more than 0 and up to 120 minutes")
+		}
+		if err := a.cfg.update(func(c *Config) { c.Cooldown = cd }); err != nil {
+			return nil, err
+		}
+		a.rig.sendState()
+		a.cap.send() // the estimate
+		return nil, nil
 	case "plan": // save and show a plan without running it
 		if req.Plan == nil {
 			return nil, errors.New("no plan")
