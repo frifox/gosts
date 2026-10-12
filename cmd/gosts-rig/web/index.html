@@ -655,7 +655,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 </div>
 <div class="viewer" id="viewer" hidden>
   <div class="viewer-bar">
-    <button class="btn small" id="viewerBack" title="Back to the photos (Esc)">← Current Batch</button>
+    <button class="btn small" id="viewerBack" title="Back to the photos (Esc)">‹ Current Batch</button>
     <span class="cap" id="viewerCap"></span><span class="hint" id="viewerHint"></span>
     <span class="spacer"></span>
     <button class="btn small" id="viewerNewer" title="Newer photo (←)">‹ Newer</button>
@@ -1148,7 +1148,7 @@ $("galleryViewSeg").onclick = (e) => {
 };
 
 // One photo, as large as the window allows. ← newer, → older (as on the
-// timeline); Esc or ← All Photos goes back to All Photos if it's open,
+// timeline); Esc or ‹ (back) goes back to the gallery if it's open,
 // else closes, as does ✕.
 function openPhoto(n) {
   const p = state.photos.find((q) => q.n === n);
@@ -1188,7 +1188,7 @@ function viewerSrc(src) {
 function viewerButtons() {
   const gallery = !$("gallery").hidden, d = state.disk;
   $("viewerBack").hidden = !gallery;
-  $("viewerBack").textContent = "← " + (d ? d.name : "Current Batch");
+  $("viewerBack").textContent = "‹ " + (d ? d.name : "Current Batch");
   $("viewerNewer").hidden = $("viewerOlder").hidden = false; // (a sample's view hides them)
   $("viewerNewer").textContent = d ? "‹ Previous" : "‹ Newer";
   $("viewerOlder").textContent = d ? "Next ›" : "Older ›";
