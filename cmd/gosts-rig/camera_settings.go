@@ -284,22 +284,33 @@ func (g *gphoto2Camera) findZoom() string {
 
 // zoomSetting is the Zoom setting from the camera's config c: its choices,
 // or a range (in mm if its label says so).
-func zoomSetting(c gphoto2Config) cameraSetting {
+// It's not offered (false) when it's a range past any lens's focal lengths:
+// a camera's raw zoom report, not a zoom to set (the A6600's: Sony's 0xD214,
+// 0–4294.97, a 32-bit number over a million, which ignores writes: it has no
+// zoom by remote, Sony's Zoom Operation, 0xD2DD, at all).
+func zoomSetting(c gphoto2Config) (cameraSetting, bool) {
 	s := cameraSetting{Key: "zoom", Label: zoomLabel, Current: c.current, ReadOnly: c.readOnly}
 	if len(c.choices) > 0 {
 		s.Choices = c.choices
-		return s
+		return s, true
 	}
 	if c.top > c.bottom {
+		if c.top > zoomMaxMM {
+			return s, false
+		}
 		s.Range, s.Min, s.Max, s.Step = true, int(math.Round(c.bottom)), int(math.Round(c.top)), max(1, int(math.Round(c.step)))
 		if strings.Contains(strings.ToLower(c.label), "mm") || strings.Contains(strings.ToLower(c.label), "focal") {
 			s.Unit = "mm"
 		}
-		return s
+		return s, true
 	}
 	s.ReadOnly = true // text: shown, not set
-	return s
+	return s, true
 }
+
+// zoomMaxMM is past any lens's longest focal length (mm): a zoom range
+// reaching beyond it isn't one.
+const zoomMaxMM = 2000
 
 // Settings reads the dialog's settings from the camera: the zoom first, if
 // the lens has one (a power zoom), then settingKeys'.
@@ -334,7 +345,9 @@ func (g *gphoto2Camera) Settings() ([]cameraSetting, error) {
 	var ss []cameraSetting
 	if zoom != "" {
 		if c, err := parseGphoto2Config(outs[len(outs)-1]); err == nil {
-			ss = append(ss, zoomSetting(c))
+			if z, ok := zoomSetting(c); ok {
+				ss = append(ss, z)
+			}
 		}
 	}
 	for i, k := range settingKeys {
@@ -460,8 +473,17 @@ func (g *gphoto2Camera) setZoom(value string) error {
 		return fmt.Errorf("the camera refused zoom %s: %s", value, gphoto2Error([]byte(outs[0])))
 	}
 	// The lens takes a moment; a zoom moved by steps (wider, closer) reads
-	// back otherwise, so not having read it back isn't an error.
-	_ = g.awaitSetting(path, value, zoomWait)
+	// back otherwise, so not reading back the value asked for isn't an
+	// error. Not moving at all is: the camera ignored it.
+	if g.awaitSetting(path, value, zoomWait) != nil {
+		outs, err := g.runLines([]string{"get-config " + path})
+		if err != nil {
+			return err
+		}
+		if now, err := parseGphoto2Config(outs[0]); err == nil && now.current == c.current {
+			return fmt.Errorf("the camera didn't zoom (still at %s): it may not zoom by remote; zoom on the camera instead", c.current)
+		}
+	}
 	return nil
 }
 

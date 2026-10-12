@@ -276,12 +276,16 @@ func TestZoomSetting(t *testing.T) {
 	if p := pickZoom(lines[:2]); p != "" {
 		t.Fatalf("picked %q from none", p)
 	}
-	s := zoomSetting(gphoto2Config{label: "Focal Length (mm)", current: "35", bottom: 18, top: 105, step: 1})
-	if !s.Range || s.Min != 18 || s.Max != 105 || s.Unit != "mm" || s.Label != zoomLabel {
+	s, ok := zoomSetting(gphoto2Config{label: "Focal Length (mm)", current: "35", bottom: 18, top: 105, step: 1})
+	if !ok || !s.Range || s.Min != 18 || s.Max != 105 || s.Unit != "mm" || s.Label != zoomLabel {
 		t.Fatalf("range: %+v", s)
 	}
-	if s := zoomSetting(gphoto2Config{label: "Zoom", current: "Wide", choices: []string{"Wide", "Tele"}}); s.Range || len(s.Choices) != 2 {
+	if s, ok := zoomSetting(gphoto2Config{label: "Zoom", current: "Wide", choices: []string{"Wide", "Tele"}}); !ok || s.Range || len(s.Choices) != 2 {
 		t.Fatalf("choices: %+v", s)
+	}
+	// The A6600's: a raw report (0–4294.97, writes ignored), not offered.
+	if _, ok := zoomSetting(gphoto2Config{label: "Zoom", current: "34.4975", bottom: 0, top: 4294.97, step: 1}); ok {
+		t.Fatal("the A6600's zoom report offered as a zoom")
 	}
 
 	sim := &simCamera{}
