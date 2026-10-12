@@ -236,6 +236,9 @@ td.mono { font-family: var(--mono); }
 .cooldown.off .cool-text, .cooldown.off input[type=number] { opacity: .45; }
 .cooldown input[type=number]:disabled { cursor: default; }
 .cooldown input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+/* The histogram over the picture's top right (red, green, blue, adding up where they overlap). */
+.histo { position: absolute; top: 10px; right: 10px; width: 200px; height: 90px; z-index: 2; pointer-events: none;
+  background: rgba(12,14,18,.78); border: 1px solid #2a303c; border-radius: 8px; }
 .focus-pick { display: inline-flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .focus-pick .seg { flex: 1; display: flex; }
 .focus-pick .seg button { flex: 1; white-space: nowrap; }
@@ -510,6 +513,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <!-- White balance from a gray card in the sample: the steps and the result, over the photo's
                  bottom, so the modal keeps its height. -->
             <img id="liveImg" alt="The camera's live view" hidden>
+            <canvas class="histo" id="histo" hidden title="Histogram: how many pixels at each brightness, red, green and blue (dark on the left, bright on the right)"></canvas>
             <div class="shot-overlay"><div class="gray-hint" id="grayHint"></div><div class="gray-out" id="grayOut" hidden></div></div>
             <!-- Focus: the part picked, large, to judge the focus by; and the focus controls. -->
             <div class="focus-zoom" id="focusZoom" hidden>
@@ -1296,12 +1300,51 @@ function sampleButton() {
   $("sampleBtn").disabled = !state.camera?.connected || !!state.cap?.running || state.sampleTaking;
   $("liveBtn").disabled = !state.live && $("sampleBtn").disabled;
 }
+// histogram draws the picture's histogram (img: the sample or a live frame)
+// over its top right: 256 levels a channel, from the picture shrunk to 256
+// wide (enough to count); each channel's area added (overlaps: cyan, yellow,
+// magenta, white). Heights by square root (a plain backdrop's one tall bar
+// would flatten the rest), to the tallest bar but black's and white's (0 and
+// 255: clipping), which may run off the top.
+let histoTmp = null;
+function histogram(img) {
+  const cv = $("histo");
+  if (!img?.naturalWidth) { cv.hidden = true; return; }
+  const w = 256, h = Math.max(1, Math.round(256 * img.naturalHeight / img.naturalWidth));
+  histoTmp ||= document.createElement("canvas");
+  histoTmp.width = w; histoTmp.height = h;
+  const tx = histoTmp.getContext("2d", { willReadFrequently: true });
+  tx.drawImage(img, 0, 0, w, h);
+  const d = tx.getImageData(0, 0, w, h).data;
+  const bins = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)];
+  for (let i = 0; i < d.length; i += 4) { bins[0][d[i]]++; bins[1][d[i + 1]]++; bins[2][d[i + 2]]++; }
+  let top = 1;
+  for (const b of bins) for (let i = 1; i < 255; i++) top = Math.max(top, b[i]);
+  const dpr = window.devicePixelRatio || 1, W = Math.round(200 * dpr), H = Math.round(90 * dpr), pad = 4 * dpr;
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const ctx = cv.getContext("2d");
+  ctx.clearRect(0, 0, W, H);
+  ctx.globalCompositeOperation = "lighter";
+  const colours = ["rgba(255,70,70,.8)", "rgba(70,230,90,.8)", "rgba(80,130,255,.85)"];
+  bins.forEach((b, c) => {
+    ctx.fillStyle = colours[c];
+    ctx.beginPath();
+    ctx.moveTo(pad, H - pad);
+    for (let i = 0; i < 256; i++) ctx.lineTo(pad + (i / 255) * (W - 2 * pad), H - pad - Math.min(1, Math.sqrt(b[i] / top)) * (H - 2 * pad));
+    ctx.lineTo(W - pad, H - pad);
+    ctx.closePath();
+    ctx.fill();
+  });
+  ctx.globalCompositeOperation = "source-over";
+  cv.hidden = false;
+}
 // unfreeze: the live frame kept up (see stopLive) goes; the sample shows.
 function unfreeze() {
   state.liveFrozen = false;
   $("liveImg").hidden = true;
   $("sampleImg").hidden = !state.sampleShown;
   $("sampleNone").hidden = !!state.sampleShown;
+  histogram(state.sampleShown ? $("sampleImg") : null);
 }
 $("sampleBtn").onclick = async () => {
   stopLive(true); // the live frame stays till the sample replaces it
@@ -1325,7 +1368,7 @@ function sampleArrived(m) {
   // Shown at once; or, over a frozen live frame, once it's loaded (no flash
   // of the last sample in between).
   const show = () => { state.sampleShown = m.n; unfreeze(); };
-  $("sampleImg").onload = () => { if (state.liveFrozen) show(); $("sampleBox").classList.remove("dim"); if (state.grayRect) { showGrayRect(); measureGrayRect(); } if (state.focusRect) drawFocus(true); state.focusWaiting?.(); };
+  $("sampleImg").onload = () => { if (state.liveFrozen) show(); $("sampleBox").classList.remove("dim"); histogram($("sampleImg")); if (state.grayRect) { showGrayRect(); measureGrayRect(); } if (state.focusRect) drawFocus(true); state.focusWaiting?.(); };
   $("sampleImg").onerror = () => { if (state.liveFrozen) show(); $("sampleBox").classList.remove("dim"); };
   $("sampleImg").src = photoURL(m);
   if (!state.liveFrozen) show();
@@ -1918,6 +1961,7 @@ async function liveLoop(run) {
       if (state.live !== run) break;
       img.hidden = false;
       $("sampleImg").hidden = $("sampleNone").hidden = $("selRect").hidden = true;
+      histogram(img);
       run.frames++;
       const fps = run.frames / ((performance.now() - run.since) / 1000);
       $("sampleCaption").textContent = `Live preview · ${img.naturalWidth}×${img.naturalHeight} · ${fps.toFixed(1)} frames/s`;
