@@ -595,16 +595,13 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     </div>
     <div id="rigCfgModal" hidden>
       <div class="card-body">
-        <!-- The posts' height (mm; the rest of the rig is fixed: see Rig.fixed), and how low and high the
-             camera may go. -->
+        <!-- How low and high the camera may go (the rig's measurements are fixed: see rigBuilt). -->
         <div class="fgroups">
-          <div class="fgroup">
-            <label title="Height of the posts that carry the swing's servos">Side Posts Z<input type="number" id="dPostZ" step="10"></label></div>
           <div class="fgroup">
             <label title="How low the camera may go"><span class="label-head">Min elevation °<button class="mini" id="dElevMinHere" title="The rig's elevation now (rounded down): move the camera to its lowest first (Torque Lock off, by hand, if it's past the limit)" aria-label="Min elevation: here">◉</button></span><input type="number" id="dElevMin" step="1"></label>
             <label title="How high the camera may go"><span class="label-head">Max elevation °<button class="mini" id="dElevMaxHere" title="The rig's elevation now (rounded up): move the camera to its highest first (Torque Lock off, by hand, if it's past the limit)" aria-label="Max elevation: here">◉</button></span><input type="number" id="dElevMax" step="1"></label></div>
         </div>
-        <p class="hint" style="margin:10px 0 0">The rest is the rig as built: the base 600 × 500 mm, the swing 600 × 450 mm, a 100 mm turntable and object, the turntable as high as puts the object's middle on the tilt axis, and the camera's sensor 335 mm out with its lens in line with it.</p>
+        <p class="hint" style="margin:10px 0 0">The rig itself is fixed: the base 600 × 500 mm, 400 mm side posts, the swing 600 × 450 mm, a 100 mm turntable and object, the turntable as high as puts the object's middle on the tilt axis, and the camera's sensor 335 mm out with its lens in line with it.</p>
         <div class="err" id="rigErr"></div>
         <div class="row" style="margin-top:10px">
           <span class="spacer"></span>
@@ -2389,11 +2386,11 @@ function onState(m) {
   // Motion limits for the elevation controls.
   for (const id of ["elev"]) { $(id).min = c.Motion.ElevationMin; $(id).max = c.Motion.ElevationMax; }
   if (!state.planLoaded) { loadPlan(c.Plan); state.planLoaded = true; }
-  // Rig Setup: show the saved measurements unless they are being edited.
-  const prev = state.lastDims, form = { ...formDims(), ...formLimits() };
-  if (!prev || Object.keys(prev).every((k) => form[k] === prev[k])) fillDims(c.Rig, c.Motion);
-  state.lastDims = { ...c.Rig, ElevationMin: c.Motion.ElevationMin, ElevationMax: c.Motion.ElevationMax };
-  dimsChanged();
+  // Rig Setup: show the saved limits unless they are being edited.
+  const prev = state.lastLimits, form = formLimits();
+  if (!prev || Object.keys(prev).every((k) => form[k] === prev[k])) fillLimits(c.Motion);
+  state.lastLimits = { ElevationMin: c.Motion.ElevationMin, ElevationMax: c.Motion.ElevationMax };
+  limitsChanged();
   if (!$("setupModal").hidden) fillSetup();
   draw();
 }
@@ -2676,31 +2673,21 @@ $("sSave").onclick = async () => {
   } catch (e) { $("setupErr").textContent = e.message; }
 };
 
-// ---------------------------------------------------------------- params (measurements)
-// Only the posts' height is set; the 3D view works out the rest (rigFixed).
-const DIMS = ["PostZ"];
-const DIMS_DEFAULT = { PostZ: 400 };
-// The card also holds the elevation limits (kept with the motion settings).
+// ---------------------------------------------------------------- rig settings
+// The rig's measurements are fixed (rig3d.js' DEFAULT_RIG); its settings are
+// how low and high the camera may go (kept with the motion settings).
 const LIMITS_DEFAULT = { ElevationMin: -45, ElevationMax: 80 };
-const formDims = () => Object.fromEntries(DIMS.map((k) => [k, Number($("d" + k).value)]));
 const formLimits = () => ({ ElevationMin: Number($("dElevMin").value), ElevationMax: Number($("dElevMax").value) });
-const savedDims = () => state.server?.config.Rig || DIMS_DEFAULT;
 const savedLimits = () => state.server ? { ElevationMin: state.server.config.Motion.ElevationMin, ElevationMax: state.server.config.Motion.ElevationMax } : LIMITS_DEFAULT;
-const dimsEdited = () => DIMS.some((k) => formDims()[k] !== savedDims()[k]) ||
-  formLimits().ElevationMin !== savedLimits().ElevationMin || formLimits().ElevationMax !== savedLimits().ElevationMax;
-function fillDims(d, lim) {
-  for (const k of DIMS) $("d" + k).value = d[k];
-  if (lim) { $("dElevMin").value = lim.ElevationMin; $("dElevMax").value = lim.ElevationMax; }
-  dimsChanged();
+const limitsEdited = () => formLimits().ElevationMin !== savedLimits().ElevationMin || formLimits().ElevationMax !== savedLimits().ElevationMax;
+function fillLimits(lim) {
+  $("dElevMin").value = lim.ElevationMin; $("dElevMax").value = lim.ElevationMax;
+  limitsChanged();
 }
-// dimsChanged previews the fields in the 3D view and enables Save/Revert.
-function dimsChanged() {
-  const d = formDims(), edited = dimsEdited();
-  $("dSave").disabled = $("dRevert").disabled = !edited;
-  if (d.PostZ >= 100 && d.PostZ <= 3000) window.rig3d?.setDims(d);
-}
-for (const id of [...DIMS.map((k) => "d" + k), "dElevMin", "dElevMax"]) $(id).addEventListener("input", dimsChanged);
-$("dDefaults").onclick = () => fillDims(DIMS_DEFAULT, LIMITS_DEFAULT);
+// limitsChanged enables Save/Revert.
+function limitsChanged() { $("dSave").disabled = $("dRevert").disabled = !limitsEdited(); }
+for (const id of ["dElevMin", "dElevMax"]) $(id).addEventListener("input", limitsChanged);
+$("dDefaults").onclick = () => fillLimits(LIMITS_DEFAULT);
 // Rig Setup, in the Settings card, from the gear in the Rig card's title
 // (the same gear as the camera's). Closing keeps any edits (the 3D view
 // shows them, Save and Revert still waiting).
@@ -2762,16 +2749,15 @@ function elevationHere(id, round) {
     }
     $("rigErr").textContent = "";
     $(id).value = v;
-    dimsChanged();
+    limitsChanged();
   };
 }
 $("dElevMinHere").onclick = elevationHere("dElevMin", Math.floor);
 $("dElevMaxHere").onclick = elevationHere("dElevMax", Math.ceil);
-$("dRevert").onclick = () => { $("rigErr").textContent = ""; fillDims(savedDims(), savedLimits()); };
+$("dRevert").onclick = () => { $("rigErr").textContent = ""; fillLimits(savedLimits()); };
 $("dSave").onclick = async () => {
   $("rigErr").textContent = "";
   try {
-    await send("rig", { rig: formDims() });
     await send("motion", { motion: { ...state.server.config.Motion, ...formLimits() } });
   } catch (e) { $("rigErr").textContent = e.message; }
 };
@@ -2779,7 +2765,6 @@ $("dSave").onclick = async () => {
 // ---------------------------------------------------------------- live rig (3D: see rig3d.js)
 function draw() {
   const t = state.tele, cap = state.cap;
-  if (!dimsEdited()) window.rig3d?.setDims(savedDims()); // while editing, the fields are shown
   const live = t && t.elevation !== null && t.elevation !== undefined;
   window.rig3d?.update({ elevation: live ? t.elevation : null, azimuth: t?.azimuth ?? null, time: t?.time, shots: cap?.shots, index: cap?.index, running: cap?.running,
     smooth: !!state.server?.config.Plan.Moving });

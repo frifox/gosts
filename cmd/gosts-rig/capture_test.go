@@ -486,12 +486,12 @@ func TestSpiralFit(t *testing.T) {
 	}
 }
 
-// TestRigFixed: a config's rig is its posts' height (from before, the
-// other measurements too: left out, and not saved again); the rest is the
-// rig as built, the object's middle and the camera's lens on the tilt axis.
-func TestRigFixed(t *testing.T) {
+// TestRigBuilt: the rig is as built, a config's [Rig] from before left
+// out (and not saved again); the object's middle and the camera's lens on
+// the tilt axis.
+func TestRigBuilt(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
-	old := "[Rig]\n  BaseX = 700.0\n  PostZ = 300.0\n  SwingX = 500.0\n  CameraX = 300.0\n  CameraOffset = -50.0\n  TurntableZ = 400.0\n  ObjectZ = 80.0\n"
+	old := "[Rig]\n  BaseX = 700.0\n  PostZ = 300.0\n  CameraX = 300.0\n  TurntableZ = 380.0\n  ObjectZ = 80.0\n"
 	if err := os.WriteFile(path, []byte(old), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -500,8 +500,8 @@ func TestRigFixed(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := cfg.get().Rig
-	if r.PostZ != 300 || r.BaseX != 600 || r.SwingX != 600 || r.CameraX != 335 || r.TurntableD != 100 || r.ObjectZ != 100 || r.check() != nil {
-		t.Fatalf("rig %+v (%v)", r, r.check())
+	if r.PostZ != 400 || r.BaseX != 600 || r.SwingX != 600 || r.CameraX != 335 || r.TurntableD != 100 || r.ObjectZ != 100 {
+		t.Fatalf("rig %+v", r)
 	}
 	axis := float64(rigProfile) + r.PostZ + rigAxisAbove
 	if mid := r.TurntableZ + r.ObjectZ/2; mid != axis {
@@ -512,7 +512,7 @@ func TestRigFixed(t *testing.T) {
 	}
 	cfg.update(func(c *Config) {})
 	data, _ := os.ReadFile(path)
-	if strings.Contains(string(data), "BaseX") || !strings.Contains(string(data), "PostZ = 300") {
+	if strings.Contains(string(data), "[Rig]") {
 		t.Errorf("saved:\n%s", data)
 	}
 }

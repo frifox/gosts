@@ -13,16 +13,14 @@ const P = 20; // 2020 profile size
 // the servo horns. The camera orbits it and looks at it.
 export const pivotHeight = (d) => P + d.PostZ + 30;
 
-// rigFixed is the rig's measurements (mm) from its posts' height, as
-// gosts-rig's config has them (see Rig.fixed): seen from above, X along the
-// base sides that carry the posts, Y along the tilt axis, Z up. The base
-// 600 × 500, the swing 600 × 450, a 100 mm turntable and object; the
-// object's middle on the tilt axis, the camera's sensor 335 mm out with its
-// lens on the axis too (the body 34 mm over the bar, the lens 2 mm below its
-// middle).
-export const rigFixed = (PostZ) => ({ BaseX: 600, BaseY: 500, PostZ, SwingX: 600, SwingY: 450, CameraX: 335, CameraZ: -(P / 2 + 34 - 2),
-  TurntableZ: P + PostZ + 30 - 50, TurntableD: 100, ObjectZ: 100 });
-export const DEFAULT_RIG = rigFixed(400);
+// DEFAULT_RIG is the rig's measurements (mm), as gosts-rig's config has
+// them (see rigBuilt): seen from above, X along the base sides that carry
+// the posts, Y along the tilt axis, Z up. The base 600 × 500, 400 mm posts,
+// the swing 600 × 450, a 100 mm turntable and object; the object's middle
+// on the tilt axis, the camera's sensor 335 mm out with its lens on the
+// axis too (the body 34 mm over the bar, the lens 2 mm below its middle).
+export const DEFAULT_RIG = { BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, CameraX: 335, CameraZ: -(P / 2 + 34 - 2),
+  TurntableZ: P + 400 + 30 - 50, TurntableD: 100, ObjectZ: 100 };
 
 const rad = (d) => d * Math.PI / 180;
 
@@ -427,7 +425,7 @@ export function createRig(container) {
   // capture's trail carries on: its comet moves to the new rig, the trail
   // placed again for the new measurements (its points kept their poses).
   function setDims(d) {
-    const dims = rigFixed(d?.PostZ ?? DEFAULT_RIG.PostZ);
+    const dims = { ...DEFAULT_RIG, ...(d || {}) };
     if (rig && JSON.stringify(rig.d) === JSON.stringify(dims)) return;
     const first = !rig;
     const comets = [pv, pvFade, cv].filter(Boolean);

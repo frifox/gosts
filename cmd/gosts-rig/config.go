@@ -27,7 +27,7 @@ type Config struct {
 	Roles      Roles              `toml:"Roles"`
 	Motion     Motion             `toml:"Motion"`
 	Plan       Plan               `toml:"Plan"`
-	Rig        Rig                `toml:"Rig"`
+	Rig        Rig                `toml:"-"` // the rig as built (rigBuilt): not a setting
 	Cooldown   Cooldown           `toml:"Cooldown"`
 }
 
@@ -49,20 +49,18 @@ func (cd Cooldown) every() int {
 
 // Rig is the rig's measurements in mm, seen from above: X along the base
 // sides that carry the posts (and the swing arms), Y along the tilt axis,
-// Z up. Only the posts' height is set (and saved); the rest is the rig as
-// built (see fixed): the object's middle on the tilt axis, and the camera's
-// lens in line with it.
+// Z up. They're the rig as built (see rigBuilt), not settings.
 type Rig struct {
-	PostZ      float64 `toml:"PostZ"` // vertical posts in the middle of the X sides
-	BaseX      float64 `toml:"-"`     // base frame, outer
-	BaseY      float64 `toml:"-"`
-	SwingX     float64 `toml:"-"` // tilting frame: arm length
-	SwingY     float64 `toml:"-"` // tilting frame: bar length (camera bar)
-	CameraX    float64 `toml:"-"` // the camera's sensor (its ⦵ mark) from the turntable's centre, across, with the arm level
-	CameraZ    float64 `toml:"-"` // camera up/down from the camera bar, square to the arms; + up
-	TurntableZ float64 `toml:"-"` // turntable top height
-	TurntableD float64 `toml:"-"` // turntable diameter
-	ObjectZ    float64 `toml:"-"` // object height (the 3D view scales the model to it)
+	BaseX      float64 // base frame, outer
+	BaseY      float64
+	PostZ      float64 // vertical posts in the middle of the X sides
+	SwingX     float64 // tilting frame: arm length
+	SwingY     float64 // tilting frame: bar length (camera bar)
+	CameraX    float64 // the camera's sensor (its ⦵ mark) from the turntable's centre, across, with the arm level
+	CameraZ    float64 // camera up/down from the camera bar, square to the arms; + up
+	TurntableZ float64 // turntable top height
+	TurntableD float64 // turntable diameter
+	ObjectZ    float64 // object height (the 3D view scales the model to it)
 }
 
 // The rig as built (mm), and as the 3D view draws it: the profile, and the
@@ -75,26 +73,16 @@ const (
 	cameraLensLow = 2
 )
 
-// fixed is r with the measurements that aren't set: the base 600 × 500, the
-// swing 600 × 450, a 100 mm turntable and object; the turntable as high as
-// puts the object's middle on the tilt axis, and the camera's sensor 335 mm
-// out with its lens on the axis too (so the object stays in the middle of
-// the picture at any elevation).
-func (r Rig) fixed() Rig {
-	r.BaseX, r.BaseY, r.SwingX, r.SwingY = 600, 500, 600, 450
-	r.TurntableD, r.ObjectZ = 100, 100
+// rigBuilt is the rig: the base 600 × 500, 400 mm posts, the swing 600 ×
+// 450, a 100 mm turntable and object; the turntable as high as puts the
+// object's middle on the tilt axis, and the camera's sensor 335 mm out with
+// its lens on the axis too (so the object stays in the middle of the
+// picture at any elevation).
+func rigBuilt() Rig {
+	r := Rig{BaseX: 600, BaseY: 500, PostZ: 400, SwingX: 600, SwingY: 450, TurntableD: 100, ObjectZ: 100, CameraX: 335}
 	r.TurntableZ = rigProfile + r.PostZ + rigAxisAbove - r.ObjectZ/2
-	r.CameraX = 335
 	r.CameraZ = -(rigProfile/2 + cameraBodyUp - cameraLensLow)
 	return r
-}
-
-// check reports a posts' height the rig can't have.
-func (r Rig) check() error {
-	if r.PostZ < 100 || r.PostZ > 3000 {
-		return errors.New("side posts Z must be 100–3000 mm")
-	}
-	return nil
 }
 
 // Roles says which servo does what. Calibrate the servos in Servo Ctl (the
@@ -166,7 +154,7 @@ func defaultConfig() Config {
 		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80},
 		Plan:       Plan{Photos: 150, SettleMS: 800, Path: PathRings},
 		Cooldown:   Cooldown{Shots: 50, Minutes: 2},
-		Rig:        Rig{PostZ: 400}.fixed(),
+		Rig:        rigBuilt(),
 	}
 }
 
@@ -188,7 +176,7 @@ func loadConfig(path string) (*configFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	f.c.Rig = f.c.Rig.fixed()
+	f.c.Rig = rigBuilt() // (a [Rig] from before: left out)
 	changed := false
 	if p := f.c.Plan.path(); p != f.c.Plan.Path { // a name from before ("even", "linear", or none): saved as it's called now
 		f.c.Plan.Path = p
