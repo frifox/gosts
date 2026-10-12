@@ -761,7 +761,7 @@ func (r *rig) pollLoop(ctx context.Context) {
 		if !connected || scanning {
 			continue
 		}
-		roles := map[uint8]string{ro.ElevationLeader: "elevation (leader)", ro.ElevationFollower: "elevation", ro.Azimuth: "azimuth"}
+		roles := map[uint8]string{ro.ElevationLeader: "elevation", ro.ElevationFollower: "elevation", ro.Azimuth: "azimuth"}
 		ids := []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth}
 		msg := telemetry{Type: "telemetry", Time: time.Now().UnixMilli(), Servos: map[string]servoStatus{}}
 		_ = r.withBus(func(bus *gosts.Bus) error {

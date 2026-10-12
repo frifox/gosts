@@ -119,6 +119,8 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .err { color: var(--bad); font-size: 12px; margin-top: 6px; min-height: 0; }
 .ctl-link { color: var(--accent); text-decoration: none; }
 .ctl-link:hover { text-decoration: underline; }
+.mirror-ic { display: inline-flex; vertical-align: -2px; margin-left: 6px; color: var(--muted); cursor: help; }
+.mirror-ic svg { width: 14px; height: 14px; }
 .roles-note { border: 1px solid var(--warn); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; }
 .roles-note b { color: var(--warn); }
 .roles-note .row { display: flex; gap: 8px; margin-top: 8px; }
@@ -2452,6 +2454,9 @@ function setControls(e, a) {
   if (e !== null && e !== undefined) { $("elev").value = $("elevNum").value = (+e).toFixed(1); }
   if (a !== null && a !== undefined) { $("azim").value = $("azimNum").value = (+a).toFixed(1); }
 }
+// A mirrored servo (faces its partner, so it turns the other way): this
+// beside its role.
+const mirrorIcon = '<span class="mirror-ic" title="Mirrored: faces its partner, so it turns the other way"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-label="mirrored"><path d="M8 1.5v13" stroke-dasharray="1.6 1.6"/><path d="M6 4L1.5 12H6z" fill="currentColor"/><path d="M10 4l4.5 8H10z"/></svg></span>';
 const fmt = (d) => d === null || d === undefined ? "–" : `${d.toFixed(1)}<small>°</small>`;
 
 function onTelemetry(m) {
@@ -2468,7 +2473,8 @@ function onTelemetry(m) {
   const rows = Object.entries(m.servos).map(([id, s]) => {
     const ang = s.error ? "–" : `${(((s.pos * 360 / 4096) + 180) % 360 - 180).toFixed(1)}°`;
     const st = s.error ? `<span style="color:var(--bad)">${s.error}</span>` : s.status !== "ok" ? `<span style="color:var(--warn)">${s.status}</span>` : s.moving ? "moving" : "–";
-    return `<tr><td class="mono">#${id}</td><td>${s.role}</td><td class="mono">${ang}</td><td class="mono">${s.error ? "–" : s.load.toFixed(0) + "%"}</td><td class="mono">${s.error ? "–" : s.volt.toFixed(1)}</td><td title="${s.error || (s.status !== "ok" ? s.status : "")}">${st}</td></tr>`;
+    const mirrored = r && ((+id === r.ElevationLeader && r.LeaderMirrored) || (+id === r.ElevationFollower && r.FollowerMirrored));
+    return `<tr><td class="mono">#${id}</td><td>${s.role}${mirrored ? mirrorIcon : ""}</td><td class="mono">${ang}</td><td class="mono">${s.error ? "–" : s.load.toFixed(0) + "%"}</td><td class="mono">${s.error ? "–" : s.volt.toFixed(1)}</td><td title="${s.error || (s.status !== "ok" ? s.status : "")}">${st}</td></tr>`;
   });
   $("servoRows").innerHTML = rows.join("");
   const tq = Object.values(m.servos).filter((s) => !s.error).map((s) => s.torque);
