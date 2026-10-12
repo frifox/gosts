@@ -2413,21 +2413,22 @@ function onState(m) {
 }
 
 // ---------------------------------------------------------------- rig controls
-// A dial an axis (as Servo Ctl's): 0° at the top, + clockwise, labelled
-// −180…180. The needle is where the rig is, the dot where it's going (its
+// A dial an axis (as Servo Ctl's): + clockwise, labelled −180…180, its 0°
+// at zero (degrees clockwise from the top): both on the left, so 90° is up
+// and −90° down (as the elevation's arm goes). The needle is where the rig is, the dot where it's going (its
 // target). A click on it, or a drag (a few moves a second, then where it's
 // let go), moves the axis there; the elevation's limits shade what it can't
 // reach, and a move there stops at the nearest limit.
 const DC = 120, DR = 92;
 const dpolar = (deg, r) => { const a = (deg - 90) * Math.PI / 180; return [DC + r * Math.cos(a), DC + r * Math.sin(a)]; };
 const signed180 = (d) => { d = ((d % 360) + 360) % 360; return d > 180 ? d - 360 : d; };
-function makeDial(svg, axis) {
+function makeDial(svg, axis, zero = 0) {
   let ticks = "";
   for (let d = 0; d < 360; d += 10) {
     const major = d % 90 === 0, mid = d % 30 === 0;
     const [x1, y1] = dpolar(d, DR + 10), [x2, y2] = dpolar(d, DR + 10 - (major ? 12 : mid ? 8 : 4));
     ticks += `<line class="tick" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${major ? 2 : 1}"/>`;
-    if (mid) { const [lx, ly] = dpolar(d, DR - 14); ticks += `<text class="lbl" x="${lx}" y="${ly}">${signed180(d)}</text>`; }
+    if (mid) { const [lx, ly] = dpolar(d, DR - 14); ticks += `<text class="lbl" x="${lx}" y="${ly}">${signed180(d - zero)}</text>`; }
   }
   svg.innerHTML = `<circle class="face" cx="120" cy="120" r="108"/><path class="forbid"/><path class="forbid-rim"/>${ticks}` +
     `<circle class="goal" r="6" visibility="hidden"/><line class="needle" x1="120" y1="120" x2="120" y2="120" visibility="hidden"/><circle class="hub" cx="120" cy="120" r="7"/>` +
@@ -2438,14 +2439,14 @@ function makeDial(svg, axis) {
   dial.set = (deg, goal) => {
     const n = q(".needle"), g = q(".goal");
     n.setAttribute("visibility", deg === null || deg === undefined ? "hidden" : "visible");
-    if (deg !== null && deg !== undefined) { const [x, y] = dpolar(deg, DR - 4); n.setAttribute("x2", x); n.setAttribute("y2", y); }
+    if (deg !== null && deg !== undefined) { const [x, y] = dpolar(deg + zero, DR - 4); n.setAttribute("x2", x); n.setAttribute("y2", y); }
     q(".readout-t").textContent = deg === null || deg === undefined ? "–" : `${deg.toFixed(1)}°`;
     if (!dial.dragging) dial.goal(goal);
   };
   dial.goal = (goal) => {
     const g = q(".goal");
     g.setAttribute("visibility", goal === null || goal === undefined ? "hidden" : "visible");
-    if (goal !== null && goal !== undefined) { const [x, y] = dpolar(goal, DR + 4); g.setAttribute("cx", x); g.setAttribute("cy", y); }
+    if (goal !== null && goal !== undefined) { const [x, y] = dpolar(goal + zero, DR + 4); g.setAttribute("cx", x); g.setAttribute("cy", y); }
   };
   // setLimits shades outside [min, max] (null: none).
   dial.setLimits = (min, max) => {
@@ -2455,16 +2456,16 @@ function makeDial(svg, axis) {
     if (min === null || max - min >= 360) { f.setAttribute("d", ""); rim.setAttribute("d", ""); return; }
     // From max round clockwise to min (360 − (max − min) degrees).
     const span = 360 - (max - min), large = span > 180 ? 1 : 0;
-    const [x0, y0] = dpolar(max, 108), [x1, y1] = dpolar(min, 108);
+    const [x0, y0] = dpolar(max + zero, 108), [x1, y1] = dpolar(min + zero, 108);
     f.setAttribute("d", `M 120 120 L ${x0} ${y0} A 108 108 0 ${large} 1 ${x1} ${y1} Z`);
-    const [r0x, r0y] = dpolar(max, 105), [r1x, r1y] = dpolar(min, 105);
+    const [r0x, r0y] = dpolar(max + zero, 105), [r1x, r1y] = dpolar(min + zero, 105);
     rim.setAttribute("d", `M ${r0x} ${r0y} A 105 105 0 ${large} 1 ${r1x} ${r1y}`);
   };
   // The angle under the pointer: −180…180, within the limits.
   const at = (e) => {
     const r = svg.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width * 240 - DC, y = (e.clientY - r.top) / r.height * 240 - DC;
-    let deg = signed180(Math.atan2(y, x) * 180 / Math.PI + 90);
+    let deg = signed180(Math.atan2(y, x) * 180 / Math.PI + 90 - zero);
     if (dial.limits) {
       const [lo, hi] = dial.limits;
       if (deg < lo || deg > hi) deg = Math.abs(signed180(deg - lo)) < Math.abs(signed180(deg - hi)) ? lo : hi; // the nearer limit
@@ -2499,7 +2500,7 @@ function makeDial(svg, axis) {
   });
   return dial;
 }
-const elevDial = makeDial($("elevDial"), "elevation"), azimDial = makeDial($("azimDial"), "azimuth");
+const elevDial = makeDial($("elevDial"), "elevation", 270), azimDial = makeDial($("azimDial"), "azimuth", 270);
 $("stopBtn").onclick = () => act("stop");
 // Go 0°: move one axis to 0°, leaving the other where it is.
 $("elevZero").onclick = () => { elevDial.goal(0); act("move", { elevation: 0 }); };
