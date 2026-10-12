@@ -21,6 +21,21 @@ var turnWindow = [2]int{gosts.CenterPosition - gosts.StepsPerRev, gosts.CenterPo
 // Both use the servo's absolute position: in multi-turn mode the reported
 // position wraps every turn, but goals use the servo's turn count.
 func (c *Controller) Move(bus *gosts.Bus, req internal.Request, ids []uint8) (int, error) {
+	// With torque off a servo's goal register is stale and its turn count
+	// unknown: those first hold where they are (their counts from their
+	// readings), so the move counts from there.
+	for _, id := range ids {
+		sv := bus.Servo(id)
+		on, err := sv.TorqueEnabled()
+		if err != nil {
+			return 0, fmt.Errorf("servo %d: %w", id, err)
+		}
+		if !on {
+			if err := sv.Hold(); err != nil {
+				return 0, fmt.Errorf("servo %d: %w", id, err)
+			}
+		}
+	}
 	lead := bus.Servo(ids[0])
 	var goal int
 	var err error

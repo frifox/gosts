@@ -111,8 +111,13 @@ func (c *Controller) GroupExec(bus *gosts.Bus, req internal.Request) error {
 	case "torque":
 		if req.On {
 			c.ClearTrip(req.Group)
+			// Holding where they are (see Servo.Hold): torque on alone sends each
+			// to its goal register, which with torque off is stale (seen: both at
+			// 0, a mirrored member a turn away in its count: the two drove
+			// opposite ways, fighting).
+			return g.Hold()
 		}
-		return g.EnableTorque(req.On)
+		return g.EnableTorque(false)
 	case "move": // the leader's goal; the others in their own turn counts (see moveGroup)
 		return moveGroup(bus, gc.Members, req.Position, req.Speed, req.Acc)
 	case "step":

@@ -35,8 +35,11 @@ func New(cfg *internal.Config, n internal.Notifier) *Controller {
 func (c *Controller) Exec(bus *gosts.Bus, req internal.Request) error {
 	sv := bus.Servo(req.ID)
 	switch req.Type {
-	case "torque":
-		return sv.EnableTorque(req.On)
+	case "torque": // on: holding where it is (see Servo.Hold), never off to a stale goal
+		if req.On {
+			return sv.Hold()
+		}
+		return sv.EnableTorque(false)
 	case "move":
 		return sv.MoveTo(req.Position, req.Speed, req.Acc)
 	case "step":
