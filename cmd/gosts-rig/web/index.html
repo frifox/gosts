@@ -324,8 +324,19 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
    details only in the list. */
 .gallery-bar .views.seg { margin-left: 0; }
 .thumb .meta { display: none; }
-.gallery-grid .folder { cursor: pointer; }
-.gallery-grid .folder .info { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 10px; font-size: 13px; min-width: 0; }
+/* A folder: a yellow folder (Windows 11's look), its tab at the top left,
+   the middle photo in it as a sheet, the front flap over its lower part. */
+.gallery-grid .thumb.folder { cursor: pointer; border: 0; background: none; overflow: visible; }
+.folder .fold { position: relative; margin-top: 13px; padding: 9px 9px 0; border-radius: 3px 10px 10px 10px; background: #d99a12; transition: filter .12s; }
+.folder .fold::before { content: ""; position: absolute; left: 0; top: -12px; width: 42%; height: 13px; background: #d99a12;
+  border-radius: 7px 4px 0 0; clip-path: polygon(0 0, 82% 0, 100% 100%, 0 100%); }
+.gallery-grid .folder .fold img { border: 2px solid #fff; border-bottom: 0; border-radius: 5px 5px 0 0; box-sizing: border-box; background: var(--panel-2); }
+.folder .flap { position: absolute; left: 0; right: 0; bottom: 0; height: 30%; border-radius: 6px 6px 10px 10px;
+  background: linear-gradient(#ffd75e, #f5bd2c); box-shadow: 0 -2px 6px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.55); }
+.folder:hover .fold, .folder:focus-visible .fold { filter: brightness(1.1); }
+.gallery-grid .thumb.folder:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.folder .edit { top: 19px; }
+.gallery-grid .folder .info { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 2px; font-size: 13px; min-width: 0; }
 .gallery-grid .folder .info b { flex: 1 0 100%; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gallery-grid .folder .info .count { color: var(--muted); font: 12px var(--mono); white-space: nowrap; }
 .gallery-grid.list { grid-template-columns: 1fr; gap: 4px; }
@@ -336,8 +347,15 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .gallery-grid.list .thumb .del { top: calc(50% - 13px); }
 .gallery-grid.list .thumb.pending { aspect-ratio: auto; height: 58px; justify-content: flex-start; padding-left: 29px; }
 .gallery-grid.list .folder .info { flex: 1; flex-wrap: nowrap; padding: 0 8px 0 0; }
+.gallery-grid.list .thumb.folder { background: var(--panel-2); border: 1px solid var(--border); padding: 4px 4px 4px 8px; }
+.gallery-grid.list .thumb.folder:hover { border-color: var(--accent); }
+.gallery-grid.list .folder .fold { flex: none; width: 64px; margin-top: 6px; padding: 4px 4px 0; border-radius: 2px 5px 5px 5px; }
+.gallery-grid.list .folder .fold::before { top: -5px; height: 6px; border-radius: 3px 2px 0 0; }
+.gallery-grid.list .folder .fold img { width: 100%; border-width: 1px; border-radius: 2px 2px 0 0; }
+.gallery-grid.list .folder .flap { border-radius: 3px 3px 5px 5px; }
 .gallery-grid.list .folder .info b { flex: 0 1 auto; }
 .gallery-grid.list .folder .info .count { margin-left: auto; }
+.gallery-grid.list .folder:not(:has(.edit)) .info .count { margin-right: 30px; } /* (in line with the others, beside their ✎) */
 .thumb.pending::before { content: ""; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent);
   animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -1006,7 +1024,7 @@ function folderTile(name, count, img, current, open, rename) {
   b.tabIndex = 0;
   b.setAttribute("role", "button");
   b.title = `Open ${name}`;
-  b.innerHTML = `<img alt="" loading="lazy" decoding="async" src="${img}"><div class="info"><b>${escHTML(name)}</b>` +
+  b.innerHTML = `<div class="fold"><img alt="" loading="lazy" decoding="async" src="${img}"><span class="flap"></span></div><div class="info"><b>${escHTML(name)}</b>` +
     (current ? '<span class="badge">Current</span>' : "") + `<span class="count">${count} photo${count === 1 ? "" : "s"}</span></div>` +
     (rename ? `<button class="edit" title="Rename ${escHTML(name)}" aria-label="Rename">${pencilIcon}</button>` : "");
   b.onclick = (e) => { if (!e.target.closest(".edit")) open(); };
