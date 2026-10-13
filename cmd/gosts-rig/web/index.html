@@ -395,6 +395,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mv-edit { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; overflow-y: auto; cursor: default; background: rgba(18,21,28,.94); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px; color: var(--text); font-size: 13px; }
 #mveAxesGo [data-axis] { font-weight: 600; }
+#mveAxesGo [data-axis].on { background: color-mix(in srgb, currentColor 22%, var(--panel-2)); border-color: currentColor; z-index: 1; } /* (lit: centered on it) */
 #mveAxesGo [data-axis=x] { color: #e5484d; } #mveAxesGo [data-axis=y] { color: #46a758; } #mveAxesGo [data-axis=z] { color: #3e7bfa; }
 .mv-edit .mve-close { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 7px; font-size: 12px; }
 .mv-edit .mve-axes { padding-right: 30px; } /* (clear of ✕) */
@@ -1622,7 +1623,7 @@ $("mvReveal").onclick = () => mvOpen(true);
 // distance); save it as a new model: the OBJ (its materials and textures
 // copied), an STL too if asked, simplified if asked. The edit's in the
 // viewer (modelView) till saved; Undo steps back.
-const mve = { picks: { level: [], align: [], scale: [], center: [] }, picking: null, undo: [] };
+const mve = { picks: { level: [], align: [], scale: [], center: [] }, picking: null, undo: [], centerAxes: new Set() };
 const MVE_COLORS = { level: 0xffb020, align: 0x46a758, scale: 0x3e7bfa, center: 0xe05ad8 };
 const segPick = (id, v) => { for (const b of $(id).children) b.classList.toggle("active", b.dataset.v === v); };
 const segOf = (id) => $(id).querySelector(".active")?.dataset.v;
@@ -1663,7 +1664,10 @@ function mveShow() {
   }
   $("mveLevel").disabled = mve.picks.level.length < 3;
   $("mveAlign").disabled = mve.picks.align.length < 2;
-  for (const b of $("mveAxesGo").children) b.disabled = mve.picks.center.length !== 1;
+  for (const b of $("mveAxesGo").children) {
+    b.disabled = mve.picks.center.length !== 1;
+    b.classList.toggle("on", mve.centerAxes.has(b.dataset.axis));
+  }
   $("mveCenter").disabled = !mve.originFrom; // (Apply: once Set)
   const sp = mve.picks.scale;
   $("mveScale").disabled = sp.length !== 2 || !(Number($("mveDist").value) > 0);
@@ -1689,7 +1693,7 @@ function mvePicking(st) {
   if (st && mvm.on) mvMeasure(false); // (measuring: no longer)
   mve.picking = st;
   if (st) window.modelView.hoverColor(MVE_COLORS[st]);
-  window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 1) mve.picks.center.shift(); mveShow(); } : null;
+  window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 1) mve.picks.center.shift(); if (st === "center" && mve.originFrom) { mve.centerAt = p.clone().applyMatrix4(mve.centerOff.clone().invert()); mveCenterGo(); } mveShow(); } : null;
   mveShow();
 }
 $("mvEdit").addEventListener("click", (e) => {
@@ -1785,26 +1789,37 @@ $("mveLevel").onclick = () => mveDo((box) => window.modelEdit.level(mve.picks.le
 // on it (all three, one after another: the point at the origin; the point
 // moved with it, shown); Apply keeps it, as one step (the point done with);
 // Clear, or Undo, puts it back. originFrom: the edit before the first move.
+// The axes lit (centerAxes) say where the model is: moved from originFrom
+// so the point (centerAt: where it was then) is at 0 on each; an axis
+// unlit, back on it. centerOff: the move now.
+mve.centerAt = null;
+mve.centerOff = null;
 $("mveAxesGo").onclick = async (e) => {
   const axis = e.target.closest("[data-axis]")?.dataset.axis;
   const mv = window.modelView, p = mve.picks.center[0];
   if (!axis || !p) return;
   mv.settle();
   mveRotCommit();
-  try {
-    const m = window.modelEdit.center(p, axis);
-    if (!mve.originFrom) mve.originFrom = mv.matrix();
-    p.applyMatrix4(m);
-    mveShow();
-    await mv.apply(m, true);
-  } catch (e) { mveStatus(e.message, "bad"); }
+  if (!mve.originFrom) { mve.originFrom = mv.matrix(); mve.centerAt = p.clone(); mve.centerOff = null; }
+  mve.centerAxes.has(axis) ? mve.centerAxes.delete(axis) : mve.centerAxes.add(axis);
+  await mveCenterGo();
+};
+// mveCenterGo moves the model (and the point) as the lit axes say.
+async function mveCenterGo() {
+  const mv = window.modelView, E = window.modelEdit, at = mve.centerAt;
+  const m = mve.centerAxes.size ? E.center(at, [...mve.centerAxes].join("")) : new (mv.matrix().constructor)();
+  mve.centerOff = m;
+  mve.picks.center = [at.clone().applyMatrix4(m)];
+  mveShow();
+  await mv.setMatrix(m.clone().multiply(mve.originFrom), true);
   mveTrimReset();
   mveShow();
-};
+}
 function mveOriginCommit() {
   if (!mve.originFrom) return false;
-  mve.undo.push(mve.originFrom);
+  if (mve.centerAxes.size) mve.undo.push(mve.originFrom); // (all unlit: no move)
   mve.originFrom = null;
+  mve.centerAxes.clear();
   mve.picks.center = [];
   return true;
 }
@@ -1812,6 +1827,7 @@ $("mveCenter").onclick = () => { mveOriginCommit(); mveShow(); };
 async function mveOriginCancel() {
   const from = mve.originFrom;
   mve.originFrom = null;
+  mve.centerAxes.clear();
   mve.picks.center = [];
   mveShow();
   if (from) { await window.modelView.setMatrix(from, true); mveTrimReset(); mveShow(); }
@@ -1952,6 +1968,7 @@ function mveFresh(m) {
   mve.picks = { level: [], align: [], scale: [], center: [] };
   mve.undo = [];
   mve.originFrom = null;
+  mve.centerAxes.clear();
   mve.rotFrom = null;
   mve.rot = { x: 0, y: 0, z: 0 };
   rotShow();
