@@ -1638,7 +1638,7 @@ const MVE_COLORS = { level: 0xffb020, align: 0x46a758, scale: 0x3e7bfa, center: 
 const segPick = (id, v) => { for (const b of $(id).children) b.classList.toggle("active", b.dataset.v === v); };
 const segOf = (id) => $(id).querySelector(".active")?.dataset.v;
 for (const id of ["mveAxis", "mveUnit", "mveFileUnit"]) $(id).onclick = (e) => { if (e.target.dataset?.v) { segPick(id, e.target.dataset.v); mveShow(); mveTrimShow(); } };
-segPick("mveAxis", "x"); segPick("mveUnit", "mm"); segPick("mveFileUnit", "mm");
+segPick("mveUnit", "mm"); segPick("mveFileUnit", "mm"); // (Align's axis: none till one's picked)
 try { const u = localStorage.getItem("modelEditUnits"); if (u) { const [a, b] = JSON.parse(u); segPick("mveUnit", a); segPick("mveFileUnit", b); } } catch {}
 $("mveTris").value = 50000;
 // Simplify to more triangles than the model has: said (it'd stay as it is).
@@ -1685,7 +1685,7 @@ function mveShow() {
     sec.querySelector("[data-pick]").textContent = mve.picking === st ? "Picking…" : st === "center" ? "Pick Point" : "Pick Points";
   }
   $("mveLevel").disabled = mve.picks.level.length < 3;
-  $("mveAlign").disabled = mve.picks.align.length < 2;
+  $("mveAlign").disabled = mve.picks.align.length < 2 || !segOf("mveAxis");
   for (const b of $("mveAxesGo").children) {
     b.disabled = mve.picks.center.length !== 1;
     b.classList.toggle("on", mve.centerAxes.has(b.dataset.axis));
@@ -2029,6 +2029,7 @@ function mveFresh(m) {
   mve.rotFrom = null;
   mve.rot = { x: 0, y: 0, z: 0 };
   rotShow();
+  segPick("mveAxis", null); // (Align's axis: to be picked)
   const base = m.name.replace(/-aligned(-\d+)?$/, "");
   mveTyped = "";
   mveReplace(false);
