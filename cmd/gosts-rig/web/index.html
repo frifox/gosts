@@ -1029,6 +1029,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <b class="y">Y</b><button class="btn small" data-rot="y" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="y"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="y" aria-label="Turn about Y"></span><button class="btn small" data-rot="y" data-deg="90">+90°</button><span class="mve-deg" data-deg-of="y">0°</span>
           <b class="z">Z</b><button class="btn small" data-rot="z" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="z"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="z" aria-label="Turn about Z"></span><button class="btn small" data-rot="z" data-deg="90">+90°</button><span class="mve-deg" data-deg-of="z">0°</span>
         </div>
+        <div class="mve-row"><span class="spacer"></span><button class="btn small primary" id="mveRot" disabled title="Keep it turned as it is">Apply</button></div>
       </section>
       <section data-trim>
         <div class="mve-head"><b>5 · Trim</b></div>
@@ -1654,6 +1655,7 @@ function mvePending() {
   if (mve.picks.align.length) p.push("Align");
   if (mve.picks.scale.length) p.push("Scale");
   if (mve.picks.center.length || mve.originFrom) p.push("Origin");
+  if (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z)) p.push("Rotate");
   if (!$("mveTrim").disabled) p.push("Trim");
   return p;
 }
@@ -1685,6 +1687,7 @@ function mveShow() {
     b.classList.toggle("on", mve.centerAxes.has(b.dataset.axis));
   }
   $("mveCenter").disabled = !mve.originFrom; // (Apply: once Set)
+  $("mveRot").disabled = !(mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z));
   const sp = mve.picks.scale;
   $("mveScale").disabled = sp.length !== 2 || !(Number($("mveDist").value) > 0);
   $("mveDist").placeholder = sp.length === 2 ? `now ${(sp[0].distanceTo(sp[1]) * k).toFixed(u === "mm" ? 1 : 3)}` : "distance";
@@ -1946,6 +1949,7 @@ $("mvEdit").querySelector(".mve-rot").addEventListener("change", (e) => {
   mveTrimReset();
   mveShow();
 });
+$("mveRot").onclick = () => { mveRotCommit(); mveShow(); };
 // Undo: a step back (an edit's matrix before, or a trim's putting back).
 async function mveBack() {
   if (mve.rotFrom) return mveRotCancel(); // (a turn set, not kept yet: that's the step back)
