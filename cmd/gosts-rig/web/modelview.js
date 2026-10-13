@@ -93,9 +93,9 @@ function disposeModel(obj) {
 //   side:  Y right, Z up, X coming towards it (from +X);
 //   top:   Y right, X down, Z towards it (from above, X at the bottom);
 //   3d:    Z up, X right and away, Y left and away: from the front (−Y),
-//          turned 27.5° towards −X, 25° above.
+//          turned 30° towards −X, 15° above.
 export const VIEWS = {
-  "3d": new THREE.Vector3(-Math.sin(27.5 * Math.PI / 180) * Math.cos(25 * Math.PI / 180), Math.sin(25 * Math.PI / 180), Math.cos(27.5 * Math.PI / 180) * Math.cos(25 * Math.PI / 180)),
+  "3d": new THREE.Vector3(-Math.sin(30 * Math.PI / 180) * Math.cos(15 * Math.PI / 180), Math.sin(15 * Math.PI / 180), Math.cos(30 * Math.PI / 180) * Math.cos(15 * Math.PI / 180)),
   front: new THREE.Vector3(0, 0, 1),
   side: new THREE.Vector3(1, 0, 0),
   top: new THREE.Vector3(0.001, 1, 0).normalize(), // (the slight +x: the screen's up is −x, X pointing down)
@@ -178,7 +178,7 @@ export function createModelView(canvas) {
   controls.screenSpacePanning = true;
   controls.zoomToCursor = true;
   // holder: the edit (its matrix); in it the model as loaded (in meters).
-  let onAngle = null, viewName = "3d", holder = null, obj = null, grid = null, axes = null, mode = "textured", running = false, seq = 0, editOn = false, onPick = null, radius = 1;
+  let viewName = "3d", holder = null, obj = null, grid = null, axes = null, mode = "textured", running = false, seq = 0, editOn = false, onPick = null, radius = 1;
   const originals = new Map(); // mesh → its own material(s)
   const marks = new THREE.Group();
   marks.renderOrder = 10;
@@ -219,12 +219,7 @@ export function createModelView(canvas) {
     glideTick(dt);
     tweenTick(dt);
     shiftTick(dt);
-    if (onAngle) {
-      // From the target, in Blender's axes (X, Y, Z: x, −z, y): degrees from
-      // Front (−Y) towards −X, and above the ground.
-      const v = camera.position.clone().sub(controls.target), X = v.x, Y = -v.z, Z = v.y;
-      onAngle(Math.atan2(-X, -Y) * 180 / Math.PI, Math.atan2(Z, Math.hypot(X, Y)) * 180 / Math.PI);
-    }
+
 
     last = now;
     controls.update();
@@ -551,7 +546,6 @@ export function createModelView(canvas) {
     settle: () => tweenEnd(), // (a move going on: there at once)
     setInset,
     set onPick(f) { onPick = f; canvas.style.cursor = f ? "crosshair" : ""; },
-    set onAngle(f) { onAngle = f; }, // (TEMPORARY: the camera's angle readout)
   };
 }
 
