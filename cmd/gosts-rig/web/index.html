@@ -1680,15 +1680,21 @@ function sampleArrived(m) {
   $("sampleBox").classList.remove("taking");
   // A gray card measured on the last sample: measure it again on this one,
   // the same place (once it's loaded).
-  // Shown at once; or, over a frozen live frame, once it's loaded (no flash
-  // of the last sample in between).
+  // The picture before (the last sample, or a frozen live frame) stays till
+  // this one's loaded and decoded, then they swap: no blank in between.
   const show = () => { state.sampleShown = m.n; unfreeze(); };
-  $("sampleImg").onload = () => { if (state.liveFrozen) show(); $("sampleBox").classList.remove("dim"); histogram($("sampleImg")); if (state.grayRect) { showGrayRect(); measureGrayRect(); } if (state.focusRect) drawFocus(true); state.focusWaiting?.(); };
-  $("sampleImg").onerror = () => { if (state.liveFrozen) show(); $("sampleBox").classList.remove("dim"); };
-  $("sampleImg").src = photoURL(m);
-  if (!state.liveFrozen) show();
-  state.sampleCaption = m.caption || ""; // its settings (no time)
-  $("sampleCaption").textContent = state.sampleCaption;
+  const url = photoURL(m), pre = new Image();
+  state.sampleWant = url;
+  pre.src = url;
+  const swap = () => {
+    if (state.sampleWant !== url) return; // a newer one's on its way
+    $("sampleImg").onload = () => { show(); $("sampleBox").classList.remove("dim"); histogram($("sampleImg")); if (state.grayRect) { showGrayRect(); measureGrayRect(); } if (state.focusRect) drawFocus(true); state.focusWaiting?.(); };
+    $("sampleImg").onerror = () => { show(); $("sampleBox").classList.remove("dim"); };
+    $("sampleImg").src = url;
+    state.sampleCaption = m.caption || ""; // its settings (no time)
+    $("sampleCaption").textContent = state.sampleCaption;
+  };
+  pre.decode().then(swap, swap);
 }
 function sampleFailed(n) {
   $("sampleBox").classList.remove("dim");
