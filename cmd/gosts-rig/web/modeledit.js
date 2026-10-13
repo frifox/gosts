@@ -100,6 +100,16 @@ export function rotate(axis, deg) {
   return axis === "x" ? new THREE.Matrix4().makeRotationX(a) : axis === "y" ? new THREE.Matrix4().makeRotationZ(-a) : new THREE.Matrix4().makeRotationY(a);
 }
 
+// center: the edit that slides the model on plane ("xy", "xz", "yz":
+// Blender's and Fusion's axes; their X, Y, Z: x, −z, y here) so point p is
+// over the origin in it; the plane's other axis not moved (XY: the height
+// kept).
+export function center(p, plane) {
+  if (!p) throw new Error("pick a point");
+  const ax = new Set(plane); // (x, y, z: Blender's)
+  return new THREE.Matrix4().makeTranslation(ax.has("x") ? -p.x : 0, ax.has("z") ? -p.y : 0, ax.has("y") ? -p.z : 0);
+}
+
 // scale: the edit that makes the distance between a and b meters (about
 // the origin: on the ground, centered, it stays so).
 export function scale(a, b, meters) {
