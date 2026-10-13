@@ -194,7 +194,9 @@ export function createModelView(canvas) {
   let last = 0;
   function loop(now = performance.now()) {
     if (!running) return;
-    glideTick(Math.min(0.1, (now - (last || now)) / 1000));
+    const dt = Math.min(0.1, (now - (last || now)) / 1000);
+    glideTick(dt);
+    tweenTick(dt);
     last = now;
     controls.update();
     renderer.render(scene, camera);
@@ -204,6 +206,7 @@ export function createModelView(canvas) {
   function clear() {
     running = false;
     glideTo = null;
+    tweenEnd();
     seq++;
     if (holder) { scene.remove(holder); disposeModel(holder); holder = obj = null; }
     drop(grid); drop(axes); grid = axes = null;
@@ -355,24 +358,47 @@ export function createModelView(canvas) {
     }
     dot.dispose();
   }
-  // The edit: get it, set it, or apply m after it (the view kept).
-  const matrix = () => (holder ? holder.matrix.clone() : new THREE.Matrix4());
-  function setMatrix(m) {
-    if (!holder) return;
+  // The edit: get it, set it, or apply m after it (the view kept). With
+  // tween, the model moves there over about a third of a second (its place,
+  // turn and size eased); the promise when it's there.
+  const matrix = () => (holder ? (tween ? tween.m.clone() : holder.matrix.clone()) : new THREE.Matrix4());
+  function place(m) {
     holder.matrix.copy(m);
     holder.matrixWorldNeedsUpdate = true;
     holder.updateMatrixWorld(true);
-    ground();
   }
-  const apply = (m) => setMatrix(m.clone().multiply(matrix()));
+  function setMatrix(m, animate = false) {
+    if (!holder) return Promise.resolve();
+    tweenEnd();
+    if (!animate) { place(m); ground(); return Promise.resolve(); }
+    const parts = (x) => { const p = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(); x.decompose(p, q, sc); return { p, q, sc }; };
+    return new Promise((done) => { tween = { from: parts(holder.matrix), to: parts(m), m: m.clone(), age: 0, done }; });
+  }
+  const apply = (m, animate = false) => setMatrix(m.clone().multiply(matrix()), animate);
+  let tween = null;
+  function tweenTick(dt) {
+    if (!tween) return;
+    tween.age += dt;
+    let f = Math.min(1, tween.age / 0.35);
+    f = f * f * (3 - 2 * f);
+    const { from: a, to: b } = tween;
+    place(new THREE.Matrix4().compose(a.p.clone().lerp(b.p, f), a.q.clone().slerp(b.q, f), a.sc.clone().lerp(b.sc, f)));
+    if (f >= 1) tweenEnd();
+  }
+  // tweenEnd: a move going on, there at once.
+  function tweenEnd() {
+    if (!tween) return;
+    const t = tween;
+    tween = null;
+    if (holder) { place(t.m); ground(); }
+    t.done();
+  }
   // boxWith: the model's box were m applied (it isn't).
   function boxWith(m) {
     const was = holder.matrix.clone();
-    holder.matrix.premultiply(m);
-    holder.updateMatrixWorld(true);
+    place(m.clone().multiply(matrix())); // (from where it's going, if moving)
     const b = box();
-    holder.matrix.copy(was);
-    holder.updateMatrixWorld(true);
+    place(was);
     return b;
   }
   const center = () => box().getCenter(new THREE.Vector3());
@@ -483,6 +509,7 @@ export function createModelView(canvas) {
   return {
     show, look, reset, view, clear, stats, box,
     editing, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, parts,
+    settle: () => tweenEnd(), // (a move going on: there at once)
     set onPick(f) { onPick = f; },
   };
 }

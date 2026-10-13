@@ -1545,16 +1545,18 @@ $("mvEdit").addEventListener("click", (e) => {
   if (cl) { mve.picks[cl] = []; mveShow(); }
 });
 // mveDo applies an edit (made by f), steps back-able; the picks done with.
-function mveDo(f) {
+// The model moves there (the view stays as it is).
+async function mveDo(f) {
   const mv = window.modelView;
+  mv.settle();
   try {
     const before = mv.matrix();
     const m = f(mv.boxWith); // (box(m): the model's box after m)
-    mv.apply(m);
-    mv.view(); // (moved, turned, scaled: all of it in view again, from where it was seen)
     mve.undo.push(before);
     mve.picks = { level: [], align: [], scale: [] };
     mveStatus("");
+    mvePicking(null);
+    await mv.apply(m, true);
   } catch (e) { mveStatus(e.message, "bad"); }
   mveTrimReset();
   mvePicking(null);
@@ -1599,11 +1601,11 @@ function mveThreeBox(t) {
 $("mvEdit").querySelector(".mve-trim").addEventListener("input", mveTrimShow);
 $("mveTrimReset").onclick = mveTrimReset;
 $("mveTrim").onclick = () => {
+  window.modelView.settle();
   try {
     const undo = window.modelView.trim(mveThreeBox(mveTrimBox()));
     mve.undo.push(undo);
     mveStatus("");
-    window.modelView.view();
   } catch (e) { mveStatus(e.message, "bad"); }
   mveTrimReset();
   mveShow();
@@ -1616,13 +1618,21 @@ $("mvEdit").querySelector(".mve-rot").onclick = (e) => {
   if (b) mveDo(() => window.modelEdit.rotate(b.dataset.rot, Number(b.dataset.deg)));
 };
 // Undo: a step back (an edit's matrix before, or a trim's putting back).
-function mveBack() {
+async function mveBack() {
   const u = mve.undo.pop();
   if (typeof u === "function") u();
-  else if (u) window.modelView.setMatrix(u);
+  else if (u) await window.modelView.setMatrix(u, true);
 }
-$("mveUndo").onclick = () => { mveBack(); window.modelView.view(); mveTrimReset(); mveShow(); };
-$("mveResetEdit").onclick = () => { while (mve.undo.length) mveBack(); window.modelView.view(); mveTrimReset(); mveShow(); };
+$("mveUndo").onclick = async () => { await mveBack(); mveTrimReset(); mveShow(); };
+// Reset Edits: the trims put back, the model moved back to where it came.
+$("mveResetEdit").onclick = async () => {
+  let first = null;
+  while (mve.undo.length) { const u = mve.undo.pop(); if (typeof u === "function") u(); else first = u; }
+  mveShow();
+  if (first) await window.modelView.setMatrix(first, true);
+  mveTrimReset();
+  mveShow();
+};
 // The view presets (top left), in Blender's and Fusion's axes (see VIEWS in modelview.js).
 function mvView(v) { segPick("mvViews", v); window.modelView.view(v, true); } // (gliding there)
 $("mvViews").onclick = (e) => { if (e.target.dataset?.v) mvView(e.target.dataset.v); };
