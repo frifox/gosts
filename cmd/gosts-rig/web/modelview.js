@@ -197,6 +197,27 @@ export function createModelView(canvas) {
   const marks = new THREE.Group();
   marks.renderOrder = 10;
   scene.add(marks);
+  // ball: a marker, a unit ball (scaled to the model): lit, where it's seen;
+  // a faint flat copy over it where the model's in front (so never lost).
+  const BALL = new THREE.SphereGeometry(1, 28, 20);
+  function ball(color, opacity = 1) {
+    const g = new THREE.Group();
+    const lit = new THREE.Mesh(BALL, new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0, emissive: color, emissiveIntensity: 0.25,
+      transparent: opacity < 1, opacity }));
+    const ghost = new THREE.Mesh(BALL, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 * opacity, depthTest: false, depthWrite: false }));
+    ghost.renderOrder = 9;
+    lit.renderOrder = 10;
+    g.add(ghost, lit);
+    return g;
+  }
+  // The hover ball: where a click would put a marker (see pickAt).
+  let hover = ball(0xffffff, 0.55);
+  hover.visible = false;
+  scene.add(hover);
+  function hoverColor(color) {
+    for (const m of hover.children) m.material.color.set(color);
+    hover.children[1].material.emissive.set(color);
+  }
 
   // inset: the stage's right side covered (the Edit panel), px; the
   // picture shifted left by half of it (eased there), so the model's in
@@ -370,31 +391,52 @@ export function createModelView(canvas) {
   // steps, Measure): the triangle's corner nearest it, to onPick.
   const ray = new THREE.Raycaster();
   let down = null;
-  canvas.addEventListener("pointerdown", (e) => { down = e.button === 0 ? [e.clientX, e.clientY] : null; });
-  canvas.addEventListener("pointerup", (e) => {
-    if (!down || !onPick || !obj || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
+  // pickAt: the corner (of the triangle under the pointer at x, y) nearest
+  // it, or null (not over the model).
+  function pickAt(x, y) {
+    if (!obj) return null;
     const b = canvas.getBoundingClientRect();
-    ray.setFromCamera(new THREE.Vector2((e.clientX - b.left) / b.width * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1), camera);
+    ray.setFromCamera(new THREE.Vector2((x - b.left) / b.width * 2 - 1, -((y - b.top) / b.height) * 2 + 1), camera);
     const hit = ray.intersectObject(obj, true)[0];
-    if (!hit?.face) return;
+    if (!hit?.face) return null;
     const pos = hit.object.geometry.getAttribute("position");
     let best = null;
     for (const i of [hit.face.a, hit.face.b, hit.face.c]) {
       const v = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(hit.object.matrixWorld);
       if (!best || v.distanceTo(hit.point) < best.distanceTo(hit.point)) best = v;
     }
-    onPick(best);
+    return best;
+  }
+  canvas.addEventListener("pointerdown", (e) => { down = e.button === 0 ? [e.clientX, e.clientY] : null; });
+  canvas.addEventListener("pointerup", (e) => {
+    if (!down || !onPick || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
+    const p = pickAt(e.clientX, e.clientY);
+    if (p) onPick(p);
   });
+  // While picking: a ball where a click would put one (the corner it'd
+  // snap to), following the pointer; not while a button's held (turning).
+  let hoverAt = null;
+  canvas.addEventListener("pointermove", (e) => {
+    if (!onPick || e.buttons) { if (hover.visible) hover.visible = false; return; }
+    if (!hoverAt) requestAnimationFrame(() => {
+      const p = onPick && hoverAt ? pickAt(hoverAt[0], hoverAt[1]) : null;
+      hoverAt = null;
+      hover.visible = !!p;
+      if (p) { hover.position.copy(p); hover.scale.setScalar(radius * 0.016); }
+    });
+    hoverAt = [e.clientX, e.clientY];
+  });
+  canvas.addEventListener("pointerleave", () => { hover.visible = false; });
   // markers shows sets of picked points: [{ points, color, line }], each
-  // point a dot (seen through the model), line: joined up.
+  // point a shaded ball (behind the model, still seen: faintly), line:
+  // joined up.
   function markers(sets) {
-    for (const c of [...marks.children]) { marks.remove(c); c.geometry.dispose(); c.material.dispose(); }
-    const dot = new THREE.SphereGeometry(radius * 0.012, 16, 12);
+    for (const c of [...marks.children]) { marks.remove(c); c.traverse((o) => { if (o.geometry !== BALL) o.geometry?.dispose(); o.material?.dispose(); }); }
     for (const s of sets) {
       for (const p of s.points) {
-        const m = new THREE.Mesh(dot.clone(), new THREE.MeshBasicMaterial({ color: s.color, depthTest: false, transparent: true }));
+        const m = ball(s.color);
         m.position.copy(p);
-        m.renderOrder = 10;
+        m.scale.setScalar(radius * 0.016);
         marks.add(m);
       }
       if (s.line && s.points.length > 1) {
@@ -404,7 +446,6 @@ export function createModelView(canvas) {
         marks.add(l);
       }
     }
-    dot.dispose();
   }
   // The edit: get it, set it, or apply m after it (the view kept). With
   // tween, the model moves there over about a third of a second (its place,
@@ -559,7 +600,8 @@ export function createModelView(canvas) {
     editing, shown, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, parts,
     settle: () => tweenEnd(), // (a move going on: there at once)
     setInset,
-    set onPick(f) { onPick = f; canvas.style.cursor = f ? "crosshair" : ""; },
+    set onPick(f) { onPick = f; canvas.style.cursor = f ? "crosshair" : ""; if (!f) hover.visible = false; },
+    hoverColor, // (the hover ball's color: the step picking's)
   };
 }
 

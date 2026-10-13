@@ -1545,11 +1545,13 @@ mvLook(state.mvLook); // (the viewer itself: as it opens, a module's)
 // the File units; its X, Y, Z parts too); a third starts again; Measure
 // again clears it.
 const mvm = { on: false, pts: [] };
+const MV_MEASURE = 0x22d3ee; // (cyan: seen on white parts and dark alike)
 function mvMeasure(on) {
   mvm.on = on;
   mvm.pts = [];
   $("mvMeasureBtn").classList.toggle("primary", on);
   if (on) mvePicking(null); // (an Edit step picking: no longer)
+  if (on) window.modelView.hoverColor(MV_MEASURE);
   window.modelView.onPick = on ? (p) => { if (mvm.pts.length >= 2) mvm.pts = []; mvm.pts.push(p); mvMeasureShow(); } : null;
   mvMeasureShow();
 }
@@ -1638,12 +1640,13 @@ $("mveDist").oninput = mveShow;
 // mvMarks: the points picked (Edit's steps, the measure) on the model.
 function mvMarks() {
   const sets = Object.entries(mve.picks).map(([k, pts]) => ({ points: pts, color: MVE_COLORS[k], line: k === "level" ? "loop" : true }));
-  if (mvm.on) sets.push({ points: mvm.pts, color: 0xffffff, line: true });
+  if (mvm.on) sets.push({ points: mvm.pts, color: MV_MEASURE, line: true });
   window.modelView.markers(sets);
 }
 function mvePicking(st) {
   if (st && mvm.on) mvMeasure(false); // (measuring: no longer)
   mve.picking = st;
+  if (st) window.modelView.hoverColor(MVE_COLORS[st]);
   window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 1) mve.picks.center.shift(); mveShow(); } : null;
   mveShow();
 }
