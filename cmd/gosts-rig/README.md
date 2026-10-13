@@ -70,13 +70,14 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 
 Photos appear in the **Photos** card as they arrive. Click one to see it full size (drag to move it, the wheel or the
 navigator at the bottom right to zoom, up to 200% of its own pixels), **View All** for a grid. They're
-saved in `~/Pictures/gosts-rig/`, a folder per capture named after its start time (its name beside **New Capture**),
+saved in `~/Pictures/gosts-rig/`, a folder per capture named after its start time (its name beside **New Capture**;
+the pencil after it renames it, as the pencil by a folder's name in **Browse** does),
 sample shots in its `samples` folder, so they go with it. Each start of the app is a new capture (its folder made with
 its first photo or sample). **New Capture** starts a new one at any time: a new folder, made then (empty, ready), and
 the timeline cleared (the photos taken stay saved; **Browse** has them; it asks first if there are any).
 **Browse** opens the captures saved there (sample shots left out), newest first, each with its middle photo,
 name and count, as thumbnails or a list: open one to see its photos (← → to step through them large); the pencil on a
-capture (on hover) renames its folder, the bin deletes it (asks first). Deleting a photo (the bin on it, on the
+capture (on hover) renames its folder, the bin beside it deletes it (asks first). Deleting a photo (the bin on it, on the
 timeline or in a folder) or a capture moves its files to the Trash (a photo's RAW too), from where the Finder can
 still bring them back.
 

@@ -250,15 +250,24 @@ func (a *app) renameBatch(from, to string) error {
 		return nil
 	}
 	src, dst := filepath.Join(photoDir, from), filepath.Join(photoDir, to)
-	if _, err := os.Stat(src); err != nil {
-		return errors.New("no such capture")
-	}
 	if _, err := os.Stat(dst); err == nil {
 		return fmt.Errorf("there's a folder named %q already", to)
 	}
 	batch.Lock()
-	defer batch.Unlock()
 	current := batch.dir == src
+	if _, err := os.Stat(src); err != nil {
+		if !current {
+			batch.Unlock()
+			return errors.New("no such capture")
+		}
+		// The current capture with nothing saved yet (its folder made with
+		// its first photo): only its name changes.
+		batch.dir = dst
+		batch.Unlock()
+		a.broadcast(batchMsg{Type: "batch", Name: to})
+		return nil
+	}
+	defer batch.Unlock()
 	if current && a.cap != nil {
 		a.cap.mu.Lock()
 		running := a.cap.running
@@ -277,7 +286,7 @@ func (a *app) renameBatch(from, to string) error {
 	}
 	if current {
 		batch.dir = dst
-		defer a.broadcast(batchMsg{Type: "batch", Name: to}) // (after the lock)
+		defer a.broadcast(batchMsg{Type: "batch", Name: to})
 	}
 	log.Printf("photos: renamed %s to %s", from, to)
 	return nil

@@ -123,3 +123,29 @@ func TestDeleteToTrash(t *testing.T) {
 		t.Error("deleted outside the photos")
 	}
 }
+
+// Renaming the current capture before its folder's made (nothing saved
+// yet): its name changes, the folder comes with the first photo.
+func TestRenameBatchNotMade(t *testing.T) {
+	old := photoDir
+	photoDir = t.TempDir()
+	defer func() { photoDir = old; newBatch() }()
+	startBatch(false)
+	from := currentBatch()
+	a := &app{}
+	if err := a.renameBatch(from, "Benchy"); err != nil {
+		t.Fatal(err)
+	}
+	if currentBatch() != "Benchy" {
+		t.Fatalf("current %q, want Benchy", currentBatch())
+	}
+	if _, err := os.Stat(filepath.Join(photoDir, "Benchy")); !os.IsNotExist(err) {
+		t.Error("the folder's made before anything's saved")
+	}
+	if batchFolder() != filepath.Join(photoDir, "Benchy") {
+		t.Errorf("photos go to %s", batchFolder())
+	}
+	if err := a.renameBatch("not-there", "x"); err == nil {
+		t.Error("renamed a capture that isn't there")
+	}
+}
