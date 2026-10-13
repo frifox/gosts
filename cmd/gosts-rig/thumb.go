@@ -16,9 +16,15 @@ const thumbWidth = 800
 // decoding the camera's own (24 MP) for a tile held up the Rig View's
 // animation for a frame or five with every photo.
 func thumbnail(jpg []byte, width int) ([]byte, error) {
-	src, err := jpeg.Decode(bytes.NewReader(jpg))
-	if err != nil {
-		return nil, err
+	var src image.Image
+	var err error
+	if p := jpegPreview(jpg, width); p != nil {
+		src, err = jpeg.Decode(bytes.NewReader(p)) // (the camera's own preview, inside: far fewer pixels to decode)
+	}
+	if src == nil || err != nil {
+		if src, err = jpeg.Decode(bytes.NewReader(jpg)); err != nil {
+			return nil, err
+		}
 	}
 	b := src.Bounds()
 	k := max(1, b.Dx()/width) // a k×k block per pixel
@@ -90,4 +96,38 @@ func (c *cameraConn) thumb(n int) ([]byte, bool) {
 	}
 	c.mu.Unlock()
 	return t, true
+}
+
+// jpegPreview is the smallest smaller picture inside jpg (as cameras put
+// one: a Sony's 1616 × 1080 preview, after the photo) at least width pixels
+// wide and the photo's shape, or nil. Decoding it, not the photo (24 MP),
+// makes a thumbnail some 25 times faster. (A JPEG's start, FF D8 FF, can't
+// be in a JPEG's coded data, only in its metadata or another image; each
+// found is checked by its header.)
+func jpegPreview(jpg []byte, width int) []byte {
+	main, err := jpeg.DecodeConfig(bytes.NewReader(jpg))
+	if err != nil || main.Width <= width || main.Height == 0 {
+		return nil
+	}
+	shape := float64(main.Width) / float64(main.Height)
+	soi := []byte{0xFF, 0xD8, 0xFF}
+	var best []byte
+	bestW := main.Width
+	for off := 3; ; {
+		i := bytes.Index(jpg[off:], soi)
+		if i < 0 {
+			break
+		}
+		at := off + i
+		off = at + 3
+		c, err := jpeg.DecodeConfig(bytes.NewReader(jpg[at:]))
+		if err != nil || c.Width < width || c.Width >= bestW || c.Height == 0 {
+			continue
+		}
+		if r := float64(c.Width) / float64(c.Height) / shape; r < 0.98 || r > 1.02 {
+			continue // (another shape: cropped, letterboxed)
+		}
+		best, bestW = jpg[at:], c.Width
+	}
+	return best
 }
