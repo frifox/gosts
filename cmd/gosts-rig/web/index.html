@@ -411,16 +411,25 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 /* Build Model's panel, under the gallery's bar. */
 .model-panel { border-bottom: 1px solid var(--border); background: var(--panel); padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 10px; }
 .model-panel .mp-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; }
+/* Two columns: the build's options left, the detail (and what it means) right; Process below both. */
+.model-panel .mp-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 40px; max-width: 920px; }
+@media (max-width: 760px) { .model-panel .mp-cols { grid-template-columns: minmax(0, 1fr); } }
+.model-panel .mp-col, .model-panel .mp-custom { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.model-panel .mp-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.model-panel .mp-checks, .model-panel .mp-maps { display: flex; flex-direction: column; gap: 6px; }
+.model-panel .mp-maps-col { display: flex; flex-direction: column; gap: 6px; }
+.model-panel .mp-head { font-size: 12px; color: var(--muted); }
+.model-panel select, .model-panel input[type=number] { width: 100%; box-sizing: border-box; }
+.model-panel label[hidden] { display: none; }
+.model-panel label > .views.seg { align-self: flex-start; } /* (as wide as its buttons) */
 .model-panel .mp-row[hidden] { display: none; }
 .model-panel label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .model-panel .views.seg { margin-left: 0; }
-.model-panel select, .model-panel input[type=number] { min-width: 90px; }
 .model-panel .mp-check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); font-size: 13px; cursor: pointer; }
 .model-panel .mp-check input { accent-color: var(--accent); margin: 0; }
 .model-panel .mp-check.off { opacity: .45; cursor: default; }
 .model-panel #mCustom.preset { opacity: .55; } /* a preset's: shown, not set */
 .model-panel #mCustom.preset .mp-check { cursor: default; }
-.model-panel .mp-maps { display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .model-panel .mp-run { align-items: center; }
 .model-panel .mp-progress { flex: 1; min-width: 220px; }
 .model-panel .mp-progress .progress { margin-top: 0; }
@@ -761,36 +770,40 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
   <!-- Build Model: Object Capture's options (apple-obj-cap's), Process, and how the build goes; the photos marked below. -->
   <div class="model-panel" id="modelPanel" hidden>
-    <div class="mp-row">
-      <label>Format<span class="views seg" id="mFormat"><button data-v="obj" title="A folder: the mesh, its materials and textures">OBJ</button><button data-v="usdz" title="One file, for Quick Look and Reality Composer">USDZ</button></span></label>
-      <label>Detail<select id="mDetail">
+    <div class="mp-cols">
+      <div class="mp-col">
+        <div class="mp-pair"><label>Format<span class="views seg" id="mFormat"><button data-v="obj" title="A folder: the mesh, its materials and textures">OBJ</button><button data-v="usdz" title="One file, for Quick Look and Reality Composer">USDZ</button></span></label><label>Photo order<span class="views seg" id="mOrdering"><button data-v="sequential" title="Each photo overlaps the one before (a rig's rings)">Sequential</button><button data-v="unordered" title="In no particular order">Unordered</button></span></label></div>
+        <div class="mp-pair"><label>Features<span class="views seg" id="mSensitivity"><button data-v="normal">Normal</button><button data-v="high" title="Finds more on plain objects; slower">High</button></span></label><label>Mesh<span class="views seg" id="mMesh"><button data-v="triangle">Triangles</button><button data-v="quad" title="Nicer to edit (Blender, say)">Quads</button></span></label></div>
+        <div class="mp-checks">
+          <label class="mp-check"><input type="checkbox" id="mMasking"> Mask out the background</label>
+          <label class="mp-check" title="Not just the object found"><input type="checkbox" id="mIgnoreBBox"> Build all that's seen</label>
+          <label class="mp-check" title="Intermediate results kept: a build again (another detail level, say) is quicker"><input type="checkbox" id="mCheckpoint"> Keep checkpoints</label>
+          <label class="mp-check" id="mGravityLabel" title="Each photo's down, from the rig (its gravity.json: alignment data for Apple Object Capture)"><input type="checkbox" id="mGravity"> Use the rig's gravity</label>
+          <label class="mp-check"><input type="checkbox" id="mBounds"> Also: bounding box</label>
+          <label class="mp-check"><input type="checkbox" id="mPointCloud"> Also: point cloud</label>
+        </div>
+      </div>
+      <div class="mp-col">
+        <label>Detail<select id="mDetail">
         <option value="preview">Preview: quick, ~25k polygons, 1K texture</option>
         <option value="reduced">Reduced: ~50k polygons, 2K textures</option>
         <option value="medium">Medium: ~100k polygons, 4K textures</option>
         <option value="full">Full: ~250k polygons, 8K textures</option>
         <option value="raw">Raw: all the polygons, 8K textures</option>
         <option value="custom">Custom…</option></select></label>
-      <label>Photo order<span class="views seg" id="mOrdering"><button data-v="sequential" title="Each photo overlaps the one before (a rig's rings)">Sequential</button><button data-v="unordered" title="In no particular order">Unordered</button></span></label>
-      <label>Features<span class="views seg" id="mSensitivity"><button data-v="normal">Normal</button><button data-v="high" title="Finds more on plain objects; slower">High</button></span></label>
-      <label>Mesh<span class="views seg" id="mMesh"><button data-v="triangle">Triangles</button><button data-v="quad" title="Nicer to edit (Blender, say)">Quads</button></span></label>
-    </div>
-    <div class="mp-row" id="mCustom">
-      <label>Most polygons<input type="number" id="mMaxPolygons" min="1" step="1000"></label>
-      <label>Texture size<select id="mTextureDim"><option value="1k">1K</option><option value="2k">2K</option><option value="4k">4K</option><option value="8k">8K</option><option value="16k">16K</option></select></label>
-      <label>Texture maps<span class="mp-maps" id="mTextureMaps">
-        <label class="mp-check"><input type="checkbox" value="diffuse"> Colour</label><label class="mp-check"><input type="checkbox" value="normal"> Normal</label>
-        <label class="mp-check"><input type="checkbox" value="roughness"> Roughness</label><label class="mp-check"><input type="checkbox" value="displacement"> Displacement</label>
-        <label class="mp-check"><input type="checkbox" value="ao"> Ambient occlusion</label></span></label>
-      <label>Texture format<span class="views seg" id="mTextureFormat"><button data-v="png">PNG</button><button data-v="jpeg">JPEG</button></span></label>
-      <label id="mJpegLabel">JPEG quality<input type="number" id="mJpegQuality" min="0" max="1" step="0.05"></label>
-    </div>
-    <div class="mp-row mp-checks">
-      <label class="mp-check"><input type="checkbox" id="mMasking"> Mask out the background</label>
-      <label class="mp-check" title="Not just the object found"><input type="checkbox" id="mIgnoreBBox"> Build all that's seen</label>
-      <label class="mp-check" title="Intermediate results kept: a build again (another detail level, say) is quicker"><input type="checkbox" id="mCheckpoint"> Keep checkpoints</label>
-      <label class="mp-check" id="mGravityLabel" title="Each photo's down, from the rig (its gravity.json: alignment data for Apple Object Capture)"><input type="checkbox" id="mGravity"> Use the rig's gravity</label>
-      <label class="mp-check"><input type="checkbox" id="mBounds"> Also: bounding box</label>
-      <label class="mp-check"><input type="checkbox" id="mPointCloud"> Also: point cloud</label>
+        <!-- With a preset: what it does, greyed (see modelFormShown). -->
+        <div class="mp-custom" id="mCustom">
+          <label>Most polygons<input type="number" id="mMaxPolygons" min="1" step="1000"></label>
+          <div class="mp-pair"><label>Texture size<select id="mTextureDim"><option value="1k">1K</option><option value="2k">2K</option><option value="4k">4K</option><option value="8k">8K</option><option value="16k">16K</option></select></label><label>Texture format<span class="views seg" id="mTextureFormat"><button data-v="png">PNG</button><button data-v="jpeg">JPEG</button></span></label></div>
+          <label id="mJpegLabel">JPEG quality<input type="number" id="mJpegQuality" min="0" max="1" step="0.05"></label>
+          <div class="mp-maps-col"><span class="mp-head">Texture maps</span><span class="mp-maps" id="mTextureMaps">
+            <label class="mp-check"><input type="checkbox" value="diffuse"> Colour</label>
+            <label class="mp-check"><input type="checkbox" value="normal"> Normal</label>
+            <label class="mp-check"><input type="checkbox" value="roughness"> Roughness</label>
+            <label class="mp-check"><input type="checkbox" value="displacement"> Displacement</label>
+            <label class="mp-check"><input type="checkbox" value="ao"> Ambient occlusion</label></span></div>
+        </div>
+      </div>
     </div>
     <div class="mp-row mp-run">
       <button class="btn primary" id="mProcess">Process</button>
@@ -1478,7 +1491,7 @@ function modelShow() {
   const n = { aligned: 0, invalid: 0, skipped: 0, unaligned: 0 };
   for (const st of Object.values(m.photos || {})) if (st in n) n[st]++;
   const counts = [n.aligned && `✓ ${n.aligned} used`, n.invalid && `✕ ${n.invalid} rejected`, n.skipped && `↷ ${n.skipped} skipped`, n.unaligned && `? ${n.unaligned} not placed`].filter(Boolean).join(" · ");
-  const err = m.error === "processError" ? "Object Capture couldn't build it: too few photos overlapping, most likely (the photos' marks show which it placed)." : m.error;
+  const err = m.outcome === "cancelled" ? "" : m.error === "processError" ? "Object Capture couldn't build it: too few photos overlapping, most likely (the photos' marks show which it placed)." : m.error;
   $("mStatus").textContent = [counts, m.result && m.outcome === "done" ? `Saved in ${m.result.split("/").slice(-2).join("/")}` : "", ...(m.notes || []), err || ""].filter(Boolean).join(" · ");
   $("mStatus").style.color = m.outcome === "failed" ? "var(--bad)" : "";
 }

@@ -386,6 +386,9 @@ func (b *modelBuilder) follow(cmd *exec.Cmd, stdout interface{ Read([]byte) (int
 			}
 		}
 	}
+	if s.Outcome == "cancelled" {
+		s.Error = "" // (the requests cut short report errors: not ones)
+	}
 	if s.Outcome != "done" { // (photos still waiting: not reached)
 		for f, st := range s.Photos {
 			if st == "loaded" || st == "waiting" {
