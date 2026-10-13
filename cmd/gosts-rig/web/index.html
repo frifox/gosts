@@ -594,9 +594,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   <div class="right">
   <section class="card" id="cameraCard">
     <h2>Photos <button class="btn small" id="openCaptureBtn" title="Browse the captures saved on this computer" style="text-transform:none;letter-spacing:0;margin-left:6px">Browse</button>
+      <button class="btn small" id="resetPhotosBtn" title="Start a new capture: a new folder for the photos from now on, and the timeline cleared (asks first; the photos taken stay saved)" style="text-transform:none;letter-spacing:0" disabled>New Capture</button>
       <span class="spacer"></span>
       <button class="btn small" id="viewAllBtn" title="All the photos, large" style="text-transform:none;letter-spacing:0" disabled>View All</button>
-      <button class="btn small danger" id="resetPhotosBtn" title="Clear all photos from the timeline (asks first)" style="text-transform:none;letter-spacing:0" disabled>Reset</button>
       <button class="btn small primary" id="takePhotoBtn" style="text-transform:none;letter-spacing:0" disabled>Take Photo</button>
     </h2>
     <div class="card-body">
@@ -978,7 +978,7 @@ function onCamera(m) {
 }
 
 // The Camera card: the timeline of photos (newest on the left), Take Photo
-// and Reset. A photo clicked opens full size; arrows step, Esc closes.
+// and New Capture. A photo clicked opens full size; arrows step, Esc closes.
 state.photos = []; // oldest first: {n, at}
 const photoCaption = (p) => `Photo ${p.n}` + (p.at ? ` · ${new Date(p.at).toLocaleTimeString()}` : "");
 state.pending = new Set(); // photos being taken: placeholders until their picture comes
@@ -1025,7 +1025,7 @@ function photosShown() {
   if (!$("viewer").hidden) viewerButtons();
 }
 // A photo's picture; its time in the address too, as numbers start again
-// after Reset (so a picture from before isn't shown from the cache).
+// after New Capture (so a picture from before isn't shown from the cache).
 const photoURL = (p) => `/photo/${p.n}.jpg?at=${p.at || 0}`;
 function setPhotos(list) {
   state.photos = list || [];
@@ -2311,11 +2311,18 @@ $("takePhotoBtn").onclick = async () => {
   await act("shoot", {}, $("shotErr"));
   cameraButtons();
 };
+// New Capture: a new folder for the photos from now on (the server makes
+// it), the timeline cleared. The photos taken stay saved (Browse has them).
 $("resetPhotosBtn").onclick = async () => {
   const n = state.photos.length;
-  if (await confirmDanger("Reset the timeline?",
-    `This removes all ${n} photo${n === 1 ? "" : "s"} from the timeline. Files already saved on this computer or the camera's card stay where they are.`,
-    `Remove ${n} photo${n === 1 ? "" : "s"}`)) act("photosReset", {}, $("shotErr"));
+  if (!await confirmDanger("Start a new capture?",
+    `The next photos go into a new folder, and the ${n} photo${n === 1 ? "" : "s"} on the timeline ${n === 1 ? "leaves" : "leave"} it. ${n === 1 ? "It stays" : "They stay"} saved on this computer and the camera's card (Browse has them).`,
+    "New Capture")) return;
+  $("shotErr").textContent = "";
+  try {
+    const r = await send("photosReset", {});
+    log(r?.folder ? `new capture: saving to ~/Pictures/gosts-rig/${r.folder}` : "new capture: the timeline's cleared");
+  } catch (e) { $("shotErr").textContent = e.message; }
 };
 // confirmDanger asks before something that can't be undone; resolves true on
 // the red button (or Enter), false on Cancel, Esc or a click outside.

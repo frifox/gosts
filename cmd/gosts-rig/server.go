@@ -239,9 +239,8 @@ func (a *app) exec(req request) (any, error) {
 	case "photoDelete": // one photo off the timeline
 		a.camera.delete(req.N)
 		return nil, nil
-	case "photosReset": // Reset: clear the timeline
-		a.camera.reset()
-		return nil, nil
+	case "photosReset": // New Capture: the timeline cleared, a new folder
+		return map[string]string{"folder": a.camera.reset()}, nil
 	case "cameraDisconnect":
 		a.cap.stop()
 		a.camera.disconnect()

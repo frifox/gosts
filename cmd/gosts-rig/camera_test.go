@@ -167,13 +167,46 @@ func TestCamerasNowBusy(t *testing.T) {
 	lastCameras.list = []cameraInfo{{ID: "gphoto2:usb:001,099", Name: "kept"}}
 	lastCameras.Unlock()
 	defer func() { lastCameras.Lock(); lastCameras.list = old; lastCameras.Unlock() }()
+	elsewhere := gphoto2Elsewhere
+	defer func() { gphoto2Elsewhere = elsewhere }()
+	other := false // (no other gphoto2: the other tests' stand-ins may still be about)
+	gphoto2Elsewhere = func() bool { return other }
 	c := &cameraConn{out: func(any) {}}
 	c.opening = 1
 	if l := c.camerasNow(); len(l) != 1 || l[0].Name != "kept" {
 		t.Fatalf("opening: %+v, want the list made last", l)
 	}
 	c.opening = 0
+	other = true
+	if l := c.camerasNow(); len(l) != 1 || l[0].Name != "kept" {
+		t.Fatalf("another gphoto2 shell: %+v, want the list made last", l)
+	}
+	other = false
 	if l := c.camerasNow(); len(l) == 0 || l[0].ID != simCameraID {
 		t.Fatalf("idle: %+v, want a fresh scan (the simulator first)", l)
+	}
+}
+
+// TestNewCapture: New Capture with a real camera makes the new folder at
+// once (the next photos go there); with the simulator, none.
+func TestNewCapture(t *testing.T) {
+	old := photoDir
+	photoDir = t.TempDir()
+	defer func() { photoDir = old; newBatch() }()
+	c := &cameraConn{out: func(any) {}}
+	c.cam = &simCamera{}
+	if f := c.reset(); f != "" {
+		t.Errorf("simulator: folder %q, want none", f)
+	}
+	c.cam = &gphoto2Camera{} // (a real one: only its kind matters here)
+	f := c.reset()
+	if f == "" {
+		t.Fatal("real camera: no folder")
+	}
+	if st, err := os.Stat(filepath.Join(photoDir, f)); err != nil || !st.IsDir() {
+		t.Fatalf("folder %s not made: %v", f, err)
+	}
+	if got := filepath.Base(batchFolder()); got != f {
+		t.Errorf("photos go to %s, want %s", got, f)
 	}
 }

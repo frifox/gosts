@@ -36,7 +36,7 @@ var gphoto2PortLine = regexp.MustCompile(`^(.*\S)\s+(usb:\d+,\d+)\s*$`)
 
 // gphoto2Elsewhere is whether a gphoto2 shell is running (one of ours, or
 // another program's): a camera's open, so the USB bus is best left alone.
-func gphoto2Elsewhere() bool {
+var gphoto2Elsewhere = func() bool {
 	return exec.Command("pgrep", "-f", "gphoto2 .*--shell").Run() == nil
 }
 

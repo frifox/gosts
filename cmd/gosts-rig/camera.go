@@ -827,14 +827,24 @@ func (c *cameraConn) timeline() photosMsg {
 
 // reset clears the timeline (Reset) and starts a new batch: numbering from
 // 1 again, and a new folder for its files.
-func (c *cameraConn) reset() {
+// reset starts a new capture (New Capture): the timeline cleared, and a new
+// batch folder, made now with a real camera connected (the next photos are
+// saved there); its name, or "" (the simulator saves nothing: no folder).
+func (c *cameraConn) reset() string {
 	c.mu.Lock()
 	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight, c.simRendered = nil, nil, nil, nil, nil, nil
 	c.count, c.pending = 0, 0
 	c.gen++
+	_, sim := c.cam.(*simCamera)
+	real := c.cam != nil && !sim
 	c.mu.Unlock()
 	newBatch()
+	folder := ""
+	if real {
+		folder = filepath.Base(batchFolder())
+	}
 	c.out(c.timeline())
+	return folder
 }
 
 // simPicture sets simulated photo n's picture, rendered by a page.

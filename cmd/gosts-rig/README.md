@@ -66,7 +66,8 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 
 Photos appear in the **Photos** card as they arrive. Click one to see it full size (drag to move it, the wheel or the
 navigator at the bottom right to zoom, up to 200% of its own pixels), **View All** for a grid. They're
-saved in `~/Pictures/gosts-rig/`, a folder per batch named after its start time. **Reset** starts a new batch.
+saved in `~/Pictures/gosts-rig/`, a folder per capture named after its start time. **New Capture** starts a new one: a new folder (made then,
+with a real camera) for the photos from now on, and the timeline cleared (the photos taken stay saved; **Browse** has them).
 **Browse** opens the captures saved there (sample shots' folders left out), newest first, each with its middle photo,
 name and count, as thumbnails or a list: open one to see its photos (← → to step through them large); the pencil on a
 capture (on hover) renames its folder.
