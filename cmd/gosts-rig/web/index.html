@@ -411,7 +411,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-trim .x { color: #e5484d; } .mve-trim .y { color: #46a758; } .mve-trim .z { color: #3e7bfa; }
 .mve-trim .mve-end { color: var(--muted); font-size: 11px; }
 .mve-trim input[type=range] { width: 100%; min-width: 0; accent-color: #ffb020; }
-.mve-trim .mve-val { font: 11px var(--mono); color: var(--text); min-width: 58px; text-align: right; }
+.mve-trim .mve-val { font: 11px var(--mono); color: var(--text); min-width: 74px; text-align: right; }
 .mve-rot .x { color: #e5484d; } .mve-rot .y { color: #46a758; } .mve-rot .z { color: #3e7bfa; }
 .mv-views { position: absolute; top: 12px; left: 12px; margin: 0; z-index: 2; }
 .mve-size .mve-sub { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); margin: 8px 0 2px; }
@@ -1532,6 +1532,11 @@ function mveConfirm(on) {
   $("mveSave").textContent = on ? "Confirm" : "Save";
   $("mveWarn").textContent = on ? "Some edits not applied. Save anyways?" : "";
 }
+// mveLen: a length (m) in the file's units (File units), with them.
+function mveLen(m) {
+  const u = segOf("mveFileUnit");
+  return `${(m / window.modelEdit.UNITS[u]).toFixed({ mm: 1, in: 2, m: 3 }[u])} ${u}`;
+}
 function mveShow() {
   mveConfirm(false);
   const mv = window.modelView, u = segOf("mveUnit"), k = 1 / window.modelEdit.UNITS[u];
@@ -1549,8 +1554,8 @@ function mveShow() {
   $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length;
   const st = mv.stats();
   if (st) {
-    const [x, y, z] = [st.size[0], st.size[2], st.size[1]].map((v) => (v * k).toFixed(u === "mm" ? 1 : 2));
-    $("mveSize").innerHTML = `<div class="mve-sub">Dimensions</div><div><b class="x">X</b> ${x}</div><div><b class="y">Y</b> ${y}</div><div><b class="z">Z</b> ${z} ${u}</div>` +
+    const [x, y, z] = [st.size[0], st.size[2], st.size[1]].map(mveLen);
+    $("mveSize").innerHTML = `<div class="mve-sub">Dimensions</div><div><b class="x">X</b> ${x}</div><div><b class="y">Y</b> ${y}</div><div><b class="z">Z</b> ${z}</div>` +
       `<div class="mve-sub">Resolution</div><div>${Math.round(st.triangles).toLocaleString()} triangles</div>`;
   }
   mv.markers(Object.entries(mve.picks).map(([k2, pts]) => ({ points: pts, color: MVE_COLORS[k2], line: k2 === "level" ? "loop" : true })));
@@ -1607,8 +1612,8 @@ function mveTrimBox() {
 function mveTrimShow() {
   mveConfirm(false);
   if (!mve.ext) return;
-  const t = mveTrimBox(), u = segOf("mveUnit"), k = 1 / window.modelEdit.UNITS[u];
-  for (const ax of "xyz") for (const i of [0, 1]) $("mvEdit").querySelector(`[data-val="${ax}${i}"]`).textContent = (t[ax][i] * k).toFixed(u === "mm" ? 1 : 2);
+  const t = mveTrimBox();
+  for (const ax of "xyz") for (const i of [0, 1]) $("mvEdit").querySelector(`[data-val="${ax}${i}"]`).textContent = mveLen(t[ax][i]);
   const moved = [...$("mvEdit").querySelectorAll(".mve-trim input")].some((r) => Number(r.value) !== (r.dataset.end === "0" ? 0 : 1000));
   const empty = t.x[0] >= t.x[1] || t.y[0] >= t.y[1] || t.z[0] >= t.z[1];
   $("mveTrim").disabled = !moved || empty;
