@@ -124,9 +124,9 @@ then click on the model (each click snaps to the nearest corner of the triangle 
 5. **Trim**: move the sides of a box (X, Y, Z, each min and max) in; the part outside it shows cut off as you go, and
    **Trim** cuts it away: triangles across a side are cut along it (their texture and normals kept), so the cut is
    exact.
-6. **Origin**: a point, and a plane (XY, XZ or YZ); **Set** slides the model in that plane so the point is at the origin,
-   the third axis left as it is (XY: a point at the top's middle over the origin, its height kept); Set again with
-   another plane, the same point; **Apply** keeps it (Clear or Undo, before that, puts it back).
+6. **Center**: a point, then an axis (X, Y or Z): the model slides along it so the point is at 0 on it, the others
+   left as they are; all three, one after another, put the point at the origin. **Apply** keeps it (Clear or Undo,
+   before that, puts it back).
 
 Each step centers it on the origin; the size (X × Y × Z) shows as it goes; **Undo** steps back. **Save** writes it as a
 new model in the capture (named `<model>-aligned` unless you name it): the OBJ in the file units picked (mm, the

@@ -1028,9 +1028,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mve-row"><button class="btn small" id="mveTrimReset" disabled>Reset Box</button><span class="spacer"></span><button class="btn small primary" id="mveTrim" disabled>Trim</button></div>
       </section>
       <section data-step="center">
-        <div class="mve-head"><b>6 · Origin</b></div>
+        <div class="mve-head"><b>6 · Center</b></div>
         <div class="mve-row"><button class="btn small" data-pick="center">Pick Point</button><span class="mve-n"></span><button class="btn small" data-clear="center">Clear</button></div>
-        <div class="mve-row"><span class="mve-label">On plane</span><span class="views seg" id="mvePlane"><button data-v="xy" title="Slide in X and Y (Z kept)">XY</button><button data-v="xz" title="Slide in X and Z (Y kept)">XZ</button><button data-v="yz" title="Slide in Y and Z (X kept)">YZ</button></span><button class="btn small" id="mveSet" disabled title="Move the model so the point is at the origin in this plane (again with another plane: the same point)">Set</button><span class="spacer"></span><button class="btn small primary" id="mveCenter" disabled title="Keep it where Set moved it">Apply</button></div>
+        <div class="mve-row"><span class="mve-label">Axis to center</span><span class="btn-join mve-axes-go" id="mveAxesGo"><button class="btn small" data-axis="x" disabled title="Slide the model along X so the point is at 0 on it">X</button><button class="btn small" data-axis="y" disabled title="Slide the model along Y so the point is at 0 on it">Y</button><button class="btn small" data-axis="z" disabled title="Slide the model along Z so the point is at 0 on it">Z</button></span><span class="spacer"></span><button class="btn small primary" id="mveCenter" disabled title="Keep it where it's been moved">Apply</button></div>
       </section>
       <div class="mve-size" id="mveSize"></div>
       <section class="mve-save">
@@ -1624,8 +1624,8 @@ const mve = { picks: { level: [], align: [], scale: [], center: [] }, picking: n
 const MVE_COLORS = { level: 0xffb020, align: 0x46a758, scale: 0x3e7bfa, center: 0xe05ad8 };
 const segPick = (id, v) => { for (const b of $(id).children) b.classList.toggle("active", b.dataset.v === v); };
 const segOf = (id) => $(id).querySelector(".active")?.dataset.v;
-for (const id of ["mveAxis", "mveUnit", "mveFileUnit", "mvePlane"]) $(id).onclick = (e) => { if (e.target.dataset?.v) { segPick(id, e.target.dataset.v); mveShow(); mveTrimShow(); } };
-segPick("mveAxis", "x"); segPick("mveUnit", "mm"); segPick("mveFileUnit", "mm"); segPick("mvePlane", "xy");
+for (const id of ["mveAxis", "mveUnit", "mveFileUnit"]) $(id).onclick = (e) => { if (e.target.dataset?.v) { segPick(id, e.target.dataset.v); mveShow(); mveTrimShow(); } };
+segPick("mveAxis", "x"); segPick("mveUnit", "mm"); segPick("mveFileUnit", "mm");
 try { const u = localStorage.getItem("modelEditUnits"); if (u) { const [a, b] = JSON.parse(u); segPick("mveUnit", a); segPick("mveFileUnit", b); } } catch {}
 $("mveTris").value = 50000;
 // mveShow: the panel as the edit is: points picked, what can be done, its size.
@@ -1661,7 +1661,7 @@ function mveShow() {
   }
   $("mveLevel").disabled = mve.picks.level.length < 3;
   $("mveAlign").disabled = mve.picks.align.length < 2;
-  $("mveSet").disabled = mve.picks.center.length !== 1;
+  for (const b of $("mveAxesGo").children) b.disabled = mve.picks.center.length !== 1;
   $("mveCenter").disabled = !mve.originFrom; // (Apply: once Set)
   const sp = mve.picks.scale;
   $("mveScale").disabled = sp.length !== 2 || !(Number($("mveDist").value) > 0);
@@ -1779,17 +1779,18 @@ $("mveTrim").onclick = () => {
   mveShow();
 };
 $("mveLevel").onclick = () => mveDo((box) => window.modelEdit.level(mve.picks.level, window.modelView.center(), box));
-// Origin: Set moves the model so the point is at the origin in the plane
-// (again, another plane: the point moved with it, shown); Apply keeps it,
-// as one step (the point done with); Clear, or Undo, puts it back.
-// originFrom: the edit before the first Set.
-$("mveSet").onclick = async () => {
+// Origin: an axis button slides the model along it so the point is at 0
+// on it (all three, one after another: the point at the origin; the point
+// moved with it, shown); Apply keeps it, as one step (the point done with);
+// Clear, or Undo, puts it back. originFrom: the edit before the first move.
+$("mveAxesGo").onclick = async (e) => {
+  const axis = e.target.closest("[data-axis]")?.dataset.axis;
   const mv = window.modelView, p = mve.picks.center[0];
-  if (!p) return;
+  if (!axis || !p) return;
   mv.settle();
   mveRotCommit();
   try {
-    const m = window.modelEdit.center(p, segOf("mvePlane"));
+    const m = window.modelEdit.center(p, axis);
     if (!mve.originFrom) mve.originFrom = mv.matrix();
     p.applyMatrix4(m);
     mveShow();

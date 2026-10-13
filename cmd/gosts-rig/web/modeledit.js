@@ -100,10 +100,9 @@ export function rotate(axis, deg) {
   return axis === "x" ? new THREE.Matrix4().makeRotationX(a) : axis === "y" ? new THREE.Matrix4().makeRotationZ(-a) : new THREE.Matrix4().makeRotationY(a);
 }
 
-// center: the edit that slides the model on plane ("xy", "xz", "yz":
-// Blender's and Fusion's axes; their X, Y, Z: x, −z, y here) so point p is
-// over the origin in it; the plane's other axis not moved (XY: the height
-// kept).
+// center: the edit that slides the model along axes ("x", "y", "z", or
+// some together, "xy" say: Blender's and Fusion's; their X, Y, Z: x, −z, y
+// here) so point p is at 0 on each; the others not moved.
 export function center(p, plane) {
   if (!p) throw new Error("pick a point");
   const ax = new Set(plane); // (x, y, z: Blender's)
