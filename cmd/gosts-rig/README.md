@@ -93,8 +93,8 @@ time, from the source tree). The panel has all of Object Capture's options: OBJ 
 look, to Raw, or Custom: the most polygons, texture size, maps and format); the photos' order (Sequential for the rig's
 rings); feature sensitivity; triangles or quads; masking out the background; building all that's seen; checkpoints;
 the rig's gravity (the capture's `gravity.json`: pick Apple Object Capture, or All, in Capture alignment data for); a
-bounding box (`bounds.json`) and a point cloud (`pointcloud.ply`, both in `model-build`) too; the output folder (`model`,
-in the capture's). **Start Process** saves them and builds: a bar with its stage, and a
+bounding box (`bounds.json`) and a point cloud (`pointcloud.ply`, both in `model-build`) too; the output folder (in the capture's:
+`model-<detail>`, `model-full` say, following the detail till you give it a name of your own). **Start Process** saves them and builds: a bar with its stage, and a
 mark on each photo: ✓ used, ✕ rejected (why, on hover), ↷ skipped, ? not placed in the model (none till it's known). The model goes to the output folder (Object Capture writes only
 into an empty one: a model built there before goes to the Trash; a folder with other files in it is refused), the rest to `model-build` (the options, checkpoints, each photo's pose, how each
 fared: the marks are there when the capture's opened again). One build at a time; **Cancel build** stops it.

@@ -26,16 +26,17 @@ import (
 // camera poses, and, when it ends, how each photo fared (status.json), so
 // the marks are there when the folder's opened again.
 
-// modelDir is a capture's model folder (the model alone); buildDir the
-// build's (its config, checkpoints, poses, the photos' status).
-const (
-	modelDir = "model"
-	buildDir = "model-build"
-)
+// buildDir is a capture's folder for the build (its config, checkpoints,
+// poses, the photos' status); the model goes to another (defaultOut).
+const buildDir = "model-build"
+
+// defaultOut is the model's folder unless one's given: model-<detail>
+// (model-full, say).
+func defaultOut(detail string) string { return "model-" + detail }
 
 // modelOptions are apple-obj-cap's (see its --help), as the page sets them.
 type modelOptions struct {
-	Out           string   `json:"out"`         // the model's folder in the capture's (default model)
+	Out           string   `json:"out"`         // the model's folder in the capture's (default model-<detail>)
 	Format        string   `json:"format"`      // obj | usdz
 	Detail        string   `json:"detail"`      // preview | reduced | medium | full | raw | custom
 	Ordering      string   `json:"ordering"`    // sequential | unordered
@@ -55,7 +56,7 @@ type modelOptions struct {
 }
 
 func defaultModelOptions() modelOptions {
-	return modelOptions{Out: modelDir, Format: "obj", Detail: "full", Ordering: "sequential", Sensitivity: "normal", Masking: true, Mesh: "triangle",
+	return modelOptions{Out: defaultOut("full"), Format: "obj", Detail: "full", Ordering: "sequential", Sensitivity: "normal", Masking: true, Mesh: "triangle",
 		Checkpoint: true, Gravity: true, MaxPolygons: 250000, TextureDim: "8k", TextureMaps: []string{"all"}, TextureFormat: "png", JPEGQuality: 0.8}
 }
 
@@ -238,6 +239,9 @@ func (b *modelBuilder) start(a *app, name string, o modelOptions) error {
 	dir := filepath.Join(photoDir, name)
 	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
 		return errors.New("no such capture")
+	}
+	if o.Out == "" {
+		o.Out = defaultOut(o.Detail)
 	}
 	if err := o.check(); err != nil {
 		return err

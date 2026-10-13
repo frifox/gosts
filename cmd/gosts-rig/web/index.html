@@ -1563,7 +1563,14 @@ function customRead() {
   customVals = { maxPolygons: Math.round(Number($("mMaxPolygons").value) || 0), textureDim: $("mTextureDim").value,
     textureMaps: maps.length === 5 ? ["all"] : maps, textureFormat: segGet("mTextureFormat"), jpegQuality: Number($("mJpegQuality").value) };
 }
-$("mDetail").onchange = modelFormShown; // (the custom ones kept as typed: each field's change, with Custom)
+$("mDetail").onchange = () => { modelFormShown(); modelOutAuto(); }; // (the custom ones kept as typed: each field's change, with Custom)
+// The output folder follows the detail (model-full, say) till it's given a
+// name of its own; emptied, it follows again.
+let outAuto = true;
+const autoOut = () => `model-${$("mDetail").value}`;
+function modelOutAuto() { if (outAuto) $("mOut").value = autoOut(); }
+$("mOut").oninput = () => { const v = $("mOut").value.trim(); outAuto = v === "" || v === autoOut(); };
+$("mOut").onblur = () => { if (!$("mOut").value.trim()) { outAuto = true; modelOutAuto(); } };
 for (const el of $("mCustom").querySelectorAll("input, select")) el.addEventListener("change", customRead);
 // modelFormShown: the custom settings, the custom ones or the preset's (grayed).
 function modelFormShown() {
@@ -1581,7 +1588,8 @@ function modelFormShown() {
   $("mCustom").title = custom ? "" : `What ${$("mDetail").selectedOptions[0].textContent.split(":")[0]} does, roughly (Apple's figures): pick Custom… to set these yourself`;
 }
 function modelFormFill(o, gravity) {
-  $("mOut").value = o.out || "model";
+  outAuto = !o.out || o.out === "model" || o.out === `model-${o.detail}`; // ("model": the default before)
+  $("mOut").value = o.out || "";
   segSet("mFormat", o.format); $("mDetail").value = o.detail; segSet("mOrdering", o.ordering); segSet("mSensitivity", o.sensitivity); segSet("mMesh", o.mesh);
   $("mMasking").checked = o.masking; $("mIgnoreBBox").checked = o.ignoreBBox; $("mCheckpoint").checked = o.checkpoint;
   $("mGravity").checked = o.gravity && gravity; $("mGravity").disabled = !gravity;
@@ -1591,6 +1599,7 @@ function modelFormFill(o, gravity) {
   $("mBounds").checked = o.bounds; $("mPointCloud").checked = o.pointCloud;
   customVals = { maxPolygons: o.maxPolygons, textureDim: o.textureDim, textureMaps: o.textureMaps || ["all"], textureFormat: o.textureFormat, jpegQuality: o.jpegQuality };
   modelFormShown();
+  modelOutAuto();
 }
 function modelFormRead() {
   customRead();
