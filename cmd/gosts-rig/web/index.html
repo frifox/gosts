@@ -433,7 +433,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .model-panel .mp-check.off { opacity: .45; cursor: default; }
 .model-panel #mCustom.preset { opacity: .55; } /* a preset's: shown, not set */
 .model-panel #mCustom.preset .mp-check { cursor: default; }
-.model-panel .mp-run { max-width: 1200px; }
+.model-panel .mp-run { max-width: 1200px; display: flex; align-items: flex-start; gap: 12px; }
 .model-panel .mp-progress { flex: 1; min-width: 220px; }
 .model-panel .mp-progress .progress { margin-top: 0; }
 .model-panel .mp-progress .progress.big { box-sizing: border-box; height: calc(1.4em + 14px); font-size: 14px; } /* a button's height: its line, 6px padding and a border each side */
@@ -807,10 +807,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       </div>
       <div class="mp-col">
         <div class="mp-row"><label class="mp-out" title="The model's folder, in the capture's: Object Capture writes into an empty one (a model built there before goes to the Trash first)">Output folder<input type="text" id="mOut" spellcheck="false" autocomplete="off"></label><label>Format<span class="views seg" id="mFormat"><button data-v="obj" title="A folder: the mesh, its materials and textures">OBJ</button><button data-v="usdz" title="One file, for Quick Look and Reality Composer">USDZ</button></span></label></div>
-        <div class="mp-go"><button class="btn primary" id="mProcess">Start Process</button><button class="btn danger" id="mCancel" hidden>Cancel build</button></div>
       </div>
     </div>
     <div class="mp-run">
+      <div class="mp-go"><button class="btn primary" id="mProcess">Start Process</button><button class="btn danger" id="mCancel" hidden>Cancel build</button></div>
       <div class="mp-progress"><div class="progress big"><div class="bar" id="mBar"></div><span class="label" id="mLabel"></span></div>
         <div class="hint" id="mStatus"></div></div>
     </div>
