@@ -913,23 +913,23 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <div class="mv-hint">Drag to turn · right-drag (or ⇧ drag) to move · wheel to zoom · F: the whole model · Esc: the capture</div>
     <div class="mv-msg" id="mvMsg" hidden></div>
     <aside class="mv-edit" id="mvEdit" hidden>
-      <div class="mve-axes">Axes as in Blender and Fusion: <b class="x">X</b> <b class="y">Y</b> <b class="z">Z</b> (up); the grid is the ground.</div>
+      <div class="mve-axes">Axes as in Blender and Fusion: <b class="x">X</b> <b class="y">Y</b> <b class="z">Z</b> (up)</div>
       <section data-step="level">
-        <div class="mve-head"><b>1 · Level</b>pick 3 or more points on what it should stand on</div>
+        <div class="mve-head"><b>1 · Level to Ground</b></div>
         <div class="mve-row"><button class="btn small" data-pick="level">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="level">Clear</button><span class="spacer"></span><button class="btn small primary" id="mveLevel" disabled>Level</button></div>
       </section>
       <section data-step="align">
-        <div class="mve-head"><b>2 · Align</b>pick 2 or more points along an edge, then the axis it should run along</div>
+        <div class="mve-head"><b>2 · Align</b></div>
         <div class="mve-row"><button class="btn small" data-pick="align">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="align">Clear</button></div>
         <div class="mve-row"><span class="mve-label">Along</span><span class="views seg" id="mveAxis"><button data-v="x">X</button><button data-v="y">Y</button></span><span class="spacer"></span><button class="btn small primary" id="mveAlign" disabled>Align</button></div>
       </section>
       <section data-step="scale">
-        <div class="mve-head"><b>3 · Scale</b>pick 2 points, then their real distance</div>
+        <div class="mve-head"><b>3 · Scale</b></div>
         <div class="mve-row"><button class="btn small" data-pick="scale">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="scale">Clear</button></div>
         <div class="mve-row"><input type="number" id="mveDist" min="0" step="any" placeholder="distance"><span class="views seg" id="mveUnit"><button data-v="mm">mm</button><button data-v="in">in</button></span><span class="spacer"></span><button class="btn small primary" id="mveScale" disabled>Scale</button></div>
       </section>
       <section data-rot>
-        <div class="mve-head"><b>4 · Rotate</b>a quarter turn about an axis through the origin (counterclockwise seen from its end: +90°)</div>
+        <div class="mve-head"><b>4 · Rotate</b></div>
         <div class="mve-rot">
           <b class="x">X</b><button class="btn small" data-rot="x" data-deg="-90">−90°</button><button class="btn small" data-rot="x" data-deg="90">+90°</button>
           <b class="y">Y</b><button class="btn small" data-rot="y" data-deg="-90">−90°</button><button class="btn small" data-rot="y" data-deg="90">+90°</button>
@@ -937,7 +937,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         </div>
       </section>
       <section data-trim>
-        <div class="mve-head"><b>5 · Trim</b>move the box's sides in: what's outside it is cut off</div>
+        <div class="mve-head"><b>5 · Trim</b></div>
         <div class="mve-trim"><b class="x">X</b><span class="mve-end">min</span><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="0"><span class="mve-val" data-val="x0"></span><b class="x">X</b><span class="mve-end">max</span><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="1"><span class="mve-val" data-val="x1"></span><b class="y">Y</b><span class="mve-end">min</span><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="0"><span class="mve-val" data-val="y0"></span><b class="y">Y</b><span class="mve-end">max</span><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="1"><span class="mve-val" data-val="y1"></span><b class="z">Z</b><span class="mve-end">min</span><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="0"><span class="mve-val" data-val="z0"></span><b class="z">Z</b><span class="mve-end">max</span><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="1"><span class="mve-val" data-val="z1"></span></div>
         <div class="mve-row"><button class="btn small" id="mveTrimReset" disabled>Reset Box</button><span class="spacer"></span><button class="btn small primary" id="mveTrim" disabled>Trim</button></div>
       </section>
