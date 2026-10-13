@@ -540,6 +540,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 <header>
   <h1>GoSTS</h1><span class="sub">Photogrammetry Rig</span>
   <span class="spacer"></span>
+  <button class="btn small primary" id="hdrBuilding" hidden>Building…</button><span class="spacer"></span>
   <span class="pill"><span class="dot" id="wsDot"></span><span id="wsText">connecting…</span></span>
   <span class="pill"><span class="dot" id="busDot"></span><span id="busText">no board</span></span>
   <span class="pill"><span class="dot" id="camDot"></span><span id="camText">no camera</span></span>
@@ -1605,12 +1606,31 @@ async function modelLoad() {
   } catch (e) { $("mErr").textContent = e.message; }
   modelShow();
 }
-$("buildModelBtn").onclick = () => {
-  const open = $("modelPanel").hidden;
+// modelPanel shows Build Model's panel (open), or hides it.
+function modelPanel(open) {
   $("modelPanel").hidden = !open;
   $("buildModelBtn").classList.toggle("primary", open);
   if (open) { $("mErr").textContent = ""; modelLoad(); }
+}
+$("buildModelBtn").onclick = () => modelPanel($("modelPanel").hidden);
+// The page's header, while a model's being built: Building…, a click shows
+// its capture with Build Model's panel open.
+$("hdrBuilding").onclick = async () => {
+  const f = state.model?.folder;
+  if (!f) return;
+  if (!$("modelViewer").hidden) closeModel();
+  if (!$("viewer").hidden) closePhoto();
+  $("gallery").hidden = false;
+  await galleryGo(f === $("batchName").textContent ? "current" : f);
+  if ($("modelPanel").hidden) modelPanel(true);
 };
+function hdrBuilding() {
+  const m = state.model, b = $("hdrBuilding");
+  b.hidden = !m?.running;
+  if (b.hidden) return;
+  const stage = MODEL_STAGES[m.stage] || m.stage || "starting";
+  b.title = `A model is being built: ${m.folder}, ${Math.round((m.fraction || 0) * 100)}% (${stage}). Show it`;
+}
 $("mProcess").onclick = async () => {
   $("mErr").textContent = "";
   $("mProcess").disabled = true;
@@ -1621,6 +1641,7 @@ $("mCancel").onclick = () => send("modelCancel", {}).catch((e) => ($("mErr").tex
 function onModel(m) {
   const was = state.model;
   state.model = m;
+  hdrBuilding();
   if (was?.running && !m.running && m.outcome === "done" && !$("gallery").hidden && galleryFolder() === m.folder) galleryAgain(); // (its model's tile)
   if (!m.running && m.folder && state.modelInfo?.folder === m.folder) state.modelInfo.last = m; // (ended: the folder's last build now)
   modelShow();
