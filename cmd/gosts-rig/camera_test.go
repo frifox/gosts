@@ -18,6 +18,19 @@ import (
 // and TestSimDownload check those.
 func init() { simBusy, simDownload = 0, 0 }
 
+// TestMain keeps the tests' photos out of ~/Pictures: a folder of their own
+// (a test may make capture folders: New Capture), gone after.
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "gosts-rig-test-photos-*")
+	if err != nil {
+		panic(err)
+	}
+	photoDir = dir
+	code := m.Run()
+	os.RemoveAll(dir)
+	os.Exit(code)
+}
+
 // The simulated camera is busy for simBusy after a photo: the next shutter
 // waits, as on a real camera (so measuring its pace finds about simBusy).
 func TestSimCameraBusy(t *testing.T) {
@@ -187,21 +200,24 @@ func TestCamerasNowBusy(t *testing.T) {
 	}
 }
 
-// TestNewCapture: New Capture with a real camera makes the new folder at
-// once (the next photos go there); with the simulator, none.
+// TestNewCapture: New Capture makes the new folder at once, empty (the
+// next photos and sample shots go there), shown in Browse though empty; two
+// in a second get different ones.
 func TestNewCapture(t *testing.T) {
 	old := photoDir
 	photoDir = t.TempDir()
 	defer func() { photoDir = old; newBatch() }()
 	c := &cameraConn{out: func(any) {}}
-	c.cam = &simCamera{}
-	if f := c.reset(); f != "" {
-		t.Errorf("simulator: folder %q, want none", f)
+	first := c.reset(true)
+	f := c.reset(true)
+	if f == "" || f == first {
+		t.Fatalf("folders %q, %q: want two", first, f)
 	}
-	c.cam = &gphoto2Camera{} // (a real one: only its kind matters here)
-	f := c.reset()
-	if f == "" {
-		t.Fatal("real camera: no folder")
+	if bs, _ := listBatches(); len(bs) != 1 || bs[0].Name != f || !bs[0].Current || bs[0].Count != 0 {
+		t.Errorf("Browse: %+v, want the new one (empty, current) alone", bs)
+	}
+	if got := filepath.Base(filepath.Dir(sampleFolder())); got != f {
+		t.Errorf("samples go in %s, want in %s", got, f)
 	}
 	if st, err := os.Stat(filepath.Join(photoDir, f)); err != nil || !st.IsDir() {
 		t.Fatalf("folder %s not made: %v", f, err)

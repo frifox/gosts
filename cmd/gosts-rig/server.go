@@ -243,7 +243,7 @@ func (a *app) exec(req request) (any, error) {
 		a.camera.delete(req.N)
 		return nil, nil
 	case "photosReset": // New Capture: the timeline cleared, a new folder
-		return map[string]string{"folder": a.camera.reset()}, nil
+		return map[string]string{"folder": a.camera.reset(true)}, nil
 	case "cameraDisconnect":
 		a.cap.stop()
 		a.camera.disconnect()
@@ -267,6 +267,7 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 	c.push(a.cap.msg())
 	c.push(a.camera.msg())
 	c.push(a.camera.timeline())
+	c.push(batchNow())
 
 	done := make(chan struct{})
 	go func() {

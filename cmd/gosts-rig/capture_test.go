@@ -239,7 +239,7 @@ func TestPhotoTimeline(t *testing.T) {
 	if _, ok := c.photo(2); !ok {
 		t.Fatal("photo 2 missing")
 	}
-	c.reset()
+	c.reset(true)
 	if tl := c.timeline().Photos; len(tl) != 0 {
 		t.Fatalf("after Reset: %v", tl)
 	}

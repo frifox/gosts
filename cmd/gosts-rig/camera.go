@@ -79,15 +79,18 @@ const batchName = "2006-01-02 15.04.05"
 // first photo).
 func batchFolder() string { return batchDir("") }
 
-// sampleFolder is the current batch's sample shots' folder (made now if it's
-// the first).
-func sampleFolder() string { return batchDir("-samples") }
+// sampleFolder is the current batch's sample shots' folder: "samples" in
+// its folder (made now if it's the first), so they go with the capture.
+func sampleFolder() string { return batchDir(string(filepath.Separator) + sampleSub) }
+
+// sampleSub is the sample shots' folder in a capture's.
+const sampleSub = "samples"
 
 func batchDir(suffix string) string {
 	batch.Lock()
 	defer batch.Unlock()
 	if batch.dir == "" { // the batch's name: when it first takes something
-		batch.dir = filepath.Join(photoDir, time.Now().Format(batchName))
+		batch.dir = freeBatchDir()
 	}
 	dir := batch.dir + suffix
 	if _, err := os.Stat(dir); err != nil {
@@ -106,6 +109,54 @@ func newBatch() {
 	batch.dir = ""
 	batch.Unlock()
 }
+
+// startBatch starts a new batch, named now (its start time); its folder made
+// now too with make (New Capture), else with its first photo or sample
+// shot (on starting up: no empty folder each time).
+func startBatch(make bool) {
+	batch.Lock()
+	batch.dir = freeBatchDir()
+	dir := batch.dir
+	batch.Unlock()
+	if make {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			log.Printf("photos: %v", err)
+		} else {
+			log.Printf("photos: new folder %s", dir)
+		}
+	}
+}
+
+// freeBatchDir is a new batch's folder: named after now, "… 2" and on if
+// that's taken (two in a second).
+func freeBatchDir() string {
+	base := filepath.Join(photoDir, time.Now().Format(batchName))
+	dir := base
+	for i := 2; ; i++ {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			return dir
+		}
+		dir = fmt.Sprintf("%s %d", base, i)
+	}
+}
+
+// batchName is the current batch's name (its folder's), "" if none yet.
+func currentBatch() string {
+	batch.Lock()
+	defer batch.Unlock()
+	if batch.dir == "" {
+		return ""
+	}
+	return filepath.Base(batch.dir)
+}
+
+// batchMsg tells the pages the current capture's name (its folder).
+type batchMsg struct {
+	Type string `json:"type"` // "batch"
+	Name string `json:"name"`
+}
+
+func batchNow() batchMsg { return batchMsg{Type: "batch", Name: currentBatch()} }
 
 func defaultPhotoDir() string {
 	home, err := os.UserHomeDir()
@@ -868,24 +919,20 @@ func (c *cameraConn) timeline() photosMsg {
 
 // reset clears the timeline (Reset) and starts a new batch: numbering from
 // 1 again, and a new folder for its files.
-// reset starts a new capture (New Capture): the timeline cleared, and a new
-// batch folder, made now with a real camera connected (the next photos are
-// saved there); its name, or "" (the simulator saves nothing: no folder).
-func (c *cameraConn) reset() string {
+// reset starts a new capture: the timeline cleared, and a new batch; its
+// folder made now with make (New Capture: empty, ready for the photos and
+// sample shots to come), else with its first photo (the current capture
+// deleted: no empty one left in its place). Its name.
+func (c *cameraConn) reset(make bool) string {
 	c.mu.Lock()
 	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight, c.simRendered = nil, nil, nil, nil, nil, nil
 	c.count, c.pending = 0, 0
 	c.gen++
-	_, sim := c.cam.(*simCamera)
-	real := c.cam != nil && !sim
 	c.mu.Unlock()
-	newBatch()
-	folder := ""
-	if real {
-		folder = filepath.Base(batchFolder())
-	}
+	startBatch(make)
 	c.out(c.timeline())
-	return folder
+	c.out(batchNow())
+	return currentBatch()
 }
 
 // simPicture sets simulated photo n's picture, rendered by a page.

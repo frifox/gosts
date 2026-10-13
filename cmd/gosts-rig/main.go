@@ -74,6 +74,7 @@ func main() {
 	a.rig = &rig{cfg: cfg, out: a.broadcast}
 	a.camera = &cameraConn{out: a.broadcast, cfg: cfg}
 	a.cap = &capture{rig: a.rig, camera: a.camera, out: a.broadcast}
+	startBatch(false) // a new capture each start: named now, its folder made as it's needed
 	// The servo console (Servo Ctl): gosts-ctl's, on the rig's board.
 	ctlCfg, warnings, err := console.LoadConfig(*ctlPath)
 	if err != nil {

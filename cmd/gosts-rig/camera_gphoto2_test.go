@@ -149,7 +149,7 @@ func TestPhotoBatches(t *testing.T) {
 	c.shoot(context.Background(), true, nil)
 	wait(1)
 	time.Sleep(1100 * time.Millisecond) // the folder names count seconds
-	c.reset()
+	c.reset(true)
 	c.shoot(context.Background(), true, nil)
 	wait(2)
 	dirs, _ := os.ReadDir(photoDir)
@@ -293,13 +293,13 @@ func TestSampleFolder(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	samples, _ := filepath.Glob(filepath.Join(photoDir, "*-samples", "*.JPG"))
-	all, _ := filepath.Glob(filepath.Join(photoDir, "*", "*.JPG"))
-	if len(samples) != 1 || len(all) != 2 {
-		t.Fatalf("samples %v, all %v: want the sample alone in <batch>-samples", samples, all)
+	samples, _ := filepath.Glob(filepath.Join(photoDir, "*", "samples", "*.JPG"))
+	photos, _ := filepath.Glob(filepath.Join(photoDir, "*", "*.JPG"))
+	if len(samples) != 1 || len(photos) != 1 {
+		t.Fatalf("samples %v, photos %v: want the sample alone in <batch>/samples", samples, photos)
 	}
-	if want := filepath.Dir(samples[0]); filepath.Base(want) != filepath.Base(batchFolder())+"-samples" {
-		t.Errorf("sample folder %q, want the batch's name with -samples", want)
+	if want := filepath.Dir(samples[0]); want != filepath.Join(batchFolder(), "samples") {
+		t.Errorf("sample folder %q, want the batch's samples folder", want)
 	}
 }
 

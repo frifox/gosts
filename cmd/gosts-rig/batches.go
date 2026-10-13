@@ -99,10 +99,14 @@ func listBatches() ([]batchInfo, error) {
 			continue
 		}
 		ps, err := batchPhotos(filepath.Join(photoDir, n))
-		if err != nil || len(ps) == 0 {
+		if err != nil || (len(ps) == 0 && n != current) { // (the current one: shown empty too)
 			continue
 		}
-		out = append(out, batchInfo{Name: n, Count: len(ps), Mid: ps[(len(ps)-1)/2].File, Current: n == current})
+		mid := ""
+		if len(ps) > 0 {
+			mid = ps[(len(ps)-1)/2].File
+		}
+		out = append(out, batchInfo{Name: n, Count: len(ps), Mid: mid, Current: n == current})
 	}
 	slices.SortFunc(out, func(a, b batchInfo) int { return strings.Compare(b.Name, a.Name) })
 	return out, nil
@@ -273,6 +277,7 @@ func (a *app) renameBatch(from, to string) error {
 	}
 	if current {
 		batch.dir = dst
+		defer a.broadcast(batchMsg{Type: "batch", Name: to}) // (after the lock)
 	}
 	log.Printf("photos: renamed %s to %s", from, to)
 	return nil
@@ -368,7 +373,7 @@ func (a *app) deleteBatch(name string) error {
 		if a.cap.msg().Running {
 			return errors.New("a capture is saving into it: delete it once the capture is done")
 		}
-		a.camera.reset()
+		a.camera.reset(false)
 	}
 	if err := trash(dir); err != nil {
 		return err
