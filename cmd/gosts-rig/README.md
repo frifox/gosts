@@ -4,6 +4,7 @@ Runs a turntable photogrammetry rig from the browser: plan a capture, watch the 
 straight off the camera. An example app of [Go ST Servo](../../README.md).
 
 <p align="center"><img src="../../docs/gosts-rig.jpg" alt="gosts-rig: a moving-shots capture under way, the photos coming in and the rig drawn live"></p>
+<p align="center"><img src="../../docs/gosts-rig-model.jpg" alt="gosts-rig: a capture's model in the 3D viewer, the Edit panel open to level, align, trim and scale it"></p>
 
 ## The rig
 
@@ -12,7 +13,8 @@ straight off the camera. An example app of [Go ST Servo](../../README.md).
 - One ST3215 turns the platform under the target object
 - A camera on USB that [gphoto2](http://gphoto.org) can drive
 
-No hardware? Simulators are available for both the rig and the camera.
+No hardware? Simulators are available for both the rig and the camera (the simulated camera's photos are the 3D
+view from the camera, saved as JPEGs like a real camera's).
 
 ## Install and run
 
@@ -114,25 +116,27 @@ The view buttons at the top left glide to a view, in Blender's and Fusion's axes
 The viewer shows the axes as they do (X red, Y green, Z blue up) and the ground grid at the origin. **Pick Points**,
 then click on the model (each click snaps to the nearest corner of the triangle under it):
 
-1. **Level**: 3 or more points on what it should stand on; the plane through them goes to the ground, the model above it.
-2. **Align**: 2 or more points along an edge, and X or Y; the model turns about the vertical so the edge runs along it.
-3. **Scale**: 2 points and their real distance (mm or in); the model scales to match (Object Capture's own size is a
-   guess from the photos).
-4. **Rotate**: a turn about X, Y and Z (−180° to 180°) through the origin, a slider each (or −90° / +90° at its ends:
-   past ±180° the turn comes round from the other end); the model turns as it's set. It's kept as one step when another
-   starts (the sliders back to 0°); Undo before that puts it back.
-5. **Trim**: move the sides of a box (X, Y, Z, each min and max) in; the part outside it shows cut off as you go, and
+1. **Level**: 3 or more points on what it should stand on (their plane shows, see-through); **Level** puts that plane
+   on the ground, the model above it.
+2. **Align**: 2 or more points along an edge (the upright plane through them shows), and the axis, X or Y; **Align**
+   turns the model about the vertical so the edge runs along it.
+3. **Rotate**: a turn about X, Y and Z (−180° to 180°) through the origin, a slider each (or −90° / +90° at its ends:
+   past ±180° the turn comes round from the other end); the model turns as it's set. **Apply** keeps it as a step (the
+   sliders back to 0°; starting another step does too); Undo before that puts it back.
+4. **Trim**: move the sides of a box (X, Y, Z, each min and max) in; the part outside it shows cut off as you go, and
    **Trim** cuts it away: triangles across a side are cut along it (their texture and normals kept), so the cut is
    exact.
-6. **Center**: a point, then an axis (X, Y or Z): the model slides along it so the point is at 0 on it, the others
-   left as they are; all three, one after another, put the point at the origin. **Apply** keeps it (Clear or Undo,
-   before that, puts it back).
+5. **Center**: a point, then an axis (X, Y or Z): the model (and the point with it) slides along it so the point is at
+   0 on it, the others left as they are; all three put the point at the origin, a click again undoes one. **Apply**
+   keeps it (Clear or Undo, before that, puts it back).
+6. **Scale**: 2 points and their real distance (mm or in); the model scales to match (Object Capture's own size is a
+   guess from the photos).
 
 Each step centers it on the origin; the size (X × Y × Z) shows as it goes; **Undo** steps back. **Save** writes it as a
 new model in the capture (named `<model>-aligned` unless you name it): the OBJ in the file units picked (mm, the
 default; in; or m, Blender's), y up as OBJ files are (Blender and Fusion turn it z up), its materials and textures
 copied; **Also an STL** (z up, as STL files are); **Simplify to** a number of triangles (meshoptimizer; the texture
-kept). Its `edit.json` says what it was made from and how; saving under the same name again replaces it (the one
+kept; more than the model has warns, as it would stay as it is). With a step set up but not applied, Save asks first. Its `edit.json` says what it was made from and how; saving under the same name again replaces it (the one
 before to the Trash). **Overwrite** (by the name) saves over the model being edited itself: its folder gets the edited
 model, the one there before goes to the Trash.
 
