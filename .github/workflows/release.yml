@@ -40,7 +40,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           zip="cmd/gosts-rig-macos/build/GoSTS-Rig-${GITHUB_REF_NAME}-macos-arm64.zip"
-          notes="GoSTS Rig for macOS (Apple silicon). Unzip and move it to Applications. It's signed ad hoc, not by Apple, so the first time: right-click it → Open (or System Settings → Privacy & Security → Open Anyway). For a real camera: brew install gphoto2."
+          notes="GoSTS Rig for macOS (Apple silicon). Unzip and move it to Applications. It's signed ad hoc, not by Apple, so the first time: open it once, then System Settings → Privacy & Security → Open Anyway (on macOS 14 and earlier, right-click → Open works too). For a real camera: brew install gphoto2."
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$zip" --clobber
           else
