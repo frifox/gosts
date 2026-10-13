@@ -122,7 +122,7 @@ then click on the model (each click snaps to the nearest corner of the triangle 
 5. **Trim**: move the sides of a box (X, Y, Z, each min and max) in; the part outside it shows cut off as you go, and
    **Trim** cuts it away: triangles across a side are cut along it (their texture and normals kept), so the cut is
    exact.
-6. **Center**: a point, and a plane (XY, XZ or YZ); the model slides in that plane so the point is over the origin, the
+6. **Origin**: a point, and a plane (XY, XZ or YZ); the model slides in that plane so the point is over the origin (**Center**), the
    third axis left as it is (XY: a point at the top's middle over the origin, its height kept).
 
 Each step centers it on the origin; the size (X × Y × Z) shows as it goes; **Undo** steps back. **Save** writes it as a
