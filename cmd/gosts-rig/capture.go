@@ -561,7 +561,7 @@ func (c *capture) exportAlignment(kind string) {
 	for i, s := range shots {
 		p, ok := c.camera.photo(first + i)
 		if !ok || len(p.Files) == 0 || s.ActualElevation == nil || s.ActualAzimuth == nil {
-			continue // no file (the simulated camera saves none), or no pose
+			continue // no file (not saved), or no pose
 		}
 		photos = append(photos, exportPhoto{Path: p.Files[0], Pose: camPose(r, *s.ActualElevation, *s.ActualAzimuth)})
 	}

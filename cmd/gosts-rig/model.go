@@ -238,6 +238,9 @@ func (b *modelBuilder) start(a *app, name string, o modelOptions) error {
 	}
 	dir := filepath.Join(photoDir, name)
 	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+		if name == currentBatch() { // (the capture going: its folder made with its first file)
+			return errors.New("no photo files saved in this capture yet: nothing to build from")
+		}
 		return errors.New("no such capture")
 	}
 	if o.Out == "" {

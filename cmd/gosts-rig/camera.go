@@ -59,6 +59,7 @@ type photo struct {
 	Num      int               // its number on the timeline (1, 2…: sample shots not counted); 0 for a sample
 	Caption  string            // its settings, for a sample
 	Settings map[string]string // and them by key (e.g. for balancing from a gray card)
+	dir      string            // the simulated camera's: the folder to save it in (as the shutter went)
 }
 
 // fileName is the photo's file's name (its first: the JPEG), "" if unsaved.
@@ -227,7 +228,7 @@ const simCameraID = "sim"
 // whatever gphoto2 finds attached over USB right now (the Sony A6600,
 // PTP-connected).
 func listCameras() []cameraInfo {
-	cams := []cameraInfo{{ID: simCameraID, Name: "Simulator", Detail: "Simulated camera: takes a photo about every second, as a real one would, saves nothing"}}
+	cams := []cameraInfo{{ID: simCameraID, Name: "Simulator", Detail: "Simulated camera: takes a photo about every second, as a real one would, saved as a JPEG of the Rig View"}}
 	for _, d := range gphoto2Detect() {
 		cams = append(cams, cameraInfo{ID: gphoto2Prefix + d.port, Name: d.model, Detail: "USB, " + d.port + " (gphoto2)"})
 	}
@@ -305,7 +306,11 @@ func (s *simCamera) Shoot(ctx context.Context, sh shutter) error {
 	s.mu.Lock()
 	s.n++
 	s.mu.Unlock()
-	sh.got(photo{At: time.Now()}, nil) // no picture: cameraConn has one rendered
+	p := photo{At: time.Now()}
+	if sh.folder != nil {
+		p.dir = sh.folder()
+	}
+	sh.got(p, nil) // no picture: cameraConn has one rendered (and saves it there)
 	return nil
 }
 
@@ -419,6 +424,7 @@ type cameraConn struct {
 	unfired        []time.Time               // photos queued whose shutter hasn't gone yet: when each was asked for (see firingLate)
 	firedAt        []time.Time               // when the queued photos' shutters went, recently (see measurePace)
 	simRendered    map[int]bool              // simulated photos a page has rendered (coming over: see simPicture)
+	simDirs        map[int]string            // the folders simulated photos are saved in (see simSave)
 	simLink        time.Time                 // the simulated camera's link is busy till then (see simDownload)
 	exposed        time.Duration             // the shutter speed last read (see exposure), for the estimate
 	taken          int                       // the capture's photos asked for, sample shots not counted: their numbers to show (see photoInfo)
@@ -795,6 +801,10 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 	case sim: // a page renders it; if none does, a made-up one
 		c.mu.Lock()
 		c.pending = n
+		if c.simDirs == nil {
+			c.simDirs = map[int]string{}
+		}
+		c.simDirs[n] = p.dir
 		c.mu.Unlock()
 		sim := cam.(*simCamera)
 		var settings map[string]string
@@ -811,7 +821,7 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 			rendered := c.simRendered[n]
 			c.mu.Unlock()
 			if c.current(gen) && !rendered {
-				c.picture(n, photo{JPEG: simPictureJPEG(n), At: p.At})
+				c.picture(n, c.simSave(n, photo{JPEG: simPictureJPEG(n), At: p.At}))
 			}
 		})
 	default: // taken, but nothing to show
@@ -986,7 +996,7 @@ func (c *cameraConn) timeline() photosMsg {
 // deleted: no empty one left in its place). Its name.
 func (c *cameraConn) reset(make bool) string {
 	c.mu.Lock()
-	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight, c.simRendered = nil, nil, nil, nil, nil, nil
+	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight, c.simRendered, c.simDirs = nil, nil, nil, nil, nil, nil, nil
 	c.count, c.pending, c.taken, c.nums = 0, 0, 0, nil
 	c.gen++
 	c.mu.Unlock()
@@ -1001,7 +1011,7 @@ func (c *cameraConn) reset(make bool) string {
 // taken is known at once (false: not waited for, or a late copy).
 func (c *cameraConn) simPicture(n int, jpg []byte) bool {
 	if simDownload <= 0 {
-		return c.picture(n, photo{JPEG: jpg, At: time.Now()})
+		return c.picture(n, c.simSave(n, photo{JPEG: jpg, At: time.Now()}))
 	}
 	c.mu.Lock()
 	if !c.inFlight[n] || c.simRendered[n] {
@@ -1022,10 +1032,34 @@ func (c *cameraConn) simPicture(n int, jpg []byte) bool {
 	c.mu.Unlock()
 	time.AfterFunc(time.Until(done), func() {
 		if c.current(gen) {
-			c.picture(n, photo{JPEG: jpg, At: time.Now()})
+			c.picture(n, c.simSave(n, photo{JPEG: jpg, At: time.Now()}))
 		}
 	})
 	return true
+}
+
+// simSave saves simulated photo n's picture as a real camera would its
+// JPEG: in the capture's folder (a sample shot's in its samples folder),
+// as the shutter went, named SIM_0001.JPG after its number.
+func (c *cameraConn) simSave(n int, p photo) photo {
+	c.mu.Lock()
+	dir, num := c.simDirs[n], c.nums[n]
+	delete(c.simDirs, n)
+	c.mu.Unlock()
+	if dir == "" || len(p.JPEG) == 0 {
+		return p
+	}
+	name := fmt.Sprintf("SIM_%04d.JPG", num)
+	if num == 0 { // a sample shot (not counted)
+		name = fmt.Sprintf("SIM_S%04d.JPG", n)
+	}
+	path, err := saveUnique(dir, name, p.JPEG)
+	if err != nil {
+		c.warn("saving %s: %v", name, err)
+		return p
+	}
+	p.Files = []string{path}
+	return p
 }
 
 // lastPhoto is the newest photo on the timeline (empty if none), and its

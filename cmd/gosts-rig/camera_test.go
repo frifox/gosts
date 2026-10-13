@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"os"
@@ -250,5 +251,40 @@ func TestBatchEmpty(t *testing.T) {
 	c.reset(false) // (not made yet: nothing in it)
 	if !c.batchStatus().Empty {
 		t.Error("a capture not made yet isn't empty")
+	}
+}
+
+// TestSimSaves: the simulated camera's photos are saved as a real one's
+// JPEGs: in the capture's folder, named after their numbers.
+func TestSimSaves(t *testing.T) {
+	simPictureWait = 5 * time.Second // the page's render, not a made-up one
+	defer func() { simPictureWait = 2 * time.Second; newBatch() }()
+	startBatch(false)
+	c := &cameraConn{out: func(any) {}}
+	if err := c.connect(simCameraID); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := c.shoot(t.Context(), true, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for n := 1; n <= 2; n++ {
+		if !c.simPicture(n, []byte("rendered")) {
+			t.Fatalf("picture %d refused", n)
+		}
+	}
+	for n := 1; n <= 2; n++ {
+		p, ok := c.photo(n)
+		if !ok || len(p.Files) != 1 {
+			t.Fatalf("photo %d: %+v, want a file", n, p.Files)
+		}
+		want := filepath.Join(batchFolder(), fmt.Sprintf("SIM_%04d.JPG", n))
+		if p.Files[0] != want {
+			t.Errorf("photo %d saved as %s, want %s", n, p.Files[0], want)
+		}
+		if b, err := os.ReadFile(want); err != nil || string(b) != "rendered" {
+			t.Errorf("photo %d's file: %q, %v", n, b, err)
+		}
 	}
 }

@@ -67,3 +67,21 @@ func TestModelOutNotOurs(t *testing.T) {
 		t.Error("its file's gone")
 	}
 }
+
+// TestModelNothingSaved: the capture going with no folder yet (nothing
+// taken in it) says so, not "no such capture".
+func TestModelNothingSaved(t *testing.T) {
+	old, oldDir := photoDir, batch.dir
+	photoDir = t.TempDir()
+	defer func() { photoDir = old; batch.dir = oldDir }()
+	batch.dir = filepath.Join(photoDir, "benchy") // (named, not made)
+	cam := &cameraConn{out: func(any) {}}
+	a := &app{camera: cam, cap: &capture{camera: cam, out: func(any) {}}}
+	b := &modelBuilder{out: func(any) {}}
+	if err := b.start(a, "benchy", defaultModelOptions()); err == nil || !strings.Contains(err.Error(), "no photo files saved") {
+		t.Fatalf("got %v, want no photo files saved", err)
+	}
+	if err := b.start(a, "other", defaultModelOptions()); err == nil || err.Error() != "no such capture" {
+		t.Fatalf("got %v, want no such capture", err)
+	}
+}
