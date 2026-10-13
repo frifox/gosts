@@ -400,6 +400,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 #mveAxis button { font-weight: 600; }
 #mveAxis [data-v=x] { color: #e5484d; } #mveAxis [data-v=y] { color: #46a758; }
 #mveAxis button.active { background: color-mix(in srgb, currentColor 22%, var(--panel-2)); box-shadow: inset 0 0 0 1px currentColor; } /* (picked: its own color) */
+#mveAxis button:first-child { border-radius: 7px 0 0 7px; } #mveAxis button:last-child { border-radius: 0 7px 7px 0; } /* (the outline round the group's corners, not cut by them) */
 .mv-edit .mve-close { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 7px; font-size: 12px; }
 .mv-edit .mve-top { padding-right: 30px; } /* (clear of ✕) */
 .mv-edit section { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
@@ -1018,7 +1019,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <section data-step="align">
         <div class="mve-head"><b>2 · Align</b></div>
         <div class="mve-row"><button class="btn small" data-pick="align">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="align">Clear</button></div>
-        <div class="mve-row"><span class="mve-label">Along</span><span class="views seg" id="mveAxis"><button data-v="x">X</button><button data-v="y">Y</button></span><span class="spacer"></span><button class="btn small primary" id="mveAlign" disabled>Align</button></div>
+        <div class="mve-row"><span class="mve-label">To axis</span><span class="views seg" id="mveAxis"><button data-v="x">X</button><button data-v="y">Y</button></span><span class="spacer"></span><button class="btn small primary" id="mveAlign" disabled>Align</button></div>
       </section>
       <section data-step="scale">
         <div class="mve-head"><b>3 · Scale</b></div>
