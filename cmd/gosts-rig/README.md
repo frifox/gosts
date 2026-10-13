@@ -118,7 +118,9 @@ then click on the model (each click snaps to the nearest corner of the triangle 
 2. **Align**: 2 or more points along an edge, and X or Y; the model turns about the vertical so the edge runs along it.
 3. **Scale**: 2 points and their real distance (mm or in); the model scales to match (Object Capture's own size is a
    guess from the photos).
-4. **Rotate**: a quarter turn (−90° or +90°) about X, Y or Z through the origin (nothing else moved).
+4. **Rotate**: a turn about X, Y and Z (−180° to 180°) through the origin, a slider each (or −90° / +90° at its ends:
+   past ±180° the turn comes round from the other end); the model turns as it's set. It's kept as one step when another
+   starts (the sliders back to 0°); Undo before that puts it back.
 5. **Trim**: move the sides of a box (X, Y, Z, each min and max) in; the part outside it shows cut off as you go, and
    **Trim** cuts it away: triangles across a side are cut along it (their texture and normals kept), so the cut is
    exact.

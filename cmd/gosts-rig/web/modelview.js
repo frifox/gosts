@@ -631,6 +631,7 @@ export function createModelView(canvas) {
     show, look, reset, view, clear, stats, box,
     editing, shown, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, parts,
     settle: () => tweenEnd(), // (a move going on: there at once)
+    peek: (m) => { if (holder) { tweenEnd(); place(m); } }, // (the model there, as a slider drags: the ground left till setMatrix)
     setInset,
     set onPick(f) { onPick = f; canvas.style.cursor = f ? "crosshair" : ""; if (!f) hover.visible = false; },
     hoverColor, // (the hover ball's color: the step picking's)

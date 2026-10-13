@@ -412,7 +412,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mv-edit .mp-check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .mve-axes { color: var(--muted); font-size: 12px; }
 .mve-axes .x { color: #e5484d; } .mve-axes .y { color: #46a758; } .mve-axes .z { color: #3e7bfa; }
-.mve-rot { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 8px; align-items: center; }
+.mve-rot { display: grid; grid-template-columns: auto auto 1fr auto auto; gap: 6px 8px; align-items: center; }
+.mve-rot .btn { padding: 2px 6px; font-size: 11px; }
+.mve-rot .mve-deg { font: 11px var(--mono); color: var(--text); min-width: 34px; text-align: right; }
 .mve-rot b { font: 600 12px var(--mono); width: 16px; }
 .mve-trim { display: grid; grid-template-columns: auto auto 1fr auto; gap: 6px 8px; align-items: center; }
 .mve-trim b { font: 600 12px var(--mono); }
@@ -1015,9 +1017,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <section data-rot>
         <div class="mve-head"><b>4 · Rotate</b></div>
         <div class="mve-rot">
-          <b class="x">X</b><button class="btn small" data-rot="x" data-deg="-90">−90°</button><button class="btn small" data-rot="x" data-deg="90">+90°</button>
-          <b class="y">Y</b><button class="btn small" data-rot="y" data-deg="-90">−90°</button><button class="btn small" data-rot="y" data-deg="90">+90°</button>
-          <b class="z">Z</b><button class="btn small" data-rot="z" data-deg="-90">−90°</button><button class="btn small" data-rot="z" data-deg="90">+90°</button>
+          <b class="x">X</b><button class="btn small" data-rot="x" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="x"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="x" aria-label="Turn about X"></span><button class="btn small" data-rot="x" data-deg="90">+90°</button><span class="mve-deg" data-deg-of="x">0°</span>
+          <b class="y">Y</b><button class="btn small" data-rot="y" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="y"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="y" aria-label="Turn about Y"></span><button class="btn small" data-rot="y" data-deg="90">+90°</button><span class="mve-deg" data-deg-of="y">0°</span>
+          <b class="z">Z</b><button class="btn small" data-rot="z" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="z"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="z" aria-label="Turn about Z"></span><button class="btn small" data-rot="z" data-deg="90">+90°</button><span class="mve-deg" data-deg-of="z">0°</span>
         </div>
       </section>
       <section data-trim>
@@ -1664,7 +1666,7 @@ function mveShow() {
   const sp = mve.picks.scale;
   $("mveScale").disabled = sp.length !== 2 || !(Number($("mveDist").value) > 0);
   $("mveDist").placeholder = sp.length === 2 ? `now ${(sp[0].distanceTo(sp[1]) * k).toFixed(u === "mm" ? 1 : 3)}` : "distance";
-  $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length && !mve.originFrom;
+  $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length && !mve.originFrom && !mve.rotFrom;
   const st = mv.stats();
   if (st) {
     const [x, y, z] = [st.size[0], st.size[2], st.size[1]].map(mveNum);
@@ -1699,6 +1701,7 @@ $("mvEdit").addEventListener("click", (e) => {
 async function mveDo(f) {
   const mv = window.modelView;
   mv.settle();
+  mveRotCommit(); // (a turn set: kept, as a step of its own)
   try {
     const before = mv.matrix();
     const m = f(mv.boxWith); // (box(m): the model's box after m)
@@ -1737,7 +1740,7 @@ function mveTrimShow() {
   if (!mve.ext) return;
   const t = mveTrimBox();
   for (const ax of "xyz") for (const i of [0, 1]) $("mvEdit").querySelector(`[data-val="${ax}${i}"]`).textContent = mveNum(t[ax][i]);
-  for (const d of $("mvEdit").querySelectorAll(".mve-dual")) {
+  for (const d of $("mvEdit").querySelectorAll(".mve-trim .mve-dual")) {
     const [lo, hi] = [...d.querySelectorAll("input")].map((r) => Number(r.value) / 1000);
     d.style.setProperty("--a", lo); d.style.setProperty("--b", hi);
     d.querySelector('[data-end="0"]').style.zIndex = lo > 0.5 ? 2 : 1; // (both at one end: the one that can move, on top)
@@ -1765,6 +1768,7 @@ $("mvEdit").querySelector(".mve-trim").addEventListener("input", (e) => {
 $("mveTrimReset").onclick = mveTrimReset;
 $("mveTrim").onclick = () => {
   window.modelView.settle();
+  mveRotCommit();
   mveOriginCommit(); // (Origin's Set, not Applied: kept, first)
   try {
     const undo = window.modelView.trim(mveThreeBox(mveTrimBox()));
@@ -1783,6 +1787,7 @@ $("mveSet").onclick = async () => {
   const mv = window.modelView, p = mve.picks.center[0];
   if (!p) return;
   mv.settle();
+  mveRotCommit();
   try {
     const m = window.modelEdit.center(p, segOf("mvePlane"));
     if (!mve.originFrom) mve.originFrom = mv.matrix();
@@ -1810,12 +1815,73 @@ async function mveOriginCancel() {
 }
 $("mveAlign").onclick = () => mveDo((box) => window.modelEdit.align(mve.picks.align, segOf("mveAxis"), box));
 $("mveScale").onclick = () => mveDo(() => window.modelEdit.scale(mve.picks.scale[0], mve.picks.scale[1], Number($("mveDist").value) * window.modelEdit.UNITS[segOf("mveUnit")]));
-$("mvEdit").querySelector(".mve-rot").onclick = (e) => {
+// Rotate: a turn about each axis (−180°…180°), shown on the model as it's
+// set (a slider dragged, or ±90°: past ±180° it comes round the other end);
+// the turn kept as one step once another starts (the sliders back to 0°),
+// Undo before that puts it back. rotFrom: the edit before the turn.
+mve.rot = { x: 0, y: 0, z: 0 };
+mve.rotFrom = null;
+const rotWrap = (d) => ((((d + 180) % 360) + 360) % 360) - 180;
+function rotMatrix() {
+  const E = window.modelEdit, r = mve.rot; // (X first, then Y, then Z: about the fixed axes, as Blender's XYZ)
+  return E.rotate("z", r.z).multiply(E.rotate("y", r.y)).multiply(E.rotate("x", r.x));
+}
+function rotShow() {
+  for (const ax of "xyz") {
+    const v = mve.rot[ax], f = (v + 180) / 360;
+    $("mvEdit").querySelector(`input[data-rax="${ax}"]`).value = v;
+    $("mvEdit").querySelector(`[data-deg-of="${ax}"]`).textContent = `${v}°`;
+    const d = $("mvEdit").querySelector(`.mve-dual[data-rax="${ax}"]`);
+    d.style.setProperty("--a", Math.min(0.5, f)); d.style.setProperty("--b", Math.max(0.5, f)); // (filled from 0° to it)
+  }
+}
+async function rotSet(ax, deg, animate) {
+  const mv = window.modelView;
+  if (!mve.rotFrom) {
+    mveOriginCommit();
+    mve.rotFrom = mv.matrix();
+    mve.picks = { level: [], align: [], scale: [], center: [] }; // (the model turning: the points picked no longer on it)
+    mvePicking(null);
+  }
+  mve.rot[ax] = rotWrap(Math.round(deg));
+  rotShow();
+  const m = rotMatrix().multiply(mve.rotFrom);
+  if (animate) { await mv.setMatrix(m, true); mveTrimReset(); mveShow(); }
+  else mv.peek(m);
+}
+// mveRotCommit: a turn set kept as one step (none: nothing); the sliders to 0°.
+function mveRotCommit() {
+  if (!mve.rotFrom) return;
+  if (mve.rot.x || mve.rot.y || mve.rot.z) mve.undo.push(mve.rotFrom);
+  mve.rotFrom = null;
+  mve.rot = { x: 0, y: 0, z: 0 };
+  rotShow();
+}
+// mveRotCancel: the turn undone (the model back), the sliders to 0°.
+async function mveRotCancel() {
+  const from = mve.rotFrom;
+  mve.rotFrom = null;
+  mve.rot = { x: 0, y: 0, z: 0 };
+  rotShow();
+  if (from) { await window.modelView.setMatrix(from, true); mveTrimReset(); mveShow(); }
+}
+$("mvEdit").querySelector(".mve-rot").addEventListener("click", (e) => {
   const b = e.target.closest("[data-rot]");
-  if (b) mveDo(() => window.modelEdit.rotate(b.dataset.rot, Number(b.dataset.deg)));
-};
+  if (b) rotSet(b.dataset.rot, mve.rot[b.dataset.rot] + Number(b.dataset.deg), true);
+});
+$("mvEdit").querySelector(".mve-rot").addEventListener("input", (e) => {
+  const r = e.target.closest("input[data-rax]");
+  if (r) rotSet(r.dataset.rax, Number(r.value), false);
+});
+$("mvEdit").querySelector(".mve-rot").addEventListener("change", (e) => {
+  if (!e.target.closest("input[data-rax]")) return;
+  window.modelView.setMatrix(window.modelView.matrix()); // (the ground, for where it ended)
+  mveTrimReset();
+  mveShow();
+});
 // Undo: a step back (an edit's matrix before, or a trim's putting back).
 async function mveBack() {
+  if (mve.rotFrom) return mveRotCancel(); // (a turn set, not kept yet: that's the step back)
   if (mve.originFrom) return mveOriginCancel(); // (Set, not Applied: that's the step back)
   const u = mve.undo.pop();
   if (typeof u === "function") u();
@@ -1824,6 +1890,7 @@ async function mveBack() {
 $("mveUndo").onclick = async () => { await mveBack(); mveTrimReset(); mveShow(); };
 // Reset Edits: the trims put back, the model moved back to where it came.
 async function mveResetAll() {
+  mveRotCommit();
   mveOriginCommit(); // (then undone with the rest)
   let first = null;
   while (mve.undo.length) { const u = mve.undo.pop(); if (typeof u === "function") u(); else first = u; }
@@ -1836,7 +1903,7 @@ $("mveResetEdit").onclick = mveResetAll;
 // ✕: the edits undone (asked first, if there are any), the points picked
 // dropped, the panel closed.
 $("mveClose").onclick = async () => {
-  const edits = mve.undo.length || mve.originFrom;
+  const edits = mve.undo.length || mve.originFrom || (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z));
   if (edits && !await confirmDanger("Cancel the edits?", "The model goes back to as it was when you opened Edit (nothing saved is changed).", "Cancel Edits")) return;
   if (edits) await mveResetAll();
   mve.picks = { level: [], align: [], scale: [], center: [] };
@@ -1882,6 +1949,9 @@ function mveFresh(m) {
   mve.picks = { level: [], align: [], scale: [], center: [] };
   mve.undo = [];
   mve.originFrom = null;
+  mve.rotFrom = null;
+  mve.rot = { x: 0, y: 0, z: 0 };
+  rotShow();
   const base = m.name.replace(/-aligned(-\d+)?$/, "");
   mveTyped = "";
   mveReplace(false);
