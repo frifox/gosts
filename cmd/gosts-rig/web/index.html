@@ -430,9 +430,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .model-panel .mp-check.off { opacity: .45; cursor: default; }
 .model-panel #mCustom.preset { opacity: .55; } /* a preset's: shown, not set */
 .model-panel #mCustom.preset .mp-check { cursor: default; }
-.model-panel .mp-run { align-items: center; }
+.model-panel .mp-run { align-items: flex-start; } /* (the bar level with Process, its note below) */
 .model-panel .mp-progress { flex: 1; min-width: 220px; }
 .model-panel .mp-progress .progress { margin-top: 0; }
+.model-panel .mp-progress .progress.big { box-sizing: border-box; height: calc(1.4em + 14px); font-size: 14px; } /* Process's height: its line, 6px padding and a border each side */
 .model-panel #mStatus { margin-top: 4px; font-size: 12px; }
 /* A photo's mark from the build: used (green ✓), rejected (red ✕), skipped, not placed, being read. */
 .thumb .mmark { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
