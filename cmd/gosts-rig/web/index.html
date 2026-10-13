@@ -465,7 +465,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .crumbs { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 14px; font-weight: 650; }
 .crumb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
 .crumbs .crumb-btn { max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.crumbs .crumb-home { width: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; align-self: stretch; }
+.crumbs .crumb-home { width: 30px; height: calc(12px * 1.4 + 8px); padding: 0; display: inline-flex; align-items: center; justify-content: center; } /* (a small button's height: its line, padding, border; alone too) */
 .crumbs .crumb-home svg { width: 16px; height: 16px; }
 .crumbs { gap: 10px; }
 /* Home's tip: the photos' folder, in a bubble below (as the Mirrored tip). */
