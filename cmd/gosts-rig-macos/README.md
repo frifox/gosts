@@ -34,7 +34,7 @@ From the repository's root:
 
 ```bash
 make           # builds cmd/gosts-rig-macos/build/GoSTS Rig.app
-make install   # builds it, then puts it in /Applications
+make install   # builds it, puts it in /Applications, and deletes the build
 ```
 
 The app is signed ad hoc, so it runs on the Mac that built it.
