@@ -1021,13 +1021,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mve-row"><button class="btn small" data-pick="align">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="align">Clear</button></div>
         <div class="mve-row"><span class="mve-label">To axis</span><span class="views seg" id="mveAxis"><button data-v="x">X</button><button data-v="y">Y</button></span><span class="spacer"></span><button class="btn small primary" id="mveAlign" disabled>Align</button></div>
       </section>
-      <section data-step="scale">
-        <div class="mve-head"><b>3 · Scale</b></div>
-        <div class="mve-row"><button class="btn small" data-pick="scale">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="scale">Clear</button></div>
-        <div class="mve-row"><input type="number" id="mveDist" min="0" step="any" placeholder="distance"><span class="views seg" id="mveUnit"><button data-v="mm">mm</button><button data-v="in">in</button></span><span class="spacer"></span><button class="btn small primary" id="mveScale" disabled>Scale</button></div>
-      </section>
       <section data-rot>
-        <div class="mve-head"><b>4 · Rotate</b></div>
+        <div class="mve-head"><b>3 · Rotate</b></div>
         <div class="mve-rot">
           <b class="x">X</b><button class="btn small" data-rot="x" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="x"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="x" aria-label="Turn about X"></span><button class="btn small" data-rot="x" data-deg="90">+90°</button><span class="mve-deg" data-deg-of="x">0°</span>
           <b class="y">Y</b><button class="btn small" data-rot="y" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="y"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="y" aria-label="Turn about Y"></span><button class="btn small" data-rot="y" data-deg="90">+90°</button><span class="mve-deg" data-deg-of="y">0°</span>
@@ -1036,14 +1031,19 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mve-row"><span class="spacer"></span><button class="btn small primary" id="mveRot" disabled title="Keep it turned as it is">Apply</button></div>
       </section>
       <section data-trim>
-        <div class="mve-head"><b>5 · Trim</b></div>
+        <div class="mve-head"><b>4 · Trim</b></div>
         <div class="mve-trim"><b class="x">X</b><span class="mve-val" data-val="x0"></span><span class="mve-dual" data-ax="x"><span class="mve-fill"></span><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="0" aria-label="X min"><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="1" aria-label="X max"></span><span class="mve-val" data-val="x1"></span><b class="y">Y</b><span class="mve-val" data-val="y0"></span><span class="mve-dual" data-ax="y"><span class="mve-fill"></span><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="0" aria-label="Y min"><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="1" aria-label="Y max"></span><span class="mve-val" data-val="y1"></span><b class="z">Z</b><span class="mve-val" data-val="z0"></span><span class="mve-dual" data-ax="z"><span class="mve-fill"></span><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="0" aria-label="Z min"><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="1" aria-label="Z max"></span><span class="mve-val" data-val="z1"></span></div>
         <div class="mve-row"><button class="btn small" id="mveTrimReset" disabled>Reset Box</button><span class="spacer"></span><button class="btn small primary" id="mveTrim" disabled>Trim</button></div>
       </section>
       <section data-step="center">
-        <div class="mve-head"><b>6 · Center</b></div>
+        <div class="mve-head"><b>5 · Center</b></div>
         <div class="mve-row"><button class="btn small" data-pick="center">Pick Point</button><span class="mve-n"></span><button class="btn small" data-clear="center">Clear</button></div>
         <div class="mve-row"><span class="mve-label">Axis to center</span><span class="btn-join mve-axes-go" id="mveAxesGo"><button class="btn small" data-axis="x" disabled title="Slide the model along X so the point is at 0 on it">X</button><button class="btn small" data-axis="y" disabled title="Slide the model along Y so the point is at 0 on it">Y</button><button class="btn small" data-axis="z" disabled title="Slide the model along Z so the point is at 0 on it">Z</button></span><span class="spacer"></span><button class="btn small primary" id="mveCenter" disabled title="Keep it where it's been moved">Apply</button></div>
+      </section>
+      <section data-step="scale">
+        <div class="mve-head"><b>6 · Scale</b></div>
+        <div class="mve-row"><button class="btn small" data-pick="scale">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="scale">Clear</button></div>
+        <div class="mve-row"><input type="number" id="mveDist" min="0" step="any" placeholder="distance"><span class="views seg" id="mveUnit"><button data-v="mm">mm</button><button data-v="in">in</button></span><span class="spacer"></span><button class="btn small primary" id="mveScale" disabled>Scale</button></div>
       </section>
       <section class="mve-save">
         <div class="mve-head"><b>Save</b></div>
