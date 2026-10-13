@@ -106,9 +106,17 @@ const VIEW_DIR = VIEWS["3d"];
 // frame puts camera (and controls, if any) on obj, just all of it in view
 // (each point: as far off as it needs, at the camera's angle, from the
 // middle of its box; margin: a fraction of the view left round it).
-function frame(obj, camera, controls, margin = 0.06, dir = VIEW_DIR, aspect = camera.aspect) {
+// upright: aimed not at the model's middle but at the nearest point to it
+// in line with the origin (on the upright plane through the origin along
+// dir), so the origin's at the middle of the picture across: its Z axis,
+// straight up there, isn't leaned by the perspective.
+function frame(obj, camera, controls, margin = 0.06, dir = VIEW_DIR, aspect = camera.aspect, upright = false) {
   const box = new THREE.Box3().setFromObject(obj);
   const c = box.getCenter(new THREE.Vector3());
+  if (upright) {
+    const h = new THREE.Vector3(dir.x, 0, dir.z).normalize(), k = c.x * h.x + c.z * h.z;
+    c.set(h.x * k, c.y, h.z * k);
+  }
   const r = Math.max(box.getBoundingSphere(new THREE.Sphere()).radius, 1e-3);
   const fwd = dir.clone(), right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), fwd).normalize();
   const up = new THREE.Vector3().crossVectors(fwd, right);
@@ -179,7 +187,7 @@ export function createModelView(canvas) {
   controls.screenSpacePanning = true;
   controls.zoomToCursor = true;
   // holder: the edit (its matrix); in it the model as loaded (in meters).
-  let viewName = "3d", holder = null, obj = null, grid = null, axes = null, mode = "textured", running = false, seq = 0, editOn = false, onPick = null, radius = 1;
+  let onAngle = null, viewName = "3d", holder = null, obj = null, grid = null, axes = null, mode = "textured", running = false, seq = 0, editOn = false, onPick = null, radius = 1;
   const originals = new Map(); // mesh → its own material(s)
   const marks = new THREE.Group();
   marks.renderOrder = 10;
@@ -220,6 +228,12 @@ export function createModelView(canvas) {
     glideTick(dt);
     tweenTick(dt);
     shiftTick(dt);
+    if (onAngle) {
+      // From the target, in Blender's axes (X, Y, Z: x, −z, y): degrees from
+      // Front (−Y) towards −X, and above the ground.
+      const v = camera.position.clone().sub(controls.target), X = v.x, Y = -v.z, Z = v.y;
+      onAngle(Math.atan2(-X, -Y) * 180 / Math.PI, Math.atan2(Z, Math.hypot(X, Y)) * 180 / Math.PI);
+    }
     last = now;
     controls.update();
     renderer.render(scene, camera);
@@ -253,7 +267,7 @@ export function createModelView(canvas) {
     if (VIEWS[name]) viewName = name;
     if (!holder) return;
     const from = camera.position.clone(), fromT = controls.target.clone();
-    frame(holder, camera, controls, 0.06, VIEWS[viewName], seenAspect()); // (where it ends: its near, far and zoom limits too)
+    frame(holder, camera, controls, 0.06, VIEWS[viewName], seenAspect(), viewName === "3d"); // (where it ends: its near, far and zoom limits too)
     glideTo = null;
     if (!glide) return;
     glideTo = { from, fromT, to: camera.position.clone(), toT: controls.target.clone(), age: 0 };
@@ -339,7 +353,7 @@ export function createModelView(canvas) {
     scene.add(holder);
     viewName = "3d";
     size();
-    frame(holder, camera, controls, 0.06, VIEW_DIR, seenAspect());
+    frame(holder, camera, controls, 0.06, VIEW_DIR, seenAspect(), true);
     ground();
     look(mode);
     running = true;
@@ -545,6 +559,7 @@ export function createModelView(canvas) {
     settle: () => tweenEnd(), // (a move going on: there at once)
     setInset,
     set onPick(f) { onPick = f; canvas.style.cursor = f ? "crosshair" : ""; },
+    set onAngle(f) { onAngle = f; }, // (TEMPORARY: the camera's angle readout)
   };
 }
 
