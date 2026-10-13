@@ -176,6 +176,7 @@ export function createModelView(canvas) {
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
   controls.screenSpacePanning = true;
+  controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN; // (the wheel pressed and dragged moves, as the right button; turned, it zooms)
   controls.zoomToCursor = true;
   // holder: the edit (its matrix); in it the model as loaded (in meters).
   let viewName = "3d", holder = null, obj = null, grid = null, axes = null, mode = "textured", running = false, seq = 0, editOn = false, onPick = null, radius = 1;
