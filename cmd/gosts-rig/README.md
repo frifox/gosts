@@ -63,7 +63,7 @@ gosts-rig --photos ~/Pictures/gosts-rig-sim # the captures saved elsewhere (or P
   (the rig's poses, as starting points the app refines) beside the photos, for: Agisoft Metashape
   (`alignment-metashape.csv`: File → Import → Import Reference), RealityScan / RealityCapture (an `.xmp` per
   photo), Nerfstudio / Gaussian splatting (`transforms.json`), COLMAP (a text model in `colmap/`), or Apple Object
-  Capture / PhotoCatch (`gravity.json`: Apple takes no poses, only which way is down, through a tool that passes it
+  Capture (`gravity.json`: Apple takes no poses, only which way is down, through a tool that passes it
   on). Works best with a plain backdrop (the object turns, not the camera).
 - **Simulate** plays the capture in the 3D view first, without moving the rig.
 - **Capture** takes the photos: while it runs, it turns into **Stop** and Preview into **Pause** (Resume). The
