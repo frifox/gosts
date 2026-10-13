@@ -1737,7 +1737,7 @@ function mvePlaneCover(c, u, v) {
 }
 // mvMarks: the points picked (Edit's steps, the measure) on the model.
 function mvMarks() {
-  const sets = Object.entries(mve.picks).map(([k, pts]) => ({ points: pts, color: MVE_COLORS[k], line: k === "scale", plane: mvePlaneOf(k, pts) }));
+  const sets = Object.entries(mve.picks).map(([k, pts]) => ({ points: pts, color: MVE_COLORS[k], line: k === "scale", follow: k === "center", plane: mvePlaneOf(k, pts) }));
   if (mvm.on) sets.push({ points: mvm.pts, color: MV_MEASURE, line: true });
   window.modelView.markers(sets);
 }
@@ -1861,8 +1861,9 @@ async function mveCenterGo() {
   const m = mve.centerAxes.size ? E.center(at, [...mve.centerAxes].join("")) : new (mv.matrix().constructor)();
   mve.centerOff = m;
   mve.picks.center = [at.clone().applyMatrix4(m)];
+  const go = mv.setMatrix(m.clone().multiply(mve.originFrom), true); // (headed there first: the point shown going along with it)
   mveShow();
-  await mv.setMatrix(m.clone().multiply(mve.originFrom), true);
+  await go;
   mveTrimReset();
   mveShow();
 }

@@ -204,6 +204,11 @@ export function createModelView(canvas) {
   const marks = new THREE.Group();
   marks.renderOrder = 10;
   scene.add(marks);
+  // onModel: marks that go along with the model as it moves (given where
+  // they are with it where it's headed: the target).
+  const onModel = new THREE.Group();
+  onModel.matrixAutoUpdate = false;
+  marks.add(onModel);
   // ball: a marker, a unit ball (scaled to the model): lit, where it's seen;
   // a faint flat copy over it where the model's in front (so never lost).
   const BALL = new THREE.SphereGeometry(1, 32, 24);
@@ -464,13 +469,13 @@ export function createModelView(canvas) {
   // point a shaded ball (behind the model, still seen: faintly), line:
   // joined up.
   function markers(sets) {
-    for (const c of [...marks.children]) { marks.remove(c); c.traverse((o) => { if (o.geometry !== BALL) o.geometry?.dispose(); o.material?.dispose(); }); }
+    for (const g of [marks, onModel]) for (const c of [...g.children]) { if (c === onModel) continue; g.remove(c); c.traverse((o) => { if (o.geometry !== BALL) o.geometry?.dispose(); o.material?.dispose(); }); }
     for (const s of sets) {
       for (const p of s.points) {
         const m = ball(s.color);
         m.position.copy(p);
         m.scale.setScalar(radius * 0.016);
-        marks.add(m);
+        (s.follow ? onModel : marks).add(m);
       }
       if (s.plane) {
         // A plane: a w × h rectangle about c, along u (across) and v (up its
@@ -492,6 +497,13 @@ export function createModelView(canvas) {
         marks.add(l);
       }
     }
+    follow();
+  }
+  // follow: onModel's marks where the model is just now (moving: on the way).
+  function follow() {
+    if (holder && target) onModel.matrix.copy(holder.matrix).multiply(target.clone().invert());
+    else onModel.matrix.identity();
+    onModel.matrixWorldNeedsUpdate = true;
   }
   // The edit: get it, set it, or apply m after it (the view kept). With
   // animate, the model moves there over about a third of a second (eased).
@@ -505,6 +517,7 @@ export function createModelView(canvas) {
     holder.matrix.copy(m);
     holder.matrixWorldNeedsUpdate = true;
     holder.updateMatrixWorld(true);
+    follow();
   }
   const decomp = (x) => { const p = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(); x.decompose(p, q, sc); return { p, q, sc }; };
   function setMatrix(m, animate = false) {
@@ -512,6 +525,7 @@ export function createModelView(canvas) {
     if (!animate) { tweenEnd(); target = m.clone(); place(m); ground(); return Promise.resolve(); }
     if (tween) tween.done(); // (taken over: from where it's got to)
     target = m.clone();
+    follow(); // (marks on the model: from where it is, too)
     return new Promise((done) => { tween = { from: decomp(holder.matrix), to: decomp(m), age: 0, done }; });
   }
   const apply = (m, animate = false) => setMatrix(m.clone().multiply(matrix()), animate);
