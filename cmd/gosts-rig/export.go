@@ -62,7 +62,7 @@ type cameraPose struct {
 // camPose is the pose for a photo taken at elevation e, azimuth az (the
 // rig's angles), from the rig's measurements: as the 3D view draws it (Y up
 // there): the swing tilts about the servos' axis, P + PostZ + 30 mm up; the
-// camera's sensor is CameraX from the turntable's centre (with the arm
+// camera's sensor is CameraX from the turntable's center (with the arm
 // level), CameraZ above the arms (the body 34 mm over the bar, the lens
 // 2 mm below its middle), in line with the object's middle (square to the
 // bar), looking along the arms at the axis.
@@ -158,7 +158,7 @@ func exportMetashape(dir string, photos []exportPhoto) error {
 // RealityScan / RealityCapture: an XMP beside each photo (same name), the
 // pose as a prior ("initial": refined in alignment). Its rotation takes the
 // world to the camera (the camera's right, down and forward as rows); the
-// position is in metres.
+// position is in meters.
 func exportRealityScan(photos []exportPhoto, in exportIntrinsics) error {
 	for _, p := range photos {
 		c := p.Pose
@@ -191,7 +191,7 @@ func exportRealityScan(photos []exportPhoto, in exportIntrinsics) error {
 
 // Nerfstudio (and Gaussian splatting tools, instant-ngp): transforms.json,
 // each frame's camera-to-world matrix in OpenGL's way (the camera looking
-// along −Z, Y up), metres.
+// along −Z, Y up), meters.
 func exportNerfstudio(dir string, photos []exportPhoto, in exportIntrinsics) error {
 	type frame struct {
 		FilePath  string        `json:"file_path"`
@@ -226,7 +226,7 @@ func exportNerfstudio(dir string, photos []exportPhoto, in exportIntrinsics) err
 // COLMAP: a text model in colmap/ (cameras.txt, images.txt, an empty
 // points3D.txt): point_triangulator builds the points on these poses, or
 // they're a start for mapping. Each image: the rotation taking the world to
-// the camera (a quaternion), and the translation, metres.
+// the camera (a quaternion), and the translation, meters.
 func exportColmap(dir string, photos []exportPhoto, in exportIntrinsics) error {
 	cdir := filepath.Join(dir, "colmap")
 	if err := os.MkdirAll(cdir, 0o755); err != nil {

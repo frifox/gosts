@@ -56,7 +56,7 @@ type Rig struct {
 	PostZ      float64 // vertical posts in the middle of the X sides
 	SwingX     float64 // tilting frame: arm length
 	SwingY     float64 // tilting frame: bar length (camera bar)
-	CameraX    float64 // the camera's sensor (its ⦵ mark) from the turntable's centre, across, with the arm level
+	CameraX    float64 // the camera's sensor (its ⦵ mark) from the turntable's center, across, with the arm level
 	CameraZ    float64 // camera up/down from the camera bar, square to the arms; + up
 	TurntableZ float64 // turntable top height
 	TurntableD float64 // turntable diameter

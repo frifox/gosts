@@ -330,7 +330,7 @@ func simPicture(n int) image.Image {
 			if dx, dy := float64(x-w/2)/170, float64(y-300)/34; dx*dx+dy*dy <= 1 {
 				c = color.RGBA{28, 30, 34, 255}
 			}
-			// The object: a coloured dome on the turntable.
+			// The object: a colored dome on the turntable.
 			if dx, dy := float64(x-w/2)/80, float64(y-300)/120; dx*dx+dy*dy <= 1 && y <= 300 {
 				r, g, bl := hsv(hue, 0.55, 0.85*(0.75+0.25*(1-math.Abs(dx))))
 				c = color.RGBA{r, g, bl, 255}
@@ -451,7 +451,7 @@ type simShootMsg struct {
 	Type     string  `json:"type"` // "simShoot"
 	N        int     `json:"n"`
 	Exposure float64 `json:"exposure"` // brighter (>1) or darker than normal, from its settings
-	// Its white balance (and colour temperature): the picture is tinted as a
+	// Its white balance (and color temperature): the picture is tinted as a
 	// camera set so would tint the simulated studio light.
 	Settings map[string]string `json:"settings,omitempty"`
 	Blur     float64           `json:"blur,omitempty"` // out of focus by (px, see simCamera.blur)

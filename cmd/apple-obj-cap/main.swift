@@ -15,7 +15,7 @@
 // worked out), bounds.json and pointcloud.ply if asked for, and a
 // checkpoint folder, so a run again (another detail level, say) is quicker.
 //
-// Ctrl-C (or SIGTERM) cancels. Exit status: 0 done, 1 failed, 2 cancelled,
+// Ctrl-C (or SIGTERM) cancels. Exit status: 0 done, 1 failed, 2 canceled,
 // 64 a bad flag.
 //
 // Build: swiftc -O -parse-as-library -swift-version 5 main.swift -o apple-obj-cap
@@ -58,7 +58,7 @@ let usage = """
 	  --work DIR           poses.json, bounds.json, pointcloud.ply, the checkpoint (default <folder>/model-build)
 	  --format obj|usdz    OBJ (a folder: mesh, materials, textures) or one USDZ file (default obj)
 	  --detail D           preview | reduced | medium | full | raw | custom (default full)
-	  --ordering O         sequential (neighbouring photos overlap: a rig's rings) | unordered (default sequential)
+	  --ordering O         sequential (neighboring photos overlap: a rig's rings) | unordered (default sequential)
 	  --sensitivity S      normal | high (more features on plain objects; slower) (default normal)
 	  --no-masking         keep the background (default: the object masked out of it)
 	  --ignore-bbox        build all that's seen, not just the object found
@@ -367,7 +367,7 @@ struct Tool {
 		if o.bounds { requests.append(.bounds) }
 		if o.pointCloud { requests.append(.pointCloud) }
 
-		// Ctrl-C (SIGINT) or SIGTERM: the session cancelled, cleanly.
+		// Ctrl-C (SIGINT) or SIGTERM: the session canceled, cleanly.
 		signal(SIGINT, SIG_IGN)
 		signal(SIGTERM, SIG_IGN)
 		var sources: [DispatchSourceSignal] = []

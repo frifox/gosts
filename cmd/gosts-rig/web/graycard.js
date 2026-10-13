@@ -1,13 +1,13 @@
-// Balancing white from a gray card: what colour temperature (Kelvin) makes
+// Balancing white from a gray card: what color temperature (Kelvin) makes
 // the card come out neutral.
 //
-// A camera set to T_set multiplies its colours so that light of T_set comes
+// A camera set to T_set multiplies its colors so that light of T_set comes
 // out neutral; under light of T_real, a gray card then comes out tinted by
-// the ratio of the two lights' colours. So on the red-blue axis
+// the ratio of the two lights' colors. So on the red-blue axis
 //   f(T_real) = (card red/blue) × f(T_set)
 // where f(T) is a black body's red/blue at T (linear sRGB, the Planckian
 // locus after Kim et al. 2002), and T_real is what to set. The camera's own
-// colours aren't quite sRGB, so the answer is close, not exact: a second
+// colors aren't quite sRGB, so the answer is close, not exact: a second
 // sample at the new setting brings it the rest of the way. Kelvin moves
 // along blue-amber only: a green or magenta cast (some LEDs) it can't fix,
 // and greenCast says so.
@@ -25,7 +25,7 @@ export function planckXY(T) {
   return [x, y];
 }
 
-// planckRGB is a black body's colour at T kelvin, linear sRGB (Y = 1).
+// planckRGB is a black body's color at T kelvin, linear sRGB (Y = 1).
 export function planckRGB(T) {
   const [x, y] = planckXY(T);
   const X = x / y, Y = 1, Z = (1 - x - y) / y;
@@ -53,7 +53,7 @@ export const presetKelvin = {
   "Fluorescent: Day White": 5000, "Fluorescent: Daylight": 6500,
 };
 
-// problem is why a card's colour can't be measured ("" if it can).
+// problem is why a card's color can't be measured ("" if it can).
 export function problem(srgb) {
   if (Math.max(...srgb) > 250) return "the card's too bright (clipped): darken the exposure and take another sample";
   if (Math.min(...srgb) < 8) return "the card's too dark: brighten the exposure and take another sample";
@@ -61,15 +61,15 @@ export function problem(srgb) {
 }
 
 // White balance shifts (the camera's A–B and G–M grid), in quarter steps
-// towards B and M. One moves a colour ratio by SHIFT_LN in log terms:
+// towards B and M. One moves a color ratio by SHIFT_LN in log terms:
 // measured on the A6600, from samples at each end of both (A7 to B7 took a
 // scene's red/blue from 2.15 to 0.47; G7 to M7 its green/(red·blue)^½ from
 // 2.53 to 0.54: ln of either ≈ 1.53 over 56 quarter steps).
 export const SHIFT_LN = 0.0275;
 
 // shifts are the moves (quarter steps, towards B and M) that make a card
-// whose average colour came out as srgb neutral, from the shifts it was
-// taken with: ab (blue against red: what colour temperature also does) and
+// whose average color came out as srgb neutral, from the shifts it was
+// taken with: ab (blue against red: what color temperature also does) and
 // gm. Not rounded or limited to the camera's steps.
 export function shifts(srgb) {
   const [r, g, b] = srgb.map(linear);
@@ -80,7 +80,7 @@ export function shifts(srgb) {
 // as balance reports it.
 export const castShift = (cast) => Math.log(1 + cast) / SHIFT_LN;
 
-// balance works out the colour temperature for a card whose average colour
+// balance works out the color temperature for a card whose average color
 // came out as srgb ([r, g, b], 0–255) with the camera set to setK kelvin.
 // It returns { kelvin, warmer (true: the light's warmer than setK), cast
 // (green, + or magenta, −, left over: 0 is none), problem (a reason it can't
@@ -106,13 +106,13 @@ export function balance(srgb, setK) {
   return { kelvin, warmer: kelvin < setK, cast, problem: "" };
 }
 
-// fromSamples works out the colour temperature from two samples of the same
+// fromSamples works out the color temperature from two samples of the same
 // card at different settings, as the camera really responds: points are
 // [{k: kelvin set, rb: the card's red/blue, linear}], the last two used. The
 // card's ln(red/blue) is taken as a straight line in mireds (1e6/K), where
 // white balance acts about evenly; where it crosses 0 the card is neutral.
 // (The black-body model alone falls short on a real camera, whose processing
-// moves the colours less: each suggestion, applied, would still be off the
+// moves the colors less: each suggestion, applied, would still be off the
 // same way.) null: no two usable samples.
 export function fromSamples(points) {
   const ps = points.filter((p) => p.k > 0 && p.rb > 0);

@@ -28,7 +28,7 @@ func TestPlanShots(t *testing.T) {
 				t.Fatalf("n=%d: %+v outside the range", n, s)
 			}
 		}
-		// Even: every point's nearest neighbour is about one spacing away.
+		// Even: every point's nearest neighbor is about one spacing away.
 		if n >= 7 {
 			pos := func(s shot) [3]float64 {
 				e, a := rad(s.Elevation), rad(s.Azimuth)
@@ -46,9 +46,9 @@ func TestPlanShots(t *testing.T) {
 				}
 				lo, hi = math.Min(lo, best), math.Max(hi, best)
 			}
-			t.Logf("n=%d rows=%d spacing %.1f°: nearest neighbours %.1f°…%.1f°", n, rows, spacing, lo, hi)
+			t.Logf("n=%d rows=%d spacing %.1f°: nearest neighbors %.1f°…%.1f°", n, rows, spacing, lo, hi)
 			if lo < 0.5*spacing || hi > 1.6*spacing {
-				t.Fatalf("n=%d: uneven: nearest neighbours %.1f°…%.1f° for a spacing of %.1f°", n, lo, hi, spacing)
+				t.Fatalf("n=%d: uneven: nearest neighbors %.1f°…%.1f° for a spacing of %.1f°", n, lo, hi, spacing)
 			}
 		}
 		// Order: rows go up in elevation, alternating azimuth direction.

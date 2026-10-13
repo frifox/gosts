@@ -71,7 +71,7 @@ func TestWriteExport(t *testing.T) {
 	if err := json.Unmarshal(data, &tj); err != nil || len(tj.Frames) != 3 {
 		t.Fatalf("transforms.json: %v, %d frames", err, len(tj.Frames))
 	}
-	// The camera's position in metres, as in the pose.
+	// The camera's position in meters, as in the pose.
 	if m := tj.Frames[0].M; math.Abs(m[0][3]-photos[0].Pose.Pos.X/1000) > 1e-9 || math.Abs(m[2][3]-photos[0].Pose.Pos.Z/1000) > 1e-9 {
 		t.Errorf("transforms.json position %v %v, pose %v", m[0][3], m[2][3], photos[0].Pose.Pos)
 	}

@@ -2,7 +2,7 @@
 // with three.js: the model viewer (orbit, pan, zoom) and the gallery's
 // pictures of models.
 //
-// Object Capture's models are in metres, y up, standing on y = 0.
+// Object Capture's models are in meters, y up, standing on y = 0.
 import * as THREE from "three";
 import { OrbitControls } from "./vendor/OrbitControls.js";
 import { OBJLoader } from "./vendor/OBJLoader.js";
@@ -48,7 +48,7 @@ export async function loadOBJ(base, file, status = () => {}) {
       const mats = await new MTLLoader(manager).setPath(base).loadAsync(encodeURIComponent(mtl));
       mats.preload();
       loader.setMaterials(mats);
-    } catch (e) { console.warn("model materials:", e); } // (shown grey: OBJ's own)
+    } catch (e) { console.warn("model materials:", e); } // (shown gray: OBJ's own)
   }
   status("Reading the mesh");
   await new Promise((r) => setTimeout(r)); // (the status shown before the parse holds the page)
@@ -217,7 +217,7 @@ export function createModelView(canvas) {
 
 // The gallery's pictures of models: one renderer, one model at a time.
 let thumbR = null, thumbQueue = Promise.resolve();
-// modelThumb renders the OBJ at base (file) as a w×h JPEG on bg (a CSS colour).
+// modelThumb renders the OBJ at base (file) as a w×h JPEG on bg (a CSS color).
 export function modelThumb(base, file, w, h, bg) {
   const job = thumbQueue.then(async () => {
     if (!thumbR) thumbR = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });

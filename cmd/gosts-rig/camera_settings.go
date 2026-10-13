@@ -18,7 +18,7 @@ type cameraSetting struct {
 	Current  string   `json:"current"`
 	Choices  []string `json:"choices"`
 	ReadOnly bool     `json:"readOnly"`
-	// A number instead of choices (colour temperature): Min to Max by Step.
+	// A number instead of choices (color temperature): Min to Max by Step.
 	Range bool `json:"range,omitempty"`
 	Min   int  `json:"min,omitempty"`
 	Max   int  `json:"max,omitempty"`
@@ -55,11 +55,11 @@ func checkShift(value string, min, max, step int) (int, error) {
 	return v, nil
 }
 
-// kelvinMode is the white balance that uses the colour temperature setting
+// kelvinMode is the white balance that uses the color temperature setting
 // ("colortemp", Kelvin): only then is that one offered.
 const kelvinMode = "Choose Color Temperature"
 
-// colortempSetting is the colour temperature setting, as the dialog offers
+// colortempSetting is the color temperature setting, as the dialog offers
 // it (under white balance, in Kelvin mode).
 // zoomLabel is the Zoom setting's name in the dialog.
 const zoomLabel = "Zoom"
@@ -68,7 +68,7 @@ func colortempSetting(current string, min, max, step int) cameraSetting {
 	return cameraSetting{Key: "colortemp", Label: "Color temperature (K)", Current: current, Range: true, Min: min, Max: max, Step: step}
 }
 
-// checkKelvin is a colour temperature's value, if it's one the camera takes.
+// checkKelvin is a color temperature's value, if it's one the camera takes.
 func checkKelvin(value string, min, max, step int) (int, error) {
 	k, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil || k < min || k > max || (step > 0 && (k-min)%step != 0) {
@@ -133,7 +133,7 @@ func settingsCaption(ss []cameraSetting) string {
 			continue
 		case "whitebalance":
 			if s.Current == kelvinMode {
-				continue // the colour temperature says it
+				continue // the color temperature says it
 			}
 		case "colortemp":
 			parts = append(parts, s.Current+"K")
@@ -373,7 +373,7 @@ func (g *gphoto2Camera) Settings() ([]cameraSetting, error) {
 }
 
 // Set changes one setting (by its index among the camera's choices: some
-// values have spaces; the colour temperature by its number).
+// values have spaces; the color temperature by its number).
 func (g *gphoto2Camera) Set(key, value string) error {
 	for _, sh := range gphoto2Shifts {
 		if sh.key == key {

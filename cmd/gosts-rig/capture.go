@@ -37,7 +37,7 @@ type shot struct {
 // the previous one, so no direction lines up. The points are then taken in
 // rows of similar elevation (so the heavy arm moves little), each row in
 // azimuth order, alternating direction so the platform never unwinds a whole
-// turn. spacing is the typical angle between neighbouring points.
+// turn. spacing is the typical angle between neighboring points.
 func planShots(p Plan, m Motion) (shots []shot, rows int, spacing float64, err error) {
 	if p.Photos < 1 || p.Photos > 2000 {
 		return nil, 0, 0, errors.New("photos must be 1–2000")
@@ -227,7 +227,7 @@ type captureMsg struct {
 	Elapsed   float64 `json:"elapsed"` // s
 	Active    float64 `json:"active"`  // s of it not paused (the pace of the photos: see the page's time left)
 	Rows      int     `json:"rows"`
-	Spacing   float64 `json:"spacing"` // degrees between neighbouring shots
+	Spacing   float64 `json:"spacing"` // degrees between neighboring shots
 	// Estimate is about how long (s) the plan takes, not running (see
 	// capture.estimate).
 	Estimate float64 `json:"estimate,omitempty"`

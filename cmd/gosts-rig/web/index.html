@@ -86,7 +86,7 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 /* Focus and Gray Card, disabled till there's a sample shot: hovered, they say so (as the ? tips; a
    disabled button takes no events, but is still :hover). */
 .needs-sample { position: relative; }
-.btn.needs-sample:disabled { opacity: 1; color: color-mix(in srgb, var(--text) 45%, transparent); } /* dimmed by colour: opacity would fade the tip too */
+.btn.needs-sample:disabled { opacity: 1; color: color-mix(in srgb, var(--text) 45%, transparent); } /* dimmed by color: opacity would fade the tip too */
 .needs-sample:disabled:hover::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); right: 0; z-index: 50; width: max-content; max-width: 240px;
   padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text);
   font: 400 12px/1.4 system-ui, sans-serif; white-space: normal; text-align: left; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; }
@@ -145,7 +145,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .rig-dial .dial-btns[hidden] { display: none; }
 #elevLimitsBtn svg { transition: transform .15s; }
 #elevLimitsBtn[aria-expanded="true"] svg { transform: rotate(180deg); }
-.rig-dial .dial-btns .torque-btn.on, .rig-dial .dial-btns .torque-btn.mixed { z-index: 1; } /* (its coloured border on the shared edge) */
+.rig-dial .dial-btns .torque-btn.on, .rig-dial .dial-btns .torque-btn.mixed { z-index: 1; } /* (its colored border on the shared edge) */
 .rig-dial .dial-btns .btn:hover { z-index: 2; } /* (its border over the shared edge) */
 /* Torque Lock, as Go 0°: off the plain button, on green, mixed (one servo
    locked, the other not) yellow, both muted (a tint); switching: a spinner
@@ -221,7 +221,7 @@ td.mono { font-family: var(--mono); }
    where the 8px scrollbar goes. */
 .timeline { display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden; min-width: 0; max-width: 100%; box-sizing: border-box; height: 136px; align-items: flex-start; }
 #shotNone { height: 120px; display: flex; align-items: center; }
-/* Slim scrollbars in the theme's colours that stay visible (macOS otherwise hides them until
+/* Slim scrollbars in the theme's colors that stay visible (macOS otherwise hides them until
    scrolling): the timeline's, and the scrolling columns, log, photo grid and dialogs'. */
 .timeline::-webkit-scrollbar { height: 8px; }
 .left::-webkit-scrollbar, #log::-webkit-scrollbar, .gallery-grid::-webkit-scrollbar, .modal::-webkit-scrollbar, .settings-card::-webkit-scrollbar { width: 8px; }
@@ -334,7 +334,7 @@ td.mono { font-family: var(--mono); }
 .setting-row { display: flex; gap: 6px; align-items: center; }
 .setting-row input.kelvin { width: 84px; flex: none; }
 .setting-row .shift-val { width: 84px; flex: none; font-size: 13px; color: var(--text); text-align: center; }
-/* White balance shifts: the track runs from one end's colour to the other's. */
+/* White balance shifts: the track runs from one end's color to the other's. */
 input.shift { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; flex: 1; }
 input.shift.abshift { background: linear-gradient(90deg, #d08a2c, #8a8f98 50%, #3f78d6); }
 input.shift.gmshift { background: linear-gradient(90deg, #3fae5a, #8a8f98 50%, #c04fb0); }
@@ -438,6 +438,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .model-panel .mp-col, .model-panel .mp-custom { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .model-panel .mp-checks, .model-panel .mp-maps { display: flex; flex-direction: column; gap: 6px; }
 .model-panel .mp-maps-col { display: flex; flex-direction: column; gap: 6px; }
+.model-panel .mp-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.model-panel .mp-sub b { font-weight: 600; color: var(--text); }
+.model-panel .mp-maps .mp-check > span { color: var(--muted); }
+.model-panel .mp-maps .mp-check b { font-weight: 500; color: var(--text); }
 .model-panel .mp-head { font-size: 12px; color: var(--muted); }
 .model-panel select, .model-panel input[type=number] { width: 100%; box-sizing: border-box; }
 .model-panel label[hidden] { display: none; }
@@ -512,7 +516,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 #rig canvas { display: block; }
 .nodata { position: absolute; left: 0; right: 0; bottom: 34px; text-align: center; color: var(--muted); font-size: 13px; pointer-events: none; }
 .legend { position: absolute; left: 12px; bottom: 10px; display: flex; gap: 12px; font-size: 12px; color: var(--muted); pointer-events: none; }
-/* Trail speed key (colours as in rig3d.js speedColor): ½× … normal … 2×, log scale. */
+/* Trail speed key (colors as in rig3d.js speedColor): ½× … normal … 2×, log scale. */
 .speedkey { position: absolute; right: 12px; bottom: 10px; width: 210px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
   background: color-mix(in srgb, var(--panel) 85%, transparent); font-size: 11px; color: var(--muted); pointer-events: none; }
 .speedkey .sk-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
@@ -569,7 +573,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <div class="progress big"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div></div>
         </div>
         <div class="plan-line opts">
-          <div class="opt"><span class="opt-label label-head">Path<span class="help" tabindex="0" aria-label="Which path to use" data-tip="Rings: full circles at a few heights. Best for photogrammetry (RealityScan, Metashape, Apple Object Capture): a steady overlap between neighbouring photos.&#10;&#10;Sphere: photos spread evenly over the sphere. Best for Gaussian splatting and NeRF (Nerfstudio); the quickest with Continuous.">?</span></span>
+          <div class="opt"><span class="opt-label label-head">Path<span class="help" tabindex="0" aria-label="Which path to use" data-tip="Rings: full circles at a few heights. Best for photogrammetry (RealityScan, Metashape, Apple Object Capture): a steady overlap between neighboring photos.&#10;&#10;Sphere: photos spread evenly over the sphere. Best for Gaussian splatting and NeRF (Nerfstudio); the quickest with Continuous.">?</span></span>
             <div class="views seg" id="pathSeg"><button data-v="rings">Rings</button><button data-v="sphere">Sphere</button></div></div>
           <div class="opt" title="Continuous: the rig doesn't stop, each photo taken as it passes its shot (needs a fast shutter). Stop &amp; Shoot: the rig stops at each shot and waits a moment (the settle time) before the photo."><span class="opt-label">Rig motion</span>
             <div class="views seg" id="shootSeg"><button data-v="moving">Continuous</button><button data-v="settle">Stop &amp; Shoot</button></div></div>
@@ -742,9 +746,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
               </div>
             </div></div>
           <div class="hint mono" id="sampleCaption"></div>
-          <!-- Gray Card lives by the colour temperature slider (renderSettings puts it there); parked here meanwhile. -->
-          <div hidden id="focusPark"><button class="btn small needs-sample" id="focusBtn" disabled data-title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again" data-tip="Focus needs a sample shot, please take one">Focus</button><span class="focus-pick" id="focusPick" hidden><span class="views seg" id="focusModeSeg"><button data-m="nearfar" title="Focus between two cards, the nearest and farthest the object reaches: the depth of field centred on them">Near/Far Points</button><button data-m="single" title="Focus on one part: drag a rectangle around it">Single Point</button></span><button class="btn small" id="focusPickCancel" title="Cancel">✕</button><button class="btn small primary" id="focusStart">Start</button></span></div>
-          <div hidden id="grayPark"><button class="btn small needs-sample" id="grayBtn" disabled data-title="Balance white from a gray card: drag a rectangle inside the card in the sample, and the app works out the colour temperature that makes it neutral" data-tip="Gray Card needs a sample shot, please take one">Gray Card</button></div>
+          <!-- Gray Card lives by the color temperature slider (renderSettings puts it there); parked here meanwhile. -->
+          <div hidden id="focusPark"><button class="btn small needs-sample" id="focusBtn" disabled data-title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again" data-tip="Focus needs a sample shot, please take one">Focus</button><span class="focus-pick" id="focusPick" hidden><span class="views seg" id="focusModeSeg"><button data-m="nearfar" title="Focus between two cards, the nearest and farthest the object reaches: the depth of field centered on them">Near/Far Points</button><button data-m="single" title="Focus on one part: drag a rectangle around it">Single Point</button></span><button class="btn small" id="focusPickCancel" title="Cancel">✕</button><button class="btn small primary" id="focusStart">Start</button></span></div>
+          <div hidden id="grayPark"><button class="btn small needs-sample" id="grayBtn" disabled data-title="Balance white from a gray card: drag a rectangle inside the card in the sample, and the app works out the color temperature that makes it neutral" data-tip="Gray Card needs a sample shot, please take one">Gray Card</button></div>
         </div>
       </div>
     </div>
@@ -813,16 +817,18 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <option value="full">Full: ~250k polygons, 8K textures</option>
         <option value="raw">Raw: all the polygons, 8K textures</option>
         <option value="custom">Custom…</option></select></label>
-        <!-- With a preset: what it does, greyed (see modelFormShown). -->
+        <!-- With a preset: what it does, grayed (see modelFormShown). -->
         <div class="mp-custom" id="mCustom">
           <div class="mp-row"><label class="mp-poly">Most polygons<input type="number" id="mMaxPolygons" min="1" step="1000"></label><label class="mp-tex">Texture size<select id="mTextureDim"><option value="1k">1K</option><option value="2k">2K</option><option value="4k">4K</option><option value="8k">8K</option><option value="16k">16K</option></select></label><label>Texture format<span class="views seg" id="mTextureFormat"><button data-v="png">PNG</button><button data-v="jpeg">JPEG</button></span></label></div>
           <label id="mJpegLabel">JPEG quality<input type="number" id="mJpegQuality" min="0" max="1" step="0.05"></label>
-          <div class="mp-maps-col"><span class="mp-head">Texture maps</span><span class="mp-maps" id="mTextureMaps">
-            <label class="mp-check"><input type="checkbox" value="diffuse"> Colour</label>
-            <label class="mp-check"><input type="checkbox" value="normal"> Normal</label>
-            <label class="mp-check"><input type="checkbox" value="roughness"> Roughness</label>
-            <label class="mp-check"><input type="checkbox" value="displacement"> Displacement</label>
-            <label class="mp-check"><input type="checkbox" value="ao"> Ambient occlusion</label></span></div>
+          <div class="mp-maps-col"><span class="mp-head">Texture maps</span><div class="mp-maps" id="mTextureMaps">
+            <span class="mp-sub"><b>Color &amp; finish</b>: how the surface looks</span>
+            <label class="mp-check"><input type="checkbox" value="diffuse"> <span><b>Color</b> (diffuse): the surface's color, taken from the photos</span></label>
+            <label class="mp-check"><input type="checkbox" value="roughness"> <span><b>Roughness</b>: how shiny or matte each spot is</span></label>
+            <label class="mp-check"><input type="checkbox" value="ao"> <span><b>Ambient occlusion</b>: darkening in creases and crevices</span></label>
+            <span class="mp-sub"><b>Shape detail</b>: relief finer than the polygons</span>
+            <label class="mp-check"><input type="checkbox" value="normal"> <span><b>Normal</b>: bumps faked by lighting alone, cheap to render</span></label>
+            <label class="mp-check"><input type="checkbox" value="displacement"> <span><b>Displacement</b>: really moves the surface (Blender, say)</span></label></div></div>
         </div>
       </div>
       <div class="mp-col">
@@ -861,7 +867,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <button class="btn small" id="mvBack" title="Back to the capture (Esc)">‹ Capture</button>
     <span class="cap" id="mvCap"></span>
     <span class="spacer"></span>
-    <span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, grey">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span>
+    <span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, gray">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span>
     <button class="btn small" id="mvReset" title="The whole model, from the front (F)">Reset View</button>
     <button class="btn small" id="mvOpen" title="Open it in the Mac's app for it (Preview, unless another is set: Blender, say, in the Finder's Get Info) to edit it">Open in App</button>
     <button class="btn small" id="mvReveal" title="Its folder, in the Finder">Show in Finder</button>
@@ -1540,7 +1546,7 @@ for (const id of MODEL_SEGS) $(id).onclick = (e) => {
   modelFormShown();
 };
 // The custom settings are always shown. With a preset (Preview … Raw), they
-// show what it does, roughly (Apple's figures), greyed: only to see; the
+// show what it does, roughly (Apple's figures), grayed: only to see; the
 // custom ones (customVals) are kept as they are, back with Custom.
 const MODEL_PRESETS = {
   preview: { maxPolygons: 25000, textureDim: "1k", textureMaps: ["diffuse"], textureFormat: "png" },
@@ -1559,7 +1565,7 @@ function customRead() {
 }
 $("mDetail").onchange = modelFormShown; // (the custom ones kept as typed: each field's change, with Custom)
 for (const el of $("mCustom").querySelectorAll("input, select")) el.addEventListener("change", customRead);
-// modelFormShown: the custom settings, the custom ones or the preset's (greyed).
+// modelFormShown: the custom settings, the custom ones or the preset's (grayed).
 function modelFormShown() {
   const d = $("mDetail").value, custom = d === "custom", v = custom ? customVals : MODEL_PRESETS[d] || customVals;
   $("mMaxPolygons").value = v.maxPolygons ?? "";
@@ -1669,7 +1675,7 @@ function modelShow() {
   const stage = MODEL_STAGES[m.stage] || m.stage || "";
   const left = m.running && m.remaining > 0 ? ` · about ${fmtDur(m.remaining)} left` : "";
   $("mLabel").textContent = m.running ? `${pct}%${stage ? " · " + stage : ""}${left}` :
-    m.outcome === "done" ? "Done" : m.outcome === "cancelled" ? "Cancelled" : m.outcome === "failed" ? "Failed" : "";
+    m.outcome === "done" ? "Done" : m.outcome === "cancelled" ? "Canceled" : m.outcome === "failed" ? "Failed" : "";
   const n = { aligned: 0, invalid: 0, skipped: 0, unaligned: 0 };
   for (const st of Object.values(m.photos || {})) if (st in n) n[st]++;
   const counts = [n.aligned && `✓ ${n.aligned} used`, n.invalid && `✕ ${n.invalid} rejected`, n.skipped && `↷ ${n.skipped} skipped`, n.unaligned && `? ${n.unaligned} not placed`].filter(Boolean).join(" · ");
@@ -1782,7 +1788,7 @@ $("viewer").onclick = (e) => {
 // fit: as large as the stage allows, whole (kept so when the window
 // changes). Drag it to move it; the wheel zooms at the pointer. The
 // navigator shows the photo small with the part in view; its rectangle
-// drags the view, a click there centres it; presets and a slider set the
+// drags the view, a click there centers it; presets and a slider set the
 // zoom (about the middle of the view).
 const vz = { s: 1, x: 0, y: 0, fit: true, dragged: false, onPhoto: false };
 const VZ_MIN = 0.1, VZ_MAX = 2;
@@ -1795,7 +1801,7 @@ function vzApply() {
   const [w, h] = vzNat(), [W, H] = vzStage();
   if (vz.fit) vz.s = vzFitScale();
   const dw = w * vz.s, dh = h * vz.s;
-  // Smaller than the stage: centred; larger: no gap at the edges.
+  // Smaller than the stage: centered; larger: no gap at the edges.
   vz.x = dw <= W ? (W - dw) / 2 : Math.min(0, Math.max(W - dw, vz.x));
   vz.y = dh <= H ? (H - dh) / 2 : Math.min(0, Math.max(H - dh, vz.y));
   img.style.width = w + "px"; img.style.height = h + "px";
@@ -1861,7 +1867,7 @@ $("viewerStage").addEventListener("pointerdown", (e) => {
   };
   st.addEventListener("pointermove", move); st.addEventListener("pointerup", up); st.addEventListener("pointercancel", up);
 });
-// The navigator: a click centres the view there; dragging (the rectangle,
+// The navigator: a click centers the view there; dragging (the rectangle,
 // or from the click) moves it.
 $("vnavMap").addEventListener("pointerdown", (e) => {
   if (e.button !== 0) return;
@@ -1869,7 +1875,7 @@ $("vnavMap").addEventListener("pointerdown", (e) => {
   const map = $("vnavMap"), [w] = vzNat(), [W, H] = vzStage(), k = map.clientWidth / w;
   const at = (ev) => { const b = map.getBoundingClientRect(); return [(ev.clientX - b.left) / k, (ev.clientY - b.top) / k]; }; // photo pixels
   let [px, py] = at(e);
-  if (e.target !== $("vnavVp")) { vz.x = W / 2 - px * vz.s; vz.y = H / 2 - py * vz.s; vzApply(); } // centred where clicked
+  if (e.target !== $("vnavVp")) { vz.x = W / 2 - px * vz.s; vz.y = H / 2 - py * vz.s; vzApply(); } // centered where clicked
   const x0 = vz.x, y0 = vz.y;
   map.setPointerCapture(e.pointerId);
   const move = (m) => { const [qx, qy] = at(m); vz.x = x0 - (qx - px) * vz.s; vz.y = y0 - (qy - py) * vz.s; vzApply(); };
@@ -1897,7 +1903,7 @@ document.addEventListener("keydown", (e) => {
 // ---------------------------------------------------------------- camera config
 // Camera Settings: the camera's settings (each change goes to it at once), and
 // sample shots (off the timeline) to judge them by.
-// Gray Card and Focus sit among the settings (by colour temperature and the
+// Gray Card and Focus sit among the settings (by color temperature and the
 // focus mode); before the settings are cleared they go back to their parking,
 // or they'd be cleared with them.
 function parkSettingButtons() {
@@ -1954,7 +1960,7 @@ function renderSettings(list) {
     into.appendChild(label);
   }
 }
-// A number setting (colour temperature, Kelvin): a number field and a
+// A number setting (color temperature, Kelvin): a number field and a
 // slider, sent to the camera as one's let go (or Enter, or leaving the field).
 // shiftLabel is a white balance shift as the camera shows it: "0", or the end
 // it's towards and how far, e.g. "A2", "M0.75" (v in quarter steps).
@@ -2135,10 +2141,10 @@ function drawHisto(cv) {
   const ctx = cv.getContext("2d");
   ctx.clearRect(0, 0, W, H);
   ctx.globalCompositeOperation = "lighter";
-  const colours = ["rgba(255,70,70,.8)", "rgba(70,230,90,.8)", "rgba(80,130,255,.85)"];
+  const colors = ["rgba(255,70,70,.8)", "rgba(70,230,90,.8)", "rgba(80,130,255,.85)"];
   bins.forEach((b, c) => {
     if (histoSolo !== null ? c !== histoSolo : !histoOn[c]) return;
-    ctx.fillStyle = colours[c];
+    ctx.fillStyle = colors[c];
     ctx.beginPath();
     ctx.moveTo(pad, H - pad);
     for (let i = 0; i < 256; i++) ctx.lineTo(pad + (i / 255) * (W - 2 * pad), H - pad - Math.min(1, Math.sqrt(b[i] / top)) * (H - 2 * pad));
@@ -2231,8 +2237,8 @@ function sampleFailed(n) {
 }
 // ---------------------------------------------------------------- gray card
 // Balance from a gray card: drag a rectangle inside the card in the sample;
-// its average colour, and the white balance the sample was taken with, give
-// the colour temperature that makes it neutral (graycard.js). Applied, the
+// its average color, and the white balance the sample was taken with, give
+// the color temperature that makes it neutral (graycard.js). Applied, the
 // white balance goes to Kelvin at that.
 // A rectangle on the sample is dragged for the gray card or for focus
 // (state.selecting says which).
@@ -2345,7 +2351,7 @@ function measureGrayRect() {
   const r = state.grayRect, img = $("sampleImg");
   if (!r || !img.naturalWidth) return;
   const W = img.naturalWidth, H = img.naturalHeight;
-  balanceFrom(cardColour(r.fx * W, r.fy * H, r.fw * W, r.fh * H));
+  balanceFrom(cardColor(r.fx * W, r.fy * H, r.fw * W, r.fh * H));
 }
 // showGrayRect draws the rectangle over the sample.
 function showGrayRect() {
@@ -2357,8 +2363,8 @@ function showGrayRect() {
   sr.style.width = `${r.fw * d.w}px`; sr.style.height = `${r.fh * d.h}px`;
 }
 window.addEventListener("resize", () => { if (state.grayRect && !$("selRect").hidden) showGrayRect(); });
-// cardColour is the average sRGB colour of a part of the sample (photo pixels).
-function cardColour(x, y, w, h) {
+// cardColor is the average sRGB color of a part of the sample (photo pixels).
+function cardColor(x, y, w, h) {
   const n = 64; // enough pixels to average, without decoding the whole photo
   const c = document.createElement("canvas");
   c.width = c.height = n;
@@ -2370,9 +2376,9 @@ function cardColour(x, y, w, h) {
   return sum.map((v) => v / (n * n));
 }
 // balanceFrom suggests how to make the card neutral, a button each to set:
-// amber–blue by the colour temperature (when the sample's white balance is
+// amber–blue by the color temperature (when the sample's white balance is
 // a known one) or by the A–B shift (one or the other: both would fix it
-// twice), and green–magenta by the G–M shift (what colour temperature can't
+// twice), and green–magenta by the G–M shift (what color temperature can't
 // do), each from the settings the sample was taken with.
 function balanceFrom(rgb) {
   const gc = window.graycard, out = $("grayOut"), set = state.sampleSettings || {};
@@ -2409,7 +2415,7 @@ function balanceFrom(rgb) {
   const kmin = ct?.min || 2500, kmax = ct?.max || 9900, kstep = ct?.step || 100;
   const k = r && !r.problem ? Math.min(kmax, Math.max(kmin, Math.round(r.kelvin / kstep) * kstep)) : 0;
   const ab = hasAB ? shiftTo(abS, set.abshift, sh.ab) : null;
-  // G–M: with the colour temperature fixed (it moves green a little too), or else as the card is.
+  // G–M: with the color temperature fixed (it moves green a little too), or else as the card is.
   const gm = !hasGM ? null : k ? shiftTo(gmS, set.gmshift, gc.castShift(r.cast)) : shiftTo(gmS, set.gmshift, sh.gm);
   let head;
   if (r && !r.problem) {
@@ -2421,8 +2427,8 @@ function balanceFrom(rgb) {
     (hasAB || hasGM ? ", so the shifts are the fix" : ": set a fixed one (Choose Color Temperature is best), take another sample, and measure the card again") +
     (wb === "Automatic" ? " (Automatic changes from shot to shot: a fixed one is steadier)." : ".");
   const cast = !hasGM && r && !r.problem && Math.abs(r.cast) > 0.03
-    ? `<br><span style="color:var(--warn)">The light also has a ${r.cast > 0 ? "green" : "magenta"} cast (${Math.round(Math.abs(r.cast) * 100)}%), which colour temperature can't correct.</span>` : "";
-  // A button each; one that would change nothing is greyed out.
+    ? `<br><span style="color:var(--warn)">The light also has a ${r.cast > 0 ? "green" : "magenta"} cast (${Math.round(Math.abs(r.cast) * 100)}%), which color temperature can't correct.</span>` : "";
+  // A button each; one that would change nothing is grayed out.
   const kSame = wb === "Choose Color Temperature" && k === setK;
   const abSame = hasAB && ab === Number(set.abshift), gmSame = hasGM && gm === Number(set.gmshift);
   // Neutral: amber–blue needs neither fix (to a step), nor green–magenta.
@@ -2432,7 +2438,7 @@ function balanceFrom(rgb) {
   out.innerHTML = `${card}<br>${head}${cast}${neutralLine}
     <div class="row gray-btns">${k ? btn("graySetK", `Temperature ${k} K`, kSame) : ""}${hasAB ? btn("graySetAB", `Amber–blue ${shiftLabel(ab, abS.ends)}`, abSame) : ""}${hasGM ? btn("graySetGM", `Green–magenta ${shiftLabel(gm, gmS.ends)}`, gmSame) : ""}${dismiss}</div>`;
   wire();
-  // apply sets one (its button ticked); setting one amber–blue fix greys out the other.
+  // apply sets one (its button ticked); setting one amber–blue fix grays out the other.
   const apply = (id, steps, other) => {
     const b = $(id);
     if (!b) return;
@@ -2468,7 +2474,7 @@ function openFocus(rect, far = null) {
   state.focusSharp = [];
   state.focusSharp2 = [];
   $("focusAF").textContent = far ? "Focus between" : "Auto";
-  $("focusAF").title = far ? "The app steps the lens through the near card's and the far card's sharpest, a sample each step, and leaves it where both are equally sharp (each against its own sharpest): the depth of field centred between them (a minute or so; click again to stop)" : $("focusAF").dataset.title || $("focusAF").title;
+  $("focusAF").title = far ? "The app steps the lens through the near card's and the far card's sharpest, a sample each step, and leaves it where both are equally sharp (each against its own sharpest): the depth of field centered between them (a minute or so; click again to stop)" : $("focusAF").dataset.title || $("focusAF").title;
   state.focusSaid = "";
   $("focusZoom").hidden = false;
   $("focusStat").textContent = "";
@@ -2657,7 +2663,7 @@ $("focusAF").onclick = async () => {
 // further till the far card has too; each card's sharpness, against its own
 // sharpest, says how far out of focus it is (two printed cards: alike). The
 // lens goes to where the two are most nearly equal (the worse of them the
-// best it gets): both equally blurred, so the depth of field is centred
+// best it gets): both equally blurred, so the depth of field is centered
 // between them. Then small steps towards the worse card, while that gets
 // better. Whether the depth of field reaches both is down to the zoom and
 // f-stop: if not, it says so.
@@ -2724,7 +2730,7 @@ async function focusBetween() {
         "Stop down (a higher f-number) or zoom out, take a sample, and Focus between again.";
       focusNote(w, false);
       log(w.replace("⚠ ", ""), "error");
-    } else if (!run.stop) focusNote(`✓ Both cards in focus: the near card ${pa}% as sharp as it can be, the far card ${pb}% (${pts.length} samples). The depth of field is centred between them.`, true);
+    } else if (!run.stop) focusNote(`✓ Both cards in focus: the near card ${pa}% as sharp as it can be, the far card ${pb}% (${pts.length} samples). The depth of field is centered between them.`, true);
   } catch (e) { $("camConfigErr").textContent = e.message; say("stopped: " + e.message); }
   state.focusAuto = null; state.focusBusy = false;
   $("focusAF").textContent = "Focus between";
@@ -2740,7 +2746,7 @@ for (const b of document.querySelectorAll(".focus-nudge .btn")) {
 // after frame (as fast as the camera hands them over), till Hide, a sample
 // shot, or the dialog closes. A real camera's frames come from its live view
 // (lower resolution than a photo); the simulated camera's are rendered here
-// from the rig view, with its settings' exposure, colour and focus. Gray Card
+// from the rig view, with its settings' exposure, color and focus. Gray Card
 // and Focus wait for a sample shot meanwhile (they need the photo).
 $("liveBtn").onclick = () => (state.live ? stopLive() : startLive());
 function startLive() {
@@ -2886,7 +2892,7 @@ function cameraButtons() {
 }
 // The simulated camera's picture: the Rig View from the camera, sent back.
 // Every open window renders it; the server keeps the first.
-// The simulated studio light's colour temperature, and its green cast (in
+// The simulated studio light's color temperature, and its green cast (in
 // the camera's G–M quarter steps, as some LEDs have): a simulated photo comes
 // out tinted by them against the camera's white balance and its shifts
 // (Automatic: right).

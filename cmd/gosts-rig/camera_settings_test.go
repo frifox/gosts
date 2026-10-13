@@ -145,7 +145,7 @@ func TestGphoto2SetWaits(t *testing.T) {
 	}
 }
 
-// Colour temperature: offered (as a number, 2500–9900 K by 100) only with
+// Color temperature: offered (as a number, 2500–9900 K by 100) only with
 // white balance on Kelvin mode; values off the steps are refused.
 func TestColorTemperature(t *testing.T) {
 	c, err := parseGphoto2Config("Label: Color Temperature\nReadonly: 0\nType: RANGE\nCurrent: 3100\nBottom: 2500\nTop: 9900\nStep: 100\nEND\n")
@@ -163,7 +163,7 @@ func TestColorTemperature(t *testing.T) {
 		return cameraSetting{}, false
 	}
 	if _, ok := has(); ok {
-		t.Fatal("colour temperature offered outside Kelvin mode")
+		t.Fatal("color temperature offered outside Kelvin mode")
 	}
 	s.Set("whitebalance", kelvinMode)
 	ct, ok := has()

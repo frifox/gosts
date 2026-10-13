@@ -102,7 +102,7 @@ fared: the marks are there when the capture's opened again). One build at a time
 A capture's models (its folders with an OBJ or a USDZ in them: Build Model's, or put there by hand) come first in its
 gallery, a tile each with a picture of the model (rendered in the page the first time, with three.js, and kept in the
 cache folder). A click shows it over the page in 3D: drag to turn it, right-drag (or ⇧ drag) to move it, the wheel to
-zoom (at the pointer), F for the whole model again; Textured, Clay (its shape, grey) or Wireframe (its triangles); its
+zoom (at the pointer), F for the whole model again; Textured, Clay (its shape, gray) or Wireframe (its triangles); its
 triangles and size (cm) in the bar. **Open in App** opens it in the Mac's app for it, to edit it (Preview, unless
 another's set: Blender, say, in the Finder's Get Info); **Show in Finder** shows its folder. A USDZ isn't shown in the
 page (three.js can't read Apple's), only opened. Its tile's bin moves the model's folder to the Trash.
@@ -132,7 +132,7 @@ of Photos and Rig View (✕, Esc or the gear again closes it; the Rig card's gea
     the arrows nudge the focus nearer or further.
   - **Near/Far Points**: put two printed contrast cards where the object comes nearest and farthest over a full
     turn, then drag a box round the near card and one round the far card. **Focus between** steps the lens through
-    both cards' sharpest and leaves it where they're equally sharp: the depth of field centred between them. If the
+    both cards' sharpest and leaves it where they're equally sharp: the depth of field centered between them. If the
     depth of field doesn't reach both cards, it says so: stop down (a higher f-number) or zoom out, and try again.
 
   Focus stays where you leave it for the capture.

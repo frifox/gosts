@@ -1,6 +1,6 @@
 // Live 3D model of the photogrammetry rig, rendered with three.js.
 //
-// Units are millimetres. three.js is Y-up: x runs along the base's 600 mm
+// Units are millimeters. three.js is Y-up: x runs along the base's 600 mm
 // sides, y up, z across the base (500 mm). The tilt axis runs along z
 // through the two servos on top of the posts; the turntable turns about y.
 import * as THREE from "three";
@@ -44,7 +44,7 @@ const mat = {
 
 // ---------------------------------------------------------------- 2020 extrusion
 // Cross-section: 20×20 mm, a T-slot on every side (6.2 mm opening, wider
-// behind the lips) and the 4.2 mm centre bore.
+// behind the lips) and the 4.2 mm center bore.
 const profileShape = (() => {
   // One side, from corner (-10,-10) along y = -10, slot in the middle.
   const side = [[-10, -10], [-3.1, -10], [-3.1, -8.2], [-5.6, -8.2], [-5.6, -6.6], [-2.6, -4.4],
@@ -64,7 +64,7 @@ const profileCache = new Map();
 function profileGeometry(len) {
   if (!profileCache.has(len)) {
     const g = new THREE.ExtrudeGeometry(profileShape, { depth: len, bevelEnabled: false, curveSegments: 6 });
-    g.translate(0, 0, -len / 2); // centred on its length
+    g.translate(0, 0, -len / 2); // centered on its length
     g.computeVertexNormals();
     profileCache.set(len, g);
   }
@@ -113,7 +113,7 @@ function cylinder(r, len, material, axis = "y", segs = 40) {
 
 // ---------------------------------------------------------------- ST3215
 // Feetech/Waveshare ST3215: about 45 × 25 × 35 mm, output horn on one face.
-// Built with the horn on its -z face, centred on the origin.
+// Built with the horn on its -z face, centered on the origin.
 function st3215() {
   const g = new THREE.Group();
   const bodyH = 45, bodyW = 25, bodyD = 35;
@@ -153,7 +153,7 @@ function a6600() {
   const shutter = cylinder(4.5, 4, mat.horn, "y", 24); shutter.position.set(16, H / 2 + 1, -W / 2 + 12); g.add(shutter);
   // Rear screen.
   g.add(box(2, 46, 74, mat.screen, -D / 2 - 1, -4, 8));
-  // Lens mount and lens (front, +x), centred a little left of the grip.
+  // Lens mount and lens (front, +x), centered a little left of the grip.
   const lz = A6600_LENS_ASIDE, ly = -2;
   const mount = cylinder(30, 6, mat.horn, "x"); mount.position.set(D / 2 + 3, ly, lz); g.add(mount);
   const barrel = cylinder(32, 52, mat.lens, "x"); barrel.position.set(D / 2 + 6 + 26, ly, lz); g.add(barrel);
@@ -180,7 +180,7 @@ function a6600() {
 
 // ---------------------------------------------------------------- the object
 // #3DBenchy (3DBenchy.com, CC0 1.0) on the turntable, scaled to the rig's
-// ObjectZ height: Z-up in the file, so turned Y-up, centred, standing on 0,
+// ObjectZ height: Z-up in the file, so turned Y-up, centered, standing on 0,
 // 1 mm tall (scaled per use).
 let benchyGeo = null;
 function benchy() {
@@ -275,9 +275,9 @@ export function createRig(container) {
     if (rig) scene.remove(rig.root);
     const root = new THREE.Group();
     scene.add(root);
-    const postY = d.BaseY / 2 - P / 2;         // post centres
+    const postY = d.BaseY / 2 - P / 2;         // post centers
     const pivotY = pivotHeight(d);             // servo horn axis height
-    const armZ = d.SwingY / 2 - P / 2;         // swing arm centres
+    const armZ = d.SwingY / 2 - P / 2;         // swing arm centers
     const barX = d.SwingX / 2 - P / 2;         // camera bar distance from the axis
 
     // Base frame: the X sides full length, the Y sides between them.
@@ -304,7 +304,7 @@ export function createRig(container) {
     for (const s of [-1, 1]) tilt.add(profile(V(s * barX, 0, -armZ + P / 2), V(s * barX, 0, armZ - P / 2)));
     // The camera sits on the -X side, looking at the axis: its sensor
     // (8 mm in front of the body's middle) CameraX from the turntable's
-    // centre with the arm level, CameraZ above the arms (+ up with the arm
+    // center with the arm level, CameraZ above the arms (+ up with the arm
     // level). Its lens is in line with the object's middle, square to the
     // bar: the body (whose lens is 10 mm off its middle) 10 mm the other way.
     const camera = a6600();
@@ -351,7 +351,7 @@ export function createRig(container) {
     rig = { d, root, tilt, turn, camera, sight, sightGeo, shotGroup, nextRing, shotMesh: null, shotKey: "", pops, shotR: 5,
       orbit: (d.CameraX ?? DEFAULT_RIG.CameraX) + 48, // where the shots' dots go: distance from the tilt axis, along the arms
       lift: P / 2 + 34 - 2 + (d.CameraZ || 0), // and square to them: the lens' height (on the axis: 0)
-      objectCentre: V(0, d.TurntableZ + d.ObjectZ / 2, 0), // the object's middle
+      objectCenter: V(0, d.TurntableZ + d.ObjectZ / 2, 0), // the object's middle
       target: V(0, d.TurntableZ - 12, 0) }; // the view orbits the bottom of the platform's disc (12 mm thick, see disc)
   }
 
@@ -375,7 +375,7 @@ export function createRig(container) {
     if (capturing && !cv) startCapture();
     if (cv) captureShots(u);
 
-    // Shots: rebuild when the plan changes, recolour as they're taken.
+    // Shots: rebuild when the plan changes, recolor as they're taken.
     const list = shots || [];
     const key = (u.smooth ? "smooth:" : "") + list.map((s) => `${s.elevation},${s.azimuth}`).join(";");
     if (key !== rig.shotKey) {
@@ -518,7 +518,7 @@ export function createRig(container) {
   }
   // A comet: the ball (where the camera is) and its tail, in the turntable's
   // frame so they turn with the platform. The tail is a thin tube along the
-  // camera's recent path, coloured by the camera's speed there against the
+  // camera's recent path, colored by the camera's speed there against the
   // path's average (normal): neutral at normal, warming to amber and coral
   // when faster, cooling to blue when slower; it fades and thins towards its
   // end.
@@ -727,7 +727,7 @@ export function createRig(container) {
     rig.turn.rotation.y = rig.shotGroup.rotation.y = rad(az);
     rig.tilt.rotation.z = -rad(e);
     rig.tilt.updateMatrixWorld(true);
-    rig.sightGeo.setFromPoints([rig.camera.localToWorld(rig.camera.userData.lensFront.clone()), rig.objectCentre]);
+    rig.sightGeo.setFromPoints([rig.camera.localToWorld(rig.camera.userData.lensFront.clone()), rig.objectCenter]);
     rig.sight.computeLineDistances();
   }
   function previewTick(dt) {
@@ -950,7 +950,7 @@ export function createRig(container) {
       out.toBlob((b) => (b ? resolve(b) : reject(new Error("no picture"))), "image/jpeg", 0.9));
   }
 
-  // getView reports where the viewer is, relative to the rig's centre, as
+  // getView reports where the viewer is, relative to the rig's center, as
   // fractions of the preset distance (used to pick the presets).
   function getView() {
     const d = rig.d, t = rig.target, far = Math.max(d.BaseX, d.BaseY, d.PostZ + 300) * 2.6;

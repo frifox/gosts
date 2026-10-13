@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// The gray card balancing (web/graycard.js) recovers the light's colour
+// The gray card balancing (web/graycard.js) recovers the light's color
 // temperature from synthetic cards, reports a green cast, and refuses
 // clipped or dark ones. Run with Node, if it's installed.
 func TestGrayCardJS(t *testing.T) {

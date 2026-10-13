@@ -9,7 +9,7 @@ import (
 )
 
 // TestThumbnail: a camera-sized JPEG shrinks to about thumbWidth wide,
-// colours kept.
+// colors kept.
 func TestThumbnail(t *testing.T) {
 	src := image.NewRGBA(image.Rect(0, 0, 6000, 3376))
 	for y := 0; y < 3376; y++ {
