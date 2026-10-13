@@ -28,7 +28,7 @@ jobs:
         run: go test ./...
 
       - name: Build GoSTS Rig.app
-        run: cmd/gosts-rig-macos/build.sh
+        run: make
 
       - name: Zip
         run: |

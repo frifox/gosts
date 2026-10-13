@@ -4,7 +4,7 @@
 // Quitting the app stops it (and if the app crashes, gosts-rig sees its stdin
 // close and quits by itself: --exit-with-stdin).
 //
-// Built by build.sh (swiftc, no Xcode project).
+// Built by build.sh (swiftc, no Xcode project): make, in the repository's root.
 
 import AppKit
 import Darwin
@@ -222,7 +222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
     func startBackend(port: Int) {
         guard let exe = Bundle.main.url(forAuxiliaryExecutable: "gosts-rig") else {
-            showStatus("gosts-rig is missing", detail: "The app is incomplete: build it again with build.sh.")
+            showStatus("gosts-rig is missing", detail: "The app is incomplete: build it again (make).")
             return
         }
         try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)

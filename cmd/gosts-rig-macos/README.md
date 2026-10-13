@@ -20,7 +20,7 @@ macOS won't open it by double-click: try once, then System Settings → Privacy 
 14 and earlier, right-click it → **Open** works too). For a real camera, also `brew install gphoto2`.
 
 A release is made by pushing a version tag: GitHub Actions ([release.yml](../../.github/workflows/release.yml)) runs
-the tests, builds the app with build.sh and attaches the zip to the tag's release.
+the tests, builds the app (as `make` does) and attaches the zip to the tag's release.
 
 ```bash
 git tag v0.1.0 && git push origin v0.1.0
@@ -30,9 +30,11 @@ git tag v0.1.0 && git push origin v0.1.0
 
 Needs Go and the Xcode command line tools (`xcode-select --install`).
 
+From the repository's root:
+
 ```bash
-cmd/gosts-rig-macos/build.sh             # builds cmd/gosts-rig-macos/build/GoSTS Rig.app
-cmd/gosts-rig-macos/build.sh --install   # and copies it to /Applications
+make           # builds cmd/gosts-rig-macos/build/GoSTS Rig.app
+make install   # builds it, then puts it in /Applications
 ```
 
 The app is signed ad hoc, so it runs on the Mac that built it.

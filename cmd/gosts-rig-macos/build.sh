@@ -2,9 +2,7 @@
 # build.sh: builds "GoSTS Rig.app" into cmd/gosts-rig-macos/build/: the app
 # (main.swift), with gosts-rig and apple-obj-cap (Build Model's tool) inside
 # it. Needs Go and the Xcode command line tools (xcode-select --install).
-#
-#   cmd/gosts-rig-macos/build.sh             # build
-#   cmd/gosts-rig-macos/build.sh --install   # and copy it to /Applications
+# make runs it (make install: and puts the app in /Applications).
 set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -37,8 +35,3 @@ codesign --force --sign - "$app/Contents/MacOS/gosts-rig" "$app/Contents/MacOS/a
 codesign --force --sign - "$app"
 
 echo "built $app ($version)"
-if [ "${1:-}" = "--install" ]; then
-	rm -rf "/Applications/GoSTS Rig.app"
-	cp -R "$app" /Applications/
-	echo "installed /Applications/GoSTS Rig.app"
-fi
