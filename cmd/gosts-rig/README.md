@@ -88,7 +88,8 @@ of Photos and Rig View (✕, Esc or the gear again closes it; the Rig card's gea
   continuous flashes at each power set it off (40 at full power, up to 500 at 1/128). Click the flash's power, and
   pick **Safe**, **Acceptable** or **Risky** below it (60%, 80% or all of the limit between pauses, resting 15,
   10 or 5 minutes in proportion): the pause is worked out for the plan's photos, split evenly (150 photos with
-  room for 128 a go: a pause after 75), or none if they fit in one go. It follows the photos as they change,
+  room for 128 a go: a pause after 75); if they fit in one go, it's set for the power's full share anyway, for a
+  bigger plan later. It follows the photos as they change,
   till you type over it.
 - **Gray Card** (with white balance on a color temperature): drag a box over a gray card in the sample. It
   suggests the color temperature and color shifts that make the card neutral, a button each to apply.

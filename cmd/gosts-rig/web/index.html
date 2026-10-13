@@ -2402,8 +2402,9 @@ function coolRow() {
 // Acceptable or Risky how close to the limit to go, and how long to rest:
 // so many photos between pauses (a share of the limit), and the rest in
 // proportion to how many of them that is. The plan's photos split evenly
-// (150 with room for 128 a go: 2 × 75), and none at all if they fit in
-// one go. The pause so worked out follows the plan's photos, till typed
+// (150 with room for 128 a go: 2 × 75); if they fit in one go, the pause
+// is set for the power's full share anyway (this capture never gets to it,
+// a bigger one later does). The pause so worked out follows the plan's photos, till typed
 // over. The power and level are kept in this browser.
 const AR400_HEAT = [["1/1", 40], ["1/2 +0.7", 60], ["1/2 +0.3", 80], ["1/2", 100], ["1/4", 200], ["1/8", 300], ["1/16", 400], ["1/32", 400], ["1/64", 500], ["1/128", 500]];
 const HEAT_LEVELS = { safe: { share: 0.6, rest: 15 }, acceptable: { share: 0.8, rest: 10 }, risky: { share: 1, rest: 5 } };
@@ -2431,9 +2432,9 @@ function heatApply() {
   if (!row) { $("heatNote").textContent = "Pick the flash's power in the table first."; return; }
   const L = HEAT_LEVELS[heat.level], every = heatEvery(row[1]), photos = Math.max(0, Math.round(Number($("pPhotos").value) || 0));
   let cd;
-  if (photos <= every) {
-    cd = { On: false, Minutes: Number($("coolMin").value) || L.rest, Shots: Math.round(Number($("coolShots").value)) || every };
-    $("heatNote").textContent = `${photos} photos at ${heat.power}: within ${every} a go, no pause needed.`;
+  if (photos <= every) { // set anyway, for a bigger plan later: this one never gets to it
+    cd = { On: true, Minutes: L.rest, Shots: every };
+    $("heatNote").textContent = `${photos} photos at ${heat.power}: within ${every} a go, no pause this time; a bigger plan pauses ${L.rest} min after every ${every}.`;
   } else {
     const goes = Math.ceil(photos / every), shots = Math.ceil(photos / goes);
     const min = Math.max(1, Math.round(L.rest * shots / every)); // (whole minutes)
