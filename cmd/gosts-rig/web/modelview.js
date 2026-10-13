@@ -101,6 +101,9 @@ export const VIEWS = {
   top: new THREE.Vector3(0.001, 1, 0).normalize(), // (the slight +x: the screen's up is −x, X pointing down)
 };
 const VIEW_DIR = VIEWS["3d"];
+// The margin round the model framed (a fraction of the view): FIT, as it
+// opens (about 80% of the view), FILL, as big as it goes (F).
+const FIT = 0.2, FILL = 0.06;
 
 // frame puts camera (and controls, if any) on obj, just all of it in view
 // (each point: as far off as it needs, at the camera's angle, from the
@@ -309,11 +312,12 @@ export function createModelView(canvas) {
   // view: the camera to a preset (VIEWS), all of the model in sight.
   // glide: over about 0.7 s instead of at once, swinging around the model
   // (as the Rig View does); the view turned by hand stops it.
-  function view(name, glide = false) {
+  // fill: the model as big as the view takes it (F), else about 80% of it.
+  function view(name, glide = false, fill = false) {
     if (VIEWS[name]) viewName = name;
     if (!holder) return;
     const from = camera.position.clone(), fromT = controls.target.clone();
-    frame(holder, camera, controls, 0.06, VIEWS[viewName], seenAspect()); // (where it ends: its near, far and zoom limits too)
+    frame(holder, camera, controls, fill ? FILL : FIT, VIEWS[viewName], seenAspect()); // (where it ends: its near, far and zoom limits too)
     glideTo = null;
     if (!glide) return;
     glideTo = { from, fromT, to: camera.position.clone(), toT: controls.target.clone(), age: 0 };
@@ -399,7 +403,7 @@ export function createModelView(canvas) {
     scene.add(holder);
     viewName = "3d";
     size();
-    frame(holder, camera, controls, 0.06, VIEW_DIR, seenAspect());
+    frame(holder, camera, controls, FIT, VIEW_DIR, seenAspect());
     ground();
     look(mode);
     running = true;

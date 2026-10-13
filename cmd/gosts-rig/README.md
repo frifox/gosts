@@ -102,7 +102,7 @@ fared: the marks are there when the capture's opened again). One build at a time
 A capture's models (its folders with an OBJ or a USDZ in them: Build Model's, or put there by hand) come first in its
 gallery, a tile each with a picture of the model (rendered in the page the first time, with three.js, and kept in the
 cache folder). A click shows it over the page in 3D: drag to turn it, right-drag, wheel-drag (or ⇧ drag) to move it, the wheel (or ⇧
-wheel-drag) to zoom (at the pointer), F for the whole model again; Textured, Clay (its shape, gray) or Wireframe (its triangles); its
+wheel-drag) to zoom (at the pointer), F to fill the view with it (it opens at about 80%); Textured, Clay (its shape, gray) or Wireframe (its triangles); its
 triangles and size (cm) in the bar. **Measure**: click two points on the model, the distance between them (and its X, Y,
 Z parts) shows; a third click starts again, Measure again clears it. **Open in App** opens it in the Mac's app for it, to edit it (Preview, unless
 another's set: Blender, say, in the Finder's Get Info); **Show in Finder** shows its folder. A USDZ isn't shown in the
