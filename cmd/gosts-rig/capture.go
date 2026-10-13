@@ -59,10 +59,10 @@ func planShots(p Plan, m Motion) (shots []shot, rows int, spacing float64, err e
 	// Rows: as many as the band's height holds at that spacing.
 	rows = max(1, min(n, int(math.Round((hi-lo)/spacing))))
 	if p.path() == PathRings {
-		return linearShots(n, rows, lo, hi, p.Moving), rows, spacing, nil
+		return fromZero(linearShots(n, rows, lo, hi, p.Moving)), rows, spacing, nil
 	}
 	if p.Moving {
-		return spiralOrder(pts, rows, z0, z1), rows, spacing, nil
+		return fromZero(spiralOrder(pts, rows, z0, z1)), rows, spacing, nil
 	}
 	slices.SortStableFunc(pts, func(a, b shot) int { return cmp.Compare(a.Elevation, b.Elevation) })
 	for r := 0; r < rows; r++ {
@@ -77,7 +77,22 @@ func planShots(p Plan, m Motion) (shots []shot, rows int, spacing float64, err e
 			row[k].Ring = r
 		}
 	}
-	return pts, rows, spacing, nil
+	return fromZero(pts), rows, spacing, nil
+}
+
+// fromZero turns the whole plan round so its first shot is at azimuth 0°
+// (the platform's front, where it rests): the plans are laid out from
+// −180°, so the first move would be half a turn. Every shot turns the same,
+// so the moves between them don't change.
+func fromZero(shots []shot) []shot {
+	if len(shots) == 0 {
+		return shots
+	}
+	d := shots[0].Azimuth
+	for i := range shots {
+		shots[i].Azimuth = round1(wrap180(shots[i].Azimuth - d))
+	}
+	return shots
 }
 
 // linearShots lays the shots out in rows, each at one elevation, evenly

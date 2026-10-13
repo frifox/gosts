@@ -55,7 +55,7 @@ func TestPlanShots(t *testing.T) {
 		for i := 1; i < n; i++ {
 			a, b := shots[i-1], shots[i]
 			if a.Ring == b.Ring {
-				if dir := b.Azimuth - a.Azimuth; (a.Ring%2 == 0) != (dir >= 0) {
+				if dir := wrap180(b.Azimuth - a.Azimuth); (a.Ring%2 == 0) != (dir >= 0) { // (the short way: a row may cross ±180°)
 					t.Fatalf("n=%d: row %d not in azimuth order at %d", n, a.Ring, i)
 				}
 			} else if b.Ring != a.Ring+1 {
@@ -65,6 +65,13 @@ func TestPlanShots(t *testing.T) {
 	}
 	if _, _, _, err := planShots(Plan{Photos: 0}, m); err == nil {
 		t.Fatal("0 photos accepted")
+	}
+	// Every plan starts at the platform's front, azimuth 0°.
+	for _, p := range []Plan{{Photos: 150, Path: PathRings}, {Photos: 150, Path: PathRings, Moving: true}, {Photos: 150, Path: PathSphere}, {Photos: 150, Path: PathSphere, Moving: true}} {
+		shots, _, _, _ := planShots(p, m)
+		if shots[0].Azimuth != 0 {
+			t.Errorf("%+v: first shot at azimuth %v, want 0", p, shots[0].Azimuth)
+		}
 	}
 	if _, _, _, err := planShots(Plan{Photos: 10}, Motion{ElevationMin: 40, ElevationMax: 10}); err == nil {
 		t.Fatal("empty range accepted")
