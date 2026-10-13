@@ -1889,7 +1889,11 @@ async function mveOriginCancel() {
   mveShow();
   if (from) { await window.modelView.setMatrix(from, true); mveTrimReset(); mveShow(); }
 }
-$("mveAlign").onclick = () => mveDo((box) => window.modelEdit.align(mve.picks.align, segOf("mveAxis"), box));
+$("mveAlign").onclick = () => mveDo((box) => {
+  const m = window.modelEdit.align(mve.picks.align, segOf("mveAxis"), box);
+  segPick("mveAxis", null); // (aligned: the axis to be picked again for another)
+  return m;
+});
 $("mveScale").onclick = () => mveDo(() => window.modelEdit.scale(mve.picks.scale[0], mve.picks.scale[1], Number($("mveDist").value) * window.modelEdit.UNITS[segOf("mveUnit")]));
 // Rotate: a turn about each axis (−180°…180°), shown on the model as it's
 // set (a slider dragged, or ±90°: past ±180° it comes round the other end);
