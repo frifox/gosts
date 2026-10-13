@@ -412,12 +412,24 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-axes .x { color: #e5484d; } .mve-axes .y { color: #46a758; } .mve-axes .z { color: #3e7bfa; }
 .mve-rot { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 8px; align-items: center; }
 .mve-rot b { font: 600 12px var(--mono); width: 16px; }
-.mve-trim { display: grid; grid-template-columns: auto auto 1fr auto; gap: 2px 8px; align-items: center; }
+.mve-trim { display: grid; grid-template-columns: auto auto 1fr auto; gap: 6px 8px; align-items: center; }
 .mve-trim b { font: 600 12px var(--mono); }
 .mve-trim .x { color: #e5484d; } .mve-trim .y { color: #46a758; } .mve-trim .z { color: #3e7bfa; }
-.mve-trim .mve-end { color: var(--muted); font-size: 11px; }
-.mve-trim input[type=range] { width: 100%; min-width: 0; accent-color: #ffb020; }
-.mve-trim .mve-val { font: 11px var(--mono); color: var(--text); min-width: 52px; text-align: right; }
+.mve-trim .mve-val { font: 11px var(--mono); color: var(--text); min-width: 46px; text-align: right; }
+.mve-trim .mve-val[data-val$="1"] { text-align: left; }
+/* An axis' box sides, min and max, on one slider: two range inputs over a
+   track, only their handles taking the pointer; what's kept, filled. */
+.mve-dual { position: relative; height: 18px; min-width: 0; --a: 0%; --b: 100%; }
+.mve-dual::before { content: ""; position: absolute; left: 7px; right: 7px; top: 8px; height: 3px; border-radius: 2px; background: var(--border); }
+.mve-dual .mve-fill { position: absolute; top: 8px; height: 3px; border-radius: 2px; background: #ffb020;
+  left: calc(7px + (100% - 14px) * var(--a)); right: calc(7px + (100% - 14px) * (1 - var(--b))); }
+.mve-dual input[type=range] { position: absolute; inset: 0; width: 100%; height: 18px; margin: 0; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
+.mve-dual input[type=range]::-webkit-slider-runnable-track { background: none; height: 18px; }
+.mve-dual input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%;
+  background: #ffb020; border: 2px solid #12151c; box-shadow: 0 0 0 1px #ffb020; cursor: grab; }
+.mve-dual input[type=range]::-moz-range-thumb { pointer-events: auto; width: 12px; height: 12px; border-radius: 50%; background: #ffb020; border: 2px solid #12151c; cursor: grab; }
+.mve-dual input[type=range]::-moz-range-track { background: none; }
+.mve-dual input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--accent); }
 .mve-rot .x { color: #e5484d; } .mve-rot .y { color: #46a758; } .mve-rot .z { color: #3e7bfa; }
 /* Top left: the view presets, then Axis and Ground (icon toggles: lit when shown). */
 .mv-corner { position: absolute; top: 12px; left: 12px; z-index: 2; display: flex; align-items: center; gap: 10px; }
@@ -1001,7 +1013,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       </section>
       <section data-trim>
         <div class="mve-head"><b>5 · Trim</b></div>
-        <div class="mve-trim"><b class="x">X</b><span class="mve-end">min</span><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="0"><span class="mve-val" data-val="x0"></span><b class="x">X</b><span class="mve-end">max</span><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="1"><span class="mve-val" data-val="x1"></span><b class="y">Y</b><span class="mve-end">min</span><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="0"><span class="mve-val" data-val="y0"></span><b class="y">Y</b><span class="mve-end">max</span><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="1"><span class="mve-val" data-val="y1"></span><b class="z">Z</b><span class="mve-end">min</span><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="0"><span class="mve-val" data-val="z0"></span><b class="z">Z</b><span class="mve-end">max</span><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="1"><span class="mve-val" data-val="z1"></span></div>
+        <div class="mve-trim"><b class="x">X</b><span class="mve-val" data-val="x0"></span><span class="mve-dual" data-ax="x"><span class="mve-fill"></span><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="0" aria-label="X min"><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="1" aria-label="X max"></span><span class="mve-val" data-val="x1"></span><b class="y">Y</b><span class="mve-val" data-val="y0"></span><span class="mve-dual" data-ax="y"><span class="mve-fill"></span><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="0" aria-label="Y min"><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="1" aria-label="Y max"></span><span class="mve-val" data-val="y1"></span><b class="z">Z</b><span class="mve-val" data-val="z0"></span><span class="mve-dual" data-ax="z"><span class="mve-fill"></span><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="0" aria-label="Z min"><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="1" aria-label="Z max"></span><span class="mve-val" data-val="z1"></span></div>
         <div class="mve-row"><button class="btn small" id="mveTrimReset" disabled>Reset Box</button><span class="spacer"></span><button class="btn small primary" id="mveTrim" disabled>Trim</button></div>
       </section>
       <section data-step="center">
@@ -1715,6 +1727,11 @@ function mveTrimShow() {
   if (!mve.ext) return;
   const t = mveTrimBox();
   for (const ax of "xyz") for (const i of [0, 1]) $("mvEdit").querySelector(`[data-val="${ax}${i}"]`).textContent = mveNum(t[ax][i]);
+  for (const d of $("mvEdit").querySelectorAll(".mve-dual")) {
+    const [lo, hi] = [...d.querySelectorAll("input")].map((r) => Number(r.value) / 1000);
+    d.style.setProperty("--a", lo); d.style.setProperty("--b", hi);
+    d.querySelector('[data-end="0"]').style.zIndex = lo > 0.5 ? 2 : 1; // (both at one end: the one that can move, on top)
+  }
   const moved = [...$("mvEdit").querySelectorAll(".mve-trim input")].some((r) => Number(r.value) !== (r.dataset.end === "0" ? 0 : 1000));
   const empty = t.x[0] >= t.x[1] || t.y[0] >= t.y[1] || t.z[0] >= t.z[1];
   $("mveTrim").disabled = !moved || empty;
@@ -1728,7 +1745,13 @@ function mveThreeBox(t) {
   B.max.set(t.x[1], t.z[1], -t.y[0]);
   return B;
 }
-$("mvEdit").querySelector(".mve-trim").addEventListener("input", mveTrimShow);
+$("mvEdit").querySelector(".mve-trim").addEventListener("input", (e) => {
+  // min ≤ max: a handle stops at the other.
+  const r = e.target, other = r.parentElement.querySelector(`input[data-end="${r.dataset.end === "0" ? 1 : 0}"]`);
+  if (r.dataset.end === "0" && Number(r.value) > Number(other.value)) r.value = other.value;
+  if (r.dataset.end === "1" && Number(r.value) < Number(other.value)) r.value = other.value;
+  mveTrimShow();
+});
 $("mveTrimReset").onclick = mveTrimReset;
 $("mveTrim").onclick = () => {
   window.modelView.settle();
