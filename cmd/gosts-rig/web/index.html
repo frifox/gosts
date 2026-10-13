@@ -415,6 +415,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-rot .x { color: #e5484d; } .mve-rot .y { color: #46a758; } .mve-rot .z { color: #3e7bfa; }
 .mv-views { position: absolute; top: 12px; left: 12px; margin: 0; z-index: 2; }
 .mve-size { font: 12px var(--mono); color: var(--text); border-top: 1px solid var(--border); padding-top: 10px; }
+.mve-saverow { flex-wrap: nowrap; }
+.mve-warn { flex: 1; text-align: right; color: var(--warn); font-size: 12px; line-height: 1.3; }
+.mv-edit #mveSave.confirm { background: var(--warn); border-color: var(--warn); color: #111; }
 .mve-status { font-size: 12px; color: var(--muted); min-height: 1em; }
 .mve-status.bad { color: var(--bad); } .mve-status.ok { color: var(--ok); }
 .thumb.model .mbadge { position: absolute; top: 7px; left: 7px; padding: 2px 6px; border-radius: 6px; background: var(--accent); color: #fff; font: 600 11px var(--mono); letter-spacing: .03em; }
@@ -946,7 +949,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mve-row"><span class="mve-label">File units</span><span class="views seg" id="mveFileUnit"><button data-v="mm" title="Fusion 360, CAD: 1 unit = 1 mm">mm</button><button data-v="in">in</button><button data-v="m" title="Blender's own: 1 unit = 1 m">m</button></span></div>
         <label class="mp-check"><input type="checkbox" id="mveSTL"> <span>Also an STL (z up)</span></label>
         <div class="mve-row"><label class="mp-check"><input type="checkbox" id="mveSimplify"> <span>Simplify to</span></label><input type="number" id="mveTris" min="100" step="1000"><span class="mve-label">triangles</span></div>
-        <div class="mve-row"><span class="spacer"></span><button class="btn small primary" id="mveSave">Save</button></div>
+        <div class="mve-row mve-saverow"><span class="mve-warn" id="mveWarn"></span><button class="btn small primary" id="mveSave">Save</button></div>
         <div class="mve-status" id="mveStatus"></div>
       </section>
     </aside></div>
@@ -1511,7 +1514,24 @@ segPick("mveAxis", "x"); segPick("mveUnit", "mm"); segPick("mveFileUnit", "mm");
 try { const u = localStorage.getItem("modelEditUnits"); if (u) { const [a, b] = JSON.parse(u); segPick("mveUnit", a); segPick("mveFileUnit", b); } } catch {}
 $("mveTris").value = 50000;
 // mveShow: the panel as the edit is: points picked, what can be done, its size.
+// Steps set up but not applied (points picked, the trim box moved): Save
+// asks first (Confirm), till something changes.
+function mvePending() {
+  const p = [];
+  if (mve.picks.level.length) p.push("Level");
+  if (mve.picks.align.length) p.push("Align");
+  if (mve.picks.scale.length) p.push("Scale");
+  if (!$("mveTrim").disabled) p.push("Trim");
+  return p;
+}
+function mveConfirm(on) {
+  $("mveSave").classList.toggle("confirm", on);
+  $("mveSave").textContent = on ? "Confirm" : "Save";
+  const p = on ? mvePending() : [];
+  $("mveWarn").textContent = on ? `${p.join(", ")} edit${p.length === 1 ? "" : "s"} not applied. Save anyways?` : "";
+}
 function mveShow() {
+  mveConfirm(false);
   const mv = window.modelView, u = segOf("mveUnit"), k = 1 / window.modelEdit.UNITS[u];
   for (const sec of $("mvEdit").querySelectorAll("section[data-step]")) {
     const st = sec.dataset.step, n = mve.picks[st].length;
@@ -1582,6 +1602,7 @@ function mveTrimBox() {
   return t;
 }
 function mveTrimShow() {
+  mveConfirm(false);
   if (!mve.ext) return;
   const t = mveTrimBox(), u = segOf("mveUnit"), k = 1 / window.modelEdit.UNITS[u];
   for (const ax of "xyz") for (const i of [0, 1]) $("mvEdit").querySelector(`[data-val="${ax}${i}"]`).textContent = (t[ax][i] * k).toFixed(u === "mm" ? 1 : 2);
@@ -1668,6 +1689,8 @@ function mveFresh(m) {
 }
 $("mvEditBtn").onclick = () => mveOpen($("mvEdit").hidden);
 $("mveSave").onclick = async () => {
+  if (!$("mveSave").classList.contains("confirm") && mvePending().length) return mveConfirm(true);
+  mveConfirm(false);
   const v = state.mv, replace = $("mveReplace").classList.contains("on"), to = replace ? v?.m.name : $("mveName").value.trim();
   if (!v || !to) return mveStatus("A name, first", "bad");
   const units = segOf("mveFileUnit"), stl = $("mveSTL").checked, simplify = $("mveSimplify").checked ? Math.round(Number($("mveTris").value)) : 0;
