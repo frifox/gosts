@@ -3,8 +3,8 @@
 Runs a turntable photogrammetry rig from the browser: plan a capture, watch the rig move in 3D, get the photos
 straight off the camera, and turn them into a 3D model. An example app of [Go ST Servo](../../README.md).
 
-<p align="center"><img src="../../docs/gosts-rig.jpg" alt="gosts-rig: a capture under way, the photos coming in and the rig drawn live"></p>
-<p align="center"><img src="../../docs/gosts-rig-model.jpg" alt="gosts-rig: a capture's model in the 3D viewer, the Edit panel open"></p>
+<p align="center"><b>GoSTS Rig UI</b><br><img src="../../docs/gosts-rig.jpg" alt="gosts-rig: a capture under way, the photos coming in and the rig drawn live"></p>
+<p align="center"><b>Build Model using Apple Object Capture</b><br><img src="../../docs/gosts-rig-model.jpg" alt="gosts-rig: a capture's model in the 3D viewer, the Edit panel open"></p>
 
 ## The rig
 
