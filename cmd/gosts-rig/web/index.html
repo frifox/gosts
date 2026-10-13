@@ -414,6 +414,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-trim .mve-val { font: 11px var(--mono); color: var(--text); min-width: 58px; text-align: right; }
 .mve-rot .x { color: #e5484d; } .mve-rot .y { color: #46a758; } .mve-rot .z { color: #3e7bfa; }
 .mv-views { position: absolute; top: 12px; left: 12px; margin: 0; z-index: 2; }
+.mve-size .mve-sub { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); margin: 8px 0 2px; }
+.mve-size .mve-sub:first-child { margin-top: 0; }
+.mve-size b { font-weight: 600; } .mve-size .x { color: #e5484d; } .mve-size .y { color: #46a758; } .mve-size .z { color: #3e7bfa; }
 .mve-size { font: 12px var(--mono); color: var(--text); border-top: 1px solid var(--border); padding-top: 10px; }
 .mve-saverow { flex-wrap: nowrap; }
 .mve-warn { flex: 1; text-align: right; color: var(--warn); font-size: 12px; line-height: 1.3; }
@@ -1547,7 +1550,8 @@ function mveShow() {
   const st = mv.stats();
   if (st) {
     const [x, y, z] = [st.size[0], st.size[2], st.size[1]].map((v) => (v * k).toFixed(u === "mm" ? 1 : 2));
-    $("mveSize").textContent = `Size: X ${x} × Y ${y} × Z ${z} ${u} · ${Math.round(st.triangles).toLocaleString()} triangles`;
+    $("mveSize").innerHTML = `<div class="mve-sub">Dimensions</div><div><b class="x">X</b> ${x}</div><div><b class="y">Y</b> ${y}</div><div><b class="z">Z</b> ${z} ${u}</div>` +
+      `<div class="mve-sub">Resolution</div><div>${Math.round(st.triangles).toLocaleString()} triangles</div>`;
   }
   mv.markers(Object.entries(mve.picks).map(([k2, pts]) => ({ points: pts, color: MVE_COLORS[k2], line: k2 === "level" ? "loop" : true })));
   try { localStorage.setItem("modelEditUnits", JSON.stringify([u, segOf("mveFileUnit")])); } catch {}
