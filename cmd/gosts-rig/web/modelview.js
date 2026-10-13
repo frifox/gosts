@@ -182,8 +182,11 @@ export function createModelView(canvas) {
     camera.updateProjectionMatrix();
   }
   new ResizeObserver(size).observe(canvas.parentElement);
-  function loop() {
+  let last = 0;
+  function loop(now = performance.now()) {
     if (!running) return;
+    glideTick(Math.min(0.1, (now - (last || now)) / 1000));
+    last = now;
     controls.update();
     renderer.render(scene, camera);
     requestAnimationFrame(loop);
@@ -191,6 +194,7 @@ export function createModelView(canvas) {
   const drop = (o) => { if (!o) return; scene.remove(o); o.traverse((c) => { c.geometry?.dispose(); c.material?.dispose?.(); }); };
   function clear() {
     running = false;
+    glideTo = null;
     seq++;
     if (holder) { scene.remove(holder); disposeModel(holder); holder = obj = null; }
     drop(grid); drop(axes); grid = axes = null;
@@ -207,8 +211,38 @@ export function createModelView(canvas) {
     });
   }
   // view: the camera to a preset (VIEWS), all of the model in sight.
-  function view(name) { if (VIEWS[name]) viewName = name; if (holder) frame(holder, camera, controls, 0.06, VIEWS[viewName]); }
-  const reset = () => view("3d");
+  // glide: over about 0.7 s instead of at once, swinging around the model
+  // (as the Rig View does); the view turned by hand stops it.
+  function view(name, glide = false) {
+    if (VIEWS[name]) viewName = name;
+    if (!holder) return;
+    const from = camera.position.clone(), fromT = controls.target.clone();
+    frame(holder, camera, controls, 0.06, VIEWS[viewName]); // (where it ends: its near, far and zoom limits too)
+    glideTo = null;
+    if (!glide) return;
+    glideTo = { from, fromT, to: camera.position.clone(), toT: controls.target.clone(), age: 0 };
+    glideTick(0);
+  }
+  const reset = (glide = false) => view("3d", glide);
+  let glideTo = null;
+  controls.addEventListener("start", () => (glideTo = null));
+  // glideTick moves the view along a glide (eased), till it's there.
+  function glideTick(dt) {
+    if (!glideTo) return;
+    glideTo.age += dt;
+    let f = Math.min(1, glideTo.age / 0.7);
+    f = f * f * (3 - 2 * f);
+    // Around the target (angles and distance eased), not straight across.
+    const a = new THREE.Spherical().setFromVector3(glideTo.from.clone().sub(glideTo.fromT));
+    const b = new THREE.Spherical().setFromVector3(glideTo.to.clone().sub(glideTo.toT));
+    let dTheta = b.theta - a.theta;
+    dTheta -= Math.round(dTheta / (2 * Math.PI)) * 2 * Math.PI; // the short way round
+    const sp = new THREE.Spherical(a.radius + (b.radius - a.radius) * f, a.phi + (b.phi - a.phi) * f, a.theta + dTheta * f);
+    controls.target.lerpVectors(glideTo.fromT, glideTo.toT, f);
+    camera.position.setFromSpherical(sp).add(controls.target);
+    camera.lookAt(controls.target);
+    if (f >= 1) glideTo = null;
+  }
   // box: the model's, as edited (each point: exact).
   const box = () => new THREE.Box3().setFromObject(holder, true);
   // ground: the floor grid (and, editing, the axes): under the model as it
