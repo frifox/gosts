@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -205,6 +206,7 @@ type capture struct {
 	resume      chan struct{}
 	cooling     time.Time     // paused to cool till then (see cooldown); zero: not
 	pausedAt    time.Time     // paused since (zero: not paused)
+	exporting   atomic.Int32  // alignment data being written (after the capture: see run)
 	pausedTotal time.Duration // paused so far, the pauses over
 	hold        time.Duration // Stop & Shoot: kept still this long after each shutter (see shutterHold)
 	started     time.Time
@@ -501,7 +503,11 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	c.rig.logf(level, "capture: %s", note)
 	c.send()
 	if p.ExportFor != "" {
-		go c.exportAlignment(p.ExportFor)
+		c.exporting.Add(1) // (the capture's folder left as it is till it's written: see renameBatch)
+		go func() {
+			defer c.exporting.Add(-1)
+			c.exportAlignment(p.ExportFor)
+		}()
 	}
 }
 
@@ -924,6 +930,14 @@ func (c *capture) pause(on bool) error {
 	c.setPaused(on)
 	go c.send()
 	return nil
+}
+
+// isRunning is whether a capture is running (cheap: not msg, which
+// estimates).
+func (c *capture) isRunning() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.running
 }
 
 // setPaused keeps the time paused (c.mu held).

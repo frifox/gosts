@@ -255,6 +255,12 @@ func (a *app) renameBatch(from, to string) error {
 	}
 	batch.Lock()
 	current := batch.dir == src
+	if current {
+		if why := a.currentBusy(); why != "" {
+			batch.Unlock()
+			return errors.New(why)
+		}
+	}
 	if _, err := os.Stat(src); err != nil {
 		if !current {
 			batch.Unlock()
@@ -268,14 +274,6 @@ func (a *app) renameBatch(from, to string) error {
 		return nil
 	}
 	defer batch.Unlock()
-	if current && a.cap != nil {
-		a.cap.mu.Lock()
-		running := a.cap.running
-		a.cap.mu.Unlock()
-		if running {
-			return errors.New("a capture is saving into it: rename it once the capture is done")
-		}
-	}
 	if err := os.Rename(src, dst); err != nil {
 		return err
 	}
@@ -286,6 +284,9 @@ func (a *app) renameBatch(from, to string) error {
 	}
 	if current {
 		batch.dir = dst
+		if a.camera != nil {
+			a.camera.relocate(src, dst) // (the timeline's files: there now)
+		}
 		defer a.broadcast(batchMsg{Type: "batch", Name: to})
 	}
 	log.Printf("photos: renamed %s to %s", from, to)
@@ -379,8 +380,8 @@ func (a *app) deleteBatch(name string) error {
 	current := batch.dir == dir
 	batch.Unlock()
 	if current {
-		if a.cap.msg().Running {
-			return errors.New("a capture is saving into it: delete it once the capture is done")
+		if why := a.currentBusy(); why != "" {
+			return errors.New(why)
 		}
 		a.camera.reset(false)
 	}
@@ -392,6 +393,22 @@ func (a *app) deleteBatch(name string) error {
 	}
 	log.Printf("photos: %s moved to the Trash", name)
 	return nil
+}
+
+// currentBusy says why the current capture's folder can't be renamed or
+// deleted just now: a capture saving into it, a photo still coming over
+// from the camera (it'd land in the old folder), or the alignment data
+// still being written after a capture; "" if it can.
+func (a *app) currentBusy() string {
+	switch {
+	case a.cap != nil && a.cap.isRunning():
+		return "a capture is saving into it: try once the capture is done"
+	case a.camera != nil && a.camera.backlog() > 0:
+		return "a photo is still coming over from the camera: try again in a moment"
+	case a.cap != nil && a.cap.exporting.Load() > 0:
+		return "the capture's alignment data is still being written: try again in a moment"
+	}
+	return ""
 }
 
 // handleBatchDelete trashes a capture (POST /batches/{name}/delete).

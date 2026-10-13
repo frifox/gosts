@@ -1010,6 +1010,28 @@ func (c *cameraConn) firingLate() time.Duration {
 // backlog is how many photos have been asked for whose pictures haven't come
 // yet: queued to be taken, being taken, or coming over. Moving shots slow
 // down when it grows (see capture.pace).
+// relocate points the timeline's photos' files under dir from (a folder
+// renamed) at to.
+func (c *cameraConn) relocate(from, to string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	pre := from + string(filepath.Separator)
+	for n, p := range c.photos {
+		changed := false
+		files := append([]string(nil), p.Files...)
+		for i, f := range files {
+			if strings.HasPrefix(f, pre) {
+				files[i] = filepath.Join(to, strings.TrimPrefix(f, pre))
+				changed = true
+			}
+		}
+		if changed {
+			p.Files = files
+			c.photos[n] = p
+		}
+	}
+}
+
 func (c *cameraConn) backlog() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()

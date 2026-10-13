@@ -185,7 +185,6 @@ func TestTrajectory(t *testing.T) {
 	}
 }
 
-
 func TestSimCameraPicture(t *testing.T) {
 	simPictureWait = 100 * time.Millisecond
 	defer func() { simPictureWait = 2 * time.Second }()
@@ -250,7 +249,6 @@ func TestPhotoTimeline(t *testing.T) {
 		t.Fatalf("after Reset and a photo: %v", tl)
 	}
 }
-
 
 func TestPhotoDelete(t *testing.T) {
 	simPictureWait = 50 * time.Millisecond
@@ -321,7 +319,6 @@ func TestTorqueOnCatchesTurnOff(t *testing.T) {
 	})
 	t.Log(err)
 }
-
 
 // TestSpiralFit: a spiral from 6.5 turns round fits till it would pass the
 // servo's range; unwinding from there takes it back near the other end.
@@ -619,7 +616,6 @@ func TestShutterHold(t *testing.T) {
 		t.Errorf("unknown: hold %v", h)
 	}
 }
-
 
 // TestSecPerPhoto: a moving path's photos are the seconds a photo apart
 // (the camera keeping up), and Stop & Shoot estimates grow with it.

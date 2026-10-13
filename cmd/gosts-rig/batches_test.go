@@ -149,3 +149,43 @@ func TestRenameBatchNotMade(t *testing.T) {
 		t.Error("renamed a capture that isn't there")
 	}
 }
+
+// Renaming the current capture: the timeline's files follow it (deleting
+// one still finds it); refused while a photo's coming over, or the
+// alignment data's being written.
+func TestRenameCurrentBusy(t *testing.T) {
+	old := photoDir
+	photoDir = t.TempDir()
+	defer func() { photoDir = old; newBatch() }()
+	startBatch(true)
+	dir := batchFolder()
+	os.MkdirAll(filepath.Join(dir, "samples"), 0o755)
+	f := filepath.Join(dir, "DSC1.JPG")
+	os.WriteFile(f, []byte("x"), 0o644)
+	cam := &cameraConn{out: func(any) {}}
+	cam.photos = map[int]photo{1: {Files: []string{f}}, 2: {Files: []string{filepath.Join(dir, "samples", "s.JPG")}}}
+	a := &app{camera: cam}
+	a.cap = &capture{camera: cam, out: func(any) {}}
+
+	cam.inFlight = map[int]bool{3: true}
+	if err := a.renameBatch(filepath.Base(dir), "Benchy"); err == nil {
+		t.Error("renamed with a photo coming over")
+	}
+	cam.inFlight = nil
+	a.cap.exporting.Add(1)
+	if err := a.renameBatch(filepath.Base(dir), "Benchy"); err == nil {
+		t.Error("renamed with the alignment data being written")
+	}
+	a.cap.exporting.Add(-1)
+
+	if err := a.renameBatch(filepath.Base(dir), "Benchy"); err != nil {
+		t.Fatal(err)
+	}
+	nd := filepath.Join(photoDir, "Benchy")
+	if got := cam.photos[1].Files[0]; got != filepath.Join(nd, "DSC1.JPG") {
+		t.Errorf("photo 1's file %s, want in Benchy", got)
+	}
+	if got := cam.photos[2].Files[0]; got != filepath.Join(nd, "samples", "s.JPG") {
+		t.Errorf("sample's file %s, want in Benchy/samples", got)
+	}
+}
