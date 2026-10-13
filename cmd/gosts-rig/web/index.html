@@ -463,15 +463,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 /* Where it is: the photos' folder / a capture (gallery); ‹ the capture / a
    file (viewers). A crumb that goes there is a button; where it is, text. */
 .crumbs { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 14px; font-weight: 650; }
-.crumb { font: inherit; color: var(--text); background: none; border: 1px solid transparent; border-radius: 7px; padding: 3px 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-button.crumb { cursor: pointer; color: var(--accent); }
-button.crumb:hover { border-color: var(--border); background: var(--panel-2); }
-button.crumb.cur { color: var(--text); cursor: default; }
-button.crumb.cur:hover { border-color: transparent; background: none; }
+.crumb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
+.crumbs .crumb-btn { max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumbs .crumb-home { width: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; align-self: stretch; }
+.crumbs .crumb-home svg { width: 16px; height: 16px; }
 .crumb-sep { color: var(--muted); font-weight: 400; }
 .viewer-bar .crumbs { color: #e6e9ef; }
-.viewer-bar button.crumb { color: #9fb4ff; }
-.viewer-bar button.crumb:hover { border-color: #3a4150; background: rgba(255,255,255,.06); }
 .viewer-bar .crumb-meta { color: #9aa3b2; font: 12px var(--mono); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gallery-grid { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); grid-auto-rows: max-content; gap: 10px; align-content: start; } /* rows never squeezed to fit: it scrolls */
 .gallery-grid .thumb { width: 100%; height: auto; position: relative; padding: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
@@ -862,7 +859,7 @@ button.crumb.cur:hover { border-color: transparent; background: none; }
 </div>
 
 <div class="gallery" id="gallery" hidden>
-  <div class="gallery-bar"><nav class="crumbs"><button class="crumb photo-dir" id="galleryUp" title="All captures (Backspace)">~/Pictures/gosts-rig</button><span class="crumb-sep" id="crumbSep" hidden>/</span><span class="crumb cur" id="galleryTitle" hidden></span></nav><button class="icon-btn pen-btn" id="galleryRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button><span class="spacer"></span>
+  <div class="gallery-bar"><nav class="crumbs"><button class="btn small crumb-home" id="galleryUp" title="All captures (Backspace)" aria-label="All captures"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg></button><span class="crumb-sep" id="crumbSep" hidden>/</span><button class="btn small crumb-btn" id="galleryTitle" hidden></button></nav><button class="icon-btn pen-btn" id="galleryRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button><span class="spacer"></span>
     <button class="btn small" id="buildModelBtn" title="Build a 3D model from these photos, with Apple's Object Capture" hidden>Build Model</button><span class="spacer"></span>
     <span class="views seg" id="galleryViewSeg"><button data-v="grid">Thumbnails</button><button data-v="list">List</button></span>
     <button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
@@ -918,7 +915,7 @@ button.crumb.cur:hover { border-color: transparent; background: none; }
 </div>
 <div class="viewer" id="viewer" hidden>
   <div class="viewer-bar">
-    <nav class="crumbs"><button class="crumb" id="viewerBack" title="Back to the photos (Esc)">‹ Current Batch</button><span class="crumb-sep" id="viewerSep">/</span><span class="crumb cur" id="viewerFile"></span><span class="crumb-meta" id="viewerCap"></span></nav><span class="hint" id="viewerHint"></span>
+    <nav class="crumbs"><button class="btn small crumb-btn" id="viewerBack" title="Back to the photos (Esc)">‹ Current Batch</button><span class="crumb-sep" id="viewerSep">/</span><span class="crumb cur" id="viewerFile"></span><span class="crumb-meta" id="viewerCap"></span></nav><span class="hint" id="viewerHint"></span>
     <span class="spacer"></span>
     <button class="btn small" id="viewerNewer" title="Newer photo (←)">‹ Newer</button>
     <button class="btn small" id="viewerOlder" title="Older photo (→)">Older ›</button>
@@ -935,7 +932,7 @@ button.crumb.cur:hover { border-color: transparent; background: none; }
 </div>
 <div class="viewer" id="modelViewer" hidden>
   <div class="viewer-bar">
-    <nav class="crumbs"><button class="crumb" id="mvBack" title="Back to the capture (Esc)">‹ Capture</button><span class="crumb-sep">/</span><span class="crumb cur" id="mvFile"></span><span class="crumb-meta" id="mvCap"></span></nav>
+    <nav class="crumbs"><button class="btn small crumb-btn" id="mvBack" title="Back to the capture (Esc)">‹ Capture</button><span class="crumb-sep">/</span><span class="crumb cur" id="mvFile"></span><span class="crumb-meta" id="mvCap"></span></nav>
     <span class="spacer"></span>
     <span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, gray">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span>
     <span class="btn-join" id="mvTools"><button class="btn small" id="mvEditBtn" title="Level it, turn it onto an axis, scale it to a known size; save it as a new model (OBJ, and STL)">Edit</button><button class="btn small" id="mvMeasureBtn" title="Click two points on the model: the distance between them (Measure again: cleared)">Measure</button></span>
@@ -1085,7 +1082,7 @@ function onMessage(m) {
     case "batch": // the capture's name (its folder), and whether it's empty
       $("batchName").textContent = m.name || ""; $("batchRename").hidden = !m.name;
       state.batchEmpty = !!m.empty;
-      if (m.dir) { state.photoDir = m.dir; for (const e of document.querySelectorAll(".photo-dir")) e.textContent = m.dir; $("batchName").title = `The capture the photos and sample shots go to: its folder in ${m.dir}`; }
+      if (m.dir) { state.photoDir = m.dir; for (const e of document.querySelectorAll(".photo-dir")) e.textContent = m.dir; $("galleryUp").title = `${m.dir}: all captures (Backspace)`; $("batchName").title = `The capture the photos and sample shots go to: its folder in ${m.dir}`; }
       cameraButtons();
       break;
     case "simShoot": simShoot(m.n, m.exposure, m.settings, m.blur); break;
@@ -1803,7 +1800,6 @@ async function renderGallery() {
   const g = $("galleryGrid"), where = state.gal.where, seq = ++state.gal.seq;
   g.classList.toggle("list", state.gal.view === "list");
   for (const b of $("galleryViewSeg").children) b.classList.toggle("active", b.dataset.v === state.gal.view);
-  $("galleryUp").classList.toggle("cur", where === null); // (the photos' folder: where it is, or a way back there)
   $("crumbSep").hidden = $("galleryTitle").hidden = where === null;
   $("galleryRename").hidden = where === null || !galleryFolder();
   $("buildModelBtn").hidden = where === null || !galleryFolder();
@@ -1905,7 +1901,8 @@ function openGallery(where) { state.gal.rootScroll = 0; $("gallery").hidden = fa
 function closeGallery() { $("gallery").hidden = true; state.gal.seq++; }
 $("viewAllBtn").onclick = () => openGallery("current");
 $("openCaptureBtn").onclick = () => openGallery(null);
-$("galleryUp").onclick = () => galleryGo(null);
+$("galleryUp").onclick = () => { if (state.gal.where !== null) galleryGo(null); };
+$("galleryTitle").onclick = () => { $("galleryGrid").scrollTop = 0; }; // (where it is: its top)
 $("galleryClose").onclick = closeGallery;
 // ---------------------------------------------------------------- build model
 // Build Model (a folder open in Browse): Object Capture's options (all of
