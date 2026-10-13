@@ -471,7 +471,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-size > span:not(.mve-sub) { white-space: pre; }
 .mve-size .mve-sub { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); }
 .mve-size b { font-weight: 600; } .mve-size .x { color: #e5484d; } .mve-size .y { color: #46a758; } .mve-size .z { color: #3e7bfa; }
-.mve-size { font: 12px var(--mono); color: var(--text); border-top: 1px solid var(--border); padding-top: 10px; }
+.mve-size { font: 12px var(--mono); color: var(--text); }
+.mve-top { display: flex; flex-direction: column; gap: 8px; } /* (the axes, then the model's size: above the steps) */
 /* The Save row: Undo, Reset Edits on the left, Save on the right; a warning
    (Confirm's) on a line of its own over it. */
 .mve-saverow { flex-wrap: wrap; }
@@ -1002,7 +1003,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <div class="mv-msg" id="mvMsg" hidden></div>
     <aside class="mv-edit" id="mvEdit" hidden>
       <button class="icon-btn mve-close" id="mveClose" title="Cancel the edits (back as it was) and close" aria-label="Cancel the edits and close">✕</button>
-      <div class="mve-axes">Axes as in Blender and Fusion: <b class="x">X</b> <b class="y">Y</b> <b class="z">Z</b> (up)</div>
+      <div class="mve-top">
+        <div class="mve-axes">Axes as in Blender and Fusion: <b class="x">X</b> <b class="y">Y</b> <b class="z">Z</b> (up)</div>
+        <div class="mve-size" id="mveSize"></div>
+      </div>
       <section data-step="level">
         <div class="mve-head"><b>1 · Level</b></div>
         <div class="mve-row"><button class="btn small" data-pick="level">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="level">Clear</button><span class="spacer"></span><button class="btn small primary" id="mveLevel" disabled>Level</button></div>
@@ -1035,7 +1039,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mve-row"><button class="btn small" data-pick="center">Pick Point</button><span class="mve-n"></span><button class="btn small" data-clear="center">Clear</button></div>
         <div class="mve-row"><span class="mve-label">Axis to center</span><span class="btn-join mve-axes-go" id="mveAxesGo"><button class="btn small" data-axis="x" disabled title="Slide the model along X so the point is at 0 on it">X</button><button class="btn small" data-axis="y" disabled title="Slide the model along Y so the point is at 0 on it">Y</button><button class="btn small" data-axis="z" disabled title="Slide the model along Z so the point is at 0 on it">Z</button></span><span class="spacer"></span><button class="btn small primary" id="mveCenter" disabled title="Keep it where it's been moved">Apply</button></div>
       </section>
-      <div class="mve-size" id="mveSize"></div>
       <section class="mve-save">
         <div class="mve-head"><b>Save</b></div>
         <div class="mve-field"><label for="mveName">Name</label><div class="mve-row mve-name"><input type="text" id="mveName" spellcheck="false" autocomplete="off"><button class="btn small" id="mveReplace" aria-pressed="false" title="Save over this model (its folder; the one there now goes to the Trash)">Overwrite</button></div></div>
