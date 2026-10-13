@@ -1527,8 +1527,7 @@ function mvePending() {
 function mveConfirm(on) {
   $("mveSave").classList.toggle("confirm", on);
   $("mveSave").textContent = on ? "Confirm" : "Save";
-  const p = on ? mvePending() : [];
-  $("mveWarn").textContent = on ? `${p.join(", ")} edit${p.length === 1 ? "" : "s"} not applied. Save anyways?` : "";
+  $("mveWarn").textContent = on ? "Some edits not applied. Save anyways?" : "";
 }
 function mveShow() {
   mveConfirm(false);
