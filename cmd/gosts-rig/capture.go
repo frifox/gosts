@@ -193,21 +193,23 @@ type capture struct {
 	camera *cameraConn
 	out    func(any)
 
-	mu      sync.Mutex
-	shots   []shot
-	index   int // next shot
-	running bool
-	paused  bool
-	holding bool // moving shots held for the camera to catch up (see pace)
-	first   int  // the capture's first photo's number (shot i is photo first+i: see exportAlignment)
-	note    string
-	cancel  context.CancelFunc
-	resume  chan struct{}
-	cooling time.Time     // paused to cool till then (see cooldown); zero: not
-	hold    time.Duration // Stop & Shoot: kept still this long after each shutter (see shutterHold)
-	started time.Time
-	rows    int
-	spacing float64
+	mu          sync.Mutex
+	shots       []shot
+	index       int // next shot
+	running     bool
+	paused      bool
+	holding     bool // moving shots held for the camera to catch up (see pace)
+	first       int  // the capture's first photo's number (shot i is photo first+i: see exportAlignment)
+	note        string
+	cancel      context.CancelFunc
+	resume      chan struct{}
+	cooling     time.Time     // paused to cool till then (see cooldown); zero: not
+	pausedAt    time.Time     // paused since (zero: not paused)
+	pausedTotal time.Duration // paused so far, the pauses over
+	hold        time.Duration // Stop & Shoot: kept still this long after each shutter (see shutterHold)
+	started     time.Time
+	rows        int
+	spacing     float64
 }
 
 type captureMsg struct {
@@ -221,6 +223,7 @@ type captureMsg struct {
 	// CoolUntil: paused to cool (see Cooldown) till then (ms since 1970).
 	CoolUntil int64   `json:"coolUntil,omitempty"`
 	Elapsed   float64 `json:"elapsed"` // s
+	Active    float64 `json:"active"`  // s of it not paused (the pace of the photos: see the page's time left)
 	Rows      int     `json:"rows"`
 	Spacing   float64 `json:"spacing"` // degrees between neighbouring shots
 	// Estimate is about how long (s) the plan takes, not running (see
@@ -235,6 +238,7 @@ func (c *capture) msg() captureMsg {
 		Shots: append([]shot(nil), c.shots...), Note: c.note, Rows: c.rows, Spacing: c.spacing}
 	if c.running {
 		m.Elapsed = time.Since(c.started).Seconds()
+		m.Active = m.Elapsed - c.pausedFor().Seconds()
 	}
 	if !c.cooling.IsZero() {
 		m.CoolUntil = c.cooling.UnixMilli()
@@ -433,6 +437,7 @@ func (c *capture) begin(p Plan) error {
 		return errors.New("a capture is already running")
 	}
 	c.shots, c.index, c.running, c.paused, c.cancel = shots, 0, true, false, cancel
+	c.pausedAt, c.pausedTotal = time.Time{}, 0
 	c.first = c.camera.photoCount() + 1
 	c.rows, c.spacing = rows, spacing
 	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
@@ -709,6 +714,7 @@ func (c *capture) cooldown() {
 	c.mu.Lock()
 	n := c.index
 	c.paused, c.cooling = true, until
+	c.setPaused(true)
 	c.mu.Unlock()
 	c.rig.logf("info", "capture: pausing %v after %d photos, to let the flash cool", d.Round(time.Second), n)
 	time.AfterFunc(d, func() {
@@ -915,8 +921,29 @@ func (c *capture) pause(on bool) error {
 		c.cooling = time.Time{} // (cooling over, or cut short)
 	}
 	c.paused = on
+	c.setPaused(on)
 	go c.send()
 	return nil
+}
+
+// setPaused keeps the time paused (c.mu held).
+func (c *capture) setPaused(on bool) {
+	switch {
+	case on && c.pausedAt.IsZero():
+		c.pausedAt = time.Now()
+	case !on && !c.pausedAt.IsZero():
+		c.pausedTotal += time.Since(c.pausedAt)
+		c.pausedAt = time.Time{}
+	}
+}
+
+// pausedFor is how long the capture has been paused, all told (c.mu held).
+func (c *capture) pausedFor() time.Duration {
+	d := c.pausedTotal
+	if !c.pausedAt.IsZero() {
+		d += time.Since(c.pausedAt)
+	}
+	return d
 }
 
 func (c *capture) stop() {

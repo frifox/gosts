@@ -2985,13 +2985,21 @@ function capCount() {
   if (!m.total) { $("capCount").textContent = ""; return; }
   let t = m.running || !m.estimate ? "" : `estimate: ${fmtDur(m.estimate)}`; // idle: about how long it'll take (the server's estimate)
   if (m.running) {
-    const since = m.paused ? 0 : (performance.now() - state.capAt) / 1000;
-    const elapsed = m.elapsed + since;
+    const wall = (performance.now() - state.capAt) / 1000, since = m.paused ? 0 : wall; // (since the message: all of it, and the part not paused)
+    const elapsed = m.elapsed + wall; // (the clock keeps going through pauses)
     t = fmtDur(elapsed);
-    const base = state.capBase; // the first photo this page saw done: the pace is from there
-    if (!m.paused && base && done > base.done && done < m.total) {
-      const per = (m.elapsed - base.elapsed) / (done - base.done);
-      t += ` / ${fmtDur(Math.max(0, per * (m.total - done) - since))} left`;
+    // Time left: the photos left at the pace so far (the time not paused,
+    // since the first photo this page saw done), the cooling pauses still
+    // to come, and what's left of one going on. A pause by hand: as from
+    // when it carries on.
+    const base = state.capBase, cd = state.server?.config.Cooldown;
+    if (base && done > base.done && done < m.total) {
+      const per = (m.active - base.active) / (done - base.done);
+      let left = Math.max(0, per * (m.total - done) - since);
+      const every = cd?.On && cd.Shots >= 1 && cd.Minutes > 0 ? cd.Shots : 0;
+      if (every) left += (Math.floor((m.total - 1) / every) - Math.floor(done / every)) * cd.Minutes * 60; // (after every so many, not the last)
+      if (m.coolUntil) left += Math.max(0, (m.coolUntil - Date.now()) / 1000);
+      t += ` / ${fmtDur(left)} left`;
     }
   }
   $("capCount").textContent = t;
@@ -3009,7 +3017,7 @@ function onCapture(m) {
   if (m.running && state.cap && !state.cap.running) { setView("capture", true); }
   const done = m.shots.filter((s) => s.done).length;
   if (!m.running || done === 0) state.capBase = null;
-  else if (!state.capBase || (state.cap?.paused && !m.paused)) state.capBase = { done, elapsed: m.elapsed }; // (a pause isn't the pace)
+  else if (!state.capBase) state.capBase = { done, active: m.active }; // (the pace in time not paused: see capCount)
   state.cap = m;
   state.capAt = performance.now();
   cameraButtons(); // no Take Photo during a capture

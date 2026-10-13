@@ -653,3 +653,24 @@ func TestSecPerPhoto(t *testing.T) {
 		t.Errorf("10 s a photo, not 6, adds %.1f s to the estimate, want about %d", d, 19*4)
 	}
 }
+
+// TestPausedFor: the time paused adds up over pauses, the one going on too.
+func TestPausedFor(t *testing.T) {
+	c := &capture{}
+	c.setPaused(true)
+	time.Sleep(30 * time.Millisecond)
+	c.setPaused(false)
+	first := c.pausedFor()
+	if first < 30*time.Millisecond {
+		t.Fatalf("paused %v, want 30ms or more", first)
+	}
+	time.Sleep(20 * time.Millisecond) // (not paused: not counted)
+	if d := c.pausedFor(); d != first {
+		t.Fatalf("paused %v while not paused, was %v", d, first)
+	}
+	c.setPaused(true)
+	time.Sleep(20 * time.Millisecond)
+	if d := c.pausedFor(); d < first+20*time.Millisecond {
+		t.Fatalf("paused %v, the pause going on not counted", d)
+	}
+}
