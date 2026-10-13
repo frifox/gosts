@@ -430,6 +430,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .model-panel .views.seg { margin-left: 0; }
 .model-panel .mp-check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); font-size: 13px; cursor: pointer; }
 .model-panel .mp-check input { accent-color: var(--accent); margin: 0; }
+.model-panel .mp-check code { font: 12px var(--mono); color: var(--text); }
+.model-panel .mp-checks .mp-check > span { color: var(--muted); }
 .model-panel .mp-check.off { opacity: .45; cursor: default; }
 .model-panel #mCustom.preset { opacity: .55; } /* a preset's: shown, not set */
 .model-panel #mCustom.preset .mp-check { cursor: default; }
@@ -777,12 +779,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mp-row"><label>Photo order<span class="views seg" id="mOrdering"><button data-v="sequential" title="Each photo overlaps the one before (a rig's rings)">Sequential</button><button data-v="unordered" title="In no particular order">Unordered</button></span></label><label>Features<span class="views seg" id="mSensitivity"><button data-v="normal">Normal</button><button data-v="high" title="Finds more on plain objects; slower">High</button></span></label><label>Mesh<span class="views seg" id="mMesh"><button data-v="triangle">Triangles</button><button data-v="quad" title="Nicer to edit (Blender, say)">Quads</button></span></label></div>
         <div class="mp-checks">
           <span class="mp-head">Options</span>
-          <label class="mp-check"><input type="checkbox" id="mMasking"> Mask out the background</label>
-          <label class="mp-check" title="Not just the object found"><input type="checkbox" id="mIgnoreBBox"> Build all that's seen</label>
-          <label class="mp-check" title="Intermediate results kept: a build again (another detail level, say) is quicker"><input type="checkbox" id="mCheckpoint"> Keep checkpoints</label>
-          <label class="mp-check" id="mGravityLabel" title="Each photo's down, from the rig (its gravity.json: alignment data for Apple Object Capture)"><input type="checkbox" id="mGravity"> Use the rig's gravity</label>
-          <label class="mp-check"><input type="checkbox" id="mBounds"> Also: bounding box</label>
-          <label class="mp-check"><input type="checkbox" id="mPointCloud"> Also: point cloud</label>
+          <label class="mp-check"><input type="checkbox" id="mMasking"> <span><code>isObjectMaskingEnabled</code>: separate the object from the background</span></label>
+          <label class="mp-check" title="Not just the object found"><input type="checkbox" id="mIgnoreBBox"> <span><code>ignoreBoundingBox</code>: build everything seen, not just the object</span></label>
+          <label class="mp-check" title="Intermediate results kept: a build again (another detail level, say) is quicker"><input type="checkbox" id="mCheckpoint"> <span><code>checkpointDirectory</code>: keep progress, for quicker rebuilds</span></label>
+          <label class="mp-check" id="mGravityLabel" title="Each photo's down, from the rig (its gravity.json: alignment data for Apple Object Capture)"><input type="checkbox" id="mGravity"> <span><code>gravity</code>: each photo's "down", from the rig</span></label>
+          <label class="mp-check"><input type="checkbox" id="mBounds"> <span><code>bounds</code>: also save the object's bounding box</span></label>
+          <label class="mp-check"><input type="checkbox" id="mPointCloud"> <span><code>pointCloud</code>: also save a point cloud</span></label>
         </div>
       </div>
       <div class="mp-col">
