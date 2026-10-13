@@ -1827,7 +1827,7 @@ function mveOriginCommit() {
   mve.picks.center = [];
   return true;
 }
-$("mveCenter").onclick = () => { mveOriginCommit(); mveShow(); };
+$("mveCenter").onclick = () => { mveOriginCommit(); mvePicking(null); }; // (done: no longer picking either)
 async function mveOriginCancel() {
   const from = mve.originFrom;
   mve.originFrom = null;
