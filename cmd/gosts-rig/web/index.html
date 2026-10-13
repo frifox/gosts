@@ -926,7 +926,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mve-row"><input type="number" id="mveDist" min="0" step="any" placeholder="distance"><span class="views seg" id="mveUnit"><button data-v="mm">mm</button><button data-v="in">in</button></span><span class="spacer"></span><button class="btn small primary" id="mveScale" disabled>Scale</button></div>
       </section>
       <section data-rot>
-        <div class="mve-head"><b>4 · Rotate</b>a quarter turn about an axis (counterclockwise seen from its end: +90°)</div>
+        <div class="mve-head"><b>4 · Rotate</b>a quarter turn about an axis through the origin (counterclockwise seen from its end: +90°)</div>
         <div class="mve-rot">
           <b class="x">X</b><button class="btn small" data-rot="x" data-deg="-90">−90°</button><button class="btn small" data-rot="x" data-deg="90">+90°</button>
           <b class="y">Y</b><button class="btn small" data-rot="y" data-deg="-90">−90°</button><button class="btn small" data-rot="y" data-deg="90">+90°</button>
@@ -1613,7 +1613,7 @@ $("mveAlign").onclick = () => mveDo((box) => window.modelEdit.align(mve.picks.al
 $("mveScale").onclick = () => mveDo(() => window.modelEdit.scale(mve.picks.scale[0], mve.picks.scale[1], Number($("mveDist").value) * window.modelEdit.UNITS[segOf("mveUnit")]));
 $("mvEdit").querySelector(".mve-rot").onclick = (e) => {
   const b = e.target.closest("[data-rot]");
-  if (b) mveDo((box) => window.modelEdit.rotate(b.dataset.rot, Number(b.dataset.deg), box));
+  if (b) mveDo(() => window.modelEdit.rotate(b.dataset.rot, Number(b.dataset.deg)));
 };
 // Undo: a step back (an edit's matrix before, or a trim's putting back).
 function mveBack() {
