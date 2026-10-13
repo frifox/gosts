@@ -991,7 +991,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <section data-step="center">
         <div class="mve-head"><b>6 · Origin</b></div>
         <div class="mve-row"><button class="btn small" data-pick="center">Pick Point</button><span class="mve-n"></span><button class="btn small" data-clear="center">Clear</button></div>
-        <div class="mve-row"><span class="mve-label">On plane</span><span class="views seg" id="mvePlane"><button data-v="xy" title="Slide in X and Y (Z kept)">XY</button><button data-v="xz" title="Slide in X and Z (Y kept)">XZ</button><button data-v="yz" title="Slide in Y and Z (X kept)">YZ</button></span><span class="spacer"></span><button class="btn small primary" id="mveCenter" disabled>Center</button></div>
+        <div class="mve-row"><span class="mve-label">On plane</span><span class="views seg" id="mvePlane"><button data-v="xy" title="Slide in X and Y (Z kept)">XY</button><button data-v="xz" title="Slide in X and Z (Y kept)">XZ</button><button data-v="yz" title="Slide in Y and Z (X kept)">YZ</button></span><button class="btn small" id="mveSet" disabled title="Move the model so the point is at the origin in this plane (again with another plane: the same point)">Set</button><span class="spacer"></span><button class="btn small primary" id="mveCenter" disabled title="Keep it where Set moved it">Apply</button></div>
       </section>
       <div class="mve-size" id="mveSize"></div>
       <section class="mve-save">
@@ -1594,7 +1594,7 @@ function mvePending() {
   if (mve.picks.level.length) p.push("Level");
   if (mve.picks.align.length) p.push("Align");
   if (mve.picks.scale.length) p.push("Scale");
-  if (mve.picks.center.length) p.push("Center");
+  if (mve.picks.center.length || mve.originFrom) p.push("Origin");
   if (!$("mveTrim").disabled) p.push("Trim");
   return p;
 }
@@ -1613,17 +1613,18 @@ function mveShow() {
   const mv = window.modelView, u = segOf("mveUnit"), k = 1 / window.modelEdit.UNITS[u];
   for (const sec of $("mvEdit").querySelectorAll("section[data-step]")) {
     const st = sec.dataset.step, n = mve.picks[st].length;
-    sec.querySelector(".mve-n").textContent = st === "center" && !n && mve.centerKept ? "point kept" : `${n} point${n === 1 ? "" : "s"}`;
+    sec.querySelector(".mve-n").textContent = `${n} point${n === 1 ? "" : "s"}`;
     sec.querySelector("[data-pick]").classList.toggle("picking", mve.picking === st);
     sec.querySelector("[data-pick]").textContent = mve.picking === st ? "Picking…" : st === "center" ? "Pick Point" : "Pick Points";
   }
   $("mveLevel").disabled = mve.picks.level.length < 3;
   $("mveAlign").disabled = mve.picks.align.length < 2;
-  $("mveCenter").disabled = mve.picks.center.length !== 1 && !mve.centerKept;
+  $("mveSet").disabled = mve.picks.center.length !== 1;
+  $("mveCenter").disabled = !mve.originFrom; // (Apply: once Set)
   const sp = mve.picks.scale;
   $("mveScale").disabled = sp.length !== 2 || !(Number($("mveDist").value) > 0);
   $("mveDist").placeholder = sp.length === 2 ? `now ${(sp[0].distanceTo(sp[1]) * k).toFixed(u === "mm" ? 1 : 3)}` : "distance";
-  $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length;
+  $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length && !mve.originFrom;
   const st = mv.stats();
   if (st) {
     const [x, y, z] = [st.size[0], st.size[2], st.size[1]].map(mveNum);
@@ -1643,13 +1644,14 @@ function mvMarks() {
 function mvePicking(st) {
   if (st && mvm.on) mvMeasure(false); // (measuring: no longer)
   mve.picking = st;
-  window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center") { mve.centerKept = null; if (mve.picks.center.length > 1) mve.picks.center.shift(); } mveShow(); } : null;
+  window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 1) mve.picks.center.shift(); mveShow(); } : null;
   mveShow();
 }
 $("mvEdit").addEventListener("click", (e) => {
   const pk = e.target.closest("[data-pick]")?.dataset.pick, cl = e.target.closest("[data-clear]")?.dataset.clear;
   if (pk) mvePicking(mve.picking === pk ? null : pk);
-  if (cl) { mve.picks[cl] = []; if (cl === "center") mve.centerKept = null; mveShow(); }
+  if (cl === "center") return mveOriginCancel();
+  if (cl) { mve.picks[cl] = []; mveShow(); }
 });
 // mveDo applies an edit (made by f), steps back-able; the picks done with.
 // The model moves there (the view stays as it is).
@@ -1659,11 +1661,8 @@ async function mveDo(f) {
   try {
     const before = mv.matrix();
     const m = f(mv.boxWith); // (box(m): the model's box after m)
+    mveOriginCommit(); // (Origin's Set, not Applied: kept, as a step of its own)
     mve.undo.push(before);
-    // Center's point: kept (hidden) as it moves with the model, for another
-    // plane with the same point; a new pick replaces it.
-    const kept = mve.picks.center[0] || mve.centerKept;
-    mve.centerKept = kept ? kept.clone().applyMatrix4(m) : null;
     mve.picks = { level: [], align: [], scale: [], center: [] };
     mveStatus("");
     mvePicking(null);
@@ -1714,6 +1713,7 @@ $("mvEdit").querySelector(".mve-trim").addEventListener("input", mveTrimShow);
 $("mveTrimReset").onclick = mveTrimReset;
 $("mveTrim").onclick = () => {
   window.modelView.settle();
+  mveOriginCommit(); // (Origin's Set, not Applied: kept, first)
   try {
     const undo = window.modelView.trim(mveThreeBox(mveTrimBox()));
     mve.undo.push(undo);
@@ -1723,7 +1723,39 @@ $("mveTrim").onclick = () => {
   mveShow();
 };
 $("mveLevel").onclick = () => mveDo((box) => window.modelEdit.level(mve.picks.level, window.modelView.center(), box));
-$("mveCenter").onclick = () => mveDo(() => window.modelEdit.center(mve.picks.center[0] || mve.centerKept, segOf("mvePlane")));
+// Origin: Set moves the model so the point is at the origin in the plane
+// (again, another plane: the point moved with it, shown); Apply keeps it,
+// as one step (the point done with); Clear, or Undo, puts it back.
+// originFrom: the edit before the first Set.
+$("mveSet").onclick = async () => {
+  const mv = window.modelView, p = mve.picks.center[0];
+  if (!p) return;
+  mv.settle();
+  try {
+    const m = window.modelEdit.center(p, segOf("mvePlane"));
+    if (!mve.originFrom) mve.originFrom = mv.matrix();
+    p.applyMatrix4(m);
+    mveShow();
+    await mv.apply(m, true);
+  } catch (e) { mveStatus(e.message, "bad"); }
+  mveTrimReset();
+  mveShow();
+};
+function mveOriginCommit() {
+  if (!mve.originFrom) return false;
+  mve.undo.push(mve.originFrom);
+  mve.originFrom = null;
+  mve.picks.center = [];
+  return true;
+}
+$("mveCenter").onclick = () => { mveOriginCommit(); mveShow(); };
+async function mveOriginCancel() {
+  const from = mve.originFrom;
+  mve.originFrom = null;
+  mve.picks.center = [];
+  mveShow();
+  if (from) { await window.modelView.setMatrix(from, true); mveTrimReset(); mveShow(); }
+}
 $("mveAlign").onclick = () => mveDo((box) => window.modelEdit.align(mve.picks.align, segOf("mveAxis"), box));
 $("mveScale").onclick = () => mveDo(() => window.modelEdit.scale(mve.picks.scale[0], mve.picks.scale[1], Number($("mveDist").value) * window.modelEdit.UNITS[segOf("mveUnit")]));
 $("mvEdit").querySelector(".mve-rot").onclick = (e) => {
@@ -1732,7 +1764,7 @@ $("mvEdit").querySelector(".mve-rot").onclick = (e) => {
 };
 // Undo: a step back (an edit's matrix before, or a trim's putting back).
 async function mveBack() {
-  mve.centerKept = null; // (stepped back: where it was isn't known)
+  if (mve.originFrom) return mveOriginCancel(); // (Set, not Applied: that's the step back)
   const u = mve.undo.pop();
   if (typeof u === "function") u();
   else if (u) await window.modelView.setMatrix(u, true);
@@ -1740,7 +1772,7 @@ async function mveBack() {
 $("mveUndo").onclick = async () => { await mveBack(); mveTrimReset(); mveShow(); };
 // Reset Edits: the trims put back, the model moved back to where it came.
 $("mveResetEdit").onclick = async () => {
-  mve.centerKept = null;
+  mveOriginCommit(); // (then undone with the rest)
   let first = null;
   while (mve.undo.length) { const u = mve.undo.pop(); if (typeof u === "function") u(); else first = u; }
   mveShow();
@@ -1785,7 +1817,7 @@ $("mveReplace").onclick = () => mveReplace(!$("mveReplace").classList.contains("
 function mveFresh(m) {
   mve.picks = { level: [], align: [], scale: [], center: [] };
   mve.undo = [];
-  mve.centerKept = null;
+  mve.originFrom = null;
   const base = m.name.replace(/-aligned(-\d+)?$/, "");
   mveTyped = "";
   mveReplace(false);
