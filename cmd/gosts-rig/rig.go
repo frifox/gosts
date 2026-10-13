@@ -78,14 +78,14 @@ func (r *rig) connect(ctx context.Context, port string, baud int) error {
 	var bus *gosts.Bus
 	var err error
 	if port == simPort {
-		bus, err = gosts.NewBus(newSimPort(r.cfg.get().Roles))
+		bus, err = gosts.NewBus(newSimPort(r.rolesFor(port)))
 	} else {
 		bus, err = gosts.Open(port, baud)
 	}
 	if err != nil {
 		return err
 	}
-	r.applyRoles(bus, r.cfg.get().Roles)
+	r.applyRoles(bus, r.rolesFor(port))
 	r.busMu.Lock()
 	r.bus = bus
 	r.busMu.Unlock()
@@ -147,8 +147,44 @@ func (r *rig) applyRoles(bus *gosts.Bus, ro Roles) {
 	bus.SetMirrored(ro.ElevationFollower, ro.FollowerMirrored)
 }
 
+// simRoles are the simulated rig's roles, whatever the real rig's are (the
+// config's): #1 and #2 the elevation (#1 mirrored: they face each other), #3
+// the azimuth. Its inversions are the config's.
+func simRoles(c Roles) Roles {
+	c.ElevationLeader, c.ElevationFollower, c.Azimuth = 1, 2, 3
+	c.LeaderMirrored, c.FollowerMirrored = true, false
+	return c
+}
+
+// rolesFor is the roles of the board on port: the simulator's own, else the
+// config's.
+func (r *rig) rolesFor(port string) Roles {
+	if port == simPort {
+		return simRoles(r.cfg.get().Roles)
+	}
+	return r.cfg.get().Roles
+}
+
+// simulated: the simulated board is connected.
+func (r *rig) simulated() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.port == simPort
+}
+
+// roles is the connected board's roles (see rolesFor).
+func (r *rig) roles() Roles {
+	r.mu.Lock()
+	port := r.port
+	r.mu.Unlock()
+	return r.rolesFor(port)
+}
+
 // setRoles saves new roles and applies their mirroring.
 func (r *rig) setRoles(ro Roles) error {
+	if r.simulated() {
+		return errors.New("the simulator's servos are fixed: #1 and #2 the elevation, #3 the azimuth")
+	}
 	ids := []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth}
 	if ids[0] == ids[1] || ids[0] == ids[2] || ids[1] == ids[2] {
 		return errors.New("each role needs its own servo")
@@ -211,7 +247,7 @@ func (r *rig) rolesFromGroups(groups [][]uint8, mirrored func(uint8) bool) {
 	r.mu.Lock()
 	found := slices.Clone(r.found)
 	r.mu.Unlock()
-	if len(found) != 3 {
+	if len(found) != 3 || r.simulated() { // (the simulator's roles are its own)
 		return
 	}
 	var pair []uint8
@@ -280,7 +316,7 @@ func (r *rig) scan(ctx context.Context) error {
 	} else {
 		r.logf("info", "found servos %v", found)
 		r.ensureMultiTurn(found) // always: see ensureMultiTurn
-		ro := r.cfg.get().Roles
+		ro := r.roles()
 		for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
 			if !slices.Contains(found, id) {
 				r.logf("error", "servo %d (in the rig's roles) was not found: check its power and cable, or make a group of the two elevation servos in Servo Settings (the rig takes the roles from it)", id)
@@ -294,7 +330,7 @@ func (r *rig) scan(ctx context.Context) error {
 // ensureMultiTurn switches the found role servos to multi-turn mode (angle
 // limits 0/0, saved on the servo) if they aren't already.
 func (r *rig) ensureMultiTurn(found []uint8) {
-	ro := r.cfg.get().Roles
+	ro := r.roles()
 	_ = r.withBus(func(bus *gosts.Bus) error {
 		for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
 			if !slices.Contains(found, id) {
@@ -321,7 +357,7 @@ func (r *rig) ensureMultiTurn(found []uint8) {
 
 // ready checks that the three role servos were found.
 func (r *rig) ready() (Roles, error) {
-	ro := r.cfg.get().Roles
+	ro := r.roles()
 	r.mu.Lock()
 	found := slices.Clone(r.found)
 	r.mu.Unlock()
@@ -766,7 +802,7 @@ func (r *rig) pollLoop(ctx context.Context) {
 			return
 		case <-t.C:
 		}
-		ro := r.cfg.get().Roles
+		ro := r.roles()
 		r.mu.Lock()
 		connected, scanning := r.port != "", r.scanning
 		tg := r.target
@@ -846,7 +882,9 @@ func (r *rig) state() stateMsg {
 	for _, id := range r.found {
 		found = append(found, int(id))
 	}
-	return stateMsg{Type: "state", Connected: r.port != "", Port: r.port, Scanning: r.scanning, Found: found, Config: r.cfg.get()}
+	c := r.cfg.get()
+	c.Roles = r.rolesFor(r.port) // (the simulator's own)
+	return stateMsg{Type: "state", Connected: r.port != "", Port: r.port, Scanning: r.scanning, Found: found, Config: c}
 }
 
 func (r *rig) sendState() { r.out(r.state()) }
@@ -911,7 +949,7 @@ func abs(v int) int {
 // diag reads the role servos' raw registers (no writes), for debugging:
 // what the servo itself holds, before mirroring.
 func (r *rig) diag() (map[string]map[string]int, error) {
-	ro := r.cfg.get().Roles
+	ro := r.roles()
 	out := map[string]map[string]int{}
 	err := r.withBus(func(bus *gosts.Bus) error {
 		for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {

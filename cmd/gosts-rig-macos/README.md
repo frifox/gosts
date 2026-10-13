@@ -10,7 +10,8 @@ Terminal or browser needed.
   model build is still going, it asks first.
 - If gosts-rig is already running (from Terminal, say), it offers to use that one instead, since only one can drive
   the rig and the camera.
-- Captures go to `~/Pictures/gosts-rig`, and settings are shared with the command-line gosts-rig.
+- Captures go to `~/Pictures/gosts-rig`; **Settings…** (⌘,) picks another folder (gosts-rig restarts with it).
+  The rig's settings are shared with the command-line gosts-rig.
 
 ## Download
 

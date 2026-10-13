@@ -21,6 +21,14 @@ func TestRolesFromGroups(t *testing.T) {
 	mirrored := func(id uint8) bool { return id == 3 }
 	before := cfg.get().Roles
 
+	r.rolesFromGroups([][]uint8{{3, 1}}, mirrored) // the simulator: its roles are its own
+	if cfg.get().Roles != before || r.roles() != simRoles(before) {
+		t.Fatalf("the simulator's roles changed: %+v, %+v", cfg.get().Roles, r.roles())
+	}
+	r.mu.Lock()
+	r.port = "/dev/cu.test" // (as if a real board: its roles the config's)
+	r.mu.Unlock()
+
 	r.rolesFromGroups([][]uint8{{1, 2}, {2, 3}}, mirrored) // two groups: unclear
 	r.rolesFromGroups([][]uint8{{1, 2, 3}}, mirrored)      // not two servos
 	r.rolesFromGroups([][]uint8{{3, 9}}, mirrored)         // 9 isn't there
@@ -65,5 +73,36 @@ func TestAdoptFound(t *testing.T) {
 	}
 	if _, err := r.ready(); err != nil {
 		t.Fatalf("roles' servos: %v", err)
+	}
+}
+
+// The simulator's servos are 1, 2 and 3 (1 and 2 the elevation, 1 mirrored),
+// whatever the real rig's roles in the config are.
+func TestSimRoles(t *testing.T) {
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.update(func(c *Config) { c.Roles = Roles{ElevationLeader: 10, ElevationFollower: 11, Azimuth: 12, FollowerMirrored: true} })
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	if got := r.state().Found; len(got) != 3 || got[0] != 1 || got[1] != 2 || got[2] != 3 {
+		t.Fatalf("found %v, want [1 2 3]", got)
+	}
+	ro := r.state().Config.Roles
+	if ro.ElevationLeader != 1 || ro.ElevationFollower != 2 || ro.Azimuth != 3 || !ro.LeaderMirrored || ro.FollowerMirrored {
+		t.Fatalf("roles %+v", ro)
+	}
+	if _, err := r.ready(); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.get().Roles.ElevationLeader != 10 {
+		t.Fatal("the real rig's roles changed")
+	}
+	if r.setRoles(Roles{ElevationLeader: 2, ElevationFollower: 1, Azimuth: 3}) == nil {
+		t.Fatal("the simulator's roles set")
 	}
 }

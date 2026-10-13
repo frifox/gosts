@@ -32,6 +32,20 @@ func findTool(_ name: String) -> String? {
     return nil
 }
 
+// MARK: - Settings
+
+// The captures' folder (Browse's root): the app's setting, passed to
+// gosts-rig as --photos.
+let defaultPhotos = "~/Pictures/gosts-rig"
+
+var photosFolder: String {
+    get { UserDefaults.standard.string(forKey: "photosFolder") ?? defaultPhotos }
+    set { newValue == defaultPhotos ? UserDefaults.standard.removeObject(forKey: "photosFolder") : UserDefaults.standard.set(newValue, forKey: "photosFolder") }
+}
+
+func expandTilde(_ p: String) -> String { (p as NSString).expandingTildeInPath }
+func abbreviateHome(_ p: String) -> String { (p as NSString).abbreviatingWithTildeInPath }
+
 // MARK: - Dependencies
 
 // A missing dependency: what it's for, and how to get it.
@@ -234,7 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
         let p = Process()
         p.executableURL = exe
-        p.arguments = ["--listen", "127.0.0.1:\(port)", "--exit-with-stdin"]
+        p.arguments = ["--listen", "127.0.0.1:\(port)", "--exit-with-stdin", "--photos", expandTilde(photosFolder)]
         // GOSTS_RIG_ARGS: more flags for gosts-rig, space separated (trying
         // the app out on the simulators: "--rig sim --camera sim --config /tmp/sim.toml").
         if let more = ProcessInfo.processInfo.environment["GOSTS_RIG_ARGS"] {
@@ -356,23 +370,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
     func applicationShouldTerminate(_ app: NSApplication) -> NSApplication.TerminateReply {
         if quitting || backend == nil { return .terminateNow }
-        // A capture or a model build going on: ask first.
-        web.evaluateJavaScript("(typeof state === 'object') && !!(state.cap?.running || state.model?.running)") { v, _ in
-            if (v as? Bool) == true {
-                let a = NSAlert()
-                a.alertStyle = .warning
-                a.messageText = "Quit GoSTS Rig?"
-                a.informativeText = "A capture or a model build is still going: quitting stops it."
-                a.addButton(withTitle: "Quit")
-                a.addButton(withTitle: "Cancel")
-                if a.runModal() != .alertFirstButtonReturn {
-                    app.reply(toApplicationShouldTerminate: false)
-                    return
-                }
+        whenIdle(title: "Quit GoSTS Rig?", action: "Quit", what: "quitting stops it") { ok in
+            if !ok {
+                app.reply(toApplicationShouldTerminate: false)
+                return
             }
             self.stopBackend { app.reply(toApplicationShouldTerminate: true) }
         }
         return .terminateLater
+    }
+
+    // whenIdle calls done(true) at once if no capture or model build is going
+    // on, else asks first (done(false): canceled).
+    func whenIdle(title: String, action: String, what: String, _ done: @escaping (Bool) -> Void) {
+        web.evaluateJavaScript("(typeof state === 'object') && !!(state.cap?.running || state.model?.running)") { v, _ in
+            guard (v as? Bool) == true else { done(true); return }
+            let a = NSAlert()
+            a.alertStyle = .warning
+            a.messageText = title
+            a.informativeText = "A capture or a model build is still going: \(what)."
+            a.addButton(withTitle: action)
+            a.addButton(withTitle: "Cancel")
+            done(a.runModal() == .alertFirstButtonReturn)
+        }
+    }
+
+    // restartBackend restarts gosts-rig (on the same port), for new settings.
+    func restartBackend() {
+        guard backend != nil, let port = base?.port else { return }
+        showStatus("Restarting…")
+        stopBackend {
+            self.quitting = false
+            self.startBackend(port: port)
+        }
+    }
+
+    // MARK: Settings
+
+    var settings: SettingsWindow?
+
+    @objc func showSettings(_ sender: Any?) {
+        if settings == nil {
+            settings = SettingsWindow(own: { self.backend != nil }) { [weak self] folder in
+                guard let self else { return }
+                self.whenIdle(title: "Restart gosts-rig?", action: "Restart", what: "restarting gosts-rig (for the new folder) stops it") { ok in
+                    guard ok else { self.settings?.show(); return }
+                    photosFolder = folder
+                    self.settings?.show()
+                    self.restartBackend()
+                }
+            }
+        }
+        settings?.show()
     }
 
     // stopBackend asks gosts-rig to quit (it lets go of the rig and the
@@ -474,6 +523,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         }
         _ = submenu(appName, [
             item("About \(appName)", #selector(NSApplication.orderFrontStandardAboutPanel(_:)), ""),
+            item("Settings…", #selector(showSettings(_:)), ",", target: self),
             item("Check Dependencies…", #selector(checkDependenciesNow(_:)), "", target: self),
             .separator(),
             item("Hide \(appName)", #selector(NSApplication.hide(_:)), "h"),
@@ -513,6 +563,97 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         ])
         NSApp.mainMenu = main
     }
+}
+
+// MARK: - Settings window
+
+// SettingsWindow: the app's settings (⌘,): the captures' folder. A change
+// goes to apply (which restarts gosts-rig with it).
+final class SettingsWindow: NSObject {
+    let window: NSWindow
+    let path = NSTextField(labelWithString: "")
+    let note = NSTextField(wrappingLabelWithString: "")
+    let reset = NSButton(title: "Use Default", target: nil, action: nil)
+    let own: () -> Bool // gosts-rig is the app's own (not one already running: then the setting can't apply)
+    let apply: (String) -> Void
+
+    init(own: @escaping () -> Bool, apply: @escaping (String) -> Void) {
+        self.own = own
+        self.apply = apply
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 150), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        super.init()
+        window.title = "Settings"
+        window.isReleasedWhenClosed = false
+        window.tabbingMode = .disallowed
+
+        let label = NSTextField(labelWithString: "Captures folder:")
+        label.alignment = .right
+        path.lineBreakMode = .byTruncatingMiddle
+        path.isSelectable = true
+        path.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        path.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let choose = NSButton(title: "Choose…", target: self, action: #selector(choose(_:)))
+        reset.target = self
+        reset.action = #selector(useDefault(_:))
+        note.textColor = .secondaryLabelColor
+        note.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+
+        let row = NSStackView(views: [path, choose, reset])
+        row.spacing = 8
+        let grid = NSGridView(views: [[label, row], [NSGridCell.emptyContentView, note]])
+        grid.columnSpacing = 10
+        grid.rowSpacing = 8
+        grid.column(at: 0).xPlacement = .trailing
+        grid.rowAlignment = .firstBaseline
+        grid.translatesAutoresizingMaskIntoConstraints = false
+        let content = NSView()
+        content.addSubview(grid)
+        NSLayoutConstraint.activate([
+            grid.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
+            grid.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
+            grid.topAnchor.constraint(equalTo: content.topAnchor, constant: 20),
+            grid.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -20),
+            note.widthAnchor.constraint(equalToConstant: 380),
+        ])
+        window.contentView = content
+        window.center()
+    }
+
+    func show() {
+        path.stringValue = photosFolder
+        path.toolTip = expandTilde(photosFolder)
+        reset.isEnabled = photosFolder != defaultPhotos
+        note.stringValue = own()
+            ? "Where captures are saved, and where Browse looks. Changing it restarts gosts-rig."
+            : "Where captures are saved, and where Browse looks. GoSTS Rig is using a gosts-rig that was already running: a change applies the next time the app starts its own."
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    func set(_ folder: String) {
+        guard folder != photosFolder else { return }
+        if own() {
+            apply(folder)
+        } else {
+            photosFolder = folder
+            show()
+        }
+    }
+
+    @objc func choose(_ sender: Any?) {
+        let p = NSOpenPanel()
+        p.canChooseDirectories = true
+        p.canChooseFiles = false
+        p.canCreateDirectories = true
+        p.prompt = "Choose"
+        p.message = "The folder captures are saved in (a folder each)"
+        let dir = expandTilde(photosFolder)
+        p.directoryURL = URL(fileURLWithPath: FileManager.default.fileExists(atPath: dir) ? dir : (dir as NSString).deletingLastPathComponent)
+        p.beginSheetModal(for: window) { r in
+            if r == .OK, let url = p.url { self.set(abbreviateHome(url.path)) }
+        }
+    }
+
+    @objc func useDefault(_ sender: Any?) { set(defaultPhotos) }
 }
 
 let app = NSApplication.shared
