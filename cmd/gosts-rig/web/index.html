@@ -465,7 +465,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .btn-join > .btn:not([hidden]):has(~ .btn:not([hidden])) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .btn-join > .btn:not([hidden]) + .btn { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
 .btn-join > .btn.primary { z-index: 1; } .btn-join > .btn:hover { z-index: 2; }
-.mve-size { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; }
+.mve-size { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; }
+.mve-size .mve-ic { display: inline-flex; color: #c9d0dc; cursor: default; }
+.mve-size .mve-ic svg { width: 17px; height: 17px; }
 .mve-size > span:not(.mve-sub) { white-space: pre; }
 .mve-size .mve-sub { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); }
 .mve-size b { font-weight: 600; } .mve-size .x { color: #e5484d; } .mve-size .y { color: #46a758; } .mve-size .z { color: #3e7bfa; }
@@ -1648,6 +1650,11 @@ function mveConfirm(on) {
   $("mveSave").textContent = on ? "Confirm" : "Save";
   $("mveWarn").textContent = on ? "Some edits not applied. Save anyways?" : "";
 }
+// The model's dimensions and resolution, as icons: a ruler with its measure,
+// a mesh triangle (its corners marked).
+const MVE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+const MVE_RULER = MVE_ICON + '<path d="M19.9 12c.6 0 1.1.5 1.1 1.1v5.8c0 .6-.5 1.1-1.1 1.1H4a1 1 0 0 1-1-1v-5.9c0-.6.5-1.1 1.1-1.1z"/><path d="M9 12v2M6 12v3M12 12v3M18 12v3M15 12v2M3 3v3M3 4.5h18M21 3v3"/></svg>';
+const MVE_TRIANGLE = MVE_ICON + '<rect x="10" y="4" width="4" height="4" rx="1"/><rect x="3" y="17" width="4" height="4" rx="1"/><rect x="17" y="17" width="4" height="4" rx="1"/><path d="M6.5 17.1l5-9.1M17.5 17.1l-5-9.1M7 19h10"/></svg>';
 // mveNum: a length (m) in the file's units (File units).
 function mveNum(m) {
   const u = segOf("mveFileUnit");
@@ -1676,8 +1683,9 @@ function mveShow() {
   const st = mv.stats();
   if (st) {
     const [x, y, z] = [st.size[0], st.size[2], st.size[1]].map(mveNum);
-    $("mveSize").innerHTML = `<span class="mve-sub">Dimensions</span><span><b class="x">X</b> ${x}  <b class="y">Y</b> ${y}  <b class="z">Z</b> ${z}</span>` +
-      `<span class="mve-sub">Resolution</span><span>${Math.round(st.triangles).toLocaleString()} triangles</span>`;
+    const tris = Math.round(st.triangles).toLocaleString();
+    $("mveSize").innerHTML = `<span class="mve-ic" role="img" aria-label="Dimensions" title="Dimensions">${MVE_RULER}</span><span><b class="x">X</b> ${x}  <b class="y">Y</b> ${y}  <b class="z">Z</b> ${z}</span>` +
+      `<span class="mve-ic" role="img" aria-label="Resolution" title="Resolution: ${tris} triangles">${MVE_TRIANGLE}</span><span title="${tris} triangles">${tris}</span>`;
   }
   mvMarks();
   try { localStorage.setItem("modelEditUnits", JSON.stringify([u, segOf("mveFileUnit")])); } catch {}
