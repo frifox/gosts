@@ -897,7 +897,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <button class="icon-btn" id="mvClose" title="Close (Esc)" aria-label="Close">✕</button>
   </div>
   <div class="stage model-stage" id="mvStage"><canvas id="mvCanvas"></canvas>
-    <span class="views seg mv-views" id="mvViews"><button data-v="3d" title="As Blender and Fusion open: from the front right, above">3D</button><button data-v="front">Front</button><button data-v="side">Side</button><button data-v="top">Top</button></span>
+    <span class="views seg mv-views" id="mvViews"><button data-v="3d" title="Z up, X right and away, Y left and away">3D</button><button data-v="front" title="X right, Z up, Y away">Front</button><button data-v="side" title="Y right, Z up, X towards you">Side</button><button data-v="top" title="Y right, X down, Z towards you">Top</button></span>
     <div class="mv-hint">Drag to turn · right-drag (or ⇧ drag) to move · wheel to zoom · F: the whole model · Esc: the capture</div>
     <div class="mv-msg" id="mvMsg" hidden></div>
     <aside class="mv-edit" id="mvEdit" hidden>
@@ -1552,7 +1552,7 @@ $("mvEdit").querySelector(".mve-rot").onclick = (e) => {
 };
 $("mveUndo").onclick = () => { const m = mve.undo.pop(); if (m) { window.modelView.setMatrix(m); window.modelView.view(); } mveShow(); };
 $("mveResetEdit").onclick = () => { if (mve.undo.length) { window.modelView.setMatrix(mve.undo[0]); window.modelView.view(); } mve.undo = []; mveShow(); };
-// The view presets (top left): as the Rig View card's; 3D as Blender's.
+// The view presets (top left), in Blender's and Fusion's axes (see VIEWS in modelview.js).
 function mvView(v) { segPick("mvViews", v); window.modelView.view(v, true); } // (gliding there)
 $("mvViews").onclick = (e) => { if (e.target.dataset?.v) mvView(e.target.dataset.v); };
 function mveStatus(text, cls = "") { $("mveStatus").textContent = text; $("mveStatus").className = "mve-status " + cls; }

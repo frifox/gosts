@@ -87,15 +87,17 @@ function disposeModel(obj) {
   });
 }
 
-// VIEWS: where the camera looks from (towards the model), as the Rig View
-// card's: front from −x, side from +z, top from above (x to the right);
-// 3d (the way in) as Blender's and Fusion's first view: from the front
-// right, above (their +X, −Y, +Z: x, y, z here).
+// VIEWS: where the camera looks from (towards the model), in Blender's and
+// Fusion's axes (X red, Y green, Z blue up; here x, −z, y):
+//   front: X right, Z up, Y going away (from −Y);
+//   side:  Y right, Z up, X coming towards it (from +X);
+//   top:   Y right, X down, Z towards it (from above, X at the bottom);
+//   3d:    Z up, X right and away, Y left and away (from −X −Y, above).
 export const VIEWS = {
-  "3d": new THREE.Vector3(1, 0.78, 1).normalize(),
-  front: new THREE.Vector3(-1, 0, 0),
-  side: new THREE.Vector3(0, 0, 1),
-  top: new THREE.Vector3(0, 1, 0.001).normalize(),
+  "3d": new THREE.Vector3(-1, 0.78, 1).normalize(),
+  front: new THREE.Vector3(0, 0, 1),
+  side: new THREE.Vector3(1, 0, 0),
+  top: new THREE.Vector3(0.001, 1, 0).normalize(), // (the slight +x: the screen's up is −x, X pointing down)
 };
 const VIEW_DIR = VIEWS["3d"];
 

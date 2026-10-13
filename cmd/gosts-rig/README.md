@@ -107,8 +107,9 @@ triangles and size (cm) in the bar. **Open in App** opens it in the Mac's app fo
 another's set: Blender, say, in the Finder's Get Info); **Show in Finder** shows its folder. A USDZ isn't shown in the
 page (three.js can't read Apple's), only opened. Its tile's bin moves the model's folder to the Trash.
 
-The view buttons at the top left show it as the Rig View card does (Front, Side, Top) or, **3D**, as Blender and Fusion
-first do (from the front right, above). **Edit** (an OBJ) readies a model for Blender, Fusion 360 and the like: upright, square to the axes, at its real size.
+The view buttons at the top left glide to a view, in Blender's and Fusion's axes (X red, Y green, Z blue up): **Front**
+(X right, Z up, Y away), **Side** (Y right, Z up, X towards you), **Top** (Y right, X down, Z towards you) and **3D**
+(Z up, X right and away, Y left and away). **Edit** (an OBJ) readies a model for Blender, Fusion 360 and the like: upright, square to the axes, at its real size.
 The viewer shows the axes as they do (X red, Y green, Z blue up) and the ground grid at the origin. **Pick Points**,
 then click on the model (each click snaps to the nearest corner of the triangle under it):
 
