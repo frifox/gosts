@@ -297,7 +297,7 @@ export function createModelView(canvas) {
     running = false;
     glideTo = null;
     tweenEnd();
-    target = base = null;
+    target = null;
     seq++;
     if (holder) { scene.remove(holder); disposeModel(holder); holder = obj = null; }
     drop(grid); drop(axes); grid = axes = null;
@@ -481,60 +481,43 @@ export function createModelView(canvas) {
     }
   }
   // The edit: get it, set it, or apply m after it (the view kept). With
-  // animate, the model moves there over about a third of a second (eased):
-  // a move started while others are going adds to them (each the change
-  // from where the one before was headed, under way at its own pace), so
-  // quick ones run together (two slides at once: on a diagonal), and it all
-  // ends where the last is headed. The promise: when that move is done.
-  // target: where it's headed (the edit, as far as the rest knows); base:
-  // where the moves still going started from.
-  let target = null, base = null, tweens = [];
+  // animate, the model moves there over about a third of a second (eased).
+  // A move started while one's going takes over from wherever the model is
+  // just then (no jump: it heads for the new place from there; the one
+  // before's promise done). target: where it's headed (the edit, as far as
+  // the rest knows).
+  let target = null, tween = null;
   const matrix = () => (holder ? (target || holder.matrix).clone() : new THREE.Matrix4());
   function place(m) {
     holder.matrix.copy(m);
     holder.matrixWorldNeedsUpdate = true;
     holder.updateMatrixWorld(true);
   }
+  const decomp = (x) => { const p = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(); x.decompose(p, q, sc); return { p, q, sc }; };
   function setMatrix(m, animate = false) {
     if (!holder) return Promise.resolve();
     if (!animate) { tweenEnd(); target = m.clone(); place(m); ground(); return Promise.resolve(); }
-    const from = matrix();
-    if (!tweens.length) base = from.clone();
+    if (tween) tween.done(); // (taken over: from where it's got to)
     target = m.clone();
-    // The change, as a place, turn and size (each from none to all of it).
-    const d = m.clone().multiply(from.clone().invert()), p = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
-    d.decompose(p, q, sc);
-    return new Promise((done) => tweens.push({ d, p, q, sc, age: 0, done }));
+    return new Promise((done) => { tween = { from: decomp(holder.matrix), to: decomp(m), age: 0, done }; });
   }
   const apply = (m, animate = false) => setMatrix(m.clone().multiply(matrix()), animate);
-  const ID_Q = new THREE.Quaternion(), ONE = new THREE.Vector3(1, 1, 1), ZERO = new THREE.Vector3();
   function tweenTick(dt) {
-    if (!tweens.length) return;
-    // Each change so far along (eased), on top of the ones before it.
-    const m = base.clone();
-    for (const t of tweens) {
-      t.age += dt;
-      let f = Math.min(1, t.age / 0.35);
-      f = f * f * (3 - 2 * f);
-      t.f = f;
-      m.premultiply(new THREE.Matrix4().compose(ZERO.clone().lerp(t.p, f), ID_Q.clone().slerp(t.q, f), ONE.clone().lerp(t.sc, f)));
-    }
-    // The ones done (oldest first): into base.
-    while (tweens.length && tweens[0].f >= 1) {
-      const t = tweens.shift();
-      base.premultiply(t.d);
-      t.done();
-    }
-    if (!tweens.length) { place(target); ground(); return; }
-    place(m);
+    if (!tween) return;
+    tween.age += dt;
+    let f = Math.min(1, tween.age / 0.35);
+    f = f * f * (3 - 2 * f);
+    const { from: a, to: b } = tween;
+    place(new THREE.Matrix4().compose(a.p.clone().lerp(b.p, f), a.q.clone().slerp(b.q, f), a.sc.clone().lerp(b.sc, f)));
+    if (f >= 1) tweenEnd();
   }
-  // tweenEnd: the moves going on, there at once.
+  // tweenEnd: a move going on, there at once.
   function tweenEnd() {
-    if (!tweens.length) return;
-    const ts = tweens;
-    tweens = [];
+    if (!tween) return;
+    const t = tween;
+    tween = null;
     if (holder) { place(target); ground(); }
-    for (const t of ts) t.done();
+    t.done();
   }
   // boxWith: the model's box were m applied (it isn't).
   function boxWith(m) {

@@ -1803,8 +1803,7 @@ $("mveAxesGo").onclick = async (e) => {
   const axis = e.target.closest("[data-axis]")?.dataset.axis;
   const mv = window.modelView, p = mve.picks.center[0];
   if (!axis || !p) return;
-  mv.settle();
-  mveRotCommit();
+  mveRotCommit(); // (a move going on: not ended, taken over from where it is)
   if (!mve.originFrom) { mve.originFrom = mv.matrix(); mve.centerAt = p.clone(); mve.centerOff = null; }
   mve.centerAxes.has(axis) ? mve.centerAxes.delete(axis) : mve.centerAxes.add(axis);
   await mveCenterGo();
