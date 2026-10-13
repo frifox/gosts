@@ -32,6 +32,11 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 /* A pill's icon is its status too: red (none), yellow (on its way), green. */
 .pill .pill-ic { width: 15px; height: 15px; flex: none; color: var(--bad); transition: color .2s; }
 .pill .pill-ic.ok { color: var(--ok); } .pill .pill-ic.warn { color: var(--warn); }
+/* The status pills as one group: joined, the ends rounded. */
+.pill-group { display: inline-flex; }
+.pill-group > .pill + .pill { margin-left: -1px; }
+.pill-group > .pill:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.pill-group > .pill:not(:first-child) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; background: var(--panel-2); }
 .layout { flex: 1; display: grid; grid-template-columns: minmax(340px, 430px) minmax(0, 1fr); /* the right column never wider than the page */ gap: 14px; padding: 14px; min-height: 0; }
 .left { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; min-height: 0; }
@@ -621,9 +626,11 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   <h1>GoSTS</h1><span class="sub">Photogrammetry Rig</span>
   <span class="spacer"></span>
   <button class="btn small primary" id="hdrBuilding" hidden>Building…</button><span class="spacer"></span>
-  <span class="pill" title="This page's link to the app (gosts-rig)"><svg class="pill-ic" id="wsDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v3M10 2v3M4.5 5h7v2a3.5 3.5 0 0 1-7 0zM8 10.5V14"/></svg><span id="wsText">connecting…</span></span>
-  <span class="pill" title="The servo controller board (the rig's servos)"><svg class="pill-ic" id="busDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.2"/><path d="M6.5 2v2M9.5 2v2M6.5 12v2M9.5 12v2M2 6.5h2M2 9.5h2M12 6.5h2M12 9.5h2"/></svg><span id="busText">no board</span></span>
-  <span class="pill" title="The camera"><svg class="pill-ic" id="camDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h2.4l1.2-1.8h3.8l1.2 1.8h2.4v7h-11z"/><circle cx="8" cy="9" r="2.2"/></svg><span id="camText">no camera</span></span>
+  <span class="pill-group">
+    <span class="pill" title="This page's link to the app (gosts-rig)"><svg class="pill-ic" id="wsDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v3M10 2v3M4.5 5h7v2a3.5 3.5 0 0 1-7 0zM8 10.5V14"/></svg><span id="wsText">connecting…</span></span>
+    <span class="pill" title="The servo controller board (the rig's servos)"><svg class="pill-ic" id="busDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.2"/><path d="M6.5 2v2M9.5 2v2M6.5 12v2M9.5 12v2M2 6.5h2M2 9.5h2M12 6.5h2M12 9.5h2"/></svg><span id="busText">no board</span></span>
+    <span class="pill" title="The camera"><svg class="pill-ic" id="camDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h2.4l1.2-1.8h3.8l1.2 1.8h2.4v7h-11z"/><circle cx="8" cy="9" r="2.2"/></svg><span id="camText">no camera</span></span>
+  </span>
 </header>
 
 <div class="layout">
