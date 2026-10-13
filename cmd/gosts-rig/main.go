@@ -78,6 +78,7 @@ func main() {
 	a.rig = &rig{cfg: cfg, out: a.broadcast}
 	a.camera = &cameraConn{out: a.broadcast, cfg: cfg}
 	a.cap = &capture{rig: a.rig, camera: a.camera, out: a.broadcast}
+	a.model = &modelBuilder{out: a.broadcast}
 	startBatch(false) // a new capture each start: named now, its folder made as it's needed
 	// The servo console (Servo Ctl): gosts-ctl's, on the rig's board.
 	ctlCfg, warnings, err := console.LoadConfig(*ctlPath)
@@ -152,6 +153,7 @@ func main() {
 	mux.HandleFunc("GET /batches/{name}", a.handleBatch)
 	mux.HandleFunc("GET /batches/{name}/{file}", a.handleBatchPhoto)
 	mux.HandleFunc("POST /batches/{name}/rename", a.handleBatchRename)
+	mux.HandleFunc("GET /batches/{name}/model", a.handleModelInfo)
 	mux.HandleFunc("POST /batches/{name}/delete", a.handleBatchDelete)
 	mux.HandleFunc("POST /batches/{name}/{file}/delete", a.handleBatchPhotoDelete)
 	mux.Handle("/ctl/", http.StripPrefix("/ctl", ctl.Routes()))

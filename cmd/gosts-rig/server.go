@@ -31,6 +31,7 @@ type app struct {
 	rig    *rig
 	cap    *capture
 	camera *cameraConn
+	model  *modelBuilder
 
 	mu      sync.Mutex
 	clients map[*client]struct{}
@@ -58,23 +59,25 @@ func (a *app) broadcast(msg any) {
 
 // request is a command from the browser; only the fields for Type are set.
 type request struct {
-	Seq       int       `json:"seq"`
-	Type      string    `json:"type"`
-	Port      string    `json:"port"`
-	Baud      int       `json:"baud"`
-	Elevation *float64  `json:"elevation"`
-	Azimuth   *float64  `json:"azimuth"`
-	On        bool      `json:"on"`
-	Axis      string    `json:"axis"` // torque: "elevation", "azimuth", or "" (all)
-	Roles     *Roles    `json:"roles"`
-	Motion    *Motion   `json:"motion"`
-	Plan      *Plan     `json:"plan"`
-	Cooldown  *Cooldown `json:"cooldown"`
-	Camera    string    `json:"camera"`
-	N         int       `json:"n"`
-	Lines     []string  `json:"lines"`
-	Key       string    `json:"key"`
-	Value     string    `json:"value"`
+	Seq       int           `json:"seq"`
+	Type      string        `json:"type"`
+	Port      string        `json:"port"`
+	Baud      int           `json:"baud"`
+	Elevation *float64      `json:"elevation"`
+	Folder    string        `json:"folder"` // modelStart: the capture
+	Model     *modelOptions `json:"model"`  // modelStart: apple-obj-cap's options
+	Azimuth   *float64      `json:"azimuth"`
+	On        bool          `json:"on"`
+	Axis      string        `json:"axis"` // torque: "elevation", "azimuth", or "" (all)
+	Roles     *Roles        `json:"roles"`
+	Motion    *Motion       `json:"motion"`
+	Plan      *Plan         `json:"plan"`
+	Cooldown  *Cooldown     `json:"cooldown"`
+	Camera    string        `json:"camera"`
+	N         int           `json:"n"`
+	Lines     []string      `json:"lines"`
+	Key       string        `json:"key"`
+	Value     string        `json:"value"`
 }
 
 type resultMsg struct {
@@ -245,6 +248,13 @@ func (a *app) exec(req request) (any, error) {
 	case "photoDelete": // one photo off the timeline
 		a.camera.delete(req.N)
 		return nil, nil
+	case "modelStart": // Build Model (Browse): a capture's model, with Object Capture
+		if req.Model == nil {
+			return nil, errors.New("no model options")
+		}
+		return nil, a.model.start(a, req.Folder, *req.Model)
+	case "modelCancel":
+		return nil, a.model.cancel()
 	case "photosReset": // New Capture: the timeline cleared, a new folder
 		return map[string]string{"folder": a.camera.reset(true)}, nil
 	case "cameraDisconnect":
@@ -271,6 +281,7 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 	c.push(a.camera.msg())
 	c.push(a.camera.timeline())
 	c.push(a.camera.batchStatus())
+	c.push(a.model.msg())
 
 	done := make(chan struct{})
 	go func() {

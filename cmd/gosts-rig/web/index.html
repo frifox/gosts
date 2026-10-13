@@ -408,6 +408,31 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 /* Captures: a folder's tile (its middle photo, name and count); a photo's
    details only in the list. */
 .gallery-bar .views.seg { margin-left: 0; }
+/* Build Model's panel, under the gallery's bar. */
+.model-panel { border-bottom: 1px solid var(--border); background: var(--panel); padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 10px; }
+.model-panel .mp-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; }
+.model-panel .mp-row[hidden] { display: none; }
+.model-panel label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.model-panel .views.seg { margin-left: 0; }
+.model-panel select, .model-panel input[type=number] { min-width: 90px; }
+.model-panel .mp-check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); font-size: 13px; cursor: pointer; }
+.model-panel .mp-check input { accent-color: var(--accent); margin: 0; }
+.model-panel .mp-check.off { opacity: .45; cursor: default; }
+.model-panel .mp-maps { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.model-panel .mp-run { align-items: center; }
+.model-panel .mp-progress { flex: 1; min-width: 220px; }
+.model-panel .mp-progress .progress { margin-top: 0; }
+.model-panel #mStatus { margin-top: 4px; font-size: 12px; }
+/* A photo's mark from the build: used (green ✓), rejected (red ✕), skipped, not placed, being read. */
+.thumb .mmark { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font: 700 13px/1 system-ui, sans-serif; color: #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.35); pointer-events: auto; }
+.thumb .mmark.aligned { background: var(--ok); }
+.thumb .mmark.invalid { background: var(--bad); }
+.thumb .mmark.skipped { background: #6b7484; }
+.thumb .mmark.unaligned { background: var(--warn); }
+.thumb .mmark.loaded { background: transparent; box-shadow: none; }
+.thumb .mmark.loaded::before { content: ""; width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; animation: spin .8s linear infinite; }
+.gallery-grid.list .thumb .mmark { position: static; flex: none; order: -1; }
 .thumb .meta { display: none; }
 /* A folder: a yellow folder (Windows 11's look), its tab at the top left,
    the middle photo in it. */
@@ -729,8 +754,50 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 
 <div class="gallery" id="gallery" hidden>
   <div class="gallery-bar"><button class="btn small" id="galleryUp" title="All captures (Backspace)" hidden>‹ Captures</button><h3 id="galleryTitle">Captures</h3><button class="icon-btn pen-btn" id="galleryRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button><span class="spacer"></span>
+    <button class="btn small" id="buildModelBtn" title="Build a 3D model from these photos, with Apple's Object Capture" hidden>Build Model</button><span class="spacer"></span>
     <span class="views seg" id="galleryViewSeg"><button data-v="grid">Thumbnails</button><button data-v="list">List</button></span>
     <button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
+  <!-- Build Model: Object Capture's options (apple-obj-cap's), Process, and how the build goes; the photos marked below. -->
+  <div class="model-panel" id="modelPanel" hidden>
+    <div class="mp-row">
+      <label>Format<span class="views seg" id="mFormat"><button data-v="obj" title="A folder: the mesh, its materials and textures">OBJ</button><button data-v="usdz" title="One file, for Quick Look and Reality Composer">USDZ</button></span></label>
+      <label>Detail<select id="mDetail">
+        <option value="preview">Preview: quick, ~25k polygons, 1K texture</option>
+        <option value="reduced">Reduced: ~50k polygons, 2K textures</option>
+        <option value="medium">Medium: ~100k polygons, 4K textures</option>
+        <option value="full">Full: ~250k polygons, 8K textures</option>
+        <option value="raw">Raw: all the polygons, 8K textures</option>
+        <option value="custom">Custom…</option></select></label>
+      <label>Photo order<span class="views seg" id="mOrdering"><button data-v="sequential" title="Each photo overlaps the one before (a rig's rings)">Sequential</button><button data-v="unordered" title="In no particular order">Unordered</button></span></label>
+      <label>Features<span class="views seg" id="mSensitivity"><button data-v="normal">Normal</button><button data-v="high" title="Finds more on plain objects; slower">High</button></span></label>
+      <label>Mesh<span class="views seg" id="mMesh"><button data-v="triangle">Triangles</button><button data-v="quad" title="Nicer to edit (Blender, say)">Quads</button></span></label>
+    </div>
+    <div class="mp-row mp-checks">
+      <label class="mp-check"><input type="checkbox" id="mMasking"> Mask out the background</label>
+      <label class="mp-check" title="Not just the object found"><input type="checkbox" id="mIgnoreBBox"> Build all that's seen</label>
+      <label class="mp-check" title="Intermediate results kept: a build again (another detail level, say) is quicker"><input type="checkbox" id="mCheckpoint"> Keep checkpoints</label>
+      <label class="mp-check" id="mGravityLabel" title="Each photo's down, from the rig (its gravity.json: alignment data for Apple Object Capture)"><input type="checkbox" id="mGravity"> Use the rig's gravity</label>
+      <label class="mp-check"><input type="checkbox" id="mBounds"> Also: bounding box</label>
+      <label class="mp-check"><input type="checkbox" id="mPointCloud"> Also: point cloud</label>
+    </div>
+    <div class="mp-row" id="mCustom" hidden>
+      <label>Most polygons<input type="number" id="mMaxPolygons" min="1" step="1000"></label>
+      <label>Texture size<select id="mTextureDim"><option value="1k">1K</option><option value="2k">2K</option><option value="4k">4K</option><option value="8k">8K</option><option value="16k">16K</option></select></label>
+      <label>Texture maps<span class="mp-maps" id="mTextureMaps">
+        <label class="mp-check"><input type="checkbox" value="diffuse"> Colour</label><label class="mp-check"><input type="checkbox" value="normal"> Normal</label>
+        <label class="mp-check"><input type="checkbox" value="roughness"> Roughness</label><label class="mp-check"><input type="checkbox" value="displacement"> Displacement</label>
+        <label class="mp-check"><input type="checkbox" value="ao"> Ambient occlusion</label></span></label>
+      <label>Texture format<span class="views seg" id="mTextureFormat"><button data-v="png">PNG</button><button data-v="jpeg">JPEG</button></span></label>
+      <label id="mJpegLabel">JPEG quality<input type="number" id="mJpegQuality" min="0" max="1" step="0.05"></label>
+    </div>
+    <div class="mp-row mp-run">
+      <button class="btn primary" id="mProcess">Process</button>
+      <button class="btn danger" id="mCancel" hidden>Cancel build</button>
+      <div class="mp-progress"><div class="progress big"><div class="bar" id="mBar"></div><span class="label" id="mLabel"></span></div>
+        <div class="hint" id="mStatus"></div></div>
+    </div>
+    <div class="err" id="mErr"></div>
+  </div>
   <div class="gallery-grid" id="galleryGrid"></div>
 </div>
 <div class="viewer" id="viewer" hidden>
@@ -838,6 +905,7 @@ function onMessage(m) {
     case "photoFailed": m.sample ? sampleFailed(m.n) : photoGone(m.n); break;
     case "photoDeleted": photoGone(m.n); break;
     case "photos": setPhotos(m.photos); break;
+    case "model": onModel(m); break; // a model being built (Browse → Build Model)
     case "batch": // the capture's name (its folder), and whether it's empty
       $("batchName").textContent = m.name || ""; $("batchRename").hidden = !m.name;
       state.batchEmpty = !!m.empty;
@@ -993,6 +1061,7 @@ function thumb(p, isNew) {
   const b = document.createElement("div");
   b.className = "thumb" + (isNew ? " new" : "");
   b.dataset.n = p.n;
+  if (p.file) b.dataset.file = p.file; // (Build Model's marks)
   b.tabIndex = 0;
   b.setAttribute("role", "button");
   b.title = photoCaption(p);
@@ -1151,6 +1220,7 @@ async function deleteCapture(name, count) {
 function diskThumb(name, p, i) {
   const b = document.createElement("div");
   b.className = "thumb";
+  b.dataset.file = p.file; // (Build Model's marks)
   b.tabIndex = 0;
   b.setAttribute("role", "button");
   b.title = p.file;
@@ -1174,12 +1244,15 @@ async function renderGallery() {
   for (const b of $("galleryViewSeg").children) b.classList.toggle("active", b.dataset.v === state.gal.view);
   $("galleryUp").hidden = where === null;
   $("galleryRename").hidden = where === null || !galleryFolder();
+  $("buildModelBtn").hidden = where === null || !galleryFolder();
+  if (where === null) $("modelPanel").hidden = true;
   if (where === "current") {
     g.innerHTML = "";
     for (const p of state.photos) putThumb(g, thumb(p, false), p.n);
     for (const n of state.pending) putThumb(g, placeholder(n), n);
     if (!g.children.length) g.innerHTML = '<span class="hint">No photos yet.</span>';
     galleryTitle();
+    modelMarks();
     return;
   }
   $("galleryTitle").textContent = where ?? "Captures";
@@ -1208,6 +1281,7 @@ async function renderGallery() {
   } catch (e) {
     if (seq === state.gal.seq) g.innerHTML = `<span class="hint">Couldn't read it: ${escHTML(e.message)}</span>`;
   }
+  modelMarks();
 }
 // galleryGo shows where (Captures again: where it was scrolled to).
 async function galleryGo(where) {
@@ -1219,6 +1293,8 @@ async function galleryGo(where) {
   g.scrollTop = 0;
   await renderGallery();
   if (back && state.gal.where === null) g.scrollTop = state.gal.rootScroll;
+  if (where !== null && !$("modelPanel").hidden) modelLoad(); // (another folder: its options and last build)
+  modelShow();
 }
 // renameCapture asks for a capture folder's new name and renames it on
 // disk (its samples' folder too); Captures shows it again.
@@ -1269,6 +1345,123 @@ $("viewAllBtn").onclick = () => openGallery("current");
 $("openCaptureBtn").onclick = () => openGallery(null);
 $("galleryUp").onclick = () => galleryGo(null);
 $("galleryClose").onclick = closeGallery;
+// ---------------------------------------------------------------- build model
+// Build Model (a folder open in Browse): Object Capture's options (all of
+// apple-obj-cap's), Process, and how the build goes: a bar, its stage and
+// time left, and a mark on each photo (used ✓, rejected ✕, skipped ↷, not
+// placed ?, being read ◌). The options are the folder's last (else the
+// defaults); the marks its last build's, or the one going on.
+state.model = null;     // the build going on, or the last (the server's: type "model")
+state.modelInfo = null; // the folder open's: {options, last, gravity}
+const MODEL_STAGES = { preProcessing: "Getting ready", imageAlignment: "Aligning the photos", pointCloudGeneration: "Building the point cloud",
+  meshGeneration: "Building the mesh", textureMapping: "Texturing", optimization: "Finishing" };
+const MODEL_SEGS = ["mFormat", "mOrdering", "mSensitivity", "mMesh", "mTextureFormat"];
+const segGet = (id) => $(id).querySelector("button.active")?.dataset.v;
+const segSet = (id, v) => { for (const b of $(id).children) b.classList.toggle("active", b.dataset.v === v); };
+for (const id of MODEL_SEGS) $(id).onclick = (e) => { e.preventDefault(); const v = e.target.dataset?.v; if (v) { segSet(id, v); modelFormShown(); } };
+$("mDetail").onchange = modelFormShown;
+// modelFormShown: the custom settings with Custom; JPEG's quality with JPEG.
+function modelFormShown() {
+  $("mCustom").hidden = $("mDetail").value !== "custom";
+  $("mJpegLabel").hidden = segGet("mTextureFormat") !== "jpeg";
+}
+function modelFormFill(o, gravity) {
+  segSet("mFormat", o.format); $("mDetail").value = o.detail; segSet("mOrdering", o.ordering); segSet("mSensitivity", o.sensitivity); segSet("mMesh", o.mesh);
+  $("mMasking").checked = o.masking; $("mIgnoreBBox").checked = o.ignoreBBox; $("mCheckpoint").checked = o.checkpoint;
+  $("mGravity").checked = o.gravity && gravity; $("mGravity").disabled = !gravity;
+  $("mGravityLabel").classList.toggle("off", !gravity);
+  $("mGravityLabel").title = gravity ? "Each photo's down, from the rig (its gravity.json: alignment data for Apple Object Capture)" :
+    "This capture has no gravity.json: pick \"Apple Object Capture\" (or All) in Capture alignment data for, before a capture";
+  $("mBounds").checked = o.bounds; $("mPointCloud").checked = o.pointCloud;
+  $("mMaxPolygons").value = o.maxPolygons; $("mTextureDim").value = o.textureDim;
+  const all = (o.textureMaps || []).includes("all");
+  for (const c of $("mTextureMaps").querySelectorAll("input")) c.checked = all || (o.textureMaps || []).includes(c.value);
+  segSet("mTextureFormat", o.textureFormat); $("mJpegQuality").value = o.jpegQuality;
+  modelFormShown();
+}
+function modelFormRead() {
+  const maps = [...$("mTextureMaps").querySelectorAll("input:checked")].map((c) => c.value);
+  return { format: segGet("mFormat"), detail: $("mDetail").value, ordering: segGet("mOrdering"), sensitivity: segGet("mSensitivity"), mesh: segGet("mMesh"),
+    masking: $("mMasking").checked, ignoreBBox: $("mIgnoreBBox").checked, checkpoint: $("mCheckpoint").checked, gravity: $("mGravity").checked,
+    bounds: $("mBounds").checked, pointCloud: $("mPointCloud").checked, maxPolygons: Math.round(Number($("mMaxPolygons").value) || 0),
+    textureDim: $("mTextureDim").value, textureMaps: maps.length === 5 ? ["all"] : maps, textureFormat: segGet("mTextureFormat"),
+    jpegQuality: Number($("mJpegQuality").value) };
+}
+// modelLoad: the folder open's options and last build.
+async function modelLoad() {
+  const f = galleryFolder();
+  if (!f) return;
+  try {
+    const info = await getJSON(`/batches/${encodeURIComponent(f)}/model`);
+    if (galleryFolder() !== f) return;
+    state.modelInfo = { ...info, folder: f };
+    modelFormFill(info.options, info.gravity);
+  } catch (e) { $("mErr").textContent = e.message; }
+  modelShow();
+}
+$("buildModelBtn").onclick = () => {
+  const open = $("modelPanel").hidden;
+  $("modelPanel").hidden = !open;
+  $("buildModelBtn").classList.toggle("primary", open);
+  if (open) { $("mErr").textContent = ""; modelLoad(); }
+};
+$("mProcess").onclick = async () => {
+  $("mErr").textContent = "";
+  $("mProcess").disabled = true;
+  try { await send("modelStart", { folder: galleryFolder(), model: modelFormRead() }); }
+  catch (e) { $("mErr").textContent = e.message; $("mProcess").disabled = false; }
+};
+$("mCancel").onclick = () => send("modelCancel", {}).catch((e) => ($("mErr").textContent = e.message));
+function onModel(m) {
+  state.model = m;
+  if (!m.running && m.folder && state.modelInfo?.folder === m.folder) state.modelInfo.last = m; // (ended: the folder's last build now)
+  modelShow();
+}
+// modelOf: the build to show for the folder open: the one going on (or
+// just ended) for it, else its last.
+function modelOf() {
+  const f = galleryFolder();
+  if (!f) return null;
+  if (state.model?.folder === f) return state.model;
+  return state.modelInfo?.folder === f ? state.modelInfo.last : null;
+}
+function modelShow() {
+  modelMarks();
+  if ($("gallery").hidden) return;
+  const m = modelOf(), busy = !!state.model?.running, mine = busy && state.model.folder === galleryFolder();
+  $("mProcess").disabled = busy;
+  $("mProcess").title = busy && !mine ? `A model is being built (${state.model.folder}): one at a time` : "Build the model: the options saved, then Object Capture run";
+  $("mCancel").hidden = !mine;
+  $("buildModelBtn").textContent = mine ? "Building…" : "Build Model";
+  if (!m) { $("mBar").style.width = "0"; $("mLabel").textContent = ""; $("mStatus").textContent = busy ? `Building ${state.model.folder}…` : ""; return; }
+  const pct = Math.round((m.fraction || 0) * 100);
+  $("mBar").style.width = `${pct}%`;
+  const stage = MODEL_STAGES[m.stage] || m.stage || "";
+  const left = m.running && m.remaining > 0 ? ` · about ${fmtDur(m.remaining)} left` : "";
+  $("mLabel").textContent = m.running ? `${pct}%${stage ? " · " + stage : ""}${left}` :
+    m.outcome === "done" ? "Done" : m.outcome === "cancelled" ? "Cancelled" : m.outcome === "failed" ? "Failed" : "";
+  const n = { aligned: 0, invalid: 0, skipped: 0, unaligned: 0 };
+  for (const st of Object.values(m.photos || {})) if (st in n) n[st]++;
+  const counts = [n.aligned && `✓ ${n.aligned} used`, n.invalid && `✕ ${n.invalid} rejected`, n.skipped && `↷ ${n.skipped} skipped`, n.unaligned && `? ${n.unaligned} not placed`].filter(Boolean).join(" · ");
+  const err = m.error === "processError" ? "Object Capture couldn't build it: too few photos overlapping, most likely (the photos' marks show which it placed)." : m.error;
+  $("mStatus").textContent = [counts, m.result && m.outcome === "done" ? `Saved in ${m.result.split("/").slice(-2).join("/")}` : "", ...(m.notes || []), err || ""].filter(Boolean).join(" · ");
+  $("mStatus").style.color = m.outcome === "failed" ? "var(--bad)" : "";
+}
+// modelMarks: each photo shown (the gallery's) marked as the build has it.
+function modelMarks() {
+  const m = modelOf(), photos = m?.photos || {}, reasons = m?.reasons || {};
+  const MARK = { aligned: ["✓", "Used in the model"], invalid: ["✕", "Rejected"], skipped: ["↷", "Skipped"], unaligned: ["?", "Not placed in the model"], loaded: ["", "Being read"] };
+  for (const t of $("galleryGrid").querySelectorAll(".thumb[data-file]")) {
+    const st = photos[t.dataset.file], mk = MARK[st];
+    let el = t.querySelector(":scope > .mmark");
+    if (!mk) { el?.remove(); continue; }
+    if (!el) { el = document.createElement("span"); t.appendChild(el); }
+    el.className = "mmark " + st;
+    el.textContent = mk[0];
+    el.title = st === "invalid" && reasons[t.dataset.file] ? `Rejected: ${reasons[t.dataset.file]}` : mk[1];
+  }
+}
+
 $("galleryViewSeg").onclick = (e) => {
   const v = e.target.dataset?.v;
   if (!v || v === state.gal.view) return;

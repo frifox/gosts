@@ -84,6 +84,21 @@ capture (on hover) renames its folder, the bin beside it deletes it (asks first)
 timeline or in a folder) or a capture moves its files to the Trash (a photo's RAW too), from where the Finder can
 still bring them back.
 
+### Build Model (Apple Object Capture)
+
+In a capture opened in Browse, **Build Model** (the middle of its bar) builds a 3D model from its photos with Apple's
+Object Capture, on this Mac (macOS 14 or later, Apple silicon), through
+[`cmd/apple-obj-cap`](../apple-obj-cap/main.swift) (a small Swift tool; gosts-rig builds it with `swiftc` the first
+time, from the source tree). The panel has all of Object Capture's options: OBJ or USDZ; the detail (Preview, a quick
+look, to Raw, or Custom: the most polygons, texture size, maps and format); the photos' order (Sequential for the rig's
+rings); feature sensitivity; triangles or quads; masking out the background; building all that's seen; checkpoints;
+the rig's gravity (the capture's `gravity.json`: pick Apple Object Capture, or All, in Capture alignment data for); a
+bounding box and a point cloud too. **Process** saves them and builds: a bar with its stage and the time left, and a
+mark on each photo: ✓ used, ✕ rejected (why, on hover), ↷ skipped, ? not placed in the model, a spinner while it's
+read. The model goes to the capture's `model-obj` folder (Object Capture writes only into an empty one: a model there
+from before goes to the Trash), the rest to `model-build` (the options, checkpoints, each photo's pose, how each
+fared: the marks are there when the capture's opened again). One build at a time; **Cancel build** stops it.
+
 ## Camera settings
 
 The **gear** in the Camera card's title opens the camera's settings next to a sample shot, in a Settings card in place

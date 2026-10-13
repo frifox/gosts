@@ -61,6 +61,14 @@ type photo struct {
 	Settings map[string]string // and them by key (e.g. for balancing from a gray card)
 }
 
+// fileName is the photo's file's name (its first: the JPEG), "" if unsaved.
+func (p photo) fileName() string {
+	if len(p.Files) == 0 {
+		return ""
+	}
+	return filepath.Base(p.Files[0])
+}
+
 // photoDir is where real cameras' photos are saved (a folder per batch, see
 // batchFolder); main sets it from the config.
 var photoDir = defaultPhotoDir()
@@ -424,9 +432,10 @@ const maxPhotos = 1000
 // photoInfo is a photo on the timeline, for the page (the picture is at
 // /photo/{n}.jpg).
 type photoInfo struct {
-	N   int   `json:"n"`
-	Num int   `json:"num"` // its number to show: the capture's photos counted, not sample shots
-	At  int64 `json:"at"`  // ms since 1970
+	N    int    `json:"n"`
+	Num  int    `json:"num"`            // its number to show: the capture's photos counted, not sample shots
+	File string `json:"file,omitempty"` // its file's name (the first: its JPEG), if saved
+	At   int64  `json:"at"`             // ms since 1970
 }
 
 // photosMsg is the whole timeline, oldest first (on connecting, and after
@@ -461,8 +470,9 @@ var simDownload = 700 * time.Millisecond
 type photoMsg struct {
 	Type     string            `json:"type"` // "photo"
 	N        int               `json:"n"`
-	Num      int               `json:"num,omitempty"` // (see photoInfo)
-	At       int64             `json:"at"`            // ms since 1970
+	Num      int               `json:"num,omitempty"`  // (see photoInfo)
+	File     string            `json:"file,omitempty"` // (see photoInfo)
+	At       int64             `json:"at"`             // ms since 1970
 	Sample   bool              `json:"sample,omitempty"`
 	Caption  string            `json:"caption,omitempty"`
 	Settings map[string]string `json:"settings,omitempty"` // a sample's settings, by key
@@ -943,7 +953,7 @@ func (c *cameraConn) picture(n int, p photo) bool {
 		c.pending = 0
 	}
 	c.mu.Unlock()
-	c.out(photoMsg{Type: "photo", N: n, Num: p.Num, At: p.At.UnixMilli(), Sample: p.Sample, Caption: p.Caption, Settings: p.Settings})
+	c.out(photoMsg{Type: "photo", N: n, Num: p.Num, File: p.fileName(), At: p.At.UnixMilli(), Sample: p.Sample, Caption: p.Caption, Settings: p.Settings})
 	c.out(c.batchStatus())
 	return true
 }
@@ -963,7 +973,7 @@ func (c *cameraConn) timeline() photosMsg {
 	m := photosMsg{Type: "photos", Photos: []photoInfo{}}
 	for n, p := range c.photos {
 		if !p.Sample {
-			m.Photos = append(m.Photos, photoInfo{N: n, Num: p.Num, At: p.At.UnixMilli()})
+			m.Photos = append(m.Photos, photoInfo{N: n, Num: p.Num, At: p.At.UnixMilli(), File: p.fileName()})
 		}
 	}
 	slices.SortFunc(m.Photos, func(a, b photoInfo) int { return a.N - b.N })
