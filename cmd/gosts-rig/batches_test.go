@@ -71,3 +71,55 @@ func TestRenameBatch(t *testing.T) {
 		t.Errorf("current batch %s", batchFolder())
 	}
 }
+
+// Deleting goes to the Trash: a photo with its RAW (others stay), a name
+// taken there gets another; a capture with its samples.
+func TestDeleteToTrash(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	os.MkdirAll(filepath.Join(home, ".Trash"), 0o755)
+	old := photoDir
+	photoDir = t.TempDir()
+	defer func() { photoDir = old }()
+	put := func(dir string, files ...string) {
+		os.MkdirAll(filepath.Join(photoDir, dir), 0o755)
+		for _, f := range files {
+			os.WriteFile(filepath.Join(photoDir, dir, f), []byte("x"), 0o644)
+		}
+	}
+	put("b1", "DSC1.JPG", "DSC1.ARW", "DSC2.JPG")
+	put("b1-samples", "s.jpg")
+	os.WriteFile(filepath.Join(home, ".Trash", "DSC1.JPG"), []byte("older"), 0o644)
+	if err := trashPhoto(filepath.Join(photoDir, "b1", "DSC1.JPG")); err != nil {
+		t.Fatal(err)
+	}
+	ps, _ := batchPhotos(filepath.Join(photoDir, "b1"))
+	if len(ps) != 1 || ps[0].File != "DSC2.JPG" {
+		t.Fatalf("left: %+v", ps)
+	}
+	for _, f := range []string{"DSC1.JPG", "DSC1 2.JPG", "DSC1.ARW"} {
+		if _, err := os.Stat(filepath.Join(home, ".Trash", f)); err != nil {
+			t.Errorf("not in the Trash: %s", f)
+		}
+	}
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{cfg: cfg, camera: &cameraConn{out: func(any) {}}}
+	a.cap = &capture{camera: a.camera, out: func(any) {}}
+	if err := a.deleteBatch("b1"); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{"b1", "b1-samples"} {
+		if _, err := os.Stat(filepath.Join(photoDir, d)); !os.IsNotExist(err) {
+			t.Errorf("%s still there", d)
+		}
+		if _, err := os.Stat(filepath.Join(home, ".Trash", d)); err != nil {
+			t.Errorf("%s not in the Trash", d)
+		}
+	}
+	if err := a.deleteBatch("../x"); err == nil {
+		t.Error("deleted outside the photos")
+	}
+}

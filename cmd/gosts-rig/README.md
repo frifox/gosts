@@ -74,7 +74,9 @@ saved in `~/Pictures/gosts-rig/`, a folder per capture named after its start tim
 with a real camera) for the photos from now on, and the timeline cleared (the photos taken stay saved; **Browse** has them).
 **Browse** opens the captures saved there (sample shots' folders left out), newest first, each with its middle photo,
 name and count, as thumbnails or a list: open one to see its photos (← → to step through them large); the pencil on a
-capture (on hover) renames its folder.
+capture (on hover) renames its folder, the bin deletes it (asks first). Deleting a photo (the bin on it, on the
+timeline or in a folder) or a capture moves its files to the Trash (a photo's RAW too), from where the Finder can
+still bring them back.
 
 ## Camera settings
 

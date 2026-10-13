@@ -147,6 +147,8 @@ func main() {
 	mux.HandleFunc("GET /batches/{name}", a.handleBatch)
 	mux.HandleFunc("GET /batches/{name}/{file}", a.handleBatchPhoto)
 	mux.HandleFunc("POST /batches/{name}/rename", a.handleBatchRename)
+	mux.HandleFunc("POST /batches/{name}/delete", a.handleBatchDelete)
+	mux.HandleFunc("POST /batches/{name}/{file}/delete", a.handleBatchPhotoDelete)
 	mux.Handle("/ctl/", http.StripPrefix("/ctl", ctl.Routes()))
 	hs := &http.Server{Addr: *addr, Handler: mux}
 	go func() {

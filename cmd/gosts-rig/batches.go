@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 // Past captures on disk: the batch folders in photoDir (see batchDir), each
@@ -291,5 +292,120 @@ func (a *app) handleBatchRename(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Deleting: a photo or a capture goes to the Trash (~/.Trash), not gone for
+// good: a click by mistake can be undone in the Finder.
+
+// trash moves path into the user's Trash, under a name not taken there.
+func trash(path string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(home, ".Trash")
+	base := filepath.Base(path)
+	ext := filepath.Ext(base)
+	if st, err := os.Stat(path); err == nil && st.IsDir() {
+		ext = ""
+	}
+	stem := strings.TrimSuffix(base, ext)
+	// A free name: as it is, else "name 2", "name 3"… If the Trash can't be
+	// looked into (macOS may not let us), a name with the time in it, so
+	// nothing there is replaced.
+	dst := filepath.Join(dir, base)
+	for i := 2; ; i++ {
+		_, err := os.Lstat(dst)
+		if os.IsNotExist(err) {
+			break
+		}
+		if err != nil || i > 999 {
+			dst = filepath.Join(dir, fmt.Sprintf("%s %s%s", stem, time.Now().Format("2006-01-02 15.04.05.000000000"), ext))
+			break
+		}
+		dst = filepath.Join(dir, fmt.Sprintf("%s %d%s", stem, i, ext))
+	}
+	return os.Rename(path, dst)
+}
+
+// trashPhoto trashes a photo's file and its siblings: the files beside it
+// of the same name (its RAW, say).
+func trashPhoto(path string) error {
+	dir, base := filepath.Dir(path), filepath.Base(path)
+	stem := strings.ToLower(strings.TrimSuffix(base, filepath.Ext(base)))
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, e := range ents {
+		n := e.Name()
+		if !e.IsDir() && strings.ToLower(strings.TrimSuffix(n, filepath.Ext(n))) == stem {
+			if err := trash(filepath.Join(dir, n)); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// deleteBatch trashes a capture's folder (and its samples' folder). The
+// batch being taken: not while a capture runs; else the timeline's cleared
+// and the next photos start a new folder (as New Capture).
+func (a *app) deleteBatch(name string) error {
+	if !cleanName(name) || strings.HasSuffix(name, "-samples") {
+		return errors.New("no such capture")
+	}
+	dir := filepath.Join(photoDir, name)
+	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+		return errors.New("no such capture")
+	}
+	batch.Lock()
+	current := batch.dir == dir
+	batch.Unlock()
+	if current {
+		if a.cap.msg().Running {
+			return errors.New("a capture is saving into it: delete it once the capture is done")
+		}
+		a.camera.reset()
+	}
+	if err := trash(dir); err != nil {
+		return err
+	}
+	if _, err := os.Stat(dir + "-samples"); err == nil {
+		trash(dir + "-samples")
+	}
+	log.Printf("photos: %s moved to the Trash", name)
+	return nil
+}
+
+// handleBatchDelete trashes a capture (POST /batches/{name}/delete).
+func (a *app) handleBatchDelete(w http.ResponseWriter, r *http.Request) {
+	if err := a.deleteBatch(r.PathValue("name")); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleBatchPhotoDelete trashes a capture's photo (POST
+// /batches/{name}/{file}/delete), its RAW too.
+func (a *app) handleBatchPhotoDelete(w http.ResponseWriter, r *http.Request) {
+	name, file := r.PathValue("name"), r.PathValue("file")
+	if !cleanName(name) || !cleanName(file) {
+		http.NotFound(w, r)
+		return
+	}
+	path := filepath.Join(photoDir, name, file)
+	if _, err := os.Stat(path); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := trashPhoto(path); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	a.camera.forgetFile(path) // (off the timeline too, if it's on it)
 	w.WriteHeader(http.StatusNoContent)
 }

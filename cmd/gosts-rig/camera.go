@@ -757,15 +757,48 @@ type photoEventMsg struct {
 
 // delete takes photo n off the timeline (its files, if saved, stay where
 // they are). A photo still coming is dropped when it arrives.
+// delete takes photo n off the timeline, and its files (its RAW beside
+// it, too) to the Trash; a picture still coming is trashed as it lands.
 func (c *cameraConn) delete(n int) {
 	c.mu.Lock()
+	files := c.photos[n].Files
 	delete(c.photos, n)
 	if c.deleted == nil {
 		c.deleted = map[int]bool{}
 	}
 	c.deleted[n] = true
 	c.mu.Unlock()
+	for _, f := range files {
+		if _, err := os.Stat(f); err == nil {
+			if err := trashPhoto(f); err != nil {
+				log.Printf("photos: deleting %s: %v", f, err)
+			}
+		}
+	}
 	c.out(photoEventMsg{Type: "photoDeleted", N: n})
+}
+
+// forgetFile takes the photo saved as path off the timeline (its files
+// trashed already: see handleBatchPhotoDelete).
+func (c *cameraConn) forgetFile(path string) {
+	c.mu.Lock()
+	n := 0
+	for k, p := range c.photos {
+		if slices.Contains(p.Files, path) {
+			n = k
+		}
+	}
+	if n > 0 {
+		delete(c.photos, n)
+		if c.deleted == nil {
+			c.deleted = map[int]bool{}
+		}
+		c.deleted[n] = true
+	}
+	c.mu.Unlock()
+	if n > 0 {
+		c.out(photoEventMsg{Type: "photoDeleted", N: n})
+	}
 }
 
 // picture sets photo n's picture, adding it to the timeline (once: a later
@@ -774,7 +807,15 @@ func (c *cameraConn) picture(n int, p photo) bool {
 	c.landed(n)
 	c.mu.Lock()
 	if _, ok := c.photos[n]; ok || c.deleted[n] || n > c.count || n <= c.count-maxPhotos {
+		gone := c.deleted[n]
 		c.mu.Unlock()
+		if gone { // deleted while it was coming: its files go too
+			for _, f := range p.Files {
+				if _, err := os.Stat(f); err == nil {
+					trashPhoto(f)
+				}
+			}
+		}
 		return false
 	}
 	if c.photos == nil {
