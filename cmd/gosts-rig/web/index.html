@@ -2316,7 +2316,7 @@ $("takePhotoBtn").onclick = async () => {
 $("resetPhotosBtn").onclick = async () => {
   const n = state.photos.length;
   if (!await confirmDanger("Start a new capture?",
-    `The next photos go into a new folder, and the ${n} photo${n === 1 ? "" : "s"} on the timeline ${n === 1 ? "leaves" : "leave"} it. ${n === 1 ? "It stays" : "They stay"} saved on this computer and the camera's card (Browse has them).`,
+    `The next photos go into a new folder, and the ${n} photo${n === 1 ? "" : "s"} on the timeline ${n === 1 ? "leaves" : "leave"} it. ${n === 1 ? "It stays" : "They stay"} saved on this computer and the camera's card (Browse has ${n === 1 ? "it" : "them"}).`,
     "New Capture")) return;
   $("shotErr").textContent = "";
   try {
