@@ -429,7 +429,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 /* Buttons joined in one group (as the Rig card's Torque Lock and Go 0). */
 .btn-join { display: inline-flex; }
 .btn-join > .btn { position: relative; }
-.btn-join > .btn:not([hidden]):not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.btn-join > .btn:not([hidden]):has(~ .btn:not([hidden])) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .btn-join > .btn:not([hidden]) + .btn { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
 .btn-join > .btn.primary { z-index: 1; } .btn-join > .btn:hover { z-index: 2; }
 .mve-size { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; }
@@ -467,6 +467,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .crumbs .crumb-btn { max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .crumbs .crumb-home { width: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; align-self: stretch; }
 .crumbs .crumb-home svg { width: 16px; height: 16px; }
+.crumbs { gap: 10px; }
+/* Home's tip: the photos' folder, in a bubble below (as the Mirrored tip). */
+.crumb-home::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  padding: 5px 8px; border-radius: 7px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font: 400 12px/1.3 var(--mono);
+  white-space: nowrap; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; opacity: 0; visibility: hidden; transition: opacity .12s; }
+.crumb-home:hover::after, .crumb-home:focus-visible::after { opacity: 1; visibility: visible; }
 .crumb-sep { color: var(--muted); font-weight: 400; }
 .viewer-bar .crumbs { color: #e6e9ef; }
 .viewer-bar .crumb-meta { color: #9aa3b2; font: 12px var(--mono); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -859,7 +865,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 </div>
 
 <div class="gallery" id="gallery" hidden>
-  <div class="gallery-bar"><nav class="crumbs"><button class="btn small crumb-home" id="galleryUp" title="All captures (Backspace)" aria-label="All captures"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg></button><span class="crumb-sep" id="crumbSep" hidden>/</span><button class="btn small crumb-btn" id="galleryTitle" hidden></button></nav><button class="icon-btn pen-btn" id="galleryRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button><span class="spacer"></span>
+  <div class="gallery-bar"><nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="galleryUp" data-tip="~/Pictures/gosts-rig" aria-label="All captures (Backspace)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg></button><button class="btn small crumb-btn" id="galleryTitle" hidden></button></span></nav><button class="icon-btn pen-btn" id="galleryRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button><span class="spacer"></span>
     <button class="btn small" id="buildModelBtn" title="Build a 3D model from these photos, with Apple's Object Capture" hidden>Build Model</button><span class="spacer"></span>
     <span class="views seg" id="galleryViewSeg"><button data-v="grid">Thumbnails</button><button data-v="list">List</button></span>
     <button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
@@ -915,7 +921,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 </div>
 <div class="viewer" id="viewer" hidden>
   <div class="viewer-bar">
-    <nav class="crumbs"><button class="btn small crumb-btn" id="viewerBack" title="Back to the photos (Esc)">‹ Current Batch</button><span class="crumb-sep" id="viewerSep">/</span><span class="crumb cur" id="viewerFile"></span><span class="crumb-meta" id="viewerCap"></span></nav><span class="hint" id="viewerHint"></span>
+    <nav class="crumbs"><button class="btn small crumb-btn" id="viewerBack" title="Back to the photos (Esc)">‹ Current Batch</button><span class="crumb cur" id="viewerFile"></span><span class="crumb-meta" id="viewerCap"></span></nav><span class="hint" id="viewerHint"></span>
     <span class="spacer"></span>
     <button class="btn small" id="viewerNewer" title="Newer photo (←)">‹ Newer</button>
     <button class="btn small" id="viewerOlder" title="Older photo (→)">Older ›</button>
@@ -932,7 +938,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 </div>
 <div class="viewer" id="modelViewer" hidden>
   <div class="viewer-bar">
-    <nav class="crumbs"><button class="btn small crumb-btn" id="mvBack" title="Back to the capture (Esc)">‹ Capture</button><span class="crumb-sep">/</span><span class="crumb cur" id="mvFile"></span><span class="crumb-meta" id="mvCap"></span></nav>
+    <nav class="crumbs"><button class="btn small crumb-btn" id="mvBack" title="Back to the capture (Esc)">‹ Capture</button><span class="crumb cur" id="mvFile"></span><span class="crumb-meta" id="mvCap"></span></nav>
     <span class="spacer"></span>
     <span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, gray">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span>
     <span class="btn-join" id="mvTools"><button class="btn small" id="mvEditBtn" title="Level it, turn it onto an axis, scale it to a known size; save it as a new model (OBJ, and STL)">Edit</button><button class="btn small" id="mvMeasureBtn" title="Click two points on the model: the distance between them (Measure again: cleared)">Measure</button></span>
@@ -1082,7 +1088,7 @@ function onMessage(m) {
     case "batch": // the capture's name (its folder), and whether it's empty
       $("batchName").textContent = m.name || ""; $("batchRename").hidden = !m.name;
       state.batchEmpty = !!m.empty;
-      if (m.dir) { state.photoDir = m.dir; for (const e of document.querySelectorAll(".photo-dir")) e.textContent = m.dir; $("galleryUp").title = `${m.dir}: all captures (Backspace)`; $("batchName").title = `The capture the photos and sample shots go to: its folder in ${m.dir}`; }
+      if (m.dir) { state.photoDir = m.dir; for (const e of document.querySelectorAll(".photo-dir")) e.textContent = m.dir; $("galleryUp").dataset.tip = m.dir; $("batchName").title = `The capture the photos and sample shots go to: its folder in ${m.dir}`; }
       cameraButtons();
       break;
     case "simShoot": simShoot(m.n, m.exposure, m.settings, m.blur); break;
@@ -1800,7 +1806,7 @@ async function renderGallery() {
   const g = $("galleryGrid"), where = state.gal.where, seq = ++state.gal.seq;
   g.classList.toggle("list", state.gal.view === "list");
   for (const b of $("galleryViewSeg").children) b.classList.toggle("active", b.dataset.v === state.gal.view);
-  $("crumbSep").hidden = $("galleryTitle").hidden = where === null;
+  $("galleryTitle").hidden = where === null;
   $("galleryRename").hidden = where === null || !galleryFolder();
   $("buildModelBtn").hidden = where === null || !galleryFolder();
   if (where === null) $("modelPanel").hidden = true;
@@ -2141,7 +2147,6 @@ function viewerButtons() {
   const gallery = !$("gallery").hidden, d = state.disk;
   $("viewerBack").hidden = !gallery;
   $("viewerBack").textContent = "‹ " + (d ? d.name : galleryFolder() || "Current Batch");
-  $("viewerSep").hidden = !gallery; // (opened from the page: no way back but ✕)
   $("viewerNewer").hidden = $("viewerOlder").hidden = false; // (a sample's view hides them)
   $("viewerNewer").textContent = d ? "‹ Previous" : "‹ Newer";
   $("viewerOlder").textContent = d ? "Next ›" : "Older ›";
@@ -3222,7 +3227,6 @@ $("sampleBox").onclick = () => {
   viewerSrc($("sampleImg").getAttribute("src"));
   $("viewerFile").textContent = "Sample";
   $("viewerCap").textContent = $("sampleCaption").textContent;
-  $("viewerSep").hidden = true;
   $("viewerHint").textContent = "  ·  drag or wheel to look around, Esc to close";
   for (const id of ["viewerBack", "viewerNewer", "viewerOlder"]) $(id).hidden = true;
   state.viewing = null;
