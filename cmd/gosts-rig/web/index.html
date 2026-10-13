@@ -394,6 +394,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .gallery-grid .thumb.model { cursor: pointer; }
 .mv-edit { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; overflow-y: auto; cursor: default; background: rgba(18,21,28,.94); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px; color: var(--text); font-size: 13px; }
+.mv-edit .mve-close { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 7px; font-size: 12px; }
+.mv-edit .mve-axes { padding-right: 30px; } /* (clear of ✕) */
 .mv-edit section { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
 .mve-head { color: var(--muted); font-size: 12px; line-height: 1.4; }
 .mve-head b { display: block; color: var(--text); font-size: 13px; font-weight: 600; margin-bottom: 2px; }
@@ -989,6 +991,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <div class="mv-hint">Drag to move · Scroll drag to turn · Scroll to zoom · F to maximize · Esc to exit</div>
     <div class="mv-msg" id="mvMsg" hidden></div>
     <aside class="mv-edit" id="mvEdit" hidden>
+      <button class="icon-btn mve-close" id="mveClose" title="Cancel the edits (back as it was) and close" aria-label="Cancel the edits and close">✕</button>
       <div class="mve-axes">Axes as in Blender and Fusion: <b class="x">X</b> <b class="y">Y</b> <b class="z">Z</b> (up)</div>
       <section data-step="level">
         <div class="mve-head"><b>1 · Level</b></div>
@@ -1814,13 +1817,25 @@ async function mveBack() {
 }
 $("mveUndo").onclick = async () => { await mveBack(); mveTrimReset(); mveShow(); };
 // Reset Edits: the trims put back, the model moved back to where it came.
-$("mveResetEdit").onclick = async () => {
+async function mveResetAll() {
   mveOriginCommit(); // (then undone with the rest)
   let first = null;
   while (mve.undo.length) { const u = mve.undo.pop(); if (typeof u === "function") u(); else first = u; }
   mveShow();
   if (first) await window.modelView.setMatrix(first, true);
   mveTrimReset();
+  mveShow();
+}
+$("mveResetEdit").onclick = mveResetAll;
+// ✕: the edits undone (asked first, if there are any), the points picked
+// dropped, the panel closed.
+$("mveClose").onclick = async () => {
+  const edits = mve.undo.length || mve.originFrom;
+  if (edits && !await confirmDanger("Cancel the edits?", "The model goes back to as it was when you opened Edit (nothing saved is changed).", "Cancel Edits")) return;
+  if (edits) await mveResetAll();
+  mve.picks = { level: [], align: [], scale: [], center: [] };
+  window.modelView.clip(null);
+  mveOpen(false);
   mveShow();
 };
 // The view presets (top left), in Blender's and Fusion's axes (see VIEWS in modelview.js).
