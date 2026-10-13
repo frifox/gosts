@@ -111,7 +111,21 @@ type Motion struct {
 	// The servos go as fast as that takes (see servoTop); Speed is then only
 	// for moves by hand (the dials, Go 0°).
 	SecPerPhoto float64 `toml:"SecPerPhoto"`
+	// SpeedBy is how a capture's speed is set: SpeedByPhoto, the seconds a
+	// photo (SecPerPhoto); SpeedByRate, the servos' speed (Speed, °/s as
+	// the page shows it), as before.
+	SpeedBy string `toml:"SpeedBy"`
 }
+
+// The ways a capture's speed is set (Motion.SpeedBy).
+const (
+	SpeedByPhoto = "photo"
+	SpeedByRate  = "rate"
+)
+
+// byRate is whether a capture's speed is the servos' (Speed), not the
+// seconds a photo.
+func (m Motion) byRate() bool { return m.SpeedBy == SpeedByRate }
 
 // servoTop is the fastest the servos are asked to go (step/s), whatever a
 // capture's SecPerPhoto would need.
@@ -160,7 +174,7 @@ func defaultConfig() Config {
 	return Config{
 		ListenAddr: ":8081",
 		Roles:      Roles{ElevationLeader: 1, ElevationFollower: 2, Azimuth: 3, LeaderMirrored: true},
-		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80, SecPerPhoto: 2},
+		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80, SecPerPhoto: 2, SpeedBy: SpeedByPhoto},
 		Plan:       Plan{Photos: 150, SettleMS: 800, Path: PathRings},
 		Cooldown:   Cooldown{Shots: 50, Minutes: 2},
 		Rig:        rigBuilt(),

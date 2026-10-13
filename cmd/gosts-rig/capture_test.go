@@ -694,3 +694,33 @@ func TestPhotoNumbersSkipSamples(t *testing.T) {
 		t.Fatalf("timeline %+v, want photos numbered 1 and 2 (the server's 2 and 3)", tl)
 	}
 }
+
+// TestSpeedBy: by the seconds a photo, the estimate follows them, not the
+// servos' speed; by the servos' speed, the other way round.
+func TestSpeedBy(t *testing.T) {
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &capture{rig: &rig{cfg: cfg, out: func(any) {}}, camera: &cameraConn{out: func(any) {}}, out: func(any) {}}
+	for _, moving := range []bool{false, true} {
+		p := Plan{Photos: 20, SettleMS: 300, Moving: moving}
+		ss, _, _, _ := planShots(p, cfg.get().Motion)
+		est := func(by string, sec float64, speed int) float64 {
+			cfg.update(func(cf *Config) { cf.Motion.SpeedBy, cf.Motion.SecPerPhoto, cf.Motion.Speed = by, sec, speed })
+			return c.estimate(p, ss)
+		}
+		if a, b := est(SpeedByPhoto, 4, 600), est(SpeedByPhoto, 8, 600); b-a < 19*3.5 {
+			t.Errorf("moving %v, by the photo: 8 s a photo, not 4, adds %.0f s", moving, b-a)
+		}
+		if a, b := est(SpeedByPhoto, 4, 600), est(SpeedByPhoto, 4, 200); math.Abs(b-a) > 15 { // (only the moves there and back)
+			t.Errorf("moving %v, by the photo: the servos' speed changes it %.0f s", moving, b-a)
+		}
+		if a, b := est(SpeedByRate, 4, 600), est(SpeedByRate, 8, 600); a != b {
+			t.Errorf("moving %v, by the servos' speed: the seconds a photo change it", moving)
+		}
+		if a, b := est(SpeedByRate, 4, 600), est(SpeedByRate, 4, 100); b <= a {
+			t.Errorf("moving %v, by the servos' speed: slower servos, no longer (%.0f, %.0f)", moving, a, b)
+		}
+	}
+}

@@ -118,6 +118,9 @@ func (a *app) exec(req request) (any, error) {
 		if m.Speed < 50 || m.Speed > 3400 {
 			return nil, errors.New("speed must be 5–298°/s")
 		}
+		if m.SpeedBy != SpeedByPhoto && m.SpeedBy != SpeedByRate {
+			m.SpeedBy = SpeedByPhoto // (a page from before: the seconds a photo)
+		}
 		if m.SecPerPhoto < 0.3 || m.SecPerPhoto > 120 {
 			return nil, errors.New("seconds a photo must be 0.3–120")
 		}

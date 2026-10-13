@@ -49,10 +49,11 @@ gosts-rig --photos ~/Pictures/gosts-rig-sim # the captures saved elsewhere (or P
   number of photos works; on long spirals the rig pauses for a moment now and then to reset the platform servo's turn
   count. **Stop & Shoot** stops at each shot and waits the settle time before the photo, and after it keeps still
   while the shutter's open (the camera's shutter speed, read as the capture starts, and 0.1 s to spare from 1/15 s on).
-- **Speed (s/pic)** (Rig card; being tried out in place of a speed in °/s): how long a capture takes a photo.
-  Continuous: from one photo to the next (at least the camera's pace); Stop & Shoot: each move, settle and photo
-  together. The servos go as fast as that takes. A change during a Continuous capture takes at once (a new path).
-  Moves by hand (the dials, Go 0°) keep the saved °/s speed.
+- **Speed** (Rig card), set one of two ways; the ⇄ beside it swaps (each keeps its value):
+  **s/pic**, how long a capture takes a photo (Continuous: from one photo to the next, at least the camera's pace;
+  Stop & Shoot: each move, settle and photo together; the servos go as fast as that takes), or **°/s**, the servos'
+  speed. A change during a Continuous capture takes at once (a new path). Moves by hand (the dials, Go 0°) go at
+  the °/s speed either way.
 - **Measure** (under the choices) times a few quick sample shots to find how often your camera keeps up (an A6600
   shooting RAW + JPEG: about one every 1.2 s). Continuous spaces the photos at least that far apart, never fires
   while the camera is still busy with the last one, and slows down (holding still at 4 photos waiting) if the
