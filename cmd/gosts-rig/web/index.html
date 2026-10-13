@@ -1677,7 +1677,7 @@ function mveShow() {
   if (st) {
     const [x, y, z] = [st.size[0], st.size[2], st.size[1]].map(mveNum);
     const tris = Math.round(st.triangles).toLocaleString();
-    $("mveSize").innerHTML = `<span><b class="x">X</b> ${x}  <b class="y">Y</b> ${y}  <b class="z">Z</b> ${z} Box</span><span>${tris} triangles</span>`;
+    $("mveSize").innerHTML = `<span><b class="x">X</b> ${x}  <b class="y">Y</b> ${y}  <b class="z">Z</b> ${z}</span><span>${tris} triangles</span>`;
   }
   mvMarks();
   try { localStorage.setItem("modelEditUnits", JSON.stringify([u, segOf("mveFileUnit")])); } catch {}
