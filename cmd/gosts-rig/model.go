@@ -144,6 +144,7 @@ func (o modelOptions) args() []string {
 type modelState struct {
 	Type      string            `json:"type"`   // "model"
 	Folder    string            `json:"folder"` // the capture's name
+	Out       string            `json:"out"`    // the model's folder, in the capture's
 	Running   bool              `json:"running"`
 	Fraction  float64           `json:"fraction"`  // the model's progress, 0–1
 	Stage     string            `json:"stage"`     // what it's doing (preProcessing, imageAlignment, …)
@@ -295,7 +296,7 @@ func (b *modelBuilder) start(a *app, name string, o modelOptions) error {
 	}
 	b.mu.Lock()
 	b.cmd = cmd
-	b.state = modelState{Folder: name, Running: true, Photos: map[string]string{}, Reasons: map[string]string{}, Started: time.Now().UnixMilli()}
+	b.state = modelState{Folder: name, Out: o.Out, Running: true, Photos: map[string]string{}, Reasons: map[string]string{}, Started: time.Now().UnixMilli()}
 	b.mu.Unlock()
 	log.Printf("model: building %s (%s)", name, strings.Join(o.args(), " "))
 	b.send()

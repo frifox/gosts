@@ -93,10 +93,19 @@ time, from the source tree). The panel has all of Object Capture's options: OBJ 
 look, to Raw, or Custom: the most polygons, texture size, maps and format); the photos' order (Sequential for the rig's
 rings); feature sensitivity; triangles or quads; masking out the background; building all that's seen; checkpoints;
 the rig's gravity (the capture's `gravity.json`: pick Apple Object Capture, or All, in Capture alignment data for); a
-bounding box and a point cloud too. **Process** saves them and builds: a bar with its stage and the time left, and a
+bounding box (`bounds.json`) and a point cloud (`pointcloud.ply`, both in `model-build`) too; the output folder (`model`,
+in the capture's). **Start Process** saves them and builds: a bar with its stage and the time left, and a
 mark on each photo: ✓ used, ✕ rejected (why, on hover), ↷ skipped, ? not placed in the model (none till it's known). The model goes to the output folder (Object Capture writes only
 into an empty one: a model built there before goes to the Trash; a folder with other files in it is refused), the rest to `model-build` (the options, checkpoints, each photo's pose, how each
 fared: the marks are there when the capture's opened again). One build at a time; **Cancel build** stops it.
+
+A capture's models (its folders with an OBJ or a USDZ in them: Build Model's, or put there by hand) come first in its
+gallery, a tile each with a picture of the model (rendered in the page the first time, with three.js, and kept in the
+cache folder). A click shows it over the page in 3D: drag to turn it, right-drag (or ⇧ drag) to move it, the wheel to
+zoom (at the pointer), F for the whole model again; Textured, Clay (its shape, grey) or Wireframe (its triangles); its
+triangles and size (cm) in the bar. **Open in App** opens it in the Mac's app for it, to edit it (Preview, unless
+another's set: Blender, say, in the Finder's Get Info); **Show in Finder** shows its folder. A USDZ isn't shown in the
+page (three.js can't read Apple's), only opened. Its tile's bin moves the model's folder to the Trash.
 
 ## Camera settings
 

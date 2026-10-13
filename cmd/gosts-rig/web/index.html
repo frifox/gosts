@@ -374,6 +374,23 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .vnav .zoomrow { display: flex; align-items: center; gap: 8px; }
 .vnav .zoomrow span { min-width: 40px; text-align: right; }
 .vnav .zoomrow input { flex: 1; }
+/* A model: in 3D, over the page as a photo is; its tile in the gallery. */
+.viewer .model-stage { cursor: grab; background: radial-gradient(ellipse at 50% 40%, #1e232c, #0b0d11 75%); border-radius: 10px; }
+.viewer .model-stage:active { cursor: grabbing; }
+.model-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+.mv-msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: min(520px, 90%); text-align: center; color: #c9d0dc; font-size: 13px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.mv-msg.busy::before { content: ""; width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.mv-msg.bad { color: var(--bad); }
+.mv-hint { position: absolute; left: 12px; bottom: 10px; color: #8a93a3; font-size: 12px; pointer-events: none; }
+#modelViewer .viewer-bar .btn, #modelViewer .viewer-bar .views { white-space: nowrap; flex: none; }
+#modelViewer .viewer-bar .cap { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gallery-grid .thumb.model { cursor: pointer; }
+.thumb.model .mbadge { position: absolute; top: 7px; left: 7px; padding: 2px 6px; border-radius: 6px; background: var(--accent); color: #fff; font: 600 11px var(--mono); letter-spacing: .03em; }
+.thumb.model .mph { aspect-ratio: 3 / 2; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; }
+.thumb.model .mph.busy::before { content: ""; width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255,255,255,.15); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.gallery-grid.list .thumb.model .mbadge { position: static; flex: none; }
+.gallery-grid.list .thumb.model .mph { width: 72px; flex: none; font-size: 0; }
 .viewer-bar, .gallery-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; }
 .viewer-bar .cap { color: #e6e9ef; font: 12px var(--mono); }
 .viewer-bar .hint { color: #9aa3b2; }
@@ -838,6 +855,21 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     </div>
   </div>
 </div>
+<div class="viewer" id="modelViewer" hidden>
+  <div class="viewer-bar">
+    <button class="btn small" id="mvBack" title="Back to the capture (Esc)">‹ Capture</button>
+    <span class="cap" id="mvCap"></span>
+    <span class="spacer"></span>
+    <span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, grey">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span>
+    <button class="btn small" id="mvReset" title="The whole model, from the front (F)">Reset View</button>
+    <button class="btn small" id="mvOpen" title="Open it in the Mac's app for it (Preview, unless another is set: Blender, say, in the Finder's Get Info) to edit it">Open in App</button>
+    <button class="btn small" id="mvReveal" title="Its folder, in the Finder">Show in Finder</button>
+    <button class="icon-btn" id="mvClose" title="Close (Esc)" aria-label="Close">✕</button>
+  </div>
+  <div class="stage model-stage" id="mvStage"><canvas id="mvCanvas"></canvas>
+    <div class="mv-hint">Drag to turn · right-drag (or ⇧ drag) to move · wheel to zoom · F: the whole model · Esc: the capture</div>
+    <div class="mv-msg" id="mvMsg" hidden></div></div>
+</div>
 <div class="modal-backdrop" id="renameModal" style="z-index:60" hidden>
   <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="renameTitle" style="width:min(420px,100%)">
     <h2 id="renameTitle">Rename Capture</h2>
@@ -871,6 +903,9 @@ import { createRig } from "./rig3d.js";
 import * as graycard from "./graycard.js";
 window.graycard = graycard;
 window.rig3d = createRig(document.getElementById("rig"));
+import { createModelView, modelThumb } from "./modelview.js";
+window.modelView = createModelView(document.getElementById("mvCanvas"));
+window.modelThumb = modelThumb;
 draw();
 </script>
 <script>
@@ -1258,6 +1293,121 @@ function diskThumb(name, p, i) {
   };
   return b;
 }
+// ---------------------------------------------------------------- models
+// A capture's models (its folders with an OBJ or a USDZ in them: Build
+// Model's, or put there by hand) come first in its gallery, a tile each: a
+// picture of it (made here with three.js the first time, kept by the
+// server), its name, 3D and the format. A click shows it in 3D.
+const modelBase = (name, m) => `/batches/${encodeURIComponent(name)}/models/${encodeURIComponent(m.name)}/`;
+const fmtMB = (n) => `${(n / 1e6).toFixed(n < 1e7 ? 1 : 0)} MB`;
+function modelTile(name, m) {
+  const b = document.createElement("div"), base = modelBase(name, m), fmt = m.format.toUpperCase();
+  b.className = "thumb model";
+  b.dataset.model = m.name;
+  b.tabIndex = 0;
+  b.setAttribute("role", "button");
+  b.title = `${m.name}: the model (${fmt}), in 3D`;
+  b.innerHTML = `<img alt="" decoding="async"><span class="mbadge">3D · ${fmt}</span><span class="num">${escHTML(m.name)}</span>` +
+    `<span class="meta">${fmtMB(m.size)} · ${new Date(m.at).toLocaleString()}</span>` +
+    `<button class="del" title="Delete ${escHTML(m.name)} (the model's folder, to the Trash; asks first)" aria-label="Delete ${escHTML(m.name)}">${trashIcon}</button>`;
+  const img = b.querySelector("img");
+  // Its picture: the server's, else made here (an OBJ) and given to it.
+  const placeholder = (text, busy) => {
+    const ph = document.createElement("div");
+    ph.className = "mph" + (busy ? " busy" : "");
+    ph.textContent = text;
+    b.querySelector("img, .mph").replaceWith(ph);
+    return ph;
+  };
+  img.onerror = async () => {
+    if (m.format !== "obj") return placeholder(`${fmt}: open it to see it`);
+    const ph = placeholder("", true);
+    try {
+      const bg = getComputedStyle(document.body).getPropertyValue("--panel-2").trim() || "#1a1e25";
+      const jpg = await window.modelThumb(base, m.file, 480, 320, bg);
+      fetch(base + "thumb", { method: "PUT", headers: { "Content-Type": "image/jpeg" }, body: jpg }).catch(() => {});
+      const im = document.createElement("img");
+      im.alt = "";
+      im.src = URL.createObjectURL(jpg);
+      ph.replaceWith(im);
+    } catch (e) {
+      placeholder("No picture: " + e.message);
+    }
+  };
+  img.src = `${base}thumb?at=${m.at}`;
+  b.onclick = (e) => { if (!e.target.closest(".del")) openModel(name, m); };
+  b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) openModel(name, m); };
+  b.querySelector(".del").onclick = async () => {
+    if (!await confirmDanger(`Delete ${m.name}?`, `The model's folder (${m.files.length} file${m.files.length === 1 ? "" : "s"}, ${fmtMB(m.size)}) goes to the Trash, where you can still get it back in the Finder.`, "Delete")) return;
+    try {
+      await postBatch(base + "delete");
+      log(`${name}: ${m.name} moved to the Trash`);
+    } catch (e) { log(`deleting ${m.name}: ${e.message}`, "error"); }
+    galleryAgain();
+  };
+  return b;
+}
+// modelTiles puts folder name's models first in the gallery (g), if it's
+// still showing it (seq).
+async function modelTiles(g, name, seq) {
+  let ms = [];
+  try { ms = await getJSON(`/batches/${encodeURIComponent(name)}/models`); } catch {}
+  if (seq !== state.gal.seq) return;
+  for (const t of g.querySelectorAll(":scope > .thumb.model")) t.remove();
+  if (ms.length) g.querySelector(":scope > .hint")?.remove();
+  for (const m of ms.reverse()) g.prepend(modelTile(name, m));
+}
+// The model viewer: the model in 3D (an OBJ); Esc back to the capture.
+state.mv = null; // { name, m } shown
+function openModel(name, m) {
+  state.mv = { name, m };
+  const fmt = m.format.toUpperCase();
+  $("mvBack").textContent = `‹ ${name}`;
+  $("mvCap").textContent = `${name} · ${m.name} · ${fmt}`;
+  $("modelViewer").hidden = false;
+  const msg = (text, cls = "") => { $("mvMsg").hidden = !text; $("mvMsg").className = "mv-msg " + cls; $("mvMsg").textContent = text; };
+  $("mvLook").hidden = $("mvReset").hidden = m.format !== "obj";
+  if (m.format !== "obj") {
+    window.modelView.clear();
+    msg(`A ${fmt} isn't shown here (only an OBJ is): Open in App shows it (Preview, say).`);
+    return;
+  }
+  msg("Loading the mesh", "busy");
+  window.modelView.look(state.mvLook);
+  window.modelView.show(modelBase(name, m), m.file, (t) => { if (state.mv?.m === m) msg(t, "busy"); }).then((st) => {
+    if (!st || state.mv?.m !== m) return;
+    msg("");
+    const cm = st.size.map((v) => (v * 100).toFixed(1)).join(" × ");
+    $("mvCap").textContent = `${name} · ${m.name} · ${fmt} · ${Math.round(st.triangles).toLocaleString()} triangles · ${cm} cm · ${fmtMB(m.size)}`;
+  }, (e) => { if (state.mv?.m === m) msg(`Couldn't show it: ${e.message}`, "bad"); });
+}
+function closeModel() {
+  $("modelViewer").hidden = true;
+  state.mv = null;
+  window.modelView.clear();
+}
+state.mvLook = "textured";
+try { state.mvLook = localStorage.getItem("modelLook") || "textured"; } catch {}
+function mvLook(v) {
+  state.mvLook = v;
+  for (const b of $("mvLook").children) b.classList.toggle("active", b.dataset.v === v);
+  window.modelView?.look(v);
+  try { localStorage.setItem("modelLook", v); } catch {}
+}
+$("mvLook").onclick = (e) => { const v = e.target.dataset?.v; if (v) mvLook(v); };
+mvLook(state.mvLook); // (the viewer itself: as it opens, a module's)
+$("mvReset").onclick = () => window.modelView.reset();
+$("mvBack").onclick = closeModel;
+$("mvClose").onclick = () => { closeModel(); closeGallery(); };
+async function mvOpen(reveal) {
+  const v = state.mv;
+  if (!v) return;
+  try { await postBatch(modelBase(v.name, v.m) + "open", { reveal }); }
+  catch (e) { log(`opening ${v.m.name}: ${e.message}`, "error"); }
+}
+$("mvOpen").onclick = () => mvOpen(false);
+$("mvReveal").onclick = () => mvOpen(true);
+
 async function renderGallery() {
   const g = $("galleryGrid"), where = state.gal.where, seq = ++state.gal.seq;
   g.classList.toggle("list", state.gal.view === "list");
@@ -1273,6 +1423,7 @@ async function renderGallery() {
     if (!g.children.length) g.innerHTML = '<span class="hint">No photos yet.</span>';
     galleryTitle();
     modelMarks();
+    if (galleryFolder()) modelTiles(g, galleryFolder(), seq);
     return;
   }
   $("galleryTitle").textContent = where ?? "Captures";
@@ -1297,6 +1448,7 @@ async function renderGallery() {
       ps.forEach((p, i) => g.appendChild(diskThumb(where, p, i)));
       $("galleryTitle").textContent = `${where} (${ps.length})`;
       if (!ps.length) g.innerHTML = '<span class="hint">No photos in this folder.</span>';
+      await modelTiles(g, where, seq);
     }
   } catch (e) {
     if (seq === state.gal.seq) g.innerHTML = `<span class="hint">Couldn't read it: ${escHTML(e.message)}</span>`;
@@ -1467,7 +1619,9 @@ $("mProcess").onclick = async () => {
 };
 $("mCancel").onclick = () => send("modelCancel", {}).catch((e) => ($("mErr").textContent = e.message));
 function onModel(m) {
+  const was = state.model;
   state.model = m;
+  if (was?.running && !m.running && m.outcome === "done" && !$("gallery").hidden && galleryFolder() === m.folder) galleryAgain(); // (its model's tile)
   if (!m.running && m.folder && state.modelInfo?.folder === m.folder) state.modelInfo.last = m; // (ended: the folder's last build now)
   modelShow();
 }
@@ -1704,7 +1858,12 @@ $("vnavMap").addEventListener("pointerdown", (e) => {
 // ✕ on the photo closes All Photos too.
 $("viewerClose").onclick = () => { closePhoto(); closeGallery(); };
 document.addEventListener("keydown", (e) => {
-  if (!$("viewer").hidden) {
+  if (!$("modelViewer").hidden) {
+    if (e.target.closest?.("input, textarea, select")) return;
+    if (e.key === "Escape") closeModel();
+    else if (e.key === "f" || e.key === "F") window.modelView.reset();
+    else return;
+  } else if (!$("viewer").hidden) {
     if (e.key === "Escape") closePhoto(); // back to All Photos, if open
     else if (e.key === "ArrowLeft") stepPhoto(1);
     else if (e.key === "ArrowRight") stepPhoto(-1);
