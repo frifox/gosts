@@ -846,3 +846,59 @@ func TestShutterHold(t *testing.T) {
 		t.Errorf("%d photos taken, want 4", n)
 	}
 }
+
+// TestSpiralSpeedChange: a speed changed during a moving capture takes
+// (the rig carries on along a new path at it), and the capture finishes.
+func TestSpiralSpeedChange(t *testing.T) {
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var logs []string
+	r := &rig{cfg: cfg, out: func(m any) {
+		if l, ok := m.(logMsg); ok {
+			mu.Lock()
+			logs = append(logs, l.Message)
+			mu.Unlock()
+		}
+	}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	camera := &cameraConn{out: func(any) {}}
+	if err := camera.connect(simCameraID); err != nil {
+		t.Fatal(err)
+	}
+	c := &capture{rig: r, camera: camera, out: func(any) {}}
+	if err := c.start(Plan{Photos: 12, Moving: true, Path: PathRings}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(60 * time.Second)
+	for c.msg().Index < 3 {
+		if time.Now().After(deadline) || !c.msg().Running {
+			t.Fatal("capture didn't get going")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	cfg.update(func(cf *Config) { cf.Motion.Speed /= 2 })
+	for c.msg().Running {
+		if time.Now().After(deadline) {
+			t.Fatal("capture didn't finish")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if n := c.msg().Index; n != 12 {
+		t.Errorf("%d photos taken, want 12", n)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	found := false
+	for _, l := range logs {
+		found = found || strings.Contains(l, "the motion changed")
+	}
+	if !found {
+		t.Errorf("no new path at the new speed; log: %q", logs)
+	}
+}

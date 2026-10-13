@@ -662,13 +662,10 @@ func (c *capture) cooldown() {
 // without stopping along the smooth curve through all of them (the one the
 // preview shows), each photo taken as the path passes its shot. After a
 // pause it carries on from where it stopped, along a curve through the
-// shots left.
+// shots left. The speed (and the rest of Motion) is read for each curve:
+// changed on the way, the rig stops and carries on along a new curve at it,
+// as after a pause.
 func (c *capture) spiral(ctx context.Context) error {
-	m := c.rig.cfg.get().Motion
-	// The servos' limits: speed, and acceleration kept to half the
-	// configured one so the speed changes gently.
-	maxRate := float64(m.Speed) / stepsPerDegree
-	accel := float64(m.Acc) * 100 / stepsPerDegree / 2
 	c.mu.Lock()
 	dir := 1 // which way the spiral turns the platform
 	if spiralTurns(c.shots) < 0 {
@@ -691,6 +688,11 @@ func (c *capture) spiral(ctx context.Context) error {
 			}
 			continue
 		}
+		m := c.rig.cfg.get().Motion
+		// The servos' limits: speed, and acceleration kept to half the
+		// configured one so the speed changes gently.
+		maxRate := float64(m.Speed) / stepsPerDegree
+		accel := float64(m.Acc) * 100 / stepsPerDegree / 2
 		// The platform servo's goals reach only so far: the spiral goes
 		// as far as fits (a lap), then the platform unwinds whole turns to
 		// the same angle and the spiral carries on from there.
@@ -763,10 +765,17 @@ func (c *capture) spiral(ctx context.Context) error {
 			return c.photo(ctx, false)
 		}, func() bool {
 			c.mu.Lock()
-			defer c.mu.Unlock()
-			return c.paused
+			paused := c.paused
+			c.mu.Unlock()
+			return paused || c.rig.cfg.get().Motion != m // (changed: a new curve)
 		}, c.pace)
 		if errors.Is(err, errPaused) {
+			c.mu.Lock()
+			paused := c.paused
+			c.mu.Unlock()
+			if now := c.rig.cfg.get().Motion; !paused && now != m {
+				c.rig.logf("info", "capture: the motion changed (speed %.0f°/s): carrying on along a new path", float64(now.Speed)/stepsPerDegree)
+			}
 			continue
 		}
 		if err == nil { // a lap done: on to the next (after unwinding), if there are shots left
