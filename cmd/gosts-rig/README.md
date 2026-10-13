@@ -28,6 +28,9 @@ gosts-rig --listen :9000                    # another port
 gosts-rig --photos ~/Pictures/elsewhere     # where captures are saved
 ```
 
+Prefer a regular Mac app? [GoSTS Rig for macOS](../gosts-rig-macos) wraps it in one: double-click, and it checks
+what's missing and opens the rig's page in its own window.
+
 ## First time
 
 1. Set up the servos with [gosts-ctl](../gosts-ctl): IDs, tuning, and zero (elevation 0° = camera level with the

@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -31,6 +32,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/frifox/gosts/cmd/gosts-ctl/console"
@@ -46,6 +48,7 @@ func main() {
 	cfgPath := flag.String("config", defaultConfigPath(), "settings file, created if missing")
 	photos := flag.String("photos", "", "folder the captures are saved in (default: PhotoDir in the config file, else ~/Pictures/gosts-rig)")
 	ctlPath := flag.String("ctl-config", ctlConfigPath(), "the servo console's settings file (Servo Ctl: gosts-ctl's, shared with it), created on the first change")
+	withStdin := flag.Bool("exit-with-stdin", false, "quit (cleanly) when stdin closes: for an app that starts gosts-rig, so it goes when the app does, even if the app crashes")
 	flag.Parse()
 
 	cfg, err := loadConfig(*cfgPath)
@@ -71,8 +74,15 @@ func main() {
 	}
 	log.Printf("photos: %s", photoDir)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if *withStdin {
+		go func() {
+			io.Copy(io.Discard, os.Stdin)
+			log.Print("stdin closed: quitting")
+			stop()
+		}()
+	}
 
 	a := &app{cfg: cfg, clients: map[*client]struct{}{}}
 	a.rig = &rig{cfg: cfg, out: a.broadcast}
