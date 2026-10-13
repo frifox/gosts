@@ -177,6 +177,19 @@ export function createModelView(canvas) {
   controls.dampingFactor = 0.12;
   controls.screenSpacePanning = true;
   controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN; // (the wheel pressed and dragged moves, as the right button; turned, it zooms)
+  // ⇧ with the wheel zooms: pressed and dragged (up and down), or turned —
+  // macOS makes a ⇧ scroll a sideways one, which the controls don't zoom by,
+  // so that's sent on as an up-and-down one. (Seen before the controls: on
+  // the canvas, as it's captured.)
+  canvas.addEventListener("pointerdown", (e) => {
+    controls.mouseButtons.MIDDLE = e.button === 1 && e.shiftKey ? THREE.MOUSE.DOLLY : THREE.MOUSE.PAN;
+  }, { capture: true });
+  canvas.addEventListener("wheel", (e) => {
+    if (!e.shiftKey || e.deltaY || !e.deltaX) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: e.deltaX, deltaMode: e.deltaMode, clientX: e.clientX, clientY: e.clientY, bubbles: true, cancelable: true }));
+  }, { capture: true, passive: false });
   controls.zoomToCursor = true;
   // holder: the edit (its matrix); in it the model as loaded (in meters).
   let viewName = "3d", holder = null, obj = null, grid = null, axes = null, mode = "textured", running = false, seq = 0, editOn = false, onPick = null, radius = 1;
