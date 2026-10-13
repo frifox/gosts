@@ -397,6 +397,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 #mveAxesGo [data-axis] { font-weight: 600; }
 #mveAxesGo [data-axis].on { background: color-mix(in srgb, currentColor 22%, var(--panel-2)); border-color: currentColor; z-index: 1; } /* (lit: centered on it) */
 #mveAxesGo [data-axis=x] { color: #e5484d; } #mveAxesGo [data-axis=y] { color: #46a758; } #mveAxesGo [data-axis=z] { color: #3e7bfa; }
+#mveAxis button { font-weight: 600; }
+#mveAxis [data-v=x] { color: #e5484d; } #mveAxis [data-v=y] { color: #46a758; }
+#mveAxis button.active { background: color-mix(in srgb, currentColor 22%, var(--panel-2)); box-shadow: inset 0 0 0 1px currentColor; } /* (picked: its own color) */
 .mv-edit .mve-close { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 7px; font-size: 12px; }
 .mv-edit .mve-top { padding-right: 30px; } /* (clear of ✕) */
 .mv-edit section { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
