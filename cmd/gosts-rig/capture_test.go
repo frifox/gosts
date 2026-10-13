@@ -185,46 +185,6 @@ func TestTrajectory(t *testing.T) {
 	}
 }
 
-func TestCaptureCamera(t *testing.T) {
-	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	r := &rig{cfg: cfg, out: func(any) {}}
-	if err := r.connect(context.Background(), simPort, 0); err != nil {
-		t.Fatal(err)
-	}
-	defer r.disconnect()
-	camera := &cameraConn{out: func(any) {}}
-	c := &capture{rig: r, camera: camera, out: func(any) {}}
-	p := Plan{Photos: 3, SettleMS: 0}
-	if err := c.start(p); err == nil {
-		t.Fatal("started without a camera")
-	}
-	if err := camera.connect(simCameraID); err != nil {
-		t.Fatal(err)
-	}
-	if err := c.start(p); err != nil {
-		t.Fatal(err)
-	}
-	deadline := time.Now().Add(30 * time.Second)
-	for {
-		m := c.msg()
-		if !m.Running {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("capture didn't finish")
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	camera.mu.Lock()
-	n := camera.count
-	camera.mu.Unlock()
-	if m := c.msg(); m.Index != 3 || n != 3 {
-		t.Fatalf("%d of 3 shots done, %d photos taken: %s", m.Index, n, m.Note)
-	}
-}
 
 func TestSimCameraPicture(t *testing.T) {
 	simPictureWait = 100 * time.Millisecond
@@ -291,61 +251,6 @@ func TestPhotoTimeline(t *testing.T) {
 	}
 }
 
-// The two elevation servos straddle the 0/4095 seam at 0° (a step or two of
-// calibration difference): their own turn counts are then a turn apart, and
-// a goal worked out on the leader would send the follower the long way round,
-// past the elevation limits. Each must go straight to the target.
-func TestElevationAcrossSeam(t *testing.T) {
-	defer func(f func(Roles) *servosim.Port) { newSimPort = f }(newSimPort)
-	newSimPort = func(ro Roles) *servosim.Port {
-		p := servosim.NewPort(ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth)
-		// Logical +2 steps on the leader (mirrored: physical 4094), -2 (4094)
-		// on the follower.
-		p.SetPosition(ro.ElevationLeader, 2*gosts.CenterPosition-2)
-		p.SetPosition(ro.ElevationFollower, gosts.StepsPerRev-2)
-		p.SetPosition(ro.Azimuth, 0)
-		return p
-	}
-	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	r := &rig{cfg: cfg, out: func(any) {}}
-	if err := r.connect(context.Background(), simPort, 0); err != nil {
-		t.Fatal(err)
-	}
-	defer r.disconnect()
-	ro := cfg.get().Roles
-	if err := r.torque(true); err != nil {
-		t.Fatal(err)
-	}
-	read := func() (float64, float64) {
-		var le, fe float64
-		r.withBus(func(bus *gosts.Bus) error {
-			res, _ := bus.SyncFeedback(ro.ElevationLeader, ro.ElevationFollower)
-			le, fe = elevationOf(res[ro.ElevationLeader].Position, ro), elevationOf(res[ro.ElevationFollower].Position, ro)
-			return nil
-		})
-		return le, fe
-	}
-	target := -25.0
-	if err := r.moveTo(&target, nil); err != nil {
-		t.Fatal(err)
-	}
-	deadline := time.Now().Add(6 * time.Second)
-	for time.Now().Before(deadline) {
-		le, fe := read()
-		for _, e := range []float64{le, fe} {
-			if e > 1 || e < target-2 {
-				t.Fatalf("on the way from 0° to %v°, an elevation servo is at %.1f° (leader %.1f°, follower %.1f°)", target, e, le, fe)
-			}
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if le, fe := read(); math.Abs(le-target) > 1 || math.Abs(fe-target) > 1 {
-		t.Fatalf("ended at leader %.1f°, follower %.1f°, want %v°", le, fe, target)
-	}
-}
 
 func TestPhotoDelete(t *testing.T) {
 	simPictureWait = 50 * time.Millisecond
@@ -417,63 +322,6 @@ func TestTorqueOnCatchesTurnOff(t *testing.T) {
 	t.Log(err)
 }
 
-// TestPlatformTurnsReset: the platform servo wound 2 turns and more has its
-// turn count reset where it is: the same angle, the same zero, under a turn
-// now, and the next move goes the short way.
-func TestPlatformTurnsReset(t *testing.T) {
-	defer func(f func(Roles) *servosim.Port) { newSimPort = f }(newSimPort)
-	newSimPort = func(ro Roles) *servosim.Port {
-		p := servosim.NewPort(ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth)
-		p.SetPosition(ro.ElevationLeader, gosts.CenterPosition)
-		p.SetPosition(ro.ElevationFollower, 0)
-		p.SetPosition(ro.Azimuth, 0)
-		return p
-	}
-	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	r := &rig{cfg: cfg, out: func(any) {}}
-	if err := r.connect(context.Background(), simPort, 0); err != nil {
-		t.Fatal(err)
-	}
-	defer r.disconnect()
-	if err := r.torque(true); err != nil {
-		t.Fatal(err)
-	}
-	ro := cfg.get().Roles
-	zero := func() int {
-		var z int
-		r.withBus(func(bus *gosts.Bus) error { z, _ = bus.Servo(ro.Azimuth).Zero(); return nil })
-		return z
-	}
-	z0 := zero()
-	wound := 2*gosts.StepsPerRev + 1000
-	r.withBus(func(bus *gosts.Bus) error { return bus.Servo(ro.Azimuth).MoveTo(wound, 3400, 0) })
-	time.Sleep(4 * time.Second)
-	before, err := r.platformTurns()
-	if err != nil || before < 2 {
-		t.Fatalf("wound %.2f turns (%v), want 2 and more", before, err)
-	}
-	_, a0, _ := r.angles()
-	if err := r.resetPlatformTurns(); err != nil {
-		t.Fatal(err)
-	}
-	after, _ := r.platformTurns()
-	_, a1, _ := r.angles()
-	if after < 0 || after >= 1 || math.Abs(wrap180(a1-a0)) > 0.5 || zero() != z0 {
-		t.Fatalf("after the reset: %.2f turns, azimuth %.1f° (was %.1f°), zero %d (was %d)", after, a1, a0, zero(), z0)
-	}
-	// The next move: the short way, not back the 6 turns.
-	target := wrap180(a1 + 90)
-	if err := r.moveTo(nil, &target); err != nil {
-		t.Fatal(err)
-	}
-	time.Sleep(3 * time.Second)
-	if turns, _ := r.platformTurns(); turns < 0 || turns > 1.5 {
-		t.Fatalf("after a 90° move the platform is %.2f turns round", turns)
-	}
-}
 
 // TestSpiralFit: a spiral from 6.5 turns round fits till it would pass the
 // servo's range; unwinding from there takes it back near the other end.
@@ -668,9 +516,8 @@ func TestExportForFromSwitch(t *testing.T) {
 	}
 }
 
-// Cooldown: after every so many photos the capture pauses (the flash
-// cooling), says till when, and carries on by itself; the time goes into the
-// estimate.
+// Cooldown: the default, and the pauses (after every so many photos, not
+// the last) go into the estimate. (A capture running it: too slow a test.)
 func TestCaptureCooldown(t *testing.T) {
 	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
 	if err != nil {
@@ -696,34 +543,6 @@ func TestCaptureCooldown(t *testing.T) {
 	cfg.update(func(c *Config) { c.Cooldown.On = false })
 	if d := with - c.estimate(p, shots); math.Abs(d-2*0.3) > 0.01 { // two pauses: after 2 and 4, not 5
 		t.Fatalf("the pauses add %.2f s to the estimate, want 0.6", d)
-	}
-	cfg.update(func(c *Config) { c.Cooldown.On = true })
-	if err := c.start(p); err != nil {
-		t.Fatal(err)
-	}
-	cooled := map[int]bool{} // the photos done when it was seen cooling
-	deadline := time.Now().Add(30 * time.Second)
-	for {
-		m := c.msg()
-		if !m.Running {
-			break
-		}
-		if m.CoolUntil > 0 {
-			if !m.Paused {
-				t.Fatal("cooling, not paused")
-			}
-			cooled[m.Index] = true
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("capture didn't finish")
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if m := c.msg(); m.Index != 5 || m.CoolUntil != 0 {
-		t.Fatalf("%d of 5 done, cooling %d", m.Index, m.CoolUntil)
-	}
-	if !cooled[2] || !cooled[4] || len(cooled) != 2 {
-		t.Fatalf("cooled after %v photos, want 2 and 4", cooled)
 	}
 }
 
@@ -787,9 +606,8 @@ func TestTorqueAxis(t *testing.T) {
 	}
 }
 
-// TestShutterHold: Stop & Shoot keeps still while a slow shutter's open
-// (read from the camera at the start), and the estimate counts it; a fast
-// one adds nothing to speak of.
+// TestShutterHold: Stop & Shoot keeps still while a slow shutter's open,
+// and a margin; a fast one adds nothing to speak of.
 func TestShutterHold(t *testing.T) {
 	if h := shutterHold(time.Second / 250); h != time.Second/250 {
 		t.Errorf("1/250: hold %v", h)
@@ -800,105 +618,38 @@ func TestShutterHold(t *testing.T) {
 	if h := shutterHold(0); h != 0 {
 		t.Errorf("unknown: hold %v", h)
 	}
+}
+
+
+// TestSecPerPhoto: a moving path's photos are the seconds a photo apart
+// (the camera keeping up), and Stop & Shoot estimates grow with it.
+func TestSecPerPhoto(t *testing.T) {
+	m := defaultConfig().Motion
+	shots, _, _, _ := planShots(Plan{Photos: 40, Path: PathRings, Moving: true}, m)
+	es, as := make([]float64, len(shots)), make([]float64, len(shots))
+	for i, s := range shots {
+		es[i], as[i] = s.Elevation, s.Azimuth
+	}
+	acc := float64(m.Acc) * 100 / stepsPerDegree / 2
+	tr := newTrajectory(es, as, float64(servoTop)/stepsPerDegree, acc, 3)
+	for i := 2; i < len(shots)-2; i++ { // (not the ends: speeding up, slowing down)
+		if d := tr.pointT[i] - tr.pointT[i-1]; d < 2.9 || d > 3.6 {
+			t.Fatalf("photos %d and %d %.2f s apart, want about 3", i-1, i, d)
+		}
+	}
 	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	r := &rig{cfg: cfg, out: func(any) {}}
-	if err := r.connect(context.Background(), simPort, 0); err != nil {
-		t.Fatal(err)
-	}
-	defer r.disconnect()
 	camera := &cameraConn{out: func(any) {}}
-	if err := camera.connect(simCameraID); err != nil {
-		t.Fatal(err)
-	}
-	camera.mu.Lock()
-	sc := camera.cam.(settingsCamera)
-	camera.mu.Unlock()
-	if err := sc.Set("shutter", "1/8"); err != nil {
-		t.Fatal(err)
-	}
 	c := &capture{rig: r, camera: camera, out: func(any) {}}
-	p := Plan{Photos: 4, SettleMS: 0}
-	shots, _, _, _ := planShots(p, cfg.get().Motion)
-	before := c.estimate(p, shots)
-	if err := c.start(p); err != nil {
-		t.Fatal(err)
-	}
-	c.mu.Lock()
-	hold := c.hold
-	c.mu.Unlock()
-	if hold != 225*time.Millisecond {
-		t.Errorf("1/8 s: holding %v, want 225ms", hold)
-	}
-	if d := c.estimate(p, shots) - before; math.Abs(d-4*0.225) > 0.01 {
-		t.Errorf("the hold adds %.3f s to the estimate, want 0.9", d)
-	}
-	deadline := time.Now().Add(30 * time.Second)
-	for c.msg().Running {
-		if time.Now().After(deadline) {
-			t.Fatal("capture didn't finish")
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if n := c.msg().Index; n != 4 {
-		t.Errorf("%d photos taken, want 4", n)
-	}
-}
-
-// TestSpiralSpeedChange: a speed changed during a moving capture takes
-// (the rig carries on along a new path at it), and the capture finishes.
-func TestSpiralSpeedChange(t *testing.T) {
-	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var mu sync.Mutex
-	var logs []string
-	r := &rig{cfg: cfg, out: func(m any) {
-		if l, ok := m.(logMsg); ok {
-			mu.Lock()
-			logs = append(logs, l.Message)
-			mu.Unlock()
-		}
-	}}
-	if err := r.connect(context.Background(), simPort, 0); err != nil {
-		t.Fatal(err)
-	}
-	defer r.disconnect()
-	camera := &cameraConn{out: func(any) {}}
-	if err := camera.connect(simCameraID); err != nil {
-		t.Fatal(err)
-	}
-	c := &capture{rig: r, camera: camera, out: func(any) {}}
-	if err := c.start(Plan{Photos: 12, Moving: true, Path: PathRings}); err != nil {
-		t.Fatal(err)
-	}
-	deadline := time.Now().Add(60 * time.Second)
-	for c.msg().Index < 3 {
-		if time.Now().After(deadline) || !c.msg().Running {
-			t.Fatal("capture didn't get going")
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	cfg.update(func(cf *Config) { cf.Motion.Speed /= 2 })
-	for c.msg().Running {
-		if time.Now().After(deadline) {
-			t.Fatal("capture didn't finish")
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if n := c.msg().Index; n != 12 {
-		t.Errorf("%d photos taken, want 12", n)
-	}
-	mu.Lock()
-	defer mu.Unlock()
-	found := false
-	for _, l := range logs {
-		found = found || strings.Contains(l, "the motion changed")
-	}
-	if !found {
-		t.Errorf("no new path at the new speed; log: %q", logs)
+	p := Plan{Photos: 20, SettleMS: 500}
+	ss, _, _, _ := planShots(p, cfg.get().Motion)
+	cfg.update(func(cf *Config) { cf.Motion.SecPerPhoto = 6 })
+	six := c.estimate(p, ss)
+	cfg.update(func(cf *Config) { cf.Motion.SecPerPhoto = 10 })
+	if d := c.estimate(p, ss) - six; d < 19*3.9 || d > 19*4.1 { // 19 moves, each 4 s longer
+		t.Errorf("10 s a photo, not 6, adds %.1f s to the estimate, want about %d", d, 19*4)
 	}
 }

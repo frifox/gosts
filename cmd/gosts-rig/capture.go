@@ -254,6 +254,38 @@ const stillTime = 0.4
 
 // shotGap is how close together (s) moving shots may be: the camera's
 // measured pace and a little (see measurePace), else as it's been going.
+// photoGap is how long (s) a moving capture takes from photo to photo: the
+// seconds a photo set, or the camera's pace if that's longer.
+func (c *capture) photoGap(m Motion) float64 {
+	return math.Max(m.SecPerPhoto, c.shotGap().Seconds())
+}
+
+// moveTime is how long (s) a Stop & Shoot move takes: the seconds a photo
+// set, less the settle time and the photo (the camera's pace, and the
+// shutter hold); at least moveTimeMin.
+func (c *capture) moveTime(m Motion, settleMS int) float64 {
+	shot := c.camera.pace().Seconds()
+	if shot <= 0 {
+		shot = math.Max(1, c.camera.minInterval().Seconds())
+	}
+	c.mu.Lock()
+	hold, running := c.hold, c.running
+	c.mu.Unlock()
+	if !running { // (the estimate, before: the shutter speed last read)
+		hold = shutterHold(c.camera.exposedLast())
+	}
+	return math.Max(moveTimeMin, m.SecPerPhoto-float64(settleMS)/1000-shot-hold.Seconds()-stillTime)
+}
+
+// moveTimeMin: the quickest a Stop & Shoot move is made to take.
+const moveTimeMin = 0.3
+
+// timedSpeed is the speed (step/s) that moves d degrees in sec seconds,
+// within what the servos are asked for.
+func timedSpeed(d, sec float64) int {
+	return max(20, min(servoTop, int(math.Abs(d)*stepsPerDegree/sec)))
+}
+
 func (c *capture) shotGap() time.Duration {
 	if p := c.camera.pace(); p > 0 {
 		return p * 11 / 10
@@ -288,6 +320,20 @@ func (c *capture) estimate(p Plan, shots []shot) float64 {
 		return math.Max(hop(math.Abs(e1-e0)), hop(math.Abs(wrap180(a1-a0))))
 	}
 	clamp := func(e float64) float64 { return math.Max(m.ElevationMin, math.Min(m.ElevationMax, e)) }
+	top := float64(servoTop) / stepsPerDegree
+	topHop := func(d float64) float64 { // as hop, at the servos' top speed
+		if d <= 0 || acc <= 0 {
+			return 0
+		}
+		if d >= top*top/acc {
+			return d/top + top/acc
+		}
+		return 2 * math.Sqrt(d/acc)
+	}
+	mt := c.moveTime(m, p.SettleMS)
+	timed := func(e0, a0, e1, a1 float64) float64 { // a Stop & Shoot move: moveTime, or longer if the servos can't
+		return math.Max(mt, math.Max(topHop(math.Abs(e1-e0)), topHop(math.Abs(wrap180(a1-a0)))))
+	}
 	e0, a0 := c.rig.where()
 	first, last := shots[0], shots[len(shots)-1]
 	total := move(e0, a0, clamp(first.Elevation), first.Azimuth) + stillTime
@@ -301,12 +347,12 @@ func (c *capture) estimate(p Plan, shots []shot) float64 {
 		for i, s := range shots {
 			es[i], as[i] = clamp(s.Elevation), s.Azimuth
 		}
-		total += newTrajectory(es, as, vmax, acc/2, c.shotGap().Seconds()).duration()
+		total += newTrajectory(es, as, top, acc/2, c.photoGap(m)).duration()
 		total += 2 * math.Floor(math.Abs(spiralTurns(shots))/(2*spiralRange)) // a stop and a reset a lap
 	} else {
 		total += shot + hold // the first photo
 		for i := 1; i < len(shots); i++ {
-			total += move(clamp(shots[i-1].Elevation), shots[i-1].Azimuth, clamp(shots[i].Elevation), shots[i].Azimuth) +
+			total += timed(clamp(shots[i-1].Elevation), shots[i-1].Azimuth, clamp(shots[i].Elevation), shots[i].Azimuth) +
 				stillTime + float64(p.SettleMS)/1000 + shot + hold
 		}
 	}
@@ -553,6 +599,7 @@ func (c *capture) loop(ctx context.Context, p Plan) error {
 	if p.Moving {
 		return c.spiral(ctx)
 	}
+	var lastShot time.Time // (see Motion.SecPerPhoto)
 	for {
 		c.mu.Lock()
 		if c.index >= len(c.shots) {
@@ -571,7 +618,13 @@ func (c *capture) loop(ctx context.Context, p Plan) error {
 			continue
 		}
 		e, a := sh.Elevation, sh.Azimuth
-		if err := c.rig.moveTo(&e, &a); err != nil {
+		// Timed: the move takes what the seconds a photo leave it (each
+		// axis at its own speed, so both arrive together).
+		m := c.rig.cfg.get().Motion
+		e0, a0 := c.rig.where()
+		mt := c.moveTime(m, p.SettleMS)
+		ec := math.Max(m.ElevationMin, math.Min(m.ElevationMax, e))
+		if err := c.rig.moveToAt(&e, &a, timedSpeed(ec-e0, mt), timedSpeed(wrap180(a-a0), mt)); err != nil {
 			return err
 		}
 		if err := c.rig.waitStill(ctx); err != nil {
@@ -582,6 +635,16 @@ func (c *capture) loop(ctx context.Context, p Plan) error {
 			return ctx.Err()
 		case <-time.After(time.Duration(p.SettleMS) * time.Millisecond):
 		}
+		// The seconds a photo, from the last one's shutter: waited out if
+		// the move (timed by an estimate of the rest) came in early.
+		if !lastShot.IsZero() {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(time.Until(lastShot.Add(time.Duration(m.SecPerPhoto * float64(time.Second))))):
+			}
+		}
+		lastShot = time.Now()
 		if err := c.photo(ctx, true); err != nil {
 			return err
 		}
@@ -691,7 +754,7 @@ func (c *capture) spiral(ctx context.Context) error {
 		m := c.rig.cfg.get().Motion
 		// The servos' limits: speed, and acceleration kept to half the
 		// configured one so the speed changes gently.
-		maxRate := float64(m.Speed) / stepsPerDegree
+		maxRate := float64(servoTop) / stepsPerDegree // (the seconds a photo set the pace: see photoGap)
 		accel := float64(m.Acc) * 100 / stepsPerDegree / 2
 		// The platform servo's goals reach only so far: the spiral goes
 		// as far as fits (a lap), then the platform unwinds whole turns to
@@ -757,7 +820,7 @@ func (c *capture) spiral(ctx context.Context) error {
 		// pace (see measurePace) and a little, else as it's been going (an
 		// estimate from its timings, on the safe side). If it falls behind
 		// anyway, the path slows (see pace).
-		tr := newTrajectory(es, as, maxRate, accel, c.shotGap().Seconds())
+		tr := newTrajectory(es, as, maxRate, accel, c.photoGap(m))
 		err = c.rig.follow(ctx, tr, func(k int) error {
 			if k < first {
 				return nil

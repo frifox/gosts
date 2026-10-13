@@ -569,7 +569,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         </div>
         <!-- How fast the servos move, saved as soon as a value is entered. -->
         <div class="grid2" style="margin-top:10px">
-          <label title="The servos' top speed">Speed (°/s)<input type="number" id="mSpeed" min="5" max="298" step="1"></label>
+          <label title="How long a capture takes a photo: Continuous, from one photo to the next (the camera's pace at least); Stop &amp; Shoot, each move, settle and photo together. The servos go as fast as that takes.">Speed (s/pic)<input type="number" id="mSecPic" min="0.3" max="120" step="0.1"></label>
           <label title="How quickly they speed up and slow down: lower is gentler on the frame">Acceleration (°/s²)<input type="number" id="mAcc" min="9" max="2232"></label>
         </div>
         <p class="hint" id="motionHint"></p>
@@ -2389,23 +2389,24 @@ const speedDeg = (steps) => Math.round(steps * STEP_DEG);
 const speedSteps = (deg) => Math.round(deg / STEP_DEG);
 const accDeg = (acc) => Math.round(acc * 100 * STEP_DEG);
 const accUnits = (deg) => Math.min(254, Math.max(1, Math.round(deg / (100 * STEP_DEG))));
+// (A test of speed control by time: Speed is seconds a photo; the °/s speed
+// stays saved, for moves by hand, but isn't shown.)
 function motionFields(m) {
-  if (document.activeElement !== $("mSpeed")) $("mSpeed").value = speedDeg(m.Speed);
+  if (document.activeElement !== $("mSecPic")) $("mSecPic").value = m.SecPerPhoto;
   if (document.activeElement !== $("mAcc")) $("mAcc").value = accDeg(m.Acc);
-  $("motionHint").textContent = `Full speed reached in ${(m.Speed / (m.Acc * 100)).toFixed(2)} s`;
+  $("motionHint").textContent = `Captures take about ${m.SecPerPhoto} s a photo (Continuous: at least the camera's pace)`;
 }
-for (const id of ["mSpeed", "mAcc"]) {
+for (const id of ["mSecPic", "mAcc"]) {
   const save = async () => {
     const saved = state.server.config.Motion;
-    // An unchanged °/s keeps the exact steps/s saved (it may not be a whole number of °/s).
-    const speed = +$("mSpeed").value === speedDeg(saved.Speed) ? saved.Speed : speedSteps(+$("mSpeed").value);
+    const sec = Math.round(Number($("mSecPic").value) * 10) / 10;
     const acc = +$("mAcc").value === accDeg(saved.Acc) ? saved.Acc : accUnits(+$("mAcc").value); // the servos' steps of 100 steps/s² (≈ 8.8°/s²)
-    const motion = { ...saved, Speed: speed, Acc: acc };
-    if (motion.Speed === saved.Speed && motion.Acc === saved.Acc) return;
+    const motion = { ...saved, SecPerPhoto: sec, Acc: acc };
+    if (motion.SecPerPhoto === saved.SecPerPhoto && motion.Acc === saved.Acc) return;
     $("motionErr").textContent = "";
     try { await send("motion", { motion }); } catch (e) {
       $("motionErr").textContent = e.message;
-      $("mSpeed").value = speedDeg(state.server.config.Motion.Speed); $("mAcc").value = accDeg(state.server.config.Motion.Acc); // back to what's saved
+      $("mSecPic").value = state.server.config.Motion.SecPerPhoto; $("mAcc").value = accDeg(state.server.config.Motion.Acc); // back to what's saved
     }
   };
   $(id).addEventListener("change", save);

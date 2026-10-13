@@ -105,7 +105,17 @@ type Motion struct {
 	Acc          int     `toml:"Acc"`          // 100 step/s²
 	ElevationMin float64 `toml:"ElevationMin"` // degrees; the camera never goes outside
 	ElevationMax float64 `toml:"ElevationMax"`
+	// SecPerPhoto is how long a capture takes a photo (s, a test of speed
+	// control by time): Continuous, from one photo to the next (the camera's
+	// pace at least); Stop & Shoot, each move, settle and photo together.
+	// The servos go as fast as that takes (see servoTop); Speed is then only
+	// for moves by hand (the dials, Go 0°).
+	SecPerPhoto float64 `toml:"SecPerPhoto"`
 }
+
+// servoTop is the fastest the servos are asked to go (step/s), whatever a
+// capture's SecPerPhoto would need.
+const servoTop = 3400
 
 // Plan is a capture: Photos points spread evenly over the part of the sphere
 // round the object that the camera can reach (Motion's elevation range).
@@ -150,7 +160,7 @@ func defaultConfig() Config {
 	return Config{
 		ListenAddr: ":8081",
 		Roles:      Roles{ElevationLeader: 1, ElevationFollower: 2, Azimuth: 3, LeaderMirrored: true},
-		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80},
+		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80, SecPerPhoto: 2},
 		Plan:       Plan{Photos: 150, SettleMS: 800, Path: PathRings},
 		Cooldown:   Cooldown{Shots: 50, Minutes: 2},
 		Rig:        rigBuilt(),
