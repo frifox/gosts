@@ -670,3 +670,27 @@ func TestPausedFor(t *testing.T) {
 		t.Fatalf("paused %v, the pause going on not counted", d)
 	}
 }
+
+// TestPhotoNumbersSkipSamples: a sample shot doesn't take a number on the
+// timeline: the photos after it are 1, 2.
+func TestPhotoNumbersSkipSamples(t *testing.T) {
+	simPictureWait = 50 * time.Millisecond
+	defer func() { simPictureWait = 2 * time.Second }()
+	c := &cameraConn{out: func(any) {}}
+	if err := c.connect(simCameraID); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.sample(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := c.shoot(context.Background(), true, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	time.Sleep(150 * time.Millisecond)
+	tl := c.timeline().Photos
+	if len(tl) != 2 || tl[0].Num != 1 || tl[1].Num != 2 || tl[0].N != 2 {
+		t.Fatalf("timeline %+v, want photos numbered 1 and 2 (the server's 2 and 3)", tl)
+	}
+}

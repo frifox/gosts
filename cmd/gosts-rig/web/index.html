@@ -858,7 +858,7 @@ function onMessage(m) {
     case "capture": onCapture(m); break;
     case "camera": onCamera(m); break;
     case "photo": m.sample ? sampleArrived(m) : addPhoto(m, true); break;
-    case "photoPending": m.sample ? samplePending(m.n) : photoPending(m.n); break;
+    case "photoPending": m.sample ? samplePending(m.n) : photoPending(m.n, m.num); break;
     case "photoFailed": m.sample ? sampleFailed(m.n) : photoGone(m.n); break;
     case "photoDeleted": photoGone(m.n); break;
     case "photos": setPhotos(m.photos); break;
@@ -1006,8 +1006,12 @@ function onCamera(m) {
 // The Camera card: the timeline of photos (newest on the left), Take Photo
 // and New Capture. A photo clicked opens full size; arrows step, Esc closes.
 state.photos = []; // oldest first: {n, at}
-const photoCaption = (p) => `Photo ${p.n}` + (p.at ? ` · ${new Date(p.at).toLocaleTimeString()}` : "");
+// A photo's number to show: the capture's photos counted, not sample shots
+// (n: its number to the server, which counts both).
+const photoNum = (p) => p.num || p.n;
+const photoCaption = (p) => `Photo ${photoNum(p)}` + (p.at ? ` · ${new Date(p.at).toLocaleTimeString()}` : "");
 state.pending = new Set(); // photos being taken: placeholders until their picture comes
+state.pendingNum = new Map(); // and their numbers to show (see photoNum)
 const trashIcon = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4M6.8 6.5v4.5M9.2 6.5v4.5"/></svg>';
 function thumb(p, isNew) {
   const b = document.createElement("div");
@@ -1016,20 +1020,20 @@ function thumb(p, isNew) {
   b.tabIndex = 0;
   b.setAttribute("role", "button");
   b.title = photoCaption(p);
-  b.innerHTML = `<img alt="" loading="lazy" decoding="async" src="${photoURL(p)}&thumb"><span class="num">${p.n}</span>` +
+  b.innerHTML = `<img alt="" loading="lazy" decoding="async" src="${photoURL(p)}&thumb"><span class="num">${photoNum(p)}</span>` +
     (p.at ? `<span class="meta">${new Date(p.at).toLocaleTimeString()}</span>` : "") +
-    `<button class="del" title="Delete photo ${p.n} (off the timeline, its files to the Trash)" aria-label="Delete photo ${p.n}">${trashIcon}</button>`;
+    `<button class="del" title="Delete photo ${photoNum(p)} (off the timeline, its files to the Trash)" aria-label="Delete photo ${photoNum(p)}">${trashIcon}</button>`;
   b.onclick = (e) => { if (!e.target.closest(".del")) openPhoto(p.n); };
   b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) openPhoto(p.n); };
   b.querySelector(".del").onclick = () => act("photoDelete", { n: p.n }, $("shotErr"));
   return b;
 }
 function placeholder(n) {
-  const b = document.createElement("div");
+  const b = document.createElement("div"), num = state.pendingNum.get(n) || n;
   b.className = "thumb pending new";
   b.dataset.n = n;
-  b.title = `Photo ${n}: taking…`;
-  b.innerHTML = `<span class="num">${n}</span>`;
+  b.title = `Photo ${num}: taking…`;
+  b.innerHTML = `<span class="num">${num}</span>`;
   return b;
 }
 // The thumbnail containers: the timeline, and the gallery while it shows the
@@ -1084,8 +1088,9 @@ function addPhoto(p, isNew) {
 }
 // A photo being taken: its placeholder, until its picture comes (addPhoto),
 // or none does (photoGone).
-function photoPending(n) {
+function photoPending(n, num) {
   state.pending.add(n);
+  if (num) state.pendingNum.set(n, num);
   for (const box of thumbBoxes()) putThumb(box, placeholder(n), n);
   $("timeline").scrollLeft = 0;
   photosShown();

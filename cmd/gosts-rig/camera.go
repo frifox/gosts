@@ -56,6 +56,7 @@ type photo struct {
 	Files    []string // where the camera's own files were saved, if anywhere
 	At       time.Time
 	Sample   bool              // a sample shot (Config): not on the timeline
+	Num      int               // its number on the timeline (1, 2…: sample shots not counted); 0 for a sample
 	Caption  string            // its settings, for a sample
 	Settings map[string]string // and them by key (e.g. for balancing from a gray card)
 }
@@ -185,7 +186,9 @@ func hasFiles(dir string) bool {
 	return found
 }
 
-func batchNow() batchMsg { return batchMsg{Type: "batch", Name: currentBatch(), Dir: homeShort(photoDir)} }
+func batchNow() batchMsg {
+	return batchMsg{Type: "batch", Name: currentBatch(), Dir: homeShort(photoDir)}
+}
 
 func defaultPhotoDir() string {
 	home, err := os.UserHomeDir()
@@ -410,6 +413,8 @@ type cameraConn struct {
 	simRendered    map[int]bool              // simulated photos a page has rendered (coming over: see simPicture)
 	simLink        time.Time                 // the simulated camera's link is busy till then (see simDownload)
 	exposed        time.Duration             // the shutter speed last read (see exposure), for the estimate
+	taken          int                       // the capture's photos asked for, sample shots not counted: their numbers to show (see photoInfo)
+	nums           map[int]int               // and photo n's
 	opening        int                       // cameras being opened (see camerasNow)
 }
 
@@ -419,8 +424,9 @@ const maxPhotos = 1000
 // photoInfo is a photo on the timeline, for the page (the picture is at
 // /photo/{n}.jpg).
 type photoInfo struct {
-	N  int   `json:"n"`
-	At int64 `json:"at"` // ms since 1970
+	N   int   `json:"n"`
+	Num int   `json:"num"` // its number to show: the capture's photos counted, not sample shots
+	At  int64 `json:"at"`  // ms since 1970
 }
 
 // photosMsg is the whole timeline, oldest first (on connecting, and after
@@ -455,7 +461,8 @@ var simDownload = 700 * time.Millisecond
 type photoMsg struct {
 	Type     string            `json:"type"` // "photo"
 	N        int               `json:"n"`
-	At       int64             `json:"at"` // ms since 1970
+	Num      int               `json:"num,omitempty"` // (see photoInfo)
+	At       int64             `json:"at"`            // ms since 1970
 	Sample   bool              `json:"sample,omitempty"`
 	Caption  string            `json:"caption,omitempty"`
 	Settings map[string]string `json:"settings,omitempty"` // a sample's settings, by key
@@ -607,6 +614,15 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 	c.mu.Lock()
 	c.count++
 	n, gen := c.count, c.gen
+	num := 0
+	if !sample { // (a sample shot isn't counted: the photos are 1, 2… all the same)
+		c.taken++
+		num = c.taken
+		if c.nums == nil {
+			c.nums = map[int]int{}
+		}
+		c.nums[n] = num
+	}
 	if c.inFlight == nil {
 		c.inFlight = map[int]bool{}
 	}
@@ -622,7 +638,7 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 		c.sampleSettings[n] = settings
 	}
 	c.mu.Unlock()
-	c.out(photoEventMsg{Type: "photoPending", N: n, Sample: sample})
+	c.out(photoEventMsg{Type: "photoPending", N: n, Num: num, Sample: sample})
 	c.out(c.batchStatus())
 	sh := shutter{firing: firing, folder: batchFolder, got: func(p photo, err error) {
 		if c.current(gen) { // not a photo from before a Reset
@@ -837,11 +853,10 @@ func (c *cameraConn) warn(format string, args ...any) {
 type photoEventMsg struct {
 	Type   string `json:"type"`
 	N      int    `json:"n"`
+	Num    int    `json:"num,omitempty"` // (photoPending: see photoInfo)
 	Sample bool   `json:"sample,omitempty"`
 }
 
-// delete takes photo n off the timeline (its files, if saved, stay where
-// they are). A photo still coming is dropped when it arrives.
 // delete takes photo n off the timeline, and its files (its RAW beside
 // it, too) to the Trash; a picture still coming is trashed as it lands.
 func (c *cameraConn) delete(n int) {
@@ -911,6 +926,7 @@ func (c *cameraConn) picture(n int, p photo) bool {
 	if caption, ok := c.samples[n]; ok {
 		p.Sample, p.Caption, p.Settings = true, caption, c.sampleSettings[n]
 	}
+	p.Num = c.nums[n]
 	if f, ok := exifFocalLength(p.JPEG); ok {
 		c.focal = f
 		if p.Settings != nil {
@@ -927,7 +943,7 @@ func (c *cameraConn) picture(n int, p photo) bool {
 		c.pending = 0
 	}
 	c.mu.Unlock()
-	c.out(photoMsg{Type: "photo", N: n, At: p.At.UnixMilli(), Sample: p.Sample, Caption: p.Caption, Settings: p.Settings})
+	c.out(photoMsg{Type: "photo", N: n, Num: p.Num, At: p.At.UnixMilli(), Sample: p.Sample, Caption: p.Caption, Settings: p.Settings})
 	c.out(c.batchStatus())
 	return true
 }
@@ -947,15 +963,13 @@ func (c *cameraConn) timeline() photosMsg {
 	m := photosMsg{Type: "photos", Photos: []photoInfo{}}
 	for n, p := range c.photos {
 		if !p.Sample {
-			m.Photos = append(m.Photos, photoInfo{N: n, At: p.At.UnixMilli()})
+			m.Photos = append(m.Photos, photoInfo{N: n, Num: p.Num, At: p.At.UnixMilli()})
 		}
 	}
 	slices.SortFunc(m.Photos, func(a, b photoInfo) int { return a.N - b.N })
 	return m
 }
 
-// reset clears the timeline (Reset) and starts a new batch: numbering from
-// 1 again, and a new folder for its files.
 // reset starts a new capture: the timeline cleared, and a new batch; its
 // folder made now with make (New Capture: empty, ready for the photos and
 // sample shots to come), else with its first photo (the current capture
@@ -963,7 +977,7 @@ func (c *cameraConn) timeline() photosMsg {
 func (c *cameraConn) reset(make bool) string {
 	c.mu.Lock()
 	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight, c.simRendered = nil, nil, nil, nil, nil, nil
-	c.count, c.pending = 0, 0
+	c.count, c.pending, c.taken, c.nums = 0, 0, 0, nil
 	c.gen++
 	c.mu.Unlock()
 	startBatch(make)
