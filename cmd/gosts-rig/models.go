@@ -286,8 +286,9 @@ var textureExts = []string{".png", ".jpg", ".jpeg", ".tif", ".tiff", ".exr", ".b
 // name), edit (its modelEdit, JSON), mtl (the model's materials' file, to
 // copy), obj (the edited OBJ) and stl (if made). The folder gets
 // <to>.obj, <to>.mtl (the model's, copied), its textures (copied),
-// <to>.stl and edit.json. Not over the model itself, nor over a folder
-// that isn't an edit saved here (that one: to the Trash first).
+// <to>.stl and edit.json. Over an edit saved here before (that one to the
+// Trash first); over the model itself only with replace (it to the Trash,
+// once its materials and textures are copied); never over another folder.
 func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 	src, _, ok := modelPath(r)
 	name := r.PathValue("name")
@@ -310,6 +311,7 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.RemoveAll(tmp)
 	var to, mtl string
+	replace := false
 	var edit modelEdit
 	got := map[string]bool{}
 	for {
@@ -323,13 +325,15 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 		}
 		field := part.FormName()
 		switch field {
-		case "to", "mtl", "edit":
+		case "to", "mtl", "edit", "replace":
 			v, _ := io.ReadAll(io.LimitReader(part, 1<<16))
 			switch field {
 			case "to":
 				to = strings.TrimSpace(string(v))
 			case "mtl":
 				mtl = string(v)
+			case "replace":
+				replace = string(v) == "1"
 			case "edit":
 				if err := json.Unmarshal(v, &edit); err != nil {
 					fail(http.StatusBadRequest, "edit: %v", err)
@@ -360,8 +364,11 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 	case !got["obj"]:
 		fail(http.StatusBadRequest, "no OBJ")
 		return
-	case to == model:
-		fail(http.StatusBadRequest, "save it under another name: %s is the model it's made from", to)
+	case to == model && !replace:
+		fail(http.StatusBadRequest, "save it under another name: %s is the model it's made from (or Replace it)", to)
+		return
+	case replace && to != model:
+		fail(http.StatusBadRequest, "replace: the name is the model's own (%s)", model)
 		return
 	case !slices.Contains([]string{"mm", "in", "m"}, edit.Units):
 		fail(http.StatusBadRequest, "units %q?", edit.Units)
@@ -374,7 +381,7 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 	dst := filepath.Join(photoDir, name, to)
 	old := false
 	if ents, err := os.ReadDir(dst); err == nil && len(ents) > 0 {
-		if readModelEdit(dst) == nil {
+		if readModelEdit(dst) == nil && !replace {
 			fail(http.StatusConflict, "%s has files in it (not a model saved here): pick another name", to)
 			return
 		}

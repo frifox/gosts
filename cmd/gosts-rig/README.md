@@ -124,7 +124,8 @@ new model in the capture (named `<model>-aligned` unless you name it): the OBJ i
 default; in; or m, Blender's), y up as OBJ files are (Blender and Fusion turn it z up), its materials and textures
 copied; **Also an STL** (z up, as STL files are); **Simplify to** a number of triangles (meshoptimizer; the texture
 kept). Its `edit.json` says what it was made from and how; saving under the same name again replaces it (the one
-before to the Trash).
+before to the Trash). **Replace** (by the name) saves over the model being edited itself: its folder gets the edited
+model, the one there before goes to the Trash.
 
 ## Camera settings
 

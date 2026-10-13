@@ -398,6 +398,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mv-edit input[type=number] { width: 110px; }
 .mv-edit .mve-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .mv-edit .mve-field input { width: 100%; box-sizing: border-box; }
+.mv-edit .mve-name { flex-wrap: nowrap; }
+.mv-edit .mve-name input { flex: 1; min-width: 0; }
+.mv-edit #mveReplace.on { background: var(--warn); border-color: var(--warn); color: #111; }
 .mv-edit .mp-check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .mve-axes { color: var(--muted); font-size: 12px; }
 .mve-axes .x { color: #e5484d; } .mve-axes .y { color: #46a758; } .mve-axes .z { color: #3e7bfa; }
@@ -927,8 +930,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <div class="mve-size" id="mveSize"></div>
       <div class="mve-row"><button class="btn small" id="mveUndo" disabled>Undo</button><button class="btn small" id="mveResetEdit" disabled>Reset Edits</button></div>
       <section class="mve-save">
-        <div class="mve-head"><b>Save</b>as a new model, in this capture's folder</div>
-        <label class="mve-field">Name<input type="text" id="mveName" spellcheck="false" autocomplete="off"></label>
+        <div class="mve-head"><b>Save</b>as a new model in this capture's folder, or Replace this one</div>
+        <div class="mve-field"><label for="mveName">Name</label><div class="mve-row mve-name"><input type="text" id="mveName" spellcheck="false" autocomplete="off"><button class="btn small" id="mveReplace" aria-pressed="false" title="Save over this model (its folder; the one there now goes to the Trash)">Replace</button></div></div>
         <div class="mve-row"><span class="mve-label">File units</span><span class="views seg" id="mveFileUnit"><button data-v="mm" title="Fusion 360, CAD: 1 unit = 1 mm">mm</button><button data-v="in">in</button><button data-v="m" title="Blender's own: 1 unit = 1 m">m</button></span></div>
         <label class="mp-check"><input type="checkbox" id="mveSTL"> <span>Also an STL (z up)</span></label>
         <div class="mve-row"><label class="mp-check"><input type="checkbox" id="mveSimplify"> <span>Simplify to</span></label><input type="number" id="mveTris" min="100" step="1000"><span class="mve-label">triangles</span></div>
@@ -1563,17 +1566,30 @@ function mveOpen(on) {
   window.modelView.editing(on);
   mvePicking(null);
 }
+// Replace: the name is the model's own (and fixed); off, the name before.
+let mveTyped = "";
+function mveReplace(on) {
+  const b = $("mveReplace"), inp = $("mveName");
+  if (on && !b.classList.contains("on")) mveTyped = inp.value;
+  b.classList.toggle("on", on);
+  b.setAttribute("aria-pressed", on);
+  inp.disabled = on;
+  inp.value = on ? state.mv?.m.name || "" : mveTyped || inp.value;
+}
+$("mveReplace").onclick = () => mveReplace(!$("mveReplace").classList.contains("on"));
 function mveFresh(m) {
   mve.picks = { level: [], align: [], scale: [] };
   mve.undo = [];
   const base = m.name.replace(/-aligned(-\d+)?$/, "");
+  mveTyped = "";
+  mveReplace(false);
   $("mveName").value = base + "-aligned" === m.name ? base + "-aligned-2" : base + "-aligned";
   mveStatus("");
   mveOpen(false);
 }
 $("mvEditBtn").onclick = () => mveOpen($("mvEdit").hidden);
 $("mveSave").onclick = async () => {
-  const v = state.mv, to = $("mveName").value.trim();
+  const v = state.mv, replace = $("mveReplace").classList.contains("on"), to = replace ? v?.m.name : $("mveName").value.trim();
   if (!v || !to) return mveStatus("A name, first", "bad");
   const units = segOf("mveFileUnit"), stl = $("mveSTL").checked, simplify = $("mveSimplify").checked ? Math.round(Number($("mveTris").value)) : 0;
   if ($("mveSimplify").checked && !(simplify >= 100)) return mveStatus("Simplify to: 100 triangles or more", "bad");
@@ -1584,15 +1600,19 @@ $("mveSave").onclick = async () => {
     mveStatus("Saving…");
     const fd = new FormData();
     fd.append("to", to);
+    if (replace) fd.append("replace", "1");
     fd.append("mtl", mtl);
     fd.append("edit", JSON.stringify({ matrix: window.modelView.matrix().elements, units, simplify, triangles: res.triangles }));
     fd.append("obj", res.obj, to + ".obj");
     if (res.stl) fd.append("stl", res.stl, to + ".stl");
     const r = await fetch(modelBase(v.name, v.m) + "save", { method: "POST", body: fd });
     if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
-    mveStatus(`Saved as ${to}: ${res.triangles.toLocaleString()} triangles, ${units}${res.stl ? ", with an STL" : ""}`, "ok");
-    log(`${v.name}: ${v.m.name} saved as ${to}`);
+    const saved = await r.json();
+    log(`${v.name}: ${v.m.name} ${replace ? "replaced" : "saved as " + to}`);
     galleryAgain();
+    // Replaced: the model shown is the saved one now (its edit done with).
+    if (replace && state.mv === v) { openModel(v.name, saved); mveOpen(true); }
+    mveStatus(`${replace ? "Replaced" : "Saved as " + to}: ${res.triangles.toLocaleString()} triangles, ${units}${res.stl ? ", with an STL" : ""}${replace ? " (the one before is in the Trash)" : ""}`, "ok");
   } catch (e) { mveStatus(`Couldn't save it: ${e.message}`, "bad"); }
   $("mveSave").disabled = false;
 };

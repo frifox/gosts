@@ -131,10 +131,13 @@ func TestModelSave(t *testing.T) {
 	a := &app{model: &modelBuilder{out: func(any) {}}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /batches/{name}/models/{model}/save", a.handleModelSave)
-	save := func(to string, stl bool) *httptest.ResponseRecorder {
+	save := func(to string, stl bool, replace ...bool) *httptest.ResponseRecorder {
 		var body bytes.Buffer
 		mw := multipart.NewWriter(&body)
 		mw.WriteField("to", to)
+		if len(replace) > 0 && replace[0] {
+			mw.WriteField("replace", "1")
+		}
 		mw.WriteField("mtl", "m.mtl")
 		mw.WriteField("edit", `{"matrix":[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],"units":"mm","triangles":1}`)
 		f, _ := mw.CreateFormFile("obj", to+".obj")
@@ -191,5 +194,24 @@ func TestModelSave(t *testing.T) {
 	}
 	if ents, _ := os.ReadDir(dir); len(ents) != 3 {
 		t.Errorf("left in the capture: %v", ents)
+	}
+
+	// Replace: over the model itself (it to the Trash; its texture kept).
+	if w := save("mine", false, true); w.Code == 200 {
+		t.Error("replace saved over another folder")
+	}
+	if w := save("model-full", false, true); w.Code != 200 {
+		t.Fatalf("replace: %d %s", w.Code, w.Body)
+	}
+	names = nil
+	ents, _ = os.ReadDir(filepath.Join(dir, "model-full"))
+	for _, e := range ents {
+		names = append(names, e.Name())
+	}
+	if want := "edit.json model-full.mtl model-full.obj tex.png"; strings.Join(names, " ") != want {
+		t.Errorf("replaced: %v, want %s", names, want)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".Trash", "model-full", "m.usda")); err != nil {
+		t.Error("the model replaced isn't in the Trash:", err)
 	}
 }
