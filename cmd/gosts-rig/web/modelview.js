@@ -199,10 +199,34 @@ export function createModelView(canvas) {
   scene.add(marks);
   // ball: a marker, a unit ball (scaled to the model): lit, where it's seen;
   // a faint flat copy over it where the model's in front (so never lost).
-  const BALL = new THREE.SphereGeometry(1, 28, 20);
+  const BALL = new THREE.SphereGeometry(1, 32, 24);
+  // Its shading: a matcap (a lit ball, drawn: a bright spot up left, the
+  // edge darker), gray, tinted by each ball's color; the same from any view,
+  // whatever lights the model.
+  const BALL_SHADE = (() => {
+    const n = 256, cv = document.createElement("canvas");
+    cv.width = cv.height = n;
+    const x = cv.getContext("2d");
+    const body = x.createRadialGradient(n * 0.38, n * 0.34, n * 0.02, n * 0.5, n * 0.5, n * 0.5);
+    body.addColorStop(0, "#ffffff");
+    body.addColorStop(0.18, "#e6e6e6");
+    body.addColorStop(0.55, "#9a9a9a");
+    body.addColorStop(0.85, "#555555");
+    body.addColorStop(1, "#2e2e2e");
+    x.fillStyle = body;
+    x.fillRect(0, 0, n, n);
+    const spot = x.createRadialGradient(n * 0.34, n * 0.3, 0, n * 0.34, n * 0.3, n * 0.12); // (the highlight: sharp)
+    spot.addColorStop(0, "rgba(255,255,255,0.95)");
+    spot.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = spot;
+    x.fillRect(0, 0, n, n);
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  })();
   function ball(color, opacity = 1) {
     const g = new THREE.Group();
-    const lit = new THREE.Mesh(BALL, new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0, emissive: color, emissiveIntensity: 0.25,
+    const lit = new THREE.Mesh(BALL, new THREE.MeshMatcapMaterial({ color: new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.15), matcap: BALL_SHADE,
       transparent: opacity < 1, opacity }));
     const ghost = new THREE.Mesh(BALL, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3 * opacity, depthTest: false, depthWrite: false }));
     ghost.renderOrder = 9;
@@ -215,8 +239,8 @@ export function createModelView(canvas) {
   hover.visible = false;
   scene.add(hover);
   function hoverColor(color) {
-    for (const m of hover.children) m.material.color.set(color);
-    hover.children[1].material.emissive.set(color);
+    hover.children[0].material.color.set(color);
+    hover.children[1].material.color.set(color).lerp(new THREE.Color(0xffffff), 0.15);
   }
 
   // inset: the stage's right side covered (the Edit panel), px; the
