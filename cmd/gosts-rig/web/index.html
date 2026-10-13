@@ -1673,8 +1673,7 @@ function modelShow() {
   const pct = Math.round((m.fraction || 0) * 100);
   $("mBar").style.width = `${pct}%`;
   const stage = MODEL_STAGES[m.stage] || m.stage || "";
-  const left = m.running && m.remaining > 0 ? ` · about ${fmtDur(m.remaining)} left` : "";
-  $("mLabel").textContent = m.running ? `${pct}%${stage ? " · " + stage : ""}${left}` :
+  $("mLabel").textContent = m.running ? `${pct}%${stage ? " · " + stage : ""}` : // (no time left: Object Capture's guess is far out)
     m.outcome === "done" ? "Done" : m.outcome === "cancelled" ? "Canceled" : m.outcome === "failed" ? "Failed" : "";
   const n = { aligned: 0, invalid: 0, skipped: 0, unaligned: 0 };
   for (const st of Object.values(m.photos || {})) if (st in n) n[st]++;
