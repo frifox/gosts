@@ -414,7 +414,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-trim .mve-val { font: 11px var(--mono); color: var(--text); min-width: 52px; text-align: right; }
 .mve-rot .x { color: #e5484d; } .mve-rot .y { color: #46a758; } .mve-rot .z { color: #3e7bfa; }
 .mv-views { position: absolute; top: 12px; left: 12px; margin: 0; z-index: 2; }
-.mv-measure { position: absolute; top: 48px; left: 12px; z-index: 2; padding: 6px 10px; border-radius: 8px; background: rgba(18,21,28,.88); border: 1px solid var(--border);
+.mv-show { position: absolute; top: 44px; left: 12px; margin: 0; z-index: 2; }
+.mv-measure { position: absolute; top: 78px; left: 12px; z-index: 2; padding: 6px 10px; border-radius: 8px; background: rgba(18,21,28,.88); border: 1px solid var(--border);
   font: 12px var(--mono); color: var(--text); pointer-events: none; }
 .mv-measure b { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin-right: 8px; }
 .mv-measure .x { color: #e5484d; } .mv-measure .y { color: #46a758; } .mv-measure .z { color: #3e7bfa; }
@@ -927,6 +928,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   <div class="stage model-stage" id="mvStage"><canvas id="mvCanvas"></canvas>
     <div class="mv-measure" id="mvMeasure" hidden></div>
     <span class="views seg mv-views" id="mvViews"><button data-v="3d" title="Z up, X right and away, Y left and away">3D</button><button data-v="front" title="X right, Z up, Y away">Front</button><button data-v="side" title="Y right, Z up, X towards you">Side</button><button data-v="top" title="Y right, X down, Z towards you">Top</button></span>
+    <span class="views seg mv-show" id="mvShow"><button data-v="axes" title="The X, Y, Z axes from the origin: shown or not">Axis</button><button data-v="ground" title="The ground (its grid): shown or not">Ground</button></span>
     <div class="mv-hint">Drag to turn · right-drag (or ⇧ drag) to move · wheel to zoom · F: the whole model · Esc: the capture</div>
     <div class="mv-msg" id="mvMsg" hidden></div>
     <aside class="mv-edit" id="mvEdit" hidden>
@@ -1468,7 +1470,7 @@ function openModel(name, m) {
   $("mvCap").textContent = `${name} · ${m.name} · ${fmt}`;
   $("modelViewer").hidden = false;
   const msg = (text, cls = "") => { $("mvMsg").hidden = !text; $("mvMsg").className = "mv-msg " + cls; $("mvMsg").textContent = text; };
-  $("mvLook").hidden = $("mvTools").hidden = $("mvViews").hidden = m.format !== "obj";
+  $("mvLook").hidden = $("mvTools").hidden = $("mvViews").hidden = $("mvShow").hidden = m.format !== "obj";
   mvMeasure(false);
   segPick("mvViews", "3d");
   mveFresh(m);
@@ -1479,6 +1481,7 @@ function openModel(name, m) {
   }
   msg("Loading the mesh", "busy");
   window.modelView.look(state.mvLook);
+  window.modelView.shown(mvShown);
   const scale = window.modelEdit.UNITS[m.edit?.units] || 1; // (an edited model: in its units; the viewer's in meters)
   window.modelView.show(modelBase(name, m), m.file, (t) => { if (state.mv?.m === m) msg(t, "busy"); }, scale).then((st) => {
     if (!st || state.mv?.m !== m) return;
@@ -1705,6 +1708,16 @@ $("mveResetEdit").onclick = async () => {
 // The view presets (top left), in Blender's and Fusion's axes (see VIEWS in modelview.js).
 function mvView(v) { segPick("mvViews", v); window.modelView.view(v, true); } // (gliding there)
 $("mvViews").onclick = (e) => { if (e.target.dataset?.v) mvView(e.target.dataset.v); };
+// Axis, Ground: each shown or not (kept).
+const mvShown = { axes: true, ground: true };
+try { Object.assign(mvShown, JSON.parse(localStorage.getItem("modelShown") || "{}")); } catch {}
+function mvShowApply() {
+  for (const b of $("mvShow").children) b.classList.toggle("active", !!mvShown[b.dataset.v]);
+  window.modelView?.shown(mvShown);
+  try { localStorage.setItem("modelShown", JSON.stringify(mvShown)); } catch {}
+}
+$("mvShow").onclick = (e) => { const v = e.target.dataset?.v; if (v) { mvShown[v] = !mvShown[v]; mvShowApply(); } };
+mvShowApply(); // (the viewer itself: as each model opens, below)
 function mveStatus(text, cls = "") { $("mveStatus").textContent = text; $("mveStatus").className = "mve-status " + cls; }
 // mveOpen shows (or hides) the panel; a model opened: afresh.
 function mveOpen(on) {

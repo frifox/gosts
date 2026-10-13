@@ -282,29 +282,39 @@ export function createModelView(canvas) {
   // ground: the floor grid (and, editing, the axes): under the model as it
   // came, else at the origin (y = 0), a few times its size, lines 1, 2 or
   // 5 × 10ⁿ m apart, about 4 across it.
+  // ground: the floor grid (the ground: y = 0, about the origin) and the
+  // axes from the origin, as Blender and Fusion show them (z up): X red
+  // (+x), Y green (−z here: a y-up OBJ's), Z blue (+y); each shown as set
+  // (show()). A few times the model's size, lines 1, 2 or 5 × 10ⁿ m apart.
+  let showAxes = true, showGround = true;
   function ground() {
     drop(grid); drop(axes); grid = axes = null;
     if (!holder) return;
     const b = box(), r = Math.max(b.getBoundingSphere(new THREE.Sphere()).radius, 1e-3);
     radius = r;
+    const reach = Math.max(r * 1.5, Math.abs(b.min.x), Math.abs(b.max.x), Math.abs(b.min.z), Math.abs(b.max.z)) * 1.1; // (off the origin too)
     const raw = r / 2, p = 10 ** Math.floor(Math.log10(raw)), step = (raw / p >= 5 ? 5 : raw / p >= 2 ? 2 : 1) * p;
-    const n = Math.ceil(r * 3 / step) * 2;
+    const n = Math.ceil(reach / step) * 2;
     grid = new THREE.GridHelper(n * step, n, 0x4a5262, 0x2c323d);
     grid.material.transparent = true;
     grid.material.opacity = 0.7;
-    if (editOn) {
-      // The axes as Blender and Fusion show them (z up): X red (+x), Y green
-      // (−z here: a y-up OBJ's), Z blue (+y), from the origin.
-      axes = new THREE.Group();
-      const len = n * step / 2;
-      for (const [dir, color] of [[[1, 0, 0], 0xe5484d], [[0, 0, -1], 0x46a758], [[0, 1, 0], 0x3e7bfa]]) {
-        const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(...dir).multiplyScalar(len)]);
-        axes.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true })));
-      }
-      axes.renderOrder = 5;
-      scene.add(axes);
-    } else grid.position.set((b.min.x + b.max.x) / 2, b.min.y, (b.min.z + b.max.z) / 2);
+    grid.visible = showGround;
     scene.add(grid);
+    axes = new THREE.Group();
+    const len = n * step / 2;
+    for (const [dir, color] of [[[1, 0, 0], 0xe5484d], [[0, 0, -1], 0x46a758], [[0, 1, 0], 0x3e7bfa]]) {
+      const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(...dir).multiplyScalar(len)]);
+      axes.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true })));
+    }
+    axes.renderOrder = 5;
+    axes.visible = showAxes;
+    scene.add(axes);
+  }
+  // shown: the axes and the ground, each on or off.
+  function shown({ axes: a = showAxes, ground: g = showGround } = {}) {
+    showAxes = a; showGround = g;
+    if (axes) axes.visible = a;
+    if (grid) grid.visible = g;
   }
   // show loads the model (base: its folder's address; file: the OBJ;
   // scale: its units in meters, 1 for Object Capture's): its triangles and
@@ -529,7 +539,7 @@ export function createModelView(canvas) {
   }
   return {
     show, look, reset, view, clear, stats, box,
-    editing, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, parts,
+    editing, shown, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, parts,
     settle: () => tweenEnd(), // (a move going on: there at once)
     setInset,
     set onPick(f) { onPick = f; canvas.style.cursor = f ? "crosshair" : ""; },
