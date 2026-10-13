@@ -270,11 +270,11 @@ func (a *app) renameBatch(from, to string) error {
 		// its first photo): only its name changes.
 		batch.dir = dst
 		batch.Unlock()
-		a.broadcast(batchMsg{Type: "batch", Name: to})
+		a.broadcastBatch()
 		return nil
 	}
-	defer batch.Unlock()
 	if err := os.Rename(src, dst); err != nil {
+		batch.Unlock()
 		return err
 	}
 	if _, err := os.Stat(src + "-samples"); err == nil {
@@ -287,7 +287,10 @@ func (a *app) renameBatch(from, to string) error {
 		if a.camera != nil {
 			a.camera.relocate(src, dst) // (the timeline's files: there now)
 		}
-		defer a.broadcast(batchMsg{Type: "batch", Name: to})
+	}
+	batch.Unlock()
+	if current {
+		a.broadcastBatch() // (after the lock: it reads the name)
 	}
 	log.Printf("photos: renamed %s to %s", from, to)
 	return nil
@@ -393,6 +396,15 @@ func (a *app) deleteBatch(name string) error {
 	}
 	log.Printf("photos: %s moved to the Trash", name)
 	return nil
+}
+
+// broadcastBatch tells the pages the current capture's name (renamed).
+func (a *app) broadcastBatch() {
+	if a.camera != nil {
+		a.broadcast(a.camera.batchStatus())
+	} else {
+		a.broadcast(batchNow())
+	}
 }
 
 // currentBusy says why the current capture's folder can't be renamed or

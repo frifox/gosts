@@ -862,7 +862,11 @@ function onMessage(m) {
     case "photoFailed": m.sample ? sampleFailed(m.n) : photoGone(m.n); break;
     case "photoDeleted": photoGone(m.n); break;
     case "photos": setPhotos(m.photos); break;
-    case "batch": $("batchName").textContent = m.name || ""; $("batchRename").hidden = !m.name; break; // the capture's name (its folder)
+    case "batch": // the capture's name (its folder), and whether it's empty
+      $("batchName").textContent = m.name || ""; $("batchRename").hidden = !m.name;
+      state.batchEmpty = !!m.empty;
+      cameraButtons();
+      break;
     case "simShoot": simShoot(m.n, m.exposure, m.settings, m.blur); break;
     case "log": log(m.message, m.level); break;
   }
@@ -2464,7 +2468,11 @@ function confirmDanger(title, text, yes) {
 }
 function cameraButtons() {
   $("takePhotoBtn").disabled = !state.camera?.connected || !!state.cap?.running;
-  $("resetPhotosBtn").disabled = !!state.cap?.running; // (no photos yet: a new folder all the same)
+  // New Capture: not during a capture, nor while this one's empty (nothing
+  // taken: nothing to start afresh from).
+  $("resetPhotosBtn").disabled = !!state.cap?.running || !!state.batchEmpty;
+  $("resetPhotosBtn").title = state.batchEmpty ? "Nothing's been taken in this capture yet: it's new already" :
+    "Start a new capture: a new folder for the photos from now on, and the timeline cleared (asks first; the photos taken stay saved)";
   $("viewAllBtn").disabled = !state.photos.length;
 }
 // The simulated camera's picture: the Rig View from the camera, sent back.

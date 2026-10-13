@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"io/fs"
 	"log"
 	"math"
 	"os"
@@ -150,10 +151,37 @@ func currentBatch() string {
 	return filepath.Base(batch.dir)
 }
 
-// batchMsg tells the pages the current capture's name (its folder).
+// batchMsg tells the pages the current capture's name (its folder), and
+// whether it's empty: no photos or sample shots (taken, coming, or in its
+// folder): New Capture then has nothing to start afresh from.
 type batchMsg struct {
-	Type string `json:"type"` // "batch"
-	Name string `json:"name"`
+	Type  string `json:"type"` // "batch"
+	Name  string `json:"name"`
+	Empty bool   `json:"empty"`
+}
+
+// batchStatus is the current capture's batchMsg: empty if the timeline
+// (samples too) has nothing taken or coming and its folder no files.
+func (c *cameraConn) batchStatus() batchMsg {
+	c.mu.Lock()
+	n := len(c.photos) + len(c.inFlight)
+	c.mu.Unlock()
+	m := batchNow()
+	m.Empty = n == 0 && (m.Name == "" || !hasFiles(filepath.Join(photoDir, m.Name)))
+	return m
+}
+
+// hasFiles is whether dir (or a folder in it) has a file (not hidden).
+func hasFiles(dir string) bool {
+	found := false
+	filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && !strings.HasPrefix(d.Name(), ".") {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
 }
 
 func batchNow() batchMsg { return batchMsg{Type: "batch", Name: currentBatch()} }
@@ -594,6 +622,7 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 	}
 	c.mu.Unlock()
 	c.out(photoEventMsg{Type: "photoPending", N: n, Sample: sample})
+	c.out(c.batchStatus())
 	sh := shutter{firing: firing, folder: batchFolder, got: func(p photo, err error) {
 		if c.current(gen) { // not a photo from before a Reset
 			c.got(cam, n, p, err)
@@ -606,6 +635,7 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 		if err := cam.Shoot(ctx, sh); err != nil {
 			c.landed(n)
 			c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: sample})
+			c.out(c.batchStatus())
 			return err
 		}
 		return nil
@@ -649,6 +679,7 @@ func (c *cameraConn) shooter(q chan queuedShot) {
 		if err != nil {
 			c.landed(s.n)
 			c.out(photoEventMsg{Type: "photoFailed", N: s.n})
+			c.out(c.batchStatus())
 			if s.ctx.Err() == nil {
 				c.warn("photo %d: %v", s.n, err)
 			}
@@ -730,6 +761,7 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 	case err != nil:
 		c.landed(n)
 		c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: c.isSample(n)})
+		c.out(c.batchStatus())
 		c.warn("photo %d: %v", n, err)
 	case len(p.JPEG) > 0:
 		c.picture(n, p)
@@ -758,6 +790,7 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 	default: // taken, but nothing to show
 		c.landed(n)
 		c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: c.isSample(n)})
+		c.out(c.batchStatus())
 	}
 }
 
@@ -827,6 +860,7 @@ func (c *cameraConn) delete(n int) {
 		}
 	}
 	c.out(photoEventMsg{Type: "photoDeleted", N: n})
+	c.out(c.batchStatus())
 }
 
 // forgetFile takes the photo saved as path off the timeline (its files
@@ -849,6 +883,7 @@ func (c *cameraConn) forgetFile(path string) {
 	c.mu.Unlock()
 	if n > 0 {
 		c.out(photoEventMsg{Type: "photoDeleted", N: n})
+		c.out(c.batchStatus())
 	}
 }
 
@@ -892,6 +927,7 @@ func (c *cameraConn) picture(n int, p photo) bool {
 	}
 	c.mu.Unlock()
 	c.out(photoMsg{Type: "photo", N: n, At: p.At.UnixMilli(), Sample: p.Sample, Caption: p.Caption, Settings: p.Settings})
+	c.out(c.batchStatus())
 	return true
 }
 
@@ -931,7 +967,7 @@ func (c *cameraConn) reset(make bool) string {
 	c.mu.Unlock()
 	startBatch(make)
 	c.out(c.timeline())
-	c.out(batchNow())
+	c.out(c.batchStatus())
 	return currentBatch()
 }
 

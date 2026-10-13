@@ -267,7 +267,7 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 	c.push(a.cap.msg())
 	c.push(a.camera.msg())
 	c.push(a.camera.timeline())
-	c.push(batchNow())
+	c.push(a.camera.batchStatus())
 
 	done := make(chan struct{})
 	go func() {

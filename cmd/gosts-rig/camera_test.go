@@ -226,3 +226,29 @@ func TestNewCapture(t *testing.T) {
 		t.Errorf("photos go to %s, want %s", got, f)
 	}
 }
+
+// TestBatchEmpty: a capture is empty till something's taken or coming
+// (a sample shot too), or its folder has a file (from before a restart).
+func TestBatchEmpty(t *testing.T) {
+	old := photoDir
+	photoDir = t.TempDir()
+	defer func() { photoDir = old; newBatch() }()
+	c := &cameraConn{out: func(any) {}}
+	c.reset(true)
+	if !c.batchStatus().Empty {
+		t.Fatal("new capture not empty")
+	}
+	c.inFlight = map[int]bool{1: true}
+	if c.batchStatus().Empty {
+		t.Error("a photo coming, and empty")
+	}
+	c.inFlight = nil
+	os.WriteFile(filepath.Join(sampleFolder(), "s.JPG"), []byte("x"), 0o644)
+	if c.batchStatus().Empty {
+		t.Error("a sample shot in its folder, and empty")
+	}
+	c.reset(false) // (not made yet: nothing in it)
+	if !c.batchStatus().Empty {
+		t.Error("a capture not made yet isn't empty")
+	}
+}
