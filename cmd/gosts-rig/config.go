@@ -148,7 +148,9 @@ type Plan struct {
 	Path string `toml:"Path,omitempty"`
 	// ExportFor writes alignment data for that photogrammetry app (see
 	// writeExport) into the batch's folder when a capture ends; "": none.
-	ExportFor string `toml:"ExportFor,omitempty"`
+	// Apple Object Capture's unless chosen (kept as chosen: None too, so
+	// written even when "").
+	ExportFor string `toml:"ExportFor"`
 	// (Before ExportFor: a switch and the app, read once into it.)
 	ExportOn bool   `toml:"ExportOn,omitempty,omitzero" json:"-"`
 	Export   string `toml:"Export,omitempty" json:"-"`
@@ -175,7 +177,7 @@ func defaultConfig() Config {
 		ListenAddr: ":8081",
 		Roles:      Roles{ElevationLeader: 1, ElevationFollower: 2, Azimuth: 3, LeaderMirrored: true},
 		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80, SecPerPhoto: 2, SpeedBy: SpeedByPhoto},
-		Plan:       Plan{Photos: 150, SettleMS: 800, Path: PathRings},
+		Plan:       Plan{Photos: 150, SettleMS: 800, Path: PathRings, ExportFor: ExportApple},
 		Cooldown:   Cooldown{Shots: 50, Minutes: 2},
 		Rig:        rigBuilt(),
 	}
@@ -207,8 +209,11 @@ func loadConfig(path string) (*configFile, error) {
 	}
 	if md.IsDefined("Plan", "ExportOn") || md.IsDefined("Plan", "Export") {
 		// From before ExportFor: the app, if the switch was on.
-		if f.c.Plan.ExportOn && !md.IsDefined("Plan", "ExportFor") {
-			f.c.Plan.ExportFor = f.c.Plan.Export
+		if !md.IsDefined("Plan", "ExportFor") {
+			f.c.Plan.ExportFor = "" // (the switch off: none)
+			if f.c.Plan.ExportOn {
+				f.c.Plan.ExportFor = f.c.Plan.Export
+			}
 		}
 		f.c.Plan.ExportOn, f.c.Plan.Export = false, ""
 		changed = true
