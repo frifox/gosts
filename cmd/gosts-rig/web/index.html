@@ -228,15 +228,15 @@ td.mono { font-family: var(--mono); }
 .timeline { display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden; min-width: 0; max-width: 100%; box-sizing: border-box; height: 136px; align-items: flex-start; }
 #shotNone { height: 120px; display: flex; align-items: center; }
 /* Slim scrollbars in the theme's colors that stay visible (macOS otherwise hides them until
-   scrolling): the timeline's, and the scrolling columns, log, photo grid and dialogs'. */
+   scrolling): the timeline's, and the scrolling columns, log, photo grid, dialogs and model Edit panel's. */
 .timeline::-webkit-scrollbar { height: 8px; }
-.left::-webkit-scrollbar, #log::-webkit-scrollbar, .gallery-grid::-webkit-scrollbar, .modal::-webkit-scrollbar, .settings-card::-webkit-scrollbar { width: 8px; }
+.left::-webkit-scrollbar, #log::-webkit-scrollbar, .gallery-grid::-webkit-scrollbar, .modal::-webkit-scrollbar, .settings-card::-webkit-scrollbar, .mv-edit::-webkit-scrollbar { width: 8px; }
 .timeline::-webkit-scrollbar-track, .left::-webkit-scrollbar-track, #log::-webkit-scrollbar-track,
-.gallery-grid::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track, .settings-card::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
+.gallery-grid::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track, .settings-card::-webkit-scrollbar-track, .mv-edit::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
 .timeline::-webkit-scrollbar-thumb, .left::-webkit-scrollbar-thumb, #log::-webkit-scrollbar-thumb,
-.gallery-grid::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb, .settings-card::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.gallery-grid::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb, .settings-card::-webkit-scrollbar-thumb, .mv-edit::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 .timeline::-webkit-scrollbar-thumb:hover, .left::-webkit-scrollbar-thumb:hover, #log::-webkit-scrollbar-thumb:hover,
-.gallery-grid::-webkit-scrollbar-thumb:hover, .modal::-webkit-scrollbar-thumb:hover, .settings-card::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.gallery-grid::-webkit-scrollbar-thumb:hover, .modal::-webkit-scrollbar-thumb:hover, .settings-card::-webkit-scrollbar-thumb:hover, .mv-edit::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .timeline .thumb { flex: none; height: 120px; aspect-ratio: 3 / 2; position: relative; padding: 0; border: 1px solid var(--border); border-radius: 8px;
   overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
 .timeline .thumb:hover { border-color: var(--accent); }
