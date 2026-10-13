@@ -104,13 +104,13 @@ const VIEW_DIR = VIEWS["3d"];
 // frame puts camera (and controls, if any) on obj, just all of it in view
 // (each point: as far off as it needs, at the camera's angle, from the
 // middle of its box; margin: a fraction of the view left round it).
-function frame(obj, camera, controls, margin = 0.06, dir = VIEW_DIR) {
+function frame(obj, camera, controls, margin = 0.06, dir = VIEW_DIR, aspect = camera.aspect) {
   const box = new THREE.Box3().setFromObject(obj);
   const c = box.getCenter(new THREE.Vector3());
   const r = Math.max(box.getBoundingSphere(new THREE.Sphere()).radius, 1e-3);
   const fwd = dir.clone(), right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), fwd).normalize();
   const up = new THREE.Vector3().crossVectors(fwd, right);
-  const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (1 - margin), tanH = tanV * camera.aspect;
+  const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (1 - margin), tanH = tanV * aspect;
   let dist = 0;
   const p = new THREE.Vector3();
   obj.updateMatrixWorld(true);
@@ -183,13 +183,33 @@ export function createModelView(canvas) {
   marks.renderOrder = 10;
   scene.add(marks);
 
+  // inset: the stage's right side covered (the Edit panel), px; the
+  // picture shifted left by half of it (eased there), so the model's in
+  // the middle of what's seen. shift: where the shift is now.
+  let inset = 0, shift = 0;
   function size() {
     const box = canvas.parentElement, w = box.clientWidth, h = box.clientHeight;
     if (!w || !h) return;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
+    offset();
+  }
+  function offset() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (shift > 0.5 && w && h) camera.setViewOffset(w, h, shift, 0, w, h);
+    else camera.clearViewOffset();
     camera.updateProjectionMatrix();
   }
+  function shiftTick(dt) {
+    const want = inset / 2;
+    if (Math.abs(want - shift) < 0.5) { if (shift !== want) { shift = want; offset(); } return; }
+    shift += (want - shift) * Math.min(1, dt * 12);
+    offset();
+  }
+  // seen: the part of the stage not covered, as the camera's aspect (what
+  // framing fits the model to).
+  const seenAspect = () => Math.max(0.2, (canvas.clientWidth - inset) / Math.max(1, canvas.clientHeight));
+  function setInset(px) { inset = Math.max(0, px); }
   new ResizeObserver(size).observe(canvas.parentElement);
   let last = 0;
   function loop(now = performance.now()) {
@@ -197,6 +217,7 @@ export function createModelView(canvas) {
     const dt = Math.min(0.1, (now - (last || now)) / 1000);
     glideTick(dt);
     tweenTick(dt);
+    shiftTick(dt);
     last = now;
     controls.update();
     renderer.render(scene, camera);
@@ -230,7 +251,7 @@ export function createModelView(canvas) {
     if (VIEWS[name]) viewName = name;
     if (!holder) return;
     const from = camera.position.clone(), fromT = controls.target.clone();
-    frame(holder, camera, controls, 0.06, VIEWS[viewName]); // (where it ends: its near, far and zoom limits too)
+    frame(holder, camera, controls, 0.06, VIEWS[viewName], seenAspect()); // (where it ends: its near, far and zoom limits too)
     glideTo = null;
     if (!glide) return;
     glideTo = { from, fromT, to: camera.position.clone(), toT: controls.target.clone(), age: 0 };
@@ -306,7 +327,7 @@ export function createModelView(canvas) {
     scene.add(holder);
     viewName = "3d";
     size();
-    frame(holder, camera, controls);
+    frame(holder, camera, controls, 0.06, VIEW_DIR, seenAspect());
     ground();
     look(mode);
     running = true;
@@ -510,6 +531,7 @@ export function createModelView(canvas) {
     show, look, reset, view, clear, stats, box,
     editing, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, parts,
     settle: () => tweenEnd(), // (a move going on: there at once)
+    setInset,
     set onPick(f) { onPick = f; },
   };
 }
