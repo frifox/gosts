@@ -23,7 +23,7 @@ type Config struct {
 	// CameraPace is how often (s) each camera can take a photo and hand it
 	// over, keeping that up (measured: see cameraConn.measurePace), by its id.
 	CameraPace map[string]float64 `toml:"CameraPace,omitempty"`
-	PhotoDir   string             `toml:"PhotoDir,omitempty"` // where real cameras' photos are saved (a folder a day); empty = ~/Pictures/gosts-rig
+	PhotoDir   string             `toml:"PhotoDir,omitempty"` // where the captures are saved (a folder each; ~ for home); empty = ~/Pictures/gosts-rig (--photos overrides)
 	Roles      Roles              `toml:"Roles"`
 	Motion     Motion             `toml:"Motion"`
 	Plan       Plan               `toml:"Plan"`

@@ -612,7 +612,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   <div class="right">
   <section class="card" id="cameraCard">
     <h2>Photos <button class="btn small" id="openCaptureBtn" title="Browse the captures saved on this computer" style="text-transform:none;letter-spacing:0;margin-left:6px">Browse</button>
-      <span class="dev-name" id="batchName" title="The capture the photos and sample shots go to: its folder in ~/Pictures/gosts-rig"></span>
+      <span class="dev-name" id="batchName" title="The capture the photos and sample shots go to: its folder"></span>
       <button class="icon-btn pen-btn" id="batchRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button>
       <span class="spacer"></span>
       <button class="btn small" id="resetPhotosBtn" title="Start a new capture: a new folder for the photos from now on, and the timeline cleared (asks first; the photos taken stay saved)" style="text-transform:none;letter-spacing:0">New Capture</button>
@@ -751,7 +751,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="renameTitle" style="width:min(420px,100%)">
     <h2 id="renameTitle">Rename Capture</h2>
     <div class="card-body">
-      <label for="renameInput" class="hint" style="display:block;margin-bottom:6px">The folder's new name, in ~/Pictures/gosts-rig</label>
+      <label for="renameInput" class="hint" style="display:block;margin-bottom:6px">The folder's new name, in <span class="photo-dir">~/Pictures/gosts-rig</span></label>
       <input type="text" id="renameInput" spellcheck="false" autocomplete="off" style="width:100%;box-sizing:border-box">
       <div class="err" id="renameErr" style="margin-top:6px"></div>
       <div class="row" style="margin-top:14px"><span class="spacer"></span>
@@ -865,6 +865,7 @@ function onMessage(m) {
     case "batch": // the capture's name (its folder), and whether it's empty
       $("batchName").textContent = m.name || ""; $("batchRename").hidden = !m.name;
       state.batchEmpty = !!m.empty;
+      if (m.dir) { state.photoDir = m.dir; for (const e of document.querySelectorAll(".photo-dir")) e.textContent = m.dir; $("batchName").title = `The capture the photos and sample shots go to: its folder in ${m.dir}`; }
       cameraButtons();
       break;
     case "simShoot": simShoot(m.n, m.exposure, m.settings, m.blur); break;
@@ -1213,7 +1214,7 @@ async function renderGallery() {
         g.appendChild(folderTile("Current Batch", state.photos.length, photoURL(state.photos[Math.floor((state.photos.length - 1) / 2)]) + "&thumb", true, () => galleryGo("current")));
       for (const b of bs) g.appendChild(folderTile(b.name, b.count, b.mid ? batchURL(b.name, b.mid) + "?thumb" : "", b.current, () => galleryGo(b.current ? "current" : b.name), true));
       $("galleryTitle").textContent = `Captures (${g.children.length})`;
-      if (!g.children.length) g.innerHTML = '<span class="hint">No captures yet: they are saved in ~/Pictures/gosts-rig.</span>';
+      if (!g.children.length) g.innerHTML = `<span class="hint">No captures yet: they are saved in ${escHTML(state.photoDir || "~/Pictures/gosts-rig")}.</span>`;
     } else {
       const ps = await getJSON(`/batches/${encodeURIComponent(where)}`);
       if (seq !== state.gal.seq) return;
@@ -2438,7 +2439,7 @@ $("resetPhotosBtn").onclick = async () => {
   $("shotErr").textContent = "";
   try {
     const r = await send("photosReset", {});
-    log(`new capture: saving to ~/Pictures/gosts-rig/${r?.folder}`);
+    log(`new capture: saving to ${state.photoDir || "~/Pictures/gosts-rig"}/${r?.folder}`);
   } catch (e) { $("shotErr").textContent = e.message; }
 };
 // confirmDanger asks before something that can't be undone; resolves true on

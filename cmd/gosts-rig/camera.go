@@ -158,6 +158,7 @@ type batchMsg struct {
 	Type  string `json:"type"` // "batch"
 	Name  string `json:"name"`
 	Empty bool   `json:"empty"`
+	Dir   string `json:"dir"` // the folder the captures are in (~ for home)
 }
 
 // batchStatus is the current capture's batchMsg: empty if the timeline
@@ -184,7 +185,7 @@ func hasFiles(dir string) bool {
 	return found
 }
 
-func batchNow() batchMsg { return batchMsg{Type: "batch", Name: currentBatch()} }
+func batchNow() batchMsg { return batchMsg{Type: "batch", Name: currentBatch(), Dir: homeShort(photoDir)} }
 
 func defaultPhotoDir() string {
 	home, err := os.UserHomeDir()

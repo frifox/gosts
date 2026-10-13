@@ -23,6 +23,7 @@ go install github.com/frifox/gosts/cmd/gosts-rig@latest
 gosts-rig                                   # then open http://localhost:8081
 gosts-rig --rig sim --camera sim            # simulated rig and camera
 gosts-rig --listen :9000                    # another port (or "localhost:9000" to keep it to this computer)
+gosts-rig --photos ~/Pictures/gosts-rig-sim # the captures saved elsewhere (or PhotoDir in the config)
 ```
 
 ## First time

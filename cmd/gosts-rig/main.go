@@ -44,6 +44,7 @@ func main() {
 	addr := flag.String("listen", "", "address to serve the page on, e.g. \":8081\", \"localhost:9000\" or just a port, 9000 (default: ListenAddr in the config file, \":8081\" if unset)")
 	flag.StringVar(addr, "addr", "", "the same as --listen (its old name)")
 	cfgPath := flag.String("config", defaultConfigPath(), "settings file, created if missing")
+	photos := flag.String("photos", "", "folder the captures are saved in (default: PhotoDir in the config file, else ~/Pictures/gosts-rig)")
 	ctlPath := flag.String("ctl-config", ctlConfigPath(), "the servo console's settings file (Servo Ctl: gosts-ctl's, shared with it), created on the first change")
 	flag.Parse()
 
@@ -62,8 +63,11 @@ func main() {
 	if *sim {
 		*port = simPort
 	}
-	if c.PhotoDir != "" {
-		photoDir = c.PhotoDir
+	switch {
+	case *photos != "":
+		photoDir = expandHome(*photos)
+	case c.PhotoDir != "":
+		photoDir = expandHome(c.PhotoDir)
 	}
 	log.Printf("photos: %s", photoDir)
 
@@ -188,4 +192,27 @@ func startupDevice(last string, real []string) string {
 		return real[0]
 	}
 	return ""
+}
+
+// expandHome is p with a leading ~ for the home folder.
+func expandHome(p string) string {
+	if p == "~" || strings.HasPrefix(p, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, strings.TrimPrefix(p, "~"))
+		}
+	}
+	return p
+}
+
+// homeShort is p with the home folder as ~ (for the page).
+func homeShort(p string) string {
+	if home, err := os.UserHomeDir(); err == nil {
+		if p == home {
+			return "~"
+		}
+		if strings.HasPrefix(p, home+string(filepath.Separator)) {
+			return "~" + strings.TrimPrefix(p, home)
+		}
+	}
+	return p
 }
