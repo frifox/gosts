@@ -7,11 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 )
 
 // A capture's models: its folders with a model in them (an OBJ, or a USDZ),
@@ -21,12 +24,42 @@ import (
 
 // builtModel is a model folder, as the gallery lists it.
 type builtModel struct {
-	Name   string   `json:"name"`   // the folder's
-	File   string   `json:"file"`   // the model's file (the OBJ, else the USDZ)
-	Format string   `json:"format"` // obj | usdz
-	Size   int64    `json:"size"`   // the folder's files, bytes
-	At     int64    `json:"at"`     // the model file's time, ms since 1970
-	Files  []string `json:"files"`  // all in it
+	Name   string     `json:"name"`           // the folder's
+	File   string     `json:"file"`           // the model's file (the OBJ, else the USDZ)
+	Format string     `json:"format"`         // obj | usdz
+	Size   int64      `json:"size"`           // the folder's files, bytes
+	At     int64      `json:"at"`             // the model file's time, ms since 1970
+	Files  []string   `json:"files"`          // all in it
+	Edit   *modelEdit `json:"edit,omitempty"` // a model edited here (leveled, turned, scaled): how
+}
+
+// modelEdit is how a model was edited (edit.json, beside it): from which
+// model, the change (a 4×4 matrix, three.js' column order, y up, meters),
+// the file's units, and what else was made.
+type modelEdit struct {
+	From      string    `json:"from"`
+	Matrix    []float64 `json:"matrix"`
+	Units     string    `json:"units"`              // mm | in | m: one unit in the files
+	Simplify  int       `json:"simplify,omitempty"` // triangles asked for (0: as it was)
+	Triangles int       `json:"triangles"`
+	STL       bool      `json:"stl"`
+	At        int64     `json:"at"` // ms since 1970
+}
+
+// modelEditFile is an edited model's account of itself, in its folder.
+const modelEditFile = "edit.json"
+
+// readModelEdit is the edit dir holds, if any.
+func readModelEdit(dir string) *modelEdit {
+	data, err := os.ReadFile(filepath.Join(dir, modelEditFile))
+	if err != nil {
+		return nil
+	}
+	var e modelEdit
+	if json.Unmarshal(data, &e) != nil {
+		return nil
+	}
+	return &e
 }
 
 // batchModels lists dir's model folders, by name.
@@ -75,6 +108,7 @@ func modelIn(dir string) (builtModel, bool) {
 			m.File, m.Format, m.At = n, ext[1:], info.ModTime().UnixMilli()
 		}
 	}
+	m.Edit = readModelEdit(dir)
 	return m, m.File != ""
 }
 
@@ -242,4 +276,175 @@ func (b *modelBuilder) building(name, out string) error {
 		return errors.New("a model is being built into it: cancel the build first")
 	}
 	return nil
+}
+
+// textureExts are the image files a model's materials may use.
+var textureExts = []string{".png", ".jpg", ".jpeg", ".tif", ".tiff", ".exr", ".bmp", ".tga"}
+
+// handleModelSave saves an edited model (POST
+// /batches/{name}/models/{model}/save, multipart): to (the new folder's
+// name), edit (its modelEdit, JSON), mtl (the model's materials' file, to
+// copy), obj (the edited OBJ) and stl (if made). The folder gets
+// <to>.obj, <to>.mtl (the model's, copied), its textures (copied),
+// <to>.stl and edit.json. Not over the model itself, nor over a folder
+// that isn't an edit saved here (that one: to the Trash first).
+func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
+	src, _, ok := modelPath(r)
+	name := r.PathValue("name")
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	fail := func(code int, format string, args ...any) { http.Error(w, fmt.Sprintf(format, args...), code) }
+	mr, err := r.MultipartReader()
+	if err != nil {
+		fail(http.StatusBadRequest, "%v", err)
+		return
+	}
+	// The parts to a hidden folder in the capture's; it becomes the model's
+	// once all's in.
+	tmp, err := os.MkdirTemp(filepath.Join(photoDir, name), ".save-")
+	if err != nil {
+		fail(http.StatusInternalServerError, "%v", err)
+		return
+	}
+	defer os.RemoveAll(tmp)
+	var to, mtl string
+	var edit modelEdit
+	got := map[string]bool{}
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			fail(http.StatusBadRequest, "%v", err)
+			return
+		}
+		field := part.FormName()
+		switch field {
+		case "to", "mtl", "edit":
+			v, _ := io.ReadAll(io.LimitReader(part, 1<<16))
+			switch field {
+			case "to":
+				to = strings.TrimSpace(string(v))
+			case "mtl":
+				mtl = string(v)
+			case "edit":
+				if err := json.Unmarshal(v, &edit); err != nil {
+					fail(http.StatusBadRequest, "edit: %v", err)
+					return
+				}
+			}
+		case "obj", "stl":
+			if !modelFolderName(to) { // (to comes first: the files are named by it)
+				fail(http.StatusBadRequest, "the name: one folder name, no slashes, no leading dot (not %s, nor samples)", buildDir)
+				return
+			}
+			f, err := os.Create(filepath.Join(tmp, to+"."+field))
+			if err == nil {
+				_, err = io.Copy(f, part)
+				if cerr := f.Close(); err == nil {
+					err = cerr
+				}
+			}
+			if err != nil {
+				fail(http.StatusInternalServerError, "%v", err)
+				return
+			}
+			got[field] = true
+		}
+	}
+	model := r.PathValue("model")
+	switch {
+	case !got["obj"]:
+		fail(http.StatusBadRequest, "no OBJ")
+		return
+	case to == model:
+		fail(http.StatusBadRequest, "save it under another name: %s is the model it's made from", to)
+		return
+	case !slices.Contains([]string{"mm", "in", "m"}, edit.Units):
+		fail(http.StatusBadRequest, "units %q?", edit.Units)
+		return
+	}
+	if err := a.model.building(name, to); err != nil {
+		fail(http.StatusConflict, "%v", err)
+		return
+	}
+	dst := filepath.Join(photoDir, name, to)
+	old := false
+	if ents, err := os.ReadDir(dst); err == nil && len(ents) > 0 {
+		if readModelEdit(dst) == nil {
+			fail(http.StatusConflict, "%s has files in it (not a model saved here): pick another name", to)
+			return
+		}
+		old = true
+	}
+	// The materials (renamed as the model) and the textures, copied.
+	ents, err := os.ReadDir(src)
+	if err != nil {
+		fail(http.StatusInternalServerError, "%v", err)
+		return
+	}
+	for _, e := range ents {
+		n := e.Name()
+		ext := strings.ToLower(filepath.Ext(n))
+		var as string
+		switch {
+		case e.IsDir() || strings.HasPrefix(n, "."):
+		case n == mtl && ext == ".mtl":
+			as = to + ".mtl"
+		case slices.Contains(textureExts, ext):
+			as = n
+		}
+		if as == "" {
+			continue
+		}
+		if err := copyFile(filepath.Join(src, n), filepath.Join(tmp, as)); err != nil {
+			fail(http.StatusInternalServerError, "%v", err)
+			return
+		}
+	}
+	edit.From, edit.STL = model, got["stl"]
+	edit.At = time.Now().UnixMilli()
+	data, _ := json.MarshalIndent(edit, "", "  ")
+	if err := os.WriteFile(filepath.Join(tmp, modelEditFile), data, 0o644); err != nil {
+		fail(http.StatusInternalServerError, "%v", err)
+		return
+	}
+	if old {
+		if err := trash(dst); err != nil {
+			fail(http.StatusInternalServerError, "the one saved before couldn't go to the Trash: %v", err)
+			return
+		}
+		log.Printf("model: %s's %s from before moved to the Trash", name, to)
+	} else {
+		os.Remove(dst) // (an empty folder)
+	}
+	if err := os.Rename(tmp, dst); err != nil {
+		fail(http.StatusInternalServerError, "%v", err)
+		return
+	}
+	log.Printf("model: %s's %s saved as %s (%s, %d triangles)", name, model, to, edit.Units, edit.Triangles)
+	m, _ := modelIn(dst)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(m)
+}
+
+// copyFile copies a file's bytes.
+func copyFile(from, to string) error {
+	in, err := os.Open(from)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(to)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
 }

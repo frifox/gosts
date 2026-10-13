@@ -386,6 +386,24 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 #modelViewer .viewer-bar .btn, #modelViewer .viewer-bar .views { white-space: nowrap; flex: none; }
 #modelViewer .viewer-bar .cap { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gallery-grid .thumb.model { cursor: pointer; }
+.mv-edit { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; overflow-y: auto; cursor: default; background: rgba(18,21,28,.94); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px; color: var(--text); font-size: 13px; }
+.mv-edit section { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+.mve-head { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.mve-head b { display: block; color: var(--text); font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.mve-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mve-row .views.seg { margin-left: 0; }
+.mve-n, .mve-label { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.mv-edit button.picking { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mv-edit input[type=number] { width: 110px; }
+.mv-edit .mve-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.mv-edit .mve-field input { width: 100%; box-sizing: border-box; }
+.mv-edit .mp-check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.mve-axes { color: var(--muted); font-size: 12px; }
+.mve-axes .x { color: #e5484d; } .mve-axes .y { color: #46a758; } .mve-axes .z { color: #3e7bfa; }
+.mve-size { font: 12px var(--mono); color: var(--text); border-top: 1px solid var(--border); padding-top: 10px; }
+.mve-status { font-size: 12px; color: var(--muted); min-height: 1em; }
+.mve-status.bad { color: var(--bad); } .mve-status.ok { color: var(--ok); }
 .thumb.model .mbadge { position: absolute; top: 7px; left: 7px; padding: 2px 6px; border-radius: 6px; background: var(--accent); color: #fff; font: 600 11px var(--mono); letter-spacing: .03em; }
 .thumb.model .mph { aspect-ratio: 3 / 2; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; }
 .thumb.model .mph.busy::before { content: ""; width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255,255,255,.15); border-top-color: var(--accent); animation: spin .8s linear infinite; }
@@ -869,13 +887,42 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <span class="spacer"></span>
     <span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, gray">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span>
     <button class="btn small" id="mvReset" title="The whole model, from the front (F)">Reset View</button>
+    <button class="btn small" id="mvEditBtn" title="Level it, turn it onto an axis, scale it to a known size; save it as a new model (OBJ, and STL)">Edit</button>
     <button class="btn small" id="mvOpen" title="Open it in the Mac's app for it (Preview, unless another is set: Blender, say, in the Finder's Get Info) to edit it">Open in App</button>
     <button class="btn small" id="mvReveal" title="Its folder, in the Finder">Show in Finder</button>
     <button class="icon-btn" id="mvClose" title="Close (Esc)" aria-label="Close">✕</button>
   </div>
   <div class="stage model-stage" id="mvStage"><canvas id="mvCanvas"></canvas>
     <div class="mv-hint">Drag to turn · right-drag (or ⇧ drag) to move · wheel to zoom · F: the whole model · Esc: the capture</div>
-    <div class="mv-msg" id="mvMsg" hidden></div></div>
+    <div class="mv-msg" id="mvMsg" hidden></div>
+    <aside class="mv-edit" id="mvEdit" hidden>
+      <div class="mve-axes">Axes as in Blender and Fusion: <b class="x">X</b> <b class="y">Y</b> <b class="z">Z</b> (up); the grid is the ground.</div>
+      <section data-step="level">
+        <div class="mve-head"><b>1 · Level</b>pick 3 or more points on what it should stand on</div>
+        <div class="mve-row"><button class="btn small" data-pick="level">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="level">Clear</button><span class="spacer"></span><button class="btn small primary" id="mveLevel" disabled>Level</button></div>
+      </section>
+      <section data-step="align">
+        <div class="mve-head"><b>2 · Align</b>pick 2 or more points along an edge, then the axis it should run along</div>
+        <div class="mve-row"><button class="btn small" data-pick="align">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="align">Clear</button></div>
+        <div class="mve-row"><span class="mve-label">Along</span><span class="views seg" id="mveAxis"><button data-v="x">X</button><button data-v="y">Y</button></span><span class="spacer"></span><button class="btn small primary" id="mveAlign" disabled>Align</button></div>
+      </section>
+      <section data-step="scale">
+        <div class="mve-head"><b>3 · Scale</b>pick 2 points, then their real distance</div>
+        <div class="mve-row"><button class="btn small" data-pick="scale">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="scale">Clear</button></div>
+        <div class="mve-row"><input type="number" id="mveDist" min="0" step="any" placeholder="distance"><span class="views seg" id="mveUnit"><button data-v="mm">mm</button><button data-v="in">in</button></span><span class="spacer"></span><button class="btn small primary" id="mveScale" disabled>Scale</button></div>
+      </section>
+      <div class="mve-size" id="mveSize"></div>
+      <div class="mve-row"><button class="btn small" id="mveUndo" disabled>Undo</button><button class="btn small" id="mveResetEdit" disabled>Reset Edits</button></div>
+      <section class="mve-save">
+        <div class="mve-head"><b>Save</b>as a new model, in this capture's folder</div>
+        <label class="mve-field">Name<input type="text" id="mveName" spellcheck="false" autocomplete="off"></label>
+        <div class="mve-row"><span class="mve-label">File units</span><span class="views seg" id="mveFileUnit"><button data-v="mm" title="Fusion 360, CAD: 1 unit = 1 mm">mm</button><button data-v="in">in</button><button data-v="m" title="Blender's own: 1 unit = 1 m">m</button></span></div>
+        <label class="mp-check"><input type="checkbox" id="mveSTL"> <span>Also an STL (z up)</span></label>
+        <div class="mve-row"><label class="mp-check"><input type="checkbox" id="mveSimplify"> <span>Simplify to</span></label><input type="number" id="mveTris" min="100" step="1000"><span class="mve-label">triangles</span></div>
+        <div class="mve-row"><span class="spacer"></span><button class="btn small primary" id="mveSave">Save</button></div>
+        <div class="mve-status" id="mveStatus"></div>
+      </section>
+    </aside></div>
 </div>
 <div class="modal-backdrop" id="renameModal" style="z-index:60" hidden>
   <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="renameTitle" style="width:min(420px,100%)">
@@ -911,6 +958,8 @@ import * as graycard from "./graycard.js";
 window.graycard = graycard;
 window.rig3d = createRig(document.getElementById("rig"));
 import { createModelView, modelThumb } from "./modelview.js";
+import * as modelEdit from "./modeledit.js";
+window.modelEdit = modelEdit;
 window.modelView = createModelView(document.getElementById("mvCanvas"));
 window.modelThumb = modelThumb;
 draw();
@@ -1373,7 +1422,8 @@ function openModel(name, m) {
   $("mvCap").textContent = `${name} · ${m.name} · ${fmt}`;
   $("modelViewer").hidden = false;
   const msg = (text, cls = "") => { $("mvMsg").hidden = !text; $("mvMsg").className = "mv-msg " + cls; $("mvMsg").textContent = text; };
-  $("mvLook").hidden = $("mvReset").hidden = m.format !== "obj";
+  $("mvLook").hidden = $("mvReset").hidden = $("mvEditBtn").hidden = m.format !== "obj";
+  mveFresh(m);
   if (m.format !== "obj") {
     window.modelView.clear();
     msg(`A ${fmt} isn't shown here (only an OBJ is): Open in App shows it (Preview, say).`);
@@ -1381,7 +1431,8 @@ function openModel(name, m) {
   }
   msg("Loading the mesh", "busy");
   window.modelView.look(state.mvLook);
-  window.modelView.show(modelBase(name, m), m.file, (t) => { if (state.mv?.m === m) msg(t, "busy"); }).then((st) => {
+  const scale = window.modelEdit.UNITS[m.edit?.units] || 1; // (an edited model: in its units; the viewer's in meters)
+  window.modelView.show(modelBase(name, m), m.file, (t) => { if (state.mv?.m === m) msg(t, "busy"); }, scale).then((st) => {
     if (!st || state.mv?.m !== m) return;
     msg("");
     const cm = st.size.map((v) => (v * 100).toFixed(1)).join(" × ");
@@ -1390,6 +1441,7 @@ function openModel(name, m) {
 }
 function closeModel() {
   $("modelViewer").hidden = true;
+  $("mvEdit").hidden = true;
   state.mv = null;
   window.modelView.clear();
 }
@@ -1414,6 +1466,115 @@ async function mvOpen(reveal) {
 }
 $("mvOpen").onclick = () => mvOpen(false);
 $("mvReveal").onclick = () => mvOpen(true);
+
+// ---------------------------------------------------------------- model edit
+// Edit (an OBJ): level it (3+ points on what it stands on), turn an edge
+// onto X or Y (2+ points along it), scale it (2 points, their real
+// distance); save it as a new model: the OBJ (its materials and textures
+// copied), an STL too if asked, simplified if asked. The edit's in the
+// viewer (modelView) till saved; Undo steps back.
+const mve = { picks: { level: [], align: [], scale: [] }, picking: null, undo: [] };
+const MVE_COLORS = { level: 0xffb020, align: 0x46a758, scale: 0x3e7bfa };
+const segPick = (id, v) => { for (const b of $(id).children) b.classList.toggle("active", b.dataset.v === v); };
+const segOf = (id) => $(id).querySelector(".active")?.dataset.v;
+for (const id of ["mveAxis", "mveUnit", "mveFileUnit"]) $(id).onclick = (e) => { if (e.target.dataset?.v) { segPick(id, e.target.dataset.v); mveShow(); } };
+segPick("mveAxis", "x"); segPick("mveUnit", "mm"); segPick("mveFileUnit", "mm");
+try { const u = localStorage.getItem("modelEditUnits"); if (u) { const [a, b] = JSON.parse(u); segPick("mveUnit", a); segPick("mveFileUnit", b); } } catch {}
+$("mveTris").value = 50000;
+// mveShow: the panel as the edit is: points picked, what can be done, its size.
+function mveShow() {
+  const mv = window.modelView, u = segOf("mveUnit"), k = 1 / window.modelEdit.UNITS[u];
+  for (const sec of $("mvEdit").querySelectorAll("section[data-step]")) {
+    const st = sec.dataset.step, n = mve.picks[st].length;
+    sec.querySelector(".mve-n").textContent = `${n} point${n === 1 ? "" : "s"}`;
+    sec.querySelector("[data-pick]").classList.toggle("picking", mve.picking === st);
+    sec.querySelector("[data-pick]").textContent = mve.picking === st ? "Picking…" : "Pick Points";
+  }
+  $("mveLevel").disabled = mve.picks.level.length < 3;
+  $("mveAlign").disabled = mve.picks.align.length < 2;
+  const sp = mve.picks.scale;
+  $("mveScale").disabled = sp.length !== 2 || !(Number($("mveDist").value) > 0);
+  $("mveDist").placeholder = sp.length === 2 ? `now ${(sp[0].distanceTo(sp[1]) * k).toFixed(u === "mm" ? 1 : 3)}` : "distance";
+  $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length;
+  const st = mv.stats();
+  if (st) {
+    const [x, y, z] = [st.size[0], st.size[2], st.size[1]].map((v) => (v * k).toFixed(u === "mm" ? 1 : 2));
+    $("mveSize").textContent = `Size: X ${x} × Y ${y} × Z ${z} ${u} · ${Math.round(st.triangles).toLocaleString()} triangles`;
+  }
+  mv.markers(Object.entries(mve.picks).map(([k2, pts]) => ({ points: pts, color: MVE_COLORS[k2], line: k2 === "level" ? "loop" : true })));
+  try { localStorage.setItem("modelEditUnits", JSON.stringify([u, segOf("mveFileUnit")])); } catch {}
+}
+$("mveDist").oninput = mveShow;
+function mvePicking(st) {
+  mve.picking = st;
+  window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); mveShow(); } : null;
+  mveShow();
+}
+$("mvEdit").addEventListener("click", (e) => {
+  const pk = e.target.closest("[data-pick]")?.dataset.pick, cl = e.target.closest("[data-clear]")?.dataset.clear;
+  if (pk) mvePicking(mve.picking === pk ? null : pk);
+  if (cl) { mve.picks[cl] = []; mveShow(); }
+});
+// mveDo applies an edit (made by f), steps back-able; the picks done with.
+function mveDo(f) {
+  const mv = window.modelView;
+  try {
+    const before = mv.matrix();
+    const m = f(mv.boxWith); // (box(m): the model's box after m)
+    mv.apply(m);
+    mv.reset(); // (moved, turned, scaled: all of it in view again)
+    mve.undo.push(before);
+    mve.picks = { level: [], align: [], scale: [] };
+    mveStatus("");
+  } catch (e) { mveStatus(e.message, "bad"); }
+  mvePicking(null);
+}
+$("mveLevel").onclick = () => mveDo((box) => window.modelEdit.level(mve.picks.level, window.modelView.center(), box));
+$("mveAlign").onclick = () => mveDo((box) => window.modelEdit.align(mve.picks.align, segOf("mveAxis"), box));
+$("mveScale").onclick = () => mveDo(() => window.modelEdit.scale(mve.picks.scale[0], mve.picks.scale[1], Number($("mveDist").value) * window.modelEdit.UNITS[segOf("mveUnit")]));
+$("mveUndo").onclick = () => { const m = mve.undo.pop(); if (m) { window.modelView.setMatrix(m); window.modelView.reset(); } mveShow(); };
+$("mveResetEdit").onclick = () => { if (mve.undo.length) { window.modelView.setMatrix(mve.undo[0]); window.modelView.reset(); } mve.undo = []; mveShow(); };
+function mveStatus(text, cls = "") { $("mveStatus").textContent = text; $("mveStatus").className = "mve-status " + cls; }
+// mveOpen shows (or hides) the panel; a model opened: afresh.
+function mveOpen(on) {
+  $("mvEdit").hidden = !on;
+  $("mvEditBtn").classList.toggle("primary", on);
+  window.modelView.editing(on);
+  mvePicking(null);
+}
+function mveFresh(m) {
+  mve.picks = { level: [], align: [], scale: [] };
+  mve.undo = [];
+  const base = m.name.replace(/-aligned(-\d+)?$/, "");
+  $("mveName").value = base + "-aligned" === m.name ? base + "-aligned-2" : base + "-aligned";
+  mveStatus("");
+  mveOpen(false);
+}
+$("mvEditBtn").onclick = () => mveOpen($("mvEdit").hidden);
+$("mveSave").onclick = async () => {
+  const v = state.mv, to = $("mveName").value.trim();
+  if (!v || !to) return mveStatus("A name, first", "bad");
+  const units = segOf("mveFileUnit"), stl = $("mveSTL").checked, simplify = $("mveSimplify").checked ? Math.round(Number($("mveTris").value)) : 0;
+  if ($("mveSimplify").checked && !(simplify >= 100)) return mveStatus("Simplify to: 100 triangles or more", "bad");
+  $("mveSave").disabled = true;
+  try {
+    const mtl = v.m.files.find((f) => f.toLowerCase().endsWith(".mtl")) || "";
+    const res = await window.modelEdit.write(window.modelView.parts(), { units, simplify, stl, mtl: mtl ? to + ".mtl" : "", name: to, progress: (t) => mveStatus(t + "…") });
+    mveStatus("Saving…");
+    const fd = new FormData();
+    fd.append("to", to);
+    fd.append("mtl", mtl);
+    fd.append("edit", JSON.stringify({ matrix: window.modelView.matrix().elements, units, simplify, triangles: res.triangles }));
+    fd.append("obj", res.obj, to + ".obj");
+    if (res.stl) fd.append("stl", res.stl, to + ".stl");
+    const r = await fetch(modelBase(v.name, v.m) + "save", { method: "POST", body: fd });
+    if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+    mveStatus(`Saved as ${to}: ${res.triangles.toLocaleString()} triangles, ${units}${res.stl ? ", with an STL" : ""}`, "ok");
+    log(`${v.name}: ${v.m.name} saved as ${to}`);
+    galleryAgain();
+  } catch (e) { mveStatus(`Couldn't save it: ${e.message}`, "bad"); }
+  $("mveSave").disabled = false;
+};
 
 async function renderGallery() {
   const g = $("galleryGrid"), where = state.gal.where, seq = ++state.gal.seq;

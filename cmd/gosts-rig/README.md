@@ -107,6 +107,22 @@ triangles and size (cm) in the bar. **Open in App** opens it in the Mac's app fo
 another's set: Blender, say, in the Finder's Get Info); **Show in Finder** shows its folder. A USDZ isn't shown in the
 page (three.js can't read Apple's), only opened. Its tile's bin moves the model's folder to the Trash.
 
+**Edit** (an OBJ) readies a model for Blender, Fusion 360 and the like: upright, square to the axes, at its real size.
+The viewer shows the axes as they do (X red, Y green, Z blue up) and the ground grid at the origin. **Pick Points**,
+then click on the model (each click snaps to the nearest corner of the triangle under it):
+
+1. **Level**: 3 or more points on what it should stand on; the plane through them goes to the ground, the model above it.
+2. **Align**: 2 or more points along an edge, and X or Y; the model turns about the vertical so the edge runs along it.
+3. **Scale**: 2 points and their real distance (mm or in); the model scales to match (Object Capture's own size is a
+   guess from the photos).
+
+Each step centers it on the origin; the size (X × Y × Z) shows as it goes; **Undo** steps back. **Save** writes it as a
+new model in the capture (named `<model>-aligned` unless you name it): the OBJ in the file units picked (mm, the
+default; in; or m, Blender's), y up as OBJ files are (Blender and Fusion turn it z up), its materials and textures
+copied; **Also an STL** (z up, as STL files are); **Simplify to** a number of triangles (meshoptimizer; the texture
+kept). Its `edit.json` says what it was made from and how; saving under the same name again replaces it (the one
+before to the Trash).
+
 ## Camera settings
 
 The **gear** in the Camera card's title opens the camera's settings next to a sample shot, in a Settings card in place

@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -107,5 +109,87 @@ func TestModels(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".Trash", "model", "m.obj")); err != nil {
 		t.Error("not in the Trash:", err)
+	}
+}
+
+// An edited model saved: its OBJ (and STL) as sent, the model's materials
+// (renamed) and textures copied, edit.json; again over it (the one before
+// to the Trash); not over the model itself, nor a folder not saved here.
+func TestModelSave(t *testing.T) {
+	old := photoDir
+	photoDir = t.TempDir()
+	defer func() { photoDir = old }()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	os.MkdirAll(filepath.Join(home, ".Trash"), 0o755)
+	dir := filepath.Join(photoDir, "cap")
+	for rel, data := range map[string]string{"model-full/m.obj": "v 0 0 0", "model-full/m.mtl": "map_Kd tex.png", "model-full/tex.png": "png",
+		"model-full/m.usda": "usda", "mine/keep.txt": "x"} {
+		os.MkdirAll(filepath.Dir(filepath.Join(dir, rel)), 0o755)
+		os.WriteFile(filepath.Join(dir, rel), []byte(data), 0o644)
+	}
+	a := &app{model: &modelBuilder{out: func(any) {}}}
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /batches/{name}/models/{model}/save", a.handleModelSave)
+	save := func(to string, stl bool) *httptest.ResponseRecorder {
+		var body bytes.Buffer
+		mw := multipart.NewWriter(&body)
+		mw.WriteField("to", to)
+		mw.WriteField("mtl", "m.mtl")
+		mw.WriteField("edit", `{"matrix":[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],"units":"mm","triangles":1}`)
+		f, _ := mw.CreateFormFile("obj", to+".obj")
+		f.Write([]byte("mtllib " + to + ".mtl\nv 1 2 3\n"))
+		if stl {
+			f, _ = mw.CreateFormFile("stl", to+".stl")
+			f.Write([]byte("stl"))
+		}
+		mw.Close()
+		req := httptest.NewRequest("POST", "/batches/cap/models/model-full/save", &body)
+		req.Header.Set("Content-Type", mw.FormDataContentType())
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+
+	if w := save("model-full-aligned", true); w.Code != 200 {
+		t.Fatalf("save: %d %s", w.Code, w.Body)
+	}
+	out := filepath.Join(dir, "model-full-aligned")
+	var names []string
+	ents, _ := os.ReadDir(out)
+	for _, e := range ents {
+		names = append(names, e.Name())
+	}
+	want := []string{"edit.json", "model-full-aligned.mtl", "model-full-aligned.obj", "model-full-aligned.stl", "tex.png"}
+	if strings.Join(names, " ") != strings.Join(want, " ") {
+		t.Fatalf("saved %v, want %v", names, want)
+	}
+	if data, _ := os.ReadFile(filepath.Join(out, "model-full-aligned.mtl")); string(data) != "map_Kd tex.png" {
+		t.Errorf("materials: %q", data)
+	}
+	e := readModelEdit(out)
+	if e == nil || e.From != "model-full" || e.Units != "mm" || !e.STL || len(e.Matrix) != 16 {
+		t.Errorf("edit.json: %+v", e)
+	}
+
+	if w := save("model-full-aligned", false); w.Code != 200 {
+		t.Fatalf("again: %d %s", w.Code, w.Body)
+	}
+	if _, err := os.Stat(filepath.Join(out, "model-full-aligned.stl")); !os.IsNotExist(err) {
+		t.Error("the STL from before is still there")
+	}
+	if _, err := os.Stat(filepath.Join(home, ".Trash", "model-full-aligned", "model-full-aligned.stl")); err != nil {
+		t.Error("the one before isn't in the Trash:", err)
+	}
+	for _, to := range []string{"model-full", "mine", "model-build", "../x"} {
+		if w := save(to, false); w.Code == 200 {
+			t.Errorf("saved over %s", to)
+		}
+	}
+	if data, _ := os.ReadFile(filepath.Join(dir, "mine", "keep.txt")); string(data) != "x" {
+		t.Error("mine's file is gone")
+	}
+	if ents, _ := os.ReadDir(dir); len(ents) != 3 {
+		t.Errorf("left in the capture: %v", ents)
 	}
 }

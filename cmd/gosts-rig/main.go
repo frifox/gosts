@@ -160,6 +160,7 @@ func main() {
 	mux.HandleFunc("PUT /batches/{name}/models/{model}/thumb", a.handleModelThumbPut)
 	mux.HandleFunc("POST /batches/{name}/models/{model}/open", a.handleModelOpen)
 	mux.HandleFunc("POST /batches/{name}/models/{model}/delete", a.handleModelDelete)
+	mux.HandleFunc("POST /batches/{name}/models/{model}/save", a.handleModelSave)
 	mux.HandleFunc("POST /batches/{name}/delete", a.handleBatchDelete)
 	mux.HandleFunc("POST /batches/{name}/{file}/delete", a.handleBatchPhotoDelete)
 	mux.Handle("/ctl/", http.StripPrefix("/ctl", ctl.Routes()))

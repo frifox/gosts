@@ -142,6 +142,11 @@ const WIRE = new THREE.MeshBasicMaterial({ color: 0x7ea6ff, wireframe: true });
 // createModelView: the viewer on canvas (in a box that sizes it). show()
 // loads a model in place of the one before; look() textured | clay | wire;
 // reset() the view as it came; clear() frees it (the viewer closed).
+// Editing (level, align, scale): the model under an edit (a matrix, in
+// meters, y up); editing() shows the axes and the ground at the origin and
+// lets points be picked (onPick, each snapped to the nearest corner of the
+// triangle clicked); apply() changes the edit; parts() is the model as
+// edited, for saving.
 export function createModelView(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -153,8 +158,12 @@ export function createModelView(canvas) {
   controls.dampingFactor = 0.12;
   controls.screenSpacePanning = true;
   controls.zoomToCursor = true;
-  let model = null, grid = null, mode = "textured", running = false, seq = 0;
+  // holder: the edit (its matrix); in it the model as loaded (in meters).
+  let holder = null, obj = null, grid = null, axes = null, mode = "textured", running = false, seq = 0, editOn = false, onPick = null, radius = 1;
   const originals = new Map(); // mesh → its own material(s)
+  const marks = new THREE.Group();
+  marks.renderOrder = 10;
+  scene.add(marks);
 
   function size() {
     const box = canvas.parentElement, w = box.clientWidth, h = box.clientHeight;
@@ -170,49 +179,171 @@ export function createModelView(canvas) {
     renderer.render(scene, camera);
     requestAnimationFrame(loop);
   }
+  const drop = (o) => { if (!o) return; scene.remove(o); o.traverse((c) => { c.geometry?.dispose(); c.material?.dispose?.(); }); };
   function clear() {
     running = false;
     seq++;
-    if (model) { scene.remove(model); disposeModel(model); model = null; }
-    if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); grid = null; }
+    if (holder) { scene.remove(holder); disposeModel(holder); holder = obj = null; }
+    drop(grid); drop(axes); grid = axes = null;
+    markers([]);
+    editOn = false;
     originals.clear();
     renderer.clear();
   }
   function look(m) {
     mode = m;
-    model?.traverse((o) => {
+    obj?.traverse((o) => {
       if (!o.isMesh) return;
       o.material = m === "clay" ? CLAY : m === "wire" ? WIRE : originals.get(o);
     });
   }
-  function reset() { if (model) frame(model, camera, controls); }
-  // show loads the model (base: its folder's address; file: the OBJ):
-  // its triangles and size once it's in.
-  async function show(base, file, status) {
-    clear();
-    const my = seq;
-    const obj = await loadOBJ(base, file, status);
-    if (my !== seq) { disposeModel(obj); return null; } // (closed, or another, meanwhile)
-    model = obj;
-    obj.traverse((o) => { if (o.isMesh) originals.set(o, o.material); });
-    scene.add(obj);
-    size();
-    const { box, r } = frame(obj, camera, controls);
-    // A floor grid under it, a few times its size: lines 1, 2 or 5 × 10ⁿ m
-    // apart, about 4 across it.
+  function reset() { if (holder) frame(holder, camera, controls); }
+  // box: the model's, as edited (each point: exact).
+  const box = () => new THREE.Box3().setFromObject(holder, true);
+  // ground: the floor grid (and, editing, the axes): under the model as it
+  // came, else at the origin (y = 0), a few times its size, lines 1, 2 or
+  // 5 × 10ⁿ m apart, about 4 across it.
+  function ground() {
+    drop(grid); drop(axes); grid = axes = null;
+    if (!holder) return;
+    const b = box(), r = Math.max(b.getBoundingSphere(new THREE.Sphere()).radius, 1e-3);
+    radius = r;
     const raw = r / 2, p = 10 ** Math.floor(Math.log10(raw)), step = (raw / p >= 5 ? 5 : raw / p >= 2 ? 2 : 1) * p;
     const n = Math.ceil(r * 3 / step) * 2;
     grid = new THREE.GridHelper(n * step, n, 0x4a5262, 0x2c323d);
     grid.material.transparent = true;
     grid.material.opacity = 0.7;
-    grid.position.set((box.min.x + box.max.x) / 2, box.min.y, (box.min.z + box.max.z) / 2);
+    if (editOn) {
+      // The axes as Blender and Fusion show them (z up): X red (+x), Y green
+      // (−z here: a y-up OBJ's), Z blue (+y), from the origin.
+      axes = new THREE.Group();
+      const len = n * step / 2;
+      for (const [dir, color] of [[[1, 0, 0], 0xe5484d], [[0, 0, -1], 0x46a758], [[0, 1, 0], 0x3e7bfa]]) {
+        const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(...dir).multiplyScalar(len)]);
+        axes.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true })));
+      }
+      axes.renderOrder = 5;
+      scene.add(axes);
+    } else grid.position.set((b.min.x + b.max.x) / 2, b.min.y, (b.min.z + b.max.z) / 2);
     scene.add(grid);
+  }
+  // show loads the model (base: its folder's address; file: the OBJ;
+  // scale: its units in meters, 1 for Object Capture's): its triangles and
+  // size once it's in.
+  async function show(base, file, status, scale = 1) {
+    clear();
+    const my = seq;
+    const o = await loadOBJ(base, file, status);
+    if (my !== seq) { disposeModel(o); return null; } // (closed, or another, meanwhile)
+    obj = o;
+    obj.scale.setScalar(scale);
+    holder = new THREE.Group();
+    holder.matrixAutoUpdate = false;
+    holder.add(obj);
+    obj.traverse((m) => { if (m.isMesh) originals.set(m, m.material); });
+    scene.add(holder);
+    size();
+    frame(holder, camera, controls);
+    ground();
     look(mode);
     running = true;
     loop();
-    return modelStats(obj);
+    return stats();
   }
-  return { show, look, reset, clear };
+  // stats: its triangles and size (m: x, y, z), as edited.
+  function stats() { return holder ? { ...modelStats(holder), size: box().getSize(new THREE.Vector3()).toArray() } : null; }
+
+  // ------------------------------------------------------------ editing
+  function editing(on) { editOn = on; markers([]); ground(); canvas.style.cursor = on ? "crosshair" : ""; }
+  // A click (not a drag) on the model, editing: the triangle's corner
+  // nearest it, to onPick.
+  const ray = new THREE.Raycaster();
+  let down = null;
+  canvas.addEventListener("pointerdown", (e) => { down = e.button === 0 ? [e.clientX, e.clientY] : null; });
+  canvas.addEventListener("pointerup", (e) => {
+    if (!down || !editOn || !onPick || !obj || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
+    const b = canvas.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2((e.clientX - b.left) / b.width * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1), camera);
+    const hit = ray.intersectObject(obj, true)[0];
+    if (!hit?.face) return;
+    const pos = hit.object.geometry.getAttribute("position");
+    let best = null;
+    for (const i of [hit.face.a, hit.face.b, hit.face.c]) {
+      const v = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(hit.object.matrixWorld);
+      if (!best || v.distanceTo(hit.point) < best.distanceTo(hit.point)) best = v;
+    }
+    onPick(best);
+  });
+  // markers shows sets of picked points: [{ points, color, line }], each
+  // point a dot (seen through the model), line: joined up.
+  function markers(sets) {
+    for (const c of [...marks.children]) { marks.remove(c); c.geometry.dispose(); c.material.dispose(); }
+    const dot = new THREE.SphereGeometry(radius * 0.012, 16, 12);
+    for (const s of sets) {
+      for (const p of s.points) {
+        const m = new THREE.Mesh(dot.clone(), new THREE.MeshBasicMaterial({ color: s.color, depthTest: false, transparent: true }));
+        m.position.copy(p);
+        m.renderOrder = 10;
+        marks.add(m);
+      }
+      if (s.line && s.points.length > 1) {
+        const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(s.line === "loop" ? [...s.points, s.points[0]] : s.points),
+          new THREE.LineBasicMaterial({ color: s.color, depthTest: false, transparent: true }));
+        l.renderOrder = 10;
+        marks.add(l);
+      }
+    }
+    dot.dispose();
+  }
+  // The edit: get it, set it, or apply m after it (the view kept).
+  const matrix = () => (holder ? holder.matrix.clone() : new THREE.Matrix4());
+  function setMatrix(m) {
+    if (!holder) return;
+    holder.matrix.copy(m);
+    holder.matrixWorldNeedsUpdate = true;
+    holder.updateMatrixWorld(true);
+    ground();
+  }
+  const apply = (m) => setMatrix(m.clone().multiply(matrix()));
+  // boxWith: the model's box were m applied (it isn't).
+  function boxWith(m) {
+    const was = holder.matrix.clone();
+    holder.matrix.premultiply(m);
+    holder.updateMatrixWorld(true);
+    const b = box();
+    holder.matrix.copy(was);
+    holder.updateMatrixWorld(true);
+    return b;
+  }
+  const center = () => box().getCenter(new THREE.Vector3());
+  // parts: the model as edited, for saving: each mesh's each material's
+  // triangles (non-indexed, in meters, y up) and the material's name.
+  function parts() {
+    const out = [];
+    holder.updateMatrixWorld(true);
+    obj.traverse((o) => {
+      if (!o.isMesh) return;
+      const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
+      const mats = [originals.get(o)].flat();
+      const n = g.getAttribute("position").count;
+      const groups = g.groups.length ? g.groups : [{ start: 0, count: n, materialIndex: 0 }];
+      for (const gr of groups) {
+        const sub = new THREE.BufferGeometry();
+        for (const name of ["position", "normal", "uv"]) {
+          const a = g.getAttribute(name);
+          if (a) sub.setAttribute(name, new THREE.BufferAttribute(a.array.slice(gr.start * a.itemSize, (gr.start + Math.min(gr.count, n - gr.start)) * a.itemSize), a.itemSize));
+        }
+        sub.applyMatrix4(o.matrixWorld);
+        out.push({ geometry: sub, material: mats[gr.materialIndex ?? 0]?.name || "" });
+      }
+    });
+    return out;
+  }
+  return {
+    show, look, reset, clear, stats, box,
+    editing, markers, matrix, setMatrix, apply, boxWith, center, parts,
+    set onPick(f) { onPick = f; },
+  };
 }
 
 // The gallery's pictures of models: one renderer, one model at a time.
