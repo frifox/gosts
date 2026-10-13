@@ -406,6 +406,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-axes .x { color: #e5484d; } .mve-axes .y { color: #46a758; } .mve-axes .z { color: #3e7bfa; }
 .mve-rot { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 8px; align-items: center; }
 .mve-rot b { font: 600 12px var(--mono); width: 16px; }
+.mve-trim { display: grid; grid-template-columns: auto auto 1fr auto; gap: 2px 8px; align-items: center; }
+.mve-trim b { font: 600 12px var(--mono); }
+.mve-trim .x { color: #e5484d; } .mve-trim .y { color: #46a758; } .mve-trim .z { color: #3e7bfa; }
+.mve-trim .mve-end { color: var(--muted); font-size: 11px; }
+.mve-trim input[type=range] { width: 100%; min-width: 0; accent-color: #ffb020; }
+.mve-trim .mve-val { font: 11px var(--mono); color: var(--text); min-width: 58px; text-align: right; }
 .mve-rot .x { color: #e5484d; } .mve-rot .y { color: #46a758; } .mve-rot .z { color: #3e7bfa; }
 .mv-views { position: absolute; top: 12px; left: 12px; margin: 0; z-index: 2; }
 .mve-size { font: 12px var(--mono); color: var(--text); border-top: 1px solid var(--border); padding-top: 10px; }
@@ -926,6 +932,11 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <b class="y">Y</b><button class="btn small" data-rot="y" data-deg="-90">−90°</button><button class="btn small" data-rot="y" data-deg="90">+90°</button>
           <b class="z">Z</b><button class="btn small" data-rot="z" data-deg="-90">−90°</button><button class="btn small" data-rot="z" data-deg="90">+90°</button>
         </div>
+      </section>
+      <section data-trim>
+        <div class="mve-head"><b>5 · Trim</b>move the box's sides in: what's outside it is cut off</div>
+        <div class="mve-trim"><b class="x">X</b><span class="mve-end">min</span><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="0"><span class="mve-val" data-val="x0"></span><b class="x">X</b><span class="mve-end">max</span><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="1"><span class="mve-val" data-val="x1"></span><b class="y">Y</b><span class="mve-end">min</span><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="0"><span class="mve-val" data-val="y0"></span><b class="y">Y</b><span class="mve-end">max</span><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="1"><span class="mve-val" data-val="y1"></span><b class="z">Z</b><span class="mve-end">min</span><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="0"><span class="mve-val" data-val="z0"></span><b class="z">Z</b><span class="mve-end">max</span><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="1"><span class="mve-val" data-val="z1"></span></div>
+        <div class="mve-row"><button class="btn small" id="mveTrimReset" disabled>Reset Box</button><span class="spacer"></span><button class="btn small primary" id="mveTrim" disabled>Trim</button></div>
       </section>
       <div class="mve-size" id="mveSize"></div>
       <div class="mve-row"><button class="btn small" id="mveUndo" disabled>Undo</button><button class="btn small" id="mveResetEdit" disabled>Reset Edits</button></div>
@@ -1452,6 +1463,7 @@ function openModel(name, m) {
   window.modelView.show(modelBase(name, m), m.file, (t) => { if (state.mv?.m === m) msg(t, "busy"); }, scale).then((st) => {
     if (!st || state.mv?.m !== m) return;
     msg("");
+    if (!$("mvEdit").hidden) { mveTrimReset(); mveShow(); } // (Edit open as it loaded: Same's save)
     const cm = st.size.map((v) => (v * 100).toFixed(1)).join(" × ");
     $("mvCap").textContent = `${name} · ${m.name} · ${fmt} · ${Math.round(st.triangles).toLocaleString()} triangles · ${cm} cm · ${fmtMB(m.size)}`;
   }, (e) => { if (state.mv?.m === m) msg(`Couldn't show it: ${e.message}`, "bad"); });
@@ -1494,7 +1506,7 @@ const mve = { picks: { level: [], align: [], scale: [] }, picking: null, undo: [
 const MVE_COLORS = { level: 0xffb020, align: 0x46a758, scale: 0x3e7bfa };
 const segPick = (id, v) => { for (const b of $(id).children) b.classList.toggle("active", b.dataset.v === v); };
 const segOf = (id) => $(id).querySelector(".active")?.dataset.v;
-for (const id of ["mveAxis", "mveUnit", "mveFileUnit"]) $(id).onclick = (e) => { if (e.target.dataset?.v) { segPick(id, e.target.dataset.v); mveShow(); } };
+for (const id of ["mveAxis", "mveUnit", "mveFileUnit"]) $(id).onclick = (e) => { if (e.target.dataset?.v) { segPick(id, e.target.dataset.v); mveShow(); mveTrimShow(); } };
 segPick("mveAxis", "x"); segPick("mveUnit", "mm"); segPick("mveFileUnit", "mm");
 try { const u = localStorage.getItem("modelEditUnits"); if (u) { const [a, b] = JSON.parse(u); segPick("mveUnit", a); segPick("mveFileUnit", b); } } catch {}
 $("mveTris").value = 50000;
@@ -1544,8 +1556,58 @@ function mveDo(f) {
     mve.picks = { level: [], align: [], scale: [] };
     mveStatus("");
   } catch (e) { mveStatus(e.message, "bad"); }
+  mveTrimReset();
   mvePicking(null);
 }
+// Trim: a box (Blender's axes, meters: x, y, z each [min, max]) from the
+// model's extents in, by the sliders (each 0–1000 across the extents, a
+// little over); shown as it'd cut (the viewer's clipping) once moved in.
+function mveTrimReset() {
+  if (!window.modelView.stats()) { mve.ext = null; return; } // (no model in yet)
+  const b = window.modelView.box(), pad = 0.01 * Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z);
+  // Blender's x, y, z: x, −z, y here.
+  mve.ext = { x: [b.min.x - pad, b.max.x + pad], y: [-b.max.z - pad, -b.min.z + pad], z: [b.min.y - pad, b.max.y + pad] };
+  mve.Box3 = b.constructor;
+  for (const r of $("mvEdit").querySelectorAll(".mve-trim input")) r.value = r.dataset.end === "0" ? 0 : 1000;
+  mveTrimShow();
+}
+function mveTrimBox() {
+  const t = {};
+  for (const r of $("mvEdit").querySelectorAll(".mve-trim input")) {
+    const [lo, hi] = mve.ext[r.dataset.ax];
+    (t[r.dataset.ax] ||= [])[r.dataset.end] = lo + (hi - lo) * r.value / 1000;
+  }
+  return t;
+}
+function mveTrimShow() {
+  if (!mve.ext) return;
+  const t = mveTrimBox(), u = segOf("mveUnit"), k = 1 / window.modelEdit.UNITS[u];
+  for (const ax of "xyz") for (const i of [0, 1]) $("mvEdit").querySelector(`[data-val="${ax}${i}"]`).textContent = (t[ax][i] * k).toFixed(u === "mm" ? 1 : 2);
+  const moved = [...$("mvEdit").querySelectorAll(".mve-trim input")].some((r) => Number(r.value) !== (r.dataset.end === "0" ? 0 : 1000));
+  const empty = t.x[0] >= t.x[1] || t.y[0] >= t.y[1] || t.z[0] >= t.z[1];
+  $("mveTrim").disabled = !moved || empty;
+  $("mveTrimReset").disabled = !moved;
+  window.modelView.clip(moved && !empty ? mveThreeBox(t) : null);
+}
+// mveThreeBox: a Blender-axes box as a three.js one (x, y, z: x, z, −y).
+function mveThreeBox(t) {
+  const B = new mve.Box3();
+  B.min.set(t.x[0], t.z[0], -t.y[1]);
+  B.max.set(t.x[1], t.z[1], -t.y[0]);
+  return B;
+}
+$("mvEdit").querySelector(".mve-trim").addEventListener("input", mveTrimShow);
+$("mveTrimReset").onclick = mveTrimReset;
+$("mveTrim").onclick = () => {
+  try {
+    const undo = window.modelView.trim(mveThreeBox(mveTrimBox()));
+    mve.undo.push(undo);
+    mveStatus("");
+    window.modelView.view();
+  } catch (e) { mveStatus(e.message, "bad"); }
+  mveTrimReset();
+  mveShow();
+};
 $("mveLevel").onclick = () => mveDo((box) => window.modelEdit.level(mve.picks.level, window.modelView.center(), box));
 $("mveAlign").onclick = () => mveDo((box) => window.modelEdit.align(mve.picks.align, segOf("mveAxis"), box));
 $("mveScale").onclick = () => mveDo(() => window.modelEdit.scale(mve.picks.scale[0], mve.picks.scale[1], Number($("mveDist").value) * window.modelEdit.UNITS[segOf("mveUnit")]));
@@ -1553,8 +1615,14 @@ $("mvEdit").querySelector(".mve-rot").onclick = (e) => {
   const b = e.target.closest("[data-rot]");
   if (b) mveDo((box) => window.modelEdit.rotate(b.dataset.rot, Number(b.dataset.deg), box));
 };
-$("mveUndo").onclick = () => { const m = mve.undo.pop(); if (m) { window.modelView.setMatrix(m); window.modelView.view(); } mveShow(); };
-$("mveResetEdit").onclick = () => { if (mve.undo.length) { window.modelView.setMatrix(mve.undo[0]); window.modelView.view(); } mve.undo = []; mveShow(); };
+// Undo: a step back (an edit's matrix before, or a trim's putting back).
+function mveBack() {
+  const u = mve.undo.pop();
+  if (typeof u === "function") u();
+  else if (u) window.modelView.setMatrix(u);
+}
+$("mveUndo").onclick = () => { mveBack(); window.modelView.view(); mveTrimReset(); mveShow(); };
+$("mveResetEdit").onclick = () => { while (mve.undo.length) mveBack(); window.modelView.view(); mveTrimReset(); mveShow(); };
 // The view presets (top left), in Blender's and Fusion's axes (see VIEWS in modelview.js).
 function mvView(v) { segPick("mvViews", v); window.modelView.view(v, true); } // (gliding there)
 $("mvViews").onclick = (e) => { if (e.target.dataset?.v) mvView(e.target.dataset.v); };
@@ -1564,6 +1632,7 @@ function mveOpen(on) {
   $("mvEdit").hidden = !on;
   $("mvEditBtn").classList.toggle("primary", on);
   window.modelView.editing(on);
+  if (on) mveTrimReset(); else window.modelView.clip(null);
   mvePicking(null);
 }
 // Replace: the name is the model's own (and fixed); off, the name before.

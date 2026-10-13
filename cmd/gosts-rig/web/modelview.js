@@ -161,7 +161,14 @@ const WIRE = new THREE.MeshBasicMaterial({ color: 0x7ea6ff, wireframe: true });
 export function createModelView(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.localClippingEnabled = true;
   const scene = new THREE.Scene();
+  // Trimming: the box's six sides as clipping planes (inwards; off: far
+  // out), on every material the model's shown with; the box drawn.
+  const FAR = 1e9;
+  const planes = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map((n) => new THREE.Plane(new THREE.Vector3(...n), FAR));
+  for (const m of [CLAY, WIRE]) m.clippingPlanes = planes;
+  let boxHelper = null;
   const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
   addLights(scene, camera);
   const controls = new OrbitControls(camera, canvas);
@@ -200,6 +207,7 @@ export function createModelView(canvas) {
     seq++;
     if (holder) { scene.remove(holder); disposeModel(holder); holder = obj = null; }
     drop(grid); drop(axes); grid = axes = null;
+    clip(null);
     markers([]);
     editOn = false;
     originals.clear();
@@ -287,7 +295,11 @@ export function createModelView(canvas) {
     holder = new THREE.Group();
     holder.matrixAutoUpdate = false;
     holder.add(obj);
-    obj.traverse((m) => { if (m.isMesh) originals.set(m, m.material); });
+    obj.traverse((m) => {
+      if (!m.isMesh) return;
+      originals.set(m, m.material);
+      for (const mat of [m.material].flat()) if (mat) mat.clippingPlanes = planes;
+    });
     scene.add(holder);
     viewName = "3d";
     size();
@@ -364,6 +376,87 @@ export function createModelView(canvas) {
     return b;
   }
   const center = () => box().getCenter(new THREE.Vector3());
+  // clip shows the model as trimmed to b (a Box3, as edited), the box
+  // drawn; null: whole.
+  function clip(b) {
+    if (boxHelper) { scene.remove(boxHelper); boxHelper.geometry.dispose(); boxHelper.material.dispose(); boxHelper = null; }
+    const c = b ? [-b.min.x, b.max.x, -b.min.y, b.max.y, -b.min.z, b.max.z] : Array(6).fill(FAR);
+    planes.forEach((p, i) => (p.constant = c[i]));
+    if (!b) return;
+    boxHelper = new THREE.Box3Helper(b.clone(), 0xffb020);
+    boxHelper.material.depthTest = false;
+    boxHelper.material.transparent = true;
+    boxHelper.renderOrder = 9;
+    scene.add(boxHelper);
+  }
+  // trim cuts the model to b (a Box3, as edited): triangles inside kept,
+  // outside dropped, across a side cut along it (their corners there
+  // interpolated: texture and normals too). A function that puts it back,
+  // or an error if nothing'd be left.
+  function trim(b) {
+    holder.updateMatrixWorld(true);
+    // The sides, inwards: inside where each is ≥ 0.
+    const sides = [[1, 0, 0, -b.min.x], [-1, 0, 0, b.max.x], [0, 1, 0, -b.min.y], [0, -1, 0, b.max.y], [0, 0, 1, -b.min.z], [0, 0, -1, b.max.z]];
+    const dist = (w, [x, y, z, c]) => x * w.x + y * w.y + z * w.z + c;
+    const swaps = [];
+    let kept = 0;
+    obj.traverse((o) => {
+      if (!o.isMesh) return;
+      const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
+      const names = Object.keys(g.attributes), attrs = names.map((n) => g.getAttribute(n));
+      const pos = g.getAttribute("position"), n = pos.count;
+      const groups = g.groups.length ? g.groups : [{ start: 0, count: n, materialIndex: 0 }];
+      const out = names.map(() => []), ng = [];
+      // A corner: where it is (as edited) and its attributes (as stored).
+      const corner = (i) => ({ w: new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld), a: attrs.map((at) => Array.from(at.array.subarray(i * at.itemSize, (i + 1) * at.itemSize))) });
+      const lerp = (p, q, t) => ({ w: p.w.clone().lerp(q.w, t), a: p.a.map((v, k) => v.map((x, j) => x + (q.a[k][j] - x) * t)) });
+      const emit = (c) => c.a.forEach((v, k) => out[k].push(...v));
+      let tris = 0;
+      const w = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+      for (const gr of groups) {
+        const before = tris;
+        for (let t = gr.start; t + 2 < Math.min(gr.start + gr.count, n); t += 3) {
+          // Most are wholly in (copied as they are) or wholly out past a side.
+          for (let k = 0; k < 3; k++) w[k].fromBufferAttribute(pos, t + k).applyMatrix4(o.matrixWorld);
+          if (w.every((v) => b.containsPoint(v))) {
+            attrs.forEach((at, k) => { const sz = at.itemSize; for (let i = t * sz; i < (t + 3) * sz; i++) out[k].push(at.array[i]); });
+            tris++;
+            continue;
+          }
+          if (sides.some((sd) => w.every((v) => dist(v, sd) < 0))) continue;
+          let poly = [corner(t), corner(t + 1), corner(t + 2)];
+          for (const sd of sides) {
+            const d = poly.map((c) => dist(c.w, sd));
+            if (d.every((x) => x >= 0)) continue;
+            if (d.every((x) => x < 0)) { poly = []; break; }
+            const next = [];
+            for (let i = 0; i < poly.length; i++) {
+              const j = (i + 1) % poly.length;
+              if (d[i] >= 0) next.push(poly[i]);
+              if ((d[i] >= 0) !== (d[j] >= 0)) next.push(lerp(poly[i], poly[j], d[i] / (d[i] - d[j])));
+            }
+            poly = next;
+            if (poly.length < 3) break;
+          }
+          for (let i = 1; i + 1 < poly.length; i++) { emit(poly[0]); emit(poly[i]); emit(poly[i + 1]); tris++; }
+        }
+        if (g.groups.length) ng.push({ start: before * 3, count: (tris - before) * 3, materialIndex: gr.materialIndex });
+      }
+      kept += tris;
+      const geo = new THREE.BufferGeometry();
+      names.forEach((name, k) => {
+        const at = attrs[k], arr = new Float32Array(out[k]);
+        if (name === "normal") for (let i = 0; i < arr.length; i += 3) { const l = Math.hypot(arr[i], arr[i + 1], arr[i + 2]) || 1; arr[i] /= l; arr[i + 1] /= l; arr[i + 2] /= l; }
+        geo.setAttribute(name, new THREE.BufferAttribute(arr, at.itemSize, at.normalized));
+      });
+      for (const gr of ng) geo.addGroup(gr.start, gr.count, gr.materialIndex);
+      swaps.push([o, o.geometry, geo]);
+    });
+    if (!kept) { for (const [, , geo] of swaps) geo.dispose(); throw new Error("nothing would be left: the box is empty"); }
+    for (const [o, , geo] of swaps) o.geometry = geo;
+    ground();
+    return () => { for (const [o, old, geo] of swaps) { o.geometry = old; geo.dispose(); } ground(); };
+  }
   // parts: the model as edited, for saving: each mesh's each material's
   // triangles (non-indexed, in meters, y up) and the material's name.
   function parts() {
@@ -389,7 +482,7 @@ export function createModelView(canvas) {
   }
   return {
     show, look, reset, view, clear, stats, box,
-    editing, markers, matrix, setMatrix, apply, boxWith, center, parts,
+    editing, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, parts,
     set onPick(f) { onPick = f; },
   };
 }

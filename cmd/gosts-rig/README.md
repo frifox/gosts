@@ -118,6 +118,9 @@ then click on the model (each click snaps to the nearest corner of the triangle 
 3. **Scale**: 2 points and their real distance (mm or in); the model scales to match (Object Capture's own size is a
    guess from the photos).
 4. **Rotate**: a quarter turn (−90° or +90°) about X, Y or Z, the model kept on the ground.
+5. **Trim**: move the sides of a box (X, Y, Z, each min and max) in; the part outside it shows cut off as you go, and
+   **Trim** cuts it away: triangles across a side are cut along it (their texture and normals kept), so the cut is
+   exact.
 
 Each step centers it on the origin; the size (X × Y × Z) shows as it goes; **Undo** steps back. **Save** writes it as a
 new model in the capture (named `<model>-aligned` unless you name it): the OBJ in the file units picked (mm, the
