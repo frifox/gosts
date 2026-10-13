@@ -198,7 +198,7 @@ func (r *rig) adoptFound(ids []uint8) {
 	if same {
 		return
 	}
-	r.logf("info", "found servos %v (Servo Ctl's scan)", found)
+	r.logf("info", "found servos %v (Servo Settings' scan)", found)
 	r.ensureMultiTurn(found)
 	r.sendState()
 }
@@ -283,7 +283,7 @@ func (r *rig) scan(ctx context.Context) error {
 		ro := r.cfg.get().Roles
 		for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
 			if !slices.Contains(found, id) {
-				r.logf("error", "servo %d (in the rig's roles) was not found: check its power and cable, or assign the roles: Setup, or a group of the elevation servos in Servo Ctl", id)
+				r.logf("error", "servo %d (in the rig's roles) was not found: check its power and cable, or assign the roles: Setup, or a group of the elevation servos in Servo Settings", id)
 			}
 		}
 	}

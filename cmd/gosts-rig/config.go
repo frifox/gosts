@@ -212,7 +212,7 @@ func (f *configFile) update(fn func(*Config)) error {
 }
 
 const configHeader = `# gosts-rig: photogrammetry rig settings. Edited by the web UI; read on startup.
-# Servo calibration (zero, tuning, limits) is done in Servo Ctl (gosts-ctl's console, in the Rig settings) and stored on the servos.
+# Servo calibration (zero, tuning, limits) is done in Servo Settings (gosts-ctl's console: the gear in the Rig card) and stored on the servos.
 
 `
 

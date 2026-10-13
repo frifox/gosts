@@ -933,9 +933,25 @@ $("camRefresh").onclick = () => searching($("camRefresh"), () => send("cameras")
 $("camConnectBtn").onclick = async () => {
   $("camErr").textContent = "";
   $("camConnectBtn").disabled = true;
-  await act("cameraConnect", { camera: state.selectedCamera }, $("camErr"));
+  try { await send("cameraConnect", { camera: state.selectedCamera }); }
+  catch (e) {
+    $("camErr").textContent = e.message;
+    send("cameras").then(renderCameras).catch(() => {}); // (gone since it was listed? off the list now)
+  }
   $("camConnectBtn").disabled = false;
 };
+// The camera list keeps itself up to date while it's shown (a camera
+// plugged in, or switched off: an A6600 takes a few seconds to leave the
+// bus, so a Refresh just after can still list it): every few seconds,
+// while no camera is connected and the page is in view.
+const CAMERA_POLL = 3000;
+setInterval(() => {
+  if (state.camera?.connected || document.hidden || !state.server || $("camRefresh").classList.contains("busy")) return;
+  send("cameras").then((list) => {
+    if (state.camera?.connected) return;
+    if (JSON.stringify(list) !== JSON.stringify(state.cameras)) renderCameras(list);
+  }).catch(() => {});
+}, CAMERA_POLL);
 function onCamera(m) {
   state.camera = m;
   // How often the camera keeps up taking photos (Measure finds it).
