@@ -303,14 +303,17 @@ td.mono { font-family: var(--mono); }
 /* The histogram over the picture's top right (red, green, blue, adding up where they overlap). */
 .histo { position: absolute; top: 10px; right: 10px; width: 200px; height: 90px; z-index: 2; pointer-events: none;
   background: rgba(12,14,18,.78); border: 1px solid #2a303c; border-radius: 8px; }
-/* R G B over the histogram's top right: each shows or hides its channel. */
-.histo-rgb { position: absolute; top: 14px; right: 14px; z-index: 3; display: flex; gap: 2px; }
+/* R G B over the histogram's top right: each shows or hides its channel; hovered, shows it alone. */
+.histo-rgb { position: absolute; top: 14px; right: 14px; z-index: 3; display: flex; } /* one joined group */
 .histo-rgb[hidden] { display: none; }
-.histo-rgb button { width: 18px; height: 16px; padding: 0; border: 1px solid rgba(255,255,255,.18); border-radius: 4px; background: rgba(12,14,18,.6);
+.histo-rgb button { position: relative; width: 18px; height: 16px; padding: 0; border: 1px solid rgba(255,255,255,.18); border-radius: 0; background: rgba(12,14,18,.6);
   font: 600 10px/1 system-ui, sans-serif; cursor: pointer; }
+.histo-rgb button + button { margin-left: -1px; }
+.histo-rgb button:first-child { border-radius: 4px 0 0 4px; }
+.histo-rgb button:last-child { border-radius: 0 4px 4px 0; }
 .histo-rgb .c0 { color: #ff6b6b; } .histo-rgb .c1 { color: #5be37a; } .histo-rgb .c2 { color: #6f9bff; }
 .histo-rgb button.off { color: rgba(255,255,255,.3); text-decoration: line-through; }
-.histo-rgb button:hover { border-color: rgba(255,255,255,.5); }
+.histo-rgb button:hover { border-color: rgba(255,255,255,.5); z-index: 1; } /* (its border over the shared edges) */
 .focus-pick { display: inline-flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .focus-pick .seg { flex: 1; display: flex; }
 .focus-pick .seg button { flex: 1; white-space: nowrap; }
@@ -1707,6 +1710,9 @@ function histogram(img, cv = $("histo")) {
 // every histogram; kept in this browser).
 const histoOn = [true, true, true];
 try { const v = localStorage.getItem("histoOn"); if (v && /^[01]{3}$/.test(v)) [...v].forEach((c, i) => (histoOn[i] = c === "1")); } catch {}
+// histoSolo: the channel whose button is hovered, shown alone meanwhile
+// (null: none).
+let histoSolo = null;
 // drawHisto draws cv's histogram (its bins) with the channels shown.
 function drawHisto(cv) {
   const bins = cv._bins, top = cv._top;
@@ -1718,7 +1724,7 @@ function drawHisto(cv) {
   ctx.globalCompositeOperation = "lighter";
   const colours = ["rgba(255,70,70,.8)", "rgba(70,230,90,.8)", "rgba(80,130,255,.85)"];
   bins.forEach((b, c) => {
-    if (!histoOn[c]) return;
+    if (histoSolo !== null ? c !== histoSolo : !histoOn[c]) return;
     ctx.fillStyle = colours[c];
     ctx.beginPath();
     ctx.moveTo(pad, H - pad);
@@ -1737,6 +1743,9 @@ function histoButtons(cv) {
   g.className = "histo-rgb";
   g.innerHTML = ["R", "G", "B"].map((l, i) => `<button data-c="${i}" class="c${i}" title="Show or hide the ${["red", "green", "blue"][i]} channel">${l}</button>`).join("");
   g.addEventListener("pointerdown", (e) => e.stopPropagation()); // (not a drag on the picture under it)
+  // Hovered: that channel alone, till the pointer leaves it.
+  g.addEventListener("pointerover", (e) => { const c = e.target.dataset?.c; if (c !== undefined && histoSolo !== +c) { histoSolo = +c; histoSync(); } });
+  g.addEventListener("pointerleave", () => { if (histoSolo !== null) { histoSolo = null; histoSync(); } });
   g.onclick = (e) => {
     e.stopPropagation();
     const c = e.target.dataset?.c;
