@@ -1532,11 +1532,12 @@ function mveConfirm(on) {
   $("mveSave").textContent = on ? "Confirm" : "Save";
   $("mveWarn").textContent = on ? "Some edits not applied. Save anyways?" : "";
 }
-// mveLen: a length (m) in the file's units (File units), with them.
-function mveLen(m) {
+// mveNum: a length (m) in the file's units (File units); mveLen: with them.
+function mveNum(m) {
   const u = segOf("mveFileUnit");
-  return `${(m / window.modelEdit.UNITS[u]).toFixed({ mm: 1, in: 2, m: 3 }[u])} ${u}`;
+  return (m / window.modelEdit.UNITS[u]).toFixed({ mm: 1, in: 2, m: 3 }[u]);
 }
+const mveLen = (m) => `${mveNum(m)} ${segOf("mveFileUnit")}`;
 function mveShow() {
   mveConfirm(false);
   const mv = window.modelView, u = segOf("mveUnit"), k = 1 / window.modelEdit.UNITS[u];
@@ -1554,8 +1555,8 @@ function mveShow() {
   $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length;
   const st = mv.stats();
   if (st) {
-    const [x, y, z] = [st.size[0], st.size[2], st.size[1]].map(mveLen);
-    $("mveSize").innerHTML = `<div class="mve-sub">Dimensions</div><div><b class="x">X</b> ${x}</div><div><b class="y">Y</b> ${y}</div><div><b class="z">Z</b> ${z}</div>` +
+    const [x, y, z] = [st.size[0], st.size[2], st.size[1]].map(mveNum);
+    $("mveSize").innerHTML = `<div class="mve-sub">Size</div><div><b class="x">X</b> ${x}</div><div><b class="y">Y</b> ${y}</div><div><b class="z">Z</b> ${z}</div>` +
       `<div class="mve-sub">Resolution</div><div>${Math.round(st.triangles).toLocaleString()} triangles</div>`;
   }
   mv.markers(Object.entries(mve.picks).map(([k2, pts]) => ({ points: pts, color: MVE_COLORS[k2], line: k2 === "level" ? "loop" : true })));
