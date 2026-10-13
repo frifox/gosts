@@ -26,7 +26,7 @@ swiftc -O -swift-version 5 -framework AppKit -framework WebKit "$here/main.swift
 
 echo "icon"
 tmp=$(mktemp -d)
-swift "$here/icon.swift" "$tmp/AppIcon.iconset"
+swift "$here/icon.swift" "$here/icon.svg" "$tmp/AppIcon.iconset"
 iconutil -c icns "$tmp/AppIcon.iconset" -o "$app/Contents/Resources/AppIcon.icns"
 rm -rf "$tmp"
 
