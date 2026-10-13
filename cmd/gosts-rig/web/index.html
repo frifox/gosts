@@ -482,7 +482,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   <span class="pill"><span class="dot" id="wsDot"></span><span id="wsText">connecting…</span></span>
   <span class="pill"><span class="dot" id="busDot"></span><span id="busText">no board</span></span>
   <span class="pill"><span class="dot" id="camDot"></span><span id="camText">no camera</span></span>
-  <button class="btn small" id="setupBtn">Setup…</button>
 </header>
 
 <div class="layout">
@@ -568,8 +567,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="roles-note" id="rolesNote" hidden>
           <div><b>Assign the servos' roles.</b> <span id="rolesText"></span></div>
           <div class="hint">With three servos: make a group of the two elevation servos (leader first) in Servo Settings, and the
-            rig takes it as the elevation, the other servo as the azimuth. Or pick each servo's role in Setup.</div>
-          <div class="row"><button class="btn small primary" id="rolesCtl">Servo Settings</button><button class="btn small" id="rolesSetup">Setup…</button><button class="btn small" id="rolesScan" title="Look for the servos on the bus again (turned on since?)">Scan again</button></div>
+            rig takes it as the elevation, the other servo as the azimuth.</div>
+          <div class="row"><button class="btn small primary" id="rolesCtl">Servo Settings</button><button class="btn small" id="rolesScan" title="Look for the servos on the bus again (turned on since?)">Scan again</button></div>
         </div>
         <!-- Elevation and azimuth, a dial each (as Servo Ctl's): the needle where the rig is, the dot where
              it's going; a click (or drag) on a dial moves there. The elevation's out-of-limits angles shaded. -->
@@ -769,34 +768,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <div class="row" style="margin-top:14px"><span class="spacer"></span>
         <button class="btn" id="confirmNo">Cancel</button>
         <button class="btn danger solid" id="confirmYes">OK</button>
-      </div>
-    </div>
-  </div>
-</div>
-<div class="modal-backdrop" id="setupModal" hidden>
-  <div class="modal card" role="dialog" aria-modal="true">
-    <h2>Setup</h2>
-    <div class="card-body">
-      <div class="grid2">
-        <label>Elevation leader<select id="sLeader"></select></label>
-        <label class="switch" style="flex-direction:row;align-self:end"><input type="checkbox" id="sLeaderMir"><span class="track"></span><span>Mirrored</span></label>
-        <label>Elevation follower<select id="sFollower"></select></label>
-        <label class="switch" style="flex-direction:row;align-self:end"><input type="checkbox" id="sFollowerMir"><span class="track"></span><span>Mirrored</span></label>
-        <label>Azimuth platform<select id="sAzim"></select></label>
-        <span></span>
-        <label class="switch" style="flex-direction:row"><input type="checkbox" id="sInvE"><span class="track"></span><span>Invert elevation</span></label>
-        <label class="switch" style="flex-direction:row"><input type="checkbox" id="sInvA"><span class="track"></span><span>Invert azimuth</span></label>
-      </div>
-      <p class="hint">The two top servos move together as one group, the leader deciding the goal. Mark the servo that faces its partner as mirrored, so the same command tilts both the same way. Elevation 0° is the camera level with the object (the servos' own 0°, set in <a href="#" class="ctl-link">Servo Settings</a> → Set 0° to), positive is up; invert if it goes the wrong way. Azimuth 0° is the platform's own 0°.</p>
-      <p class="hint">The rig's servos are always switched to multi-turn mode when gosts-rig connects, so every move can take the short way: in single-turn mode a move across a servo's 0/360° point goes the long way, nearly a full turn, which could swing the frame into the posts.</p>
-      <p class="hint">Found on the bus: <span id="sFound" class="mono">–</span> <button class="btn small" id="sScan">Scan again</button></p>
-      <div class="err" id="setupErr"></div>
-      <div class="row" style="margin-top:14px">
-        <button class="btn small" id="sDisconnect">Disconnect board</button>
-        <button class="btn small" id="sCamDisconnect">Disconnect camera</button>
-        <span class="spacer"></span>
-        <button class="btn" id="sCancel">Cancel</button>
-        <button class="btn primary" id="sSave">Save</button>
       </div>
     </div>
   </div>
@@ -1669,9 +1640,9 @@ function showCtl(on) {
   $("ctlFrame").src = on ? "/ctl/?embed" : "about:blank";
 }
 $("ctlClose").onclick = () => showCtl(false);
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented && state.ctlOpen && $("setupModal").hidden && $("confirmModal").hidden) showCtl(false); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented && state.ctlOpen && $("confirmModal").hidden) showCtl(false); });
 // openCtl: Servo Settings (from a hint's link, or the roles note).
-function openCtl() { $("setupModal").hidden = true; showCtl(true); }
+function openCtl() { showCtl(true); }
 $("rolesCtl").onclick = openCtl;
 $("rolesScan").onclick = async () => {
   $("rolesScan").disabled = true;
@@ -1680,7 +1651,6 @@ $("rolesScan").onclick = async () => {
 };
 // Links in hints ("align them in Servo Ctl") open it.
 document.addEventListener("click", (e) => { if (e.target.closest(".ctl-link")) { e.preventDefault(); openCtl(); } });
-$("rolesSetup").onclick = () => $("setupBtn").click();
 function hideSettings() {
   $("camConfigModal").hidden = true;
   $("captureCard").classList.remove("selected");
@@ -2688,7 +2658,6 @@ function onState(m) {
   if (!state.planLoaded) { loadPlan(c.Plan); state.planLoaded = true; }
   $("rigCfgBtn").disabled = !m.connected || !!state.cap?.running;
   if (!m.connected) showCtl(false);
-  if (!$("setupModal").hidden) fillSetup();
   draw();
 }
 
@@ -3069,36 +3038,6 @@ function onCapture(m) {
   coolNote();
   draw();
 }
-
-// ---------------------------------------------------------------- setup
-$("setupBtn").onclick = () => { fillSetup(); $("setupErr").textContent = ""; $("setupModal").hidden = false; };
-$("sCancel").onclick = () => ($("setupModal").hidden = true);
-function fillSetup() {
-  const m = state.server;
-  if (!m) return;
-  const c = m.config, r = c.Roles;
-  const ids = [...new Set([...m.found, r.ElevationLeader, r.ElevationFollower, r.Azimuth])].sort((a, b) => a - b);
-  for (const [sel, v] of [["sLeader", r.ElevationLeader], ["sFollower", r.ElevationFollower], ["sAzim", r.Azimuth]]) {
-    if (document.activeElement === $(sel)) continue;
-    $(sel).innerHTML = ids.map((id) => `<option value="${id}">#${id}${m.found.includes(id) ? "" : " (not found)"}</option>`).join("");
-    $(sel).value = v;
-  }
-  $("sLeaderMir").checked = r.LeaderMirrored; $("sFollowerMir").checked = r.FollowerMirrored;
-  $("sInvE").checked = r.InvertElevation; $("sInvA").checked = r.InvertAzimuth;
-  $("sFound").textContent = m.connected ? (m.found.length ? m.found.map((id) => "#" + id).join(" ") : "none") : "no board connected";
-}
-$("sScan").onclick = () => act("scan", {}, $("setupErr"));
-$("sCamDisconnect").onclick = async () => { await act("cameraDisconnect", {}, $("setupErr")); $("setupModal").hidden = true; };
-$("sDisconnect").onclick = async () => { await act("disconnect", {}, $("setupErr")); $("setupModal").hidden = true; send("ports").then(renderPorts).catch(() => {}); };
-$("sSave").onclick = async () => {
-  $("setupErr").textContent = "";
-  const roles = { ElevationLeader: +$("sLeader").value, ElevationFollower: +$("sFollower").value, Azimuth: +$("sAzim").value,
-    LeaderMirrored: $("sLeaderMir").checked, FollowerMirrored: $("sFollowerMir").checked, InvertElevation: $("sInvE").checked, InvertAzimuth: $("sInvA").checked };
-  try {
-    await send("roles", { roles });
-    $("setupModal").hidden = true;
-  } catch (e) { $("setupErr").textContent = e.message; }
-};
 
 // Servo Settings, from the gear in the Rig card's title (the same gear as
 // the camera's): the gear toggles it.

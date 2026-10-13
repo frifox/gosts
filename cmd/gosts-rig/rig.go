@@ -206,7 +206,7 @@ func (r *rig) adoptFound(ids []uint8) {
 // rolesFromGroups assigns the roles from the servo console's groups (members
 // leader first) when that's clear: three servos found and one group of two of
 // them, which is the elevation (its mirroring the console's), the third the
-// azimuth. Otherwise the roles are as they are (Setup assigns them).
+// azimuth. Otherwise the roles are as they are.
 func (r *rig) rolesFromGroups(groups [][]uint8, mirrored func(uint8) bool) {
 	r.mu.Lock()
 	found := slices.Clone(r.found)
@@ -283,7 +283,7 @@ func (r *rig) scan(ctx context.Context) error {
 		ro := r.cfg.get().Roles
 		for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
 			if !slices.Contains(found, id) {
-				r.logf("error", "servo %d (in the rig's roles) was not found: check its power and cable, or assign the roles: Setup, or a group of the elevation servos in Servo Settings", id)
+				r.logf("error", "servo %d (in the rig's roles) was not found: check its power and cable, or make a group of the two elevation servos in Servo Settings (the rig takes the roles from it)", id)
 			}
 		}
 	}
