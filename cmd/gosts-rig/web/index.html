@@ -1457,7 +1457,7 @@ $("mvLook").onclick = (e) => { const v = e.target.dataset?.v; if (v) mvLook(v); 
 mvLook(state.mvLook); // (the viewer itself: as it opens, a module's)
 $("mvReset").onclick = () => window.modelView.reset();
 $("mvBack").onclick = closeModel;
-$("mvClose").onclick = () => { closeModel(); closeGallery(); };
+$("mvClose").onclick = closeModel; // (the gallery stays: its ✕ closes it)
 async function mvOpen(reveal) {
   const v = state.mv;
   if (!v) return;
@@ -2051,8 +2051,8 @@ $("vnavMap").addEventListener("pointerdown", (e) => {
   const up = () => { map.removeEventListener("pointermove", move); map.removeEventListener("pointerup", up); map.removeEventListener("pointercancel", up); };
   map.addEventListener("pointermove", move); map.addEventListener("pointerup", up); map.addEventListener("pointercancel", up);
 });
-// ✕ on the photo closes All Photos too.
-$("viewerClose").onclick = () => { closePhoto(); closeGallery(); };
+// ✕ on the photo closes the photo (the gallery stays: its ✕ closes it).
+$("viewerClose").onclick = closePhoto;
 document.addEventListener("keydown", (e) => {
   if (!$("modelViewer").hidden) {
     if (e.target.closest?.("input, textarea, select")) return;
