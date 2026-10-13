@@ -1708,18 +1708,29 @@ function mvePlaneOf(step, pts) {
   const E = window.modelEdit, V = E.Vec3;
   try {
     if (step === "level" && pts.length >= 3) {
-      const { c, n, spread } = E.fitPlane(pts.map((p) => p.clone()));
+      const { c, n } = E.fitPlane(pts.map((p) => p.clone()));
       const u = new V(1, 0, 0).cross(n).lengthSq() > 1e-6 ? new V(1, 0, 0).cross(n).normalize() : new V(0, 0, 1).cross(n).normalize();
-      const size = spread * 2.6;
-      return { c, u, v: new V().crossVectors(n, u), w: size, h: size };
+      return mvePlaneCover(c, u, new V().crossVectors(n, u));
     }
     if (step === "align" && pts.length >= 2) {
-      const { theta, c, length } = E.fitEdge(pts.map((p) => p.clone()));
-      const b = window.modelView.box(), h = Math.max(b.max.y - b.min.y, length * 0.3) * 1.15;
-      return { c: new V(c.x, (b.min.y + b.max.y) / 2, c.z), u: new V(Math.cos(theta), 0, Math.sin(theta)), v: new V(0, 1, 0), w: length * 1.4, h };
+      const { theta, c } = E.fitEdge(pts.map((p) => p.clone()));
+      return mvePlaneCover(c, new V(Math.cos(theta), 0, Math.sin(theta)), new V(0, 1, 0));
     }
   } catch { /* (the points in a line, or one above another: dots only) */ }
   return null;
+}
+// mvePlaneCover: the plane through c (along u, v) made big enough to cover
+// the whole model: its box's corners, onto the plane, with a little margin.
+function mvePlaneCover(c, u, v) {
+  const b = window.modelView.box(), V = window.modelEdit.Vec3;
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+  for (let i = 0; i < 8; i++) {
+    const d = new V(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z).sub(c);
+    const a = d.dot(u), e = d.dot(v);
+    u0 = Math.min(u0, a); u1 = Math.max(u1, a); v0 = Math.min(v0, e); v1 = Math.max(v1, e);
+  }
+  const m = 0.06 * Math.max(u1 - u0, v1 - v0);
+  return { c: c.clone().addScaledVector(u, (u0 + u1) / 2).addScaledVector(v, (v0 + v1) / 2), u, v, w: u1 - u0 + 2 * m, h: v1 - v0 + 2 * m };
 }
 // mvMarks: the points picked (Edit's steps, the measure) on the model.
 function mvMarks() {
