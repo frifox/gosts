@@ -95,7 +95,7 @@ rings); feature sensitivity; triangles or quads; masking out the background; bui
 the rig's gravity (the capture's `gravity.json`: pick Apple Object Capture, or All, in Capture alignment data for); a
 bounding box and a point cloud too. **Process** saves them and builds: a bar with its stage and the time left, and a
 mark on each photo: ✓ used, ✕ rejected (why, on hover), ↷ skipped, ? not placed in the model, a spinner while it's
-read. The model goes to the capture's `model-obj` folder (Object Capture writes only into an empty one: a model there
+read. The model goes to the capture's `model` folder (Object Capture writes only into an empty one: a model there
 from before goes to the Trash), the rest to `model-build` (the options, checkpoints, each photo's pose, how each
 fared: the marks are there when the capture's opened again). One build at a time; **Cancel build** stops it.
 

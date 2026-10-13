@@ -9,7 +9,7 @@
 // subfolders) are fed one by one, numbered from 0 in that order, so each
 // event names its photo; with their EXIF, and gravity from gosts-rig's
 // gravity.json (Apple Object Capture export) if there's one. The model goes
-// to <folder>/model-obj (OBJ, or USDZ with --format usdz), which must be
+// to <folder>/model (OBJ, or USDZ with --format usdz), which must be
 // empty (Object Capture won't write into a folder with anything in it);
 // the rest to <folder>/model-build: poses.json (each photo's camera pose, as
 // worked out), bounds.json and pointcloud.ply if asked for, and a
@@ -54,7 +54,7 @@ struct Options {
 let usage = """
 	usage: apple-obj-cap <folder> [flags]
 
-	  --out DIR            where the model goes: an empty folder (default <folder>/model-obj)
+	  --out DIR            where the model goes: an empty folder (default <folder>/model)
 	  --work DIR           poses.json, bounds.json, pointcloud.ply, the checkpoint (default <folder>/model-build)
 	  --format obj|usdz    OBJ (a folder: mesh, materials, textures) or one USDZ file (default obj)
 	  --detail D           preview | reduced | medium | full | raw | custom (default full)
@@ -273,7 +273,7 @@ struct Tool {
 			emit("error", ["message": "\(files.count) photos: Object Capture takes up to \(limit)"])
 			exit(1)
 		}
-		let out = o.out ?? o.folder.appendingPathComponent("model-obj", isDirectory: true)
+		let out = o.out ?? o.folder.appendingPathComponent("model", isDirectory: true)
 		let work = o.work ?? o.folder.appendingPathComponent("model-build", isDirectory: true)
 		try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
 		try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)

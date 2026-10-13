@@ -19,7 +19,7 @@ import (
 // Building a 3D model from a capture's photos (Browse → Build Model), with
 // Apple's Object Capture through apple-obj-cap (cmd/apple-obj-cap: a Swift
 // tool, as Object Capture is Swift only). One build at a time. The model
-// goes to the capture's model-obj folder (OBJ, or model.usdz): Object
+// goes to the capture's model folder (OBJ, or model.usdz): Object
 // Capture writes only into an empty folder, so a model there from before
 // goes to the Trash first. The rest is in model-build: the options
 // (config.json), the checkpoints (a build again is quicker), the photos'
@@ -29,7 +29,7 @@ import (
 // modelDir is a capture's model folder (the model alone); buildDir the
 // build's (its config, checkpoints, poses, the photos' status).
 const (
-	modelDir = "model-obj"
+	modelDir = "model"
 	buildDir = "model-build"
 )
 
