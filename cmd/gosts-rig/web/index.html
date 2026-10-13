@@ -1676,7 +1676,7 @@ function mveShow() {
   const st = mv.stats();
   if (st) {
     const [x, y, z] = [st.size[0], st.size[2], st.size[1]].map(mveNum);
-    $("mveSize").innerHTML = `<span class="mve-sub">Size</span><span><b class="x">X</b> ${x}  <b class="y">Y</b> ${y}  <b class="z">Z</b> ${z}</span>` +
+    $("mveSize").innerHTML = `<span class="mve-sub">Dimensions</span><span><b class="x">X</b> ${x}  <b class="y">Y</b> ${y}  <b class="z">Z</b> ${z}</span>` +
       `<span class="mve-sub">Resolution</span><span>${Math.round(st.triangles).toLocaleString()} triangles</span>`;
   }
   mvMarks();
