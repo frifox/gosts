@@ -1463,7 +1463,7 @@ function openModel(name, m) {
   window.modelView.show(modelBase(name, m), m.file, (t) => { if (state.mv?.m === m) msg(t, "busy"); }, scale).then((st) => {
     if (!st || state.mv?.m !== m) return;
     msg("");
-    if (!$("mvEdit").hidden) { mveTrimReset(); mveShow(); } // (Edit open as it loaded: Same's save)
+    if (!$("mvEdit").hidden) { mveTrimReset(); mveShow(); } // (Edit open as it loaded: an Overwrite's save)
     const cm = st.size.map((v) => (v * 100).toFixed(1)).join(" × ");
     $("mvCap").textContent = `${name} · ${m.name} · ${fmt} · ${Math.round(st.triangles).toLocaleString()} triangles · ${cm} cm · ${fmtMB(m.size)}`;
   }, (e) => { if (state.mv?.m === m) msg(`Couldn't show it: ${e.message}`, "bad"); });
