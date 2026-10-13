@@ -91,6 +91,16 @@ export function align(pts, axis, box) {
   return recenter(box(m)).multiply(m);
 }
 
+// rotate: the edit that turns the model deg (a multiple of 90) about axis
+// ("x", "y", "z": Blender's and Fusion's; so x, −z, y here), counterclockwise
+// seen from the axis' end; then stands it on the ground, centered.
+export function rotate(axis, deg, box) {
+  const a = deg * Math.PI / 180;
+  const m = axis === "x" ? new THREE.Matrix4().makeRotationX(a) : axis === "y" ? new THREE.Matrix4().makeRotationZ(-a) : new THREE.Matrix4().makeRotationY(a);
+  const b = box(m), c = b.getCenter(new THREE.Vector3());
+  return new THREE.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z).multiply(m);
+}
+
 // scale: the edit that makes the distance between a and b meters (about
 // the origin: on the ground, centered, it stays so).
 export function scale(a, b, meters) {

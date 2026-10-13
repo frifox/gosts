@@ -87,17 +87,26 @@ function disposeModel(obj) {
   });
 }
 
-// The camera's way in: from the front, a little right and above.
-const VIEW_DIR = new THREE.Vector3(0.55, 0.45, 1).normalize();
+// VIEWS: where the camera looks from (towards the model), as the Rig View
+// card's: front from −x, side from +z, top from above (x to the right);
+// 3d (the way in) as Blender's and Fusion's first view: from the front
+// right, above (their +X, −Y, +Z: x, y, z here).
+export const VIEWS = {
+  "3d": new THREE.Vector3(1, 0.78, 1).normalize(),
+  front: new THREE.Vector3(-1, 0, 0),
+  side: new THREE.Vector3(0, 0, 1),
+  top: new THREE.Vector3(0, 1, 0.001).normalize(),
+};
+const VIEW_DIR = VIEWS["3d"];
 
 // frame puts camera (and controls, if any) on obj, just all of it in view
 // (each point: as far off as it needs, at the camera's angle, from the
 // middle of its box; margin: a fraction of the view left round it).
-function frame(obj, camera, controls, margin = 0.06) {
+function frame(obj, camera, controls, margin = 0.06, dir = VIEW_DIR) {
   const box = new THREE.Box3().setFromObject(obj);
   const c = box.getCenter(new THREE.Vector3());
   const r = Math.max(box.getBoundingSphere(new THREE.Sphere()).radius, 1e-3);
-  const fwd = VIEW_DIR.clone(), right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), fwd).normalize();
+  const fwd = dir.clone(), right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), fwd).normalize();
   const up = new THREE.Vector3().crossVectors(fwd, right);
   const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * (1 - margin), tanH = tanV * camera.aspect;
   let dist = 0;
@@ -159,7 +168,7 @@ export function createModelView(canvas) {
   controls.screenSpacePanning = true;
   controls.zoomToCursor = true;
   // holder: the edit (its matrix); in it the model as loaded (in meters).
-  let holder = null, obj = null, grid = null, axes = null, mode = "textured", running = false, seq = 0, editOn = false, onPick = null, radius = 1;
+  let viewName = "3d", holder = null, obj = null, grid = null, axes = null, mode = "textured", running = false, seq = 0, editOn = false, onPick = null, radius = 1;
   const originals = new Map(); // mesh → its own material(s)
   const marks = new THREE.Group();
   marks.renderOrder = 10;
@@ -197,7 +206,9 @@ export function createModelView(canvas) {
       o.material = m === "clay" ? CLAY : m === "wire" ? WIRE : originals.get(o);
     });
   }
-  function reset() { if (holder) frame(holder, camera, controls); }
+  // view: the camera to a preset (VIEWS), all of the model in sight.
+  function view(name) { if (VIEWS[name]) viewName = name; if (holder) frame(holder, camera, controls, 0.06, VIEWS[viewName]); }
+  const reset = () => view("3d");
   // box: the model's, as edited (each point: exact).
   const box = () => new THREE.Box3().setFromObject(holder, true);
   // ground: the floor grid (and, editing, the axes): under the model as it
@@ -242,6 +253,7 @@ export function createModelView(canvas) {
     holder.add(obj);
     obj.traverse((m) => { if (m.isMesh) originals.set(m, m.material); });
     scene.add(holder);
+    viewName = "3d";
     size();
     frame(holder, camera, controls);
     ground();
@@ -340,7 +352,7 @@ export function createModelView(canvas) {
     return out;
   }
   return {
-    show, look, reset, clear, stats, box,
+    show, look, reset, view, clear, stats, box,
     editing, markers, matrix, setMatrix, apply, boxWith, center, parts,
     set onPick(f) { onPick = f; },
   };

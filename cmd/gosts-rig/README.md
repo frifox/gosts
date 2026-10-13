@@ -107,7 +107,8 @@ triangles and size (cm) in the bar. **Open in App** opens it in the Mac's app fo
 another's set: Blender, say, in the Finder's Get Info); **Show in Finder** shows its folder. A USDZ isn't shown in the
 page (three.js can't read Apple's), only opened. Its tile's bin moves the model's folder to the Trash.
 
-**Edit** (an OBJ) readies a model for Blender, Fusion 360 and the like: upright, square to the axes, at its real size.
+The view buttons at the top left show it as the Rig View card does (Front, Side, Top) or, **3D**, as Blender and Fusion
+first do (from the front right, above). **Edit** (an OBJ) readies a model for Blender, Fusion 360 and the like: upright, square to the axes, at its real size.
 The viewer shows the axes as they do (X red, Y green, Z blue up) and the ground grid at the origin. **Pick Points**,
 then click on the model (each click snaps to the nearest corner of the triangle under it):
 
@@ -115,6 +116,7 @@ then click on the model (each click snaps to the nearest corner of the triangle 
 2. **Align**: 2 or more points along an edge, and X or Y; the model turns about the vertical so the edge runs along it.
 3. **Scale**: 2 points and their real distance (mm or in); the model scales to match (Object Capture's own size is a
    guess from the photos).
+4. **Rotate**: a quarter turn (−90° or +90°) about X, Y or Z, the model kept on the ground.
 
 Each step centers it on the origin; the size (X × Y × Z) shows as it goes; **Undo** steps back. **Save** writes it as a
 new model in the capture (named `<model>-aligned` unless you name it): the OBJ in the file units picked (mm, the
