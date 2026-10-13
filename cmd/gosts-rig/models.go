@@ -160,7 +160,7 @@ func (a *app) handleModelFile(w http.ResponseWriter, r *http.Request) {
 
 // modelThumbLook: up it when the page draws models' pictures differently
 // (the ones kept: made again).
-const modelThumbLook = 5
+const modelThumbLook = 6
 
 // modelThumbPath is where a model's picture is kept: in the cache folder, by
 // the model's path, size and time (a rebuild: a new one).
