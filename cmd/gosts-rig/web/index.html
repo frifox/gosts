@@ -297,6 +297,9 @@ td.mono { font-family: var(--mono); }
 .flash-heat tbody tr { cursor: pointer; }
 .flash-heat tbody tr:hover td { background: var(--panel-2); }
 .flash-heat tbody tr.on td { background: var(--accent-weak); color: var(--accent); }
+.heat-levels { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 10px; }
+.heat-levels .views.seg { margin-left: 0; }
+.heat-levels .hint { font-size: 12px; white-space: normal; }
 /* The histogram over the picture's top right (red, green, blue, adding up where they overlap). */
 .histo { position: absolute; top: 10px; right: 10px; width: 200px; height: 90px; z-index: 2; pointer-events: none;
   background: rgba(12,14,18,.78); border: 1px solid #2a303c; border-radius: 8px; }
@@ -628,6 +631,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <thead><tr><th>AR400 power</th><th>Flashes Limit</th><th>Pause</th></tr></thead>
             <tbody></tbody>
           </table>
+          <div class="heat-levels"><span class="views seg" id="heatLevelSeg"><button data-v="safe" title="60% of the limit between pauses, resting 15 minutes (in proportion)">Safe</button><button data-v="acceptable" title="80% of the limit between pauses, resting 10 minutes (in proportion)">Acceptable</button><button data-v="risky" title="Up to the limit between pauses, resting 5 minutes (in proportion)">Risky</button></span>
+            <span class="hint" id="heatNote"></span></div>
           <div class="err" id="camConfigErr"></div>
         </div>
         <div class="camcfg-preview">
@@ -2393,30 +2398,75 @@ function coolRow() {
 }
 // The Godox AR400's overheat protection (its manual, p. 22): how many
 // continuous flashes at each power set it off (then the recycle slows to
-// 10–15 s; rest it 10 minutes). A line's pause: 10 minutes after 80% of
-// them. The line matching the pause set (and on) is lit.
+// 10–15 s; Godox's rest: 10 minutes). A line picks the flash's power; Safe,
+// Acceptable or Risky how close to the limit to go, and how long to rest:
+// so many photos between pauses (a share of the limit), and the rest in
+// proportion to how many of them that is. The plan's photos split evenly
+// (150 with room for 128 a go: 2 × 75), and none at all if they fit in
+// one go. The pause so worked out follows the plan's photos, till typed
+// over. The power and level are kept in this browser.
 const AR400_HEAT = [["1/1", 40], ["1/2 +0.7", 60], ["1/2 +0.3", 80], ["1/2", 100], ["1/4", 200], ["1/8", 300], ["1/16", 400], ["1/32", 400], ["1/64", 500], ["1/128", 500]];
-const HEAT_REST = 10, HEAT_SHARE = 0.8;
-const heatShots = (n) => Math.floor(n * HEAT_SHARE);
-$("flashHeat").tBodies[0].innerHTML = AR400_HEAT.map(([pw, n]) =>
-  `<tr data-shots="${heatShots(n)}" title="Pause ${HEAT_REST} minutes after every ${heatShots(n)} shots"><td>${pw}</td><td>${n}</td><td>${HEAT_REST} min / ${heatShots(n)}</td></tr>`).join("");
+const HEAT_LEVELS = { safe: { share: 0.6, rest: 15 }, acceptable: { share: 0.8, rest: 10 }, risky: { share: 1, rest: 5 } };
+const heat = { power: null, level: "acceptable", applied: null }; // applied: the pause last worked out ({On, Minutes, Shots})
+try {
+  const pw = localStorage.getItem("heatPower"), lv = localStorage.getItem("heatLevel");
+  if (AR400_HEAT.some(([p]) => p === pw)) heat.power = pw;
+  if (HEAT_LEVELS[lv]) heat.level = lv;
+} catch {}
+const heatEvery = (limit) => Math.max(1, Math.floor(limit * HEAT_LEVELS[heat.level].share));
+function heatTable() {
+  const L = HEAT_LEVELS[heat.level];
+  $("flashHeat").tBodies[0].innerHTML = AR400_HEAT.map(([pw, n]) =>
+    `<tr data-power="${pw}" title="The flash at ${pw}: pause about ${L.rest} minutes after every ${heatEvery(n)} shots (fewer, for the plan's photos to split evenly)"><td>${pw}</td><td>${n}</td><td>${L.rest} min / ${heatEvery(n)}</td></tr>`).join("");
+  for (const b of $("heatLevelSeg").children) b.classList.toggle("active", b.dataset.v === heat.level);
+  heatRows();
+}
+// heatRows: the power picked is lit (while the pause is on).
 function heatRows() {
-  const on = $("coolOn").checked, min = Number($("coolMin").value), shots = Number($("coolShots").value);
-  let lit = false;
-  for (const tr of $("flashHeat").tBodies[0].rows) {
-    const m = on && !lit && min === HEAT_REST && shots === Number(tr.dataset.shots); // (1/16 and 1/32 alike: the first)
-    tr.classList.toggle("on", m);
-    lit ||= m;
+  for (const tr of $("flashHeat").tBodies[0].rows) tr.classList.toggle("on", $("coolOn").checked && tr.dataset.power === heat.power);
+}
+// heatApply works the pause out for the power, level and plan, and saves it.
+function heatApply() {
+  const row = AR400_HEAT.find(([p]) => p === heat.power);
+  if (!row) { $("heatNote").textContent = "Pick the flash's power in the table first."; return; }
+  const L = HEAT_LEVELS[heat.level], every = heatEvery(row[1]), photos = Math.max(0, Math.round(Number($("pPhotos").value) || 0));
+  let cd;
+  if (photos <= every) {
+    cd = { On: false, Minutes: Number($("coolMin").value) || L.rest, Shots: Math.round(Number($("coolShots").value)) || every };
+    $("heatNote").textContent = `${photos} photos at ${heat.power}: within ${every} a go, no pause needed.`;
+  } else {
+    const goes = Math.ceil(photos / every), shots = Math.ceil(photos / goes);
+    const min = Math.max(1, Math.round(L.rest * shots / every)); // (whole minutes)
+    cd = { On: true, Minutes: min, Shots: shots };
+    $("heatNote").textContent = `${photos} photos at ${heat.power}: ${goes - 1} pause${goes > 2 ? "s" : ""} of ${min} min, after every ${shots}.`;
   }
+  $("coolOn").checked = cd.On;
+  $("coolMin").value = cd.Minutes;
+  $("coolShots").value = cd.Shots;
+  heat.applied = cd;
+  saveCool();
 }
 $("flashHeat").tBodies[0].onclick = (e) => {
   const tr = e.target.closest("tr");
   if (!tr) return;
-  $("coolOn").checked = true;
-  $("coolMin").value = HEAT_REST;
-  $("coolShots").value = tr.dataset.shots;
-  saveCool();
+  heat.power = tr.dataset.power;
+  try { localStorage.setItem("heatPower", heat.power); } catch {}
+  heatApply();
 };
+$("heatLevelSeg").onclick = (e) => {
+  const v = e.target.dataset?.v;
+  if (!HEAT_LEVELS[v]) return;
+  heat.level = v;
+  try { localStorage.setItem("heatLevel", v); } catch {}
+  heatTable();
+  if (heat.power) heatApply();
+};
+// The plan's photos changed: the pause worked out follows (unless typed over since).
+$("pPhotos").addEventListener("change", () => {
+  const a = heat.applied, now = { On: $("coolOn").checked, Minutes: Number($("coolMin").value), Shots: Number($("coolShots").value) };
+  if (a && heat.power && a.On === now.On && a.Minutes === now.Minutes && a.Shots === now.Shots) heatApply();
+});
+heatTable();
 async function saveCool() {
   coolRow();
   $("camConfigErr").textContent = "";

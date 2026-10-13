@@ -85,8 +85,11 @@ of Photos and Rig View (✕, Esc or the gear again closes it; the Rig card's gea
 - **Pause for X minutes after Y shots** (below the buttons): a flash that gets hot gets a rest. During a capture,
   after every Y photos it pauses X minutes (the note counts down), then carries on by itself; **Resume** carries on
   sooner. The estimate includes the pauses. Below it, the Godox AR400's overheat protection (its manual): how many
-  continuous flashes at each power set it off (40 at full power, up to 500 at 1/128); a click on a line sets the
-  pause to 10 minutes (Godox's rest) after 80% of them.
+  continuous flashes at each power set it off (40 at full power, up to 500 at 1/128). Click the flash's power, and
+  pick **Safe**, **Acceptable** or **Risky** below it (60%, 80% or all of the limit between pauses, resting 15,
+  10 or 5 minutes in proportion): the pause is worked out for the plan's photos, split evenly (150 photos with
+  room for 128 a go: a pause after 75), or none if they fit in one go. It follows the photos as they change,
+  till you type over it.
 - **Gray Card** (with white balance on a color temperature): drag a box over a gray card in the sample. It
   suggests the color temperature and color shifts that make the card neutral, a button each to apply.
 - **Focus** (in Manual focus) offers two ways, then **Start**:
