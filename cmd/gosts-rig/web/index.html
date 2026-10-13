@@ -775,6 +775,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mp-pair"><label>Format<span class="views seg" id="mFormat"><button data-v="obj" title="A folder: the mesh, its materials and textures">OBJ</button><button data-v="usdz" title="One file, for Quick Look and Reality Composer">USDZ</button></span></label><label>Photo order<span class="views seg" id="mOrdering"><button data-v="sequential" title="Each photo overlaps the one before (a rig's rings)">Sequential</button><button data-v="unordered" title="In no particular order">Unordered</button></span></label></div>
         <div class="mp-pair"><label>Features<span class="views seg" id="mSensitivity"><button data-v="normal">Normal</button><button data-v="high" title="Finds more on plain objects; slower">High</button></span></label><label>Mesh<span class="views seg" id="mMesh"><button data-v="triangle">Triangles</button><button data-v="quad" title="Nicer to edit (Blender, say)">Quads</button></span></label></div>
         <div class="mp-checks">
+          <span class="mp-head">Options</span>
           <label class="mp-check"><input type="checkbox" id="mMasking"> Mask out the background</label>
           <label class="mp-check" title="Not just the object found"><input type="checkbox" id="mIgnoreBBox"> Build all that's seen</label>
           <label class="mp-check" title="Intermediate results kept: a build again (another detail level, say) is quicker"><input type="checkbox" id="mCheckpoint"> Keep checkpoints</label>
@@ -784,7 +785,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         </div>
       </div>
       <div class="mp-col">
-        <label>Detail<select id="mDetail">
+        <label>Detail Preset<select id="mDetail">
         <option value="preview">Preview: quick, ~25k polygons, 1K texture</option>
         <option value="reduced">Reduced: ~50k polygons, 2K textures</option>
         <option value="medium">Medium: ~100k polygons, 4K textures</option>
