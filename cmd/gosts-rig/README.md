@@ -69,7 +69,7 @@ gosts-rig --listen :9000                    # another port (or "localhost:9000" 
 - **Take Photo** takes a single photo where the rig is.
 
 Photos appear in the **Photos** card as they arrive. Click one to see it full size (drag to move it, the wheel or the
-navigator at the bottom right to zoom, up to 200% of its own pixels), **View All** for a grid. They're
+navigator at the bottom right to zoom, up to 200% of its own pixels), **Gallery** for a grid. They're
 saved in `~/Pictures/gosts-rig/`, a folder per capture named after its start time (its name beside **New Capture**;
 the pencil after it renames it, as the pencil by a folder's name in **Browse** does),
 sample shots in its `samples` folder, so they go with it. Each start of the app is a new capture (its folder made with
