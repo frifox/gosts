@@ -29,10 +29,10 @@ header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; bord
 header h1 { font-size: 15px; margin: 0; font-weight: 650; }
 header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same size as the title, dimmer */
 .spacer { flex: 1; }
-.pill .pill-ic { width: 14px; height: 14px; flex: none; color: var(--text); opacity: .75; margin-right: -1px; }
+/* A pill's icon is its status too: red (none), yellow (on its way), green. */
+.pill .pill-ic { width: 15px; height: 15px; flex: none; color: var(--bad); transition: color .2s; }
+.pill .pill-ic.ok { color: var(--ok); } .pill .pill-ic.warn { color: var(--warn); }
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; background: var(--panel-2); }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
-.dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); }
 .layout { flex: 1; display: grid; grid-template-columns: minmax(340px, 430px) minmax(0, 1fr); /* the right column never wider than the page */ gap: 14px; padding: 14px; min-height: 0; }
 .left { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; min-height: 0; }
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
@@ -621,9 +621,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   <h1>GoSTS</h1><span class="sub">Photogrammetry Rig</span>
   <span class="spacer"></span>
   <button class="btn small primary" id="hdrBuilding" hidden>Building…</button><span class="spacer"></span>
-  <span class="pill" title="This page's link to the app (gosts-rig)"><svg class="pill-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v3M10 2v3M4.5 5h7v2a3.5 3.5 0 0 1-7 0zM8 10.5V14"/></svg><span class="dot" id="wsDot"></span><span id="wsText">connecting…</span></span>
-  <span class="pill" title="The servo controller board (the rig's servos)"><svg class="pill-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.2"/><path d="M6.5 2v2M9.5 2v2M6.5 12v2M9.5 12v2M2 6.5h2M2 9.5h2M12 6.5h2M12 9.5h2"/></svg><span class="dot" id="busDot"></span><span id="busText">no board</span></span>
-  <span class="pill" title="The camera"><svg class="pill-ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h2.4l1.2-1.8h3.8l1.2 1.8h2.4v7h-11z"/><circle cx="8" cy="9" r="2.2"/></svg><span class="dot" id="camDot"></span><span id="camText">no camera</span></span>
+  <span class="pill" title="This page's link to the app (gosts-rig)"><svg class="pill-ic" id="wsDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v3M10 2v3M4.5 5h7v2a3.5 3.5 0 0 1-7 0zM8 10.5V14"/></svg><span id="wsText">connecting…</span></span>
+  <span class="pill" title="The servo controller board (the rig's servos)"><svg class="pill-ic" id="busDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.2"/><path d="M6.5 2v2M9.5 2v2M6.5 12v2M9.5 12v2M2 6.5h2M2 9.5h2M12 6.5h2M12 9.5h2"/></svg><span id="busText">no board</span></span>
+  <span class="pill" title="The camera"><svg class="pill-ic" id="camDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h2.4l1.2-1.8h3.8l1.2 1.8h2.4v7h-11z"/><circle cx="8" cy="9" r="2.2"/></svg><span id="camText">no camera</span></span>
 </header>
 
 <div class="layout">
@@ -1097,7 +1097,7 @@ function onMessage(m) {
   }
 }
 function setPill(which, ok, text, warn) {
-  $(which + "Dot").className = "dot" + (ok ? " ok" : warn ? " warn" : "");
+  $(which + "Dot").setAttribute("class", "pill-ic" + (ok ? " ok" : warn ? " warn" : "")); // (the icon, colored: the status)
   $(which + "Text").textContent = text;
 }
 function log(msg, level = "info") {
