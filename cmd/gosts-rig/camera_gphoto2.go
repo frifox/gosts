@@ -34,6 +34,12 @@ type gphoto2Device struct {
 // don't end in a usb: port, so they're skipped without special-casing them.
 var gphoto2PortLine = regexp.MustCompile(`^(.*\S)\s+(usb:\d+,\d+)\s*$`)
 
+// gphoto2Elsewhere is whether a gphoto2 shell is running (one of ours, or
+// another program's): a camera's open, so the USB bus is best left alone.
+func gphoto2Elsewhere() bool {
+	return exec.Command("pgrep", "-f", "gphoto2 .*--shell").Run() == nil
+}
+
 // gphoto2Detect lists the cameras gphoto2 currently sees attached over USB.
 // Empty, without error, if gphoto2 isn't installed or nothing answers —
 // callers treat "no real camera" as the normal case.

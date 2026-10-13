@@ -173,7 +173,7 @@ func (a *app) exec(req request) (any, error) {
 	case "pause":
 		return nil, a.cap.pause(req.On)
 	case "cameras":
-		return listCameras(), nil
+		return a.camera.camerasNow(), nil
 	case "cameraConnect":
 		if err := a.camera.connect(req.Camera); err != nil {
 			return nil, err

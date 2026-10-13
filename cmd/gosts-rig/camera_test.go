@@ -158,3 +158,22 @@ func TestSimDownload(t *testing.T) {
 		}
 	}
 }
+
+// TestCamerasNowBusy: while a camera's being opened (or is open), the list
+// isn't scanned again: the one made last comes back.
+func TestCamerasNowBusy(t *testing.T) {
+	lastCameras.Lock()
+	old := lastCameras.list
+	lastCameras.list = []cameraInfo{{ID: "gphoto2:usb:001,099", Name: "kept"}}
+	lastCameras.Unlock()
+	defer func() { lastCameras.Lock(); lastCameras.list = old; lastCameras.Unlock() }()
+	c := &cameraConn{out: func(any) {}}
+	c.opening = 1
+	if l := c.camerasNow(); len(l) != 1 || l[0].Name != "kept" {
+		t.Fatalf("opening: %+v, want the list made last", l)
+	}
+	c.opening = 0
+	if l := c.camerasNow(); len(l) == 0 || l[0].ID != simCameraID {
+		t.Fatalf("idle: %+v, want a fresh scan (the simulator first)", l)
+	}
+}

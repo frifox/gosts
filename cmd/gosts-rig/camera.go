@@ -143,6 +143,30 @@ func listCameras() []cameraInfo {
 	return cams
 }
 
+// lastCameras is the list last made by scanning (see camerasNow).
+var lastCameras struct {
+	sync.Mutex
+	list []cameraInfo
+}
+
+// camerasNow lists the cameras for the page: scanning the USB bus, unless
+// a camera's being opened or is open here, or another program has one open
+// (a gphoto2 shell: another gosts-rig, say): then the list made last. A
+// scan then can upset the camera mid-handshake (the A6600 stuck on
+// "Connecting…").
+func (c *cameraConn) camerasNow() []cameraInfo {
+	c.mu.Lock()
+	busy := c.opening > 0 || c.cam != nil
+	c.mu.Unlock()
+	lastCameras.Lock()
+	defer lastCameras.Unlock()
+	if (busy || gphoto2Elsewhere()) && lastCameras.list != nil {
+		return lastCameras.list
+	}
+	lastCameras.list = listCameras()
+	return lastCameras.list
+}
+
 func openCamera(id string) (Camera, string, error) {
 	switch {
 	case id == simCameraID:
@@ -306,6 +330,7 @@ type cameraConn struct {
 	simRendered    map[int]bool              // simulated photos a page has rendered (coming over: see simPicture)
 	simLink        time.Time                 // the simulated camera's link is busy till then (see simDownload)
 	exposed        time.Duration             // the shutter speed last read (see exposure), for the estimate
+	opening        int                       // cameras being opened (see camerasNow)
 }
 
 // maxPhotos is how many photos the timeline keeps in memory; the oldest go.
@@ -416,7 +441,13 @@ func (c *cameraConn) msg() cameraMsg {
 }
 
 func (c *cameraConn) connect(id string) error {
+	c.mu.Lock()
+	c.opening++ // (no scanning meanwhile: see camerasNow)
+	c.mu.Unlock()
 	cam, name, err := openCamera(id)
+	c.mu.Lock()
+	c.opening--
+	c.mu.Unlock()
 	if err != nil {
 		return err
 	}
