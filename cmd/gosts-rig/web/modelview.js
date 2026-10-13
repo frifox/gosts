@@ -105,17 +105,9 @@ const VIEW_DIR = VIEWS["3d"];
 // frame puts camera (and controls, if any) on obj, just all of it in view
 // (each point: as far off as it needs, at the camera's angle, from the
 // middle of its box; margin: a fraction of the view left round it).
-// upright: aimed not at the model's middle but at the nearest point to it
-// in line with the origin (on the upright plane through the origin along
-// dir), so the origin's at the middle of the picture across: its Z axis,
-// straight up there, isn't leaned by the perspective.
-function frame(obj, camera, controls, margin = 0.06, dir = VIEW_DIR, aspect = camera.aspect, upright = false) {
+function frame(obj, camera, controls, margin = 0.06, dir = VIEW_DIR, aspect = camera.aspect) {
   const box = new THREE.Box3().setFromObject(obj);
   const c = box.getCenter(new THREE.Vector3());
-  if (upright) {
-    const h = new THREE.Vector3(dir.x, 0, dir.z).normalize(), k = c.x * h.x + c.z * h.z;
-    c.set(h.x * k, c.y, h.z * k);
-  }
   const r = Math.max(box.getBoundingSphere(new THREE.Sphere()).radius, 1e-3);
   const fwd = dir.clone(), right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), fwd).normalize();
   const up = new THREE.Vector3().crossVectors(fwd, right);
@@ -261,7 +253,7 @@ export function createModelView(canvas) {
     if (VIEWS[name]) viewName = name;
     if (!holder) return;
     const from = camera.position.clone(), fromT = controls.target.clone();
-    frame(holder, camera, controls, 0.06, VIEWS[viewName], seenAspect(), viewName === "3d"); // (where it ends: its near, far and zoom limits too)
+    frame(holder, camera, controls, 0.06, VIEWS[viewName], seenAspect()); // (where it ends: its near, far and zoom limits too)
     glideTo = null;
     if (!glide) return;
     glideTo = { from, fromT, to: camera.position.clone(), toT: controls.target.clone(), age: 0 };
@@ -347,7 +339,7 @@ export function createModelView(canvas) {
     scene.add(holder);
     viewName = "3d";
     size();
-    frame(holder, camera, controls, 0.06, VIEW_DIR, seenAspect(), true);
+    frame(holder, camera, controls, 0.06, VIEW_DIR, seenAspect());
     ground();
     look(mode);
     running = true;
