@@ -1650,11 +1650,9 @@ function mveConfirm(on) {
   $("mveSave").textContent = on ? "Confirm" : "Save";
   $("mveWarn").textContent = on ? "Some edits not applied. Save anyways?" : "";
 }
-// The model's dimensions and resolution, as icons: a ruler with its measure,
-// a mesh triangle (its corners marked).
+// The model's dimensions, as an icon: a ruler with its measure.
 const MVE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
 const MVE_RULER = MVE_ICON + '<path d="M19.9 12c.6 0 1.1.5 1.1 1.1v5.8c0 .6-.5 1.1-1.1 1.1H4a1 1 0 0 1-1-1v-5.9c0-.6.5-1.1 1.1-1.1z"/><path d="M9 12v2M6 12v3M12 12v3M18 12v3M15 12v2M3 3v3M3 4.5h18M21 3v3"/></svg>';
-const MVE_TRIANGLE = MVE_ICON + '<rect x="10" y="4" width="4" height="4" rx="1"/><rect x="3" y="17" width="4" height="4" rx="1"/><rect x="17" y="17" width="4" height="4" rx="1"/><path d="M6.5 17.1l5-9.1M17.5 17.1l-5-9.1M7 19h10"/></svg>';
 // mveNum: a length (m) in the file's units (File units).
 function mveNum(m) {
   const u = segOf("mveFileUnit");
@@ -1685,7 +1683,7 @@ function mveShow() {
     const [x, y, z] = [st.size[0], st.size[2], st.size[1]].map(mveNum);
     const tris = Math.round(st.triangles).toLocaleString();
     $("mveSize").innerHTML = `<span class="mve-ic" role="img" aria-label="Dimensions" title="Dimensions">${MVE_RULER}</span><span><b class="x">X</b> ${x}  <b class="y">Y</b> ${y}  <b class="z">Z</b> ${z}</span>` +
-      `<span class="mve-ic" role="img" aria-label="Resolution" title="Resolution: ${tris} triangles">${MVE_TRIANGLE}</span><span title="${tris} triangles">${tris}</span>`;
+      `<span></span><span>${tris} triangles</span>`; // (under the dimensions, lined up with them)
   }
   mvMarks();
   try { localStorage.setItem("modelEditUnits", JSON.stringify([u, segOf("mveFileUnit")])); } catch {}
