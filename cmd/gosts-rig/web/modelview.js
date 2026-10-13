@@ -472,7 +472,20 @@ export function createModelView(canvas) {
         m.scale.setScalar(radius * 0.016);
         marks.add(m);
       }
-      if (s.line && s.points.length > 1) {
+      if (s.plane) {
+        // A plane: a w × h rectangle about c, along u (across) and v (up its
+        // face), see-through, with its outline.
+        const { c, u, v, w, h } = s.plane, n = new THREE.Vector3().crossVectors(u, v);
+        const at = new THREE.Matrix4().makeBasis(u, v, n).setPosition(c);
+        const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: s.color, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
+        face.applyMatrix4(at);
+        face.renderOrder = 8;
+        const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => new THREE.Vector3(a * w / 2, b * h / 2, 0))),
+          new THREE.LineBasicMaterial({ color: s.color, transparent: true, opacity: 0.7, depthWrite: false }));
+        edge.applyMatrix4(at);
+        edge.renderOrder = 8;
+        marks.add(face, edge);
+      } else if (s.line && s.points.length > 1) {
         const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(s.line === "loop" ? [...s.points, s.points[0]] : s.points),
           new THREE.LineBasicMaterial({ color: s.color, depthTest: false, transparent: true }));
         l.renderOrder = 10;

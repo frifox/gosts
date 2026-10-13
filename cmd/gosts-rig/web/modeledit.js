@@ -11,6 +11,9 @@ import * as THREE from "three";
 import { mergeVertices } from "./vendor/BufferGeometryUtils.js";
 import { MeshoptSimplifier } from "./vendor/meshopt_simplifier.module.js";
 
+// Vec3: three.js' vector, for the page (its points and planes).
+export const Vec3 = THREE.Vector3;
+
 // UNITS: one unit of each, in meters.
 export const UNITS = { mm: 0.001, in: 0.0254, m: 1 };
 
@@ -47,7 +50,9 @@ function smallestAxis(pts, c) {
 // level: the edit that lays the plane through pts (3 or more, on what the
 // model should stand on) on the ground, the model above it (center: the
 // model's middle), then centers it. box(m): the model's box after m.
-export function level(pts, center, box) {
+// fitPlane: the plane through pts (3 or more): its middle c, its normal n
+// (unit), and how far the points spread from c; or an error.
+export function fitPlane(pts) {
   if (pts.length < 3) throw new Error("pick 3 or more points");
   const c = pts.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(pts.length);
   let n;
@@ -55,7 +60,10 @@ export function level(pts, center, box) {
   else n = smallestAxis(pts, c);
   const spread = Math.max(...pts.map((p) => p.distanceTo(c)));
   if (spread === 0 || (pts.length === 3 && n.length() < 1e-6 * spread * spread)) throw new Error("the points are in a line: pick points spread out");
-  n.normalize();
+  return { c, n: n.normalize(), spread };
+}
+export function level(pts, center, box) {
+  const { c, n } = fitPlane(pts);
   if (new THREE.Vector3().subVectors(center, c).dot(n) < 0) n.negate(); // (up: towards the model)
   const q = new THREE.Quaternion().setFromUnitVectors(n, new THREE.Vector3(0, 1, 0));
   // Turned about the points' middle, which then goes to the ground.
@@ -70,18 +78,27 @@ export function level(pts, center, box) {
 // through pts (2 or more, along an edge; seen from above) runs along axis
 // ("x" or "y": Blender's and Fusion's, so −z here), the least turn either
 // way along it; then centers it.
-export function align(pts, axis, box) {
+// fitEdge: the edge through pts (2 or more), seen from above: its angle
+// theta (of its direction in x, z), its middle c, and how long it is; or an
+// error.
+export function fitEdge(pts) {
   if (pts.length < 2) throw new Error("pick 2 or more points");
   let theta;
+  const c = pts.reduce((a, p) => a.add(p), new THREE.Vector3()).divideScalar(pts.length);
   if (pts.length === 2) theta = Math.atan2(pts[1].z - pts[0].z, pts[1].x - pts[0].x);
   else {
-    const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length, cz = pts.reduce((a, p) => a + p.z, 0) / pts.length;
     let sxx = 0, szz = 0, sxz = 0;
-    for (const p of pts) { sxx += (p.x - cx) ** 2; szz += (p.z - cz) ** 2; sxz += (p.x - cx) * (p.z - cz); }
+    for (const p of pts) { sxx += (p.x - c.x) ** 2; szz += (p.z - c.z) ** 2; sxz += (p.x - c.x) * (p.z - c.z); }
     theta = 0.5 * Math.atan2(2 * sxz, sxx - szz); // (the points' main direction)
   }
   const span = Math.max(...pts.map((p) => Math.hypot(p.x - pts[0].x, p.z - pts[0].z)));
   if (span < 1e-9) throw new Error("the points are one above the other: pick points along an edge");
+  const d = new THREE.Vector3(Math.cos(theta), 0, Math.sin(theta));
+  const length = Math.max(...pts.map((p) => Math.abs(new THREE.Vector3().subVectors(p, c).dot(d)))) * 2;
+  return { theta, c, length };
+}
+export function align(pts, axis, box) {
+  const { theta } = fitEdge(pts);
   const target = axis === "y" ? -Math.PI / 2 : 0;
   // Turning by phi about y takes a direction's angle θ to θ − phi.
   let phi = (theta - target) % Math.PI;

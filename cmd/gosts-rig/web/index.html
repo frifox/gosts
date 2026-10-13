@@ -1688,9 +1688,29 @@ function mveShow() {
   try { localStorage.setItem("modelEditUnits", JSON.stringify([u, segOf("mveFileUnit")])); } catch {}
 }
 $("mveDist").oninput = mveShow;
+// mvePlaneOf: the plane a step's points make, to show (Level: through
+// them, from 3; Align: upright through the edge, from 2), or null.
+function mvePlaneOf(step, pts) {
+  if (!(step === "level" && pts.length >= 3) && !(step === "align" && pts.length >= 2)) return null;
+  const E = window.modelEdit, V = E.Vec3;
+  try {
+    if (step === "level" && pts.length >= 3) {
+      const { c, n, spread } = E.fitPlane(pts.map((p) => p.clone()));
+      const u = new V(1, 0, 0).cross(n).lengthSq() > 1e-6 ? new V(1, 0, 0).cross(n).normalize() : new V(0, 0, 1).cross(n).normalize();
+      const size = spread * 2.6;
+      return { c, u, v: new V().crossVectors(n, u), w: size, h: size };
+    }
+    if (step === "align" && pts.length >= 2) {
+      const { theta, c, length } = E.fitEdge(pts.map((p) => p.clone()));
+      const b = window.modelView.box(), h = Math.max(b.max.y - b.min.y, length * 0.3) * 1.15;
+      return { c: new V(c.x, (b.min.y + b.max.y) / 2, c.z), u: new V(Math.cos(theta), 0, Math.sin(theta)), v: new V(0, 1, 0), w: length * 1.4, h };
+    }
+  } catch { /* (the points in a line, or one above another: dots only) */ }
+  return null;
+}
 // mvMarks: the points picked (Edit's steps, the measure) on the model.
 function mvMarks() {
-  const sets = Object.entries(mve.picks).map(([k, pts]) => ({ points: pts, color: MVE_COLORS[k], line: k === "level" ? "loop" : true }));
+  const sets = Object.entries(mve.picks).map(([k, pts]) => ({ points: pts, color: MVE_COLORS[k], line: k === "scale", plane: mvePlaneOf(k, pts) }));
   if (mvm.on) sets.push({ points: mvm.pts, color: MV_MEASURE, line: true });
   window.modelView.markers(sets);
 }
