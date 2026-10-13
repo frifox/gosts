@@ -414,6 +414,16 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-trim .mve-val { font: 11px var(--mono); color: var(--text); min-width: 52px; text-align: right; }
 .mve-rot .x { color: #e5484d; } .mve-rot .y { color: #46a758; } .mve-rot .z { color: #3e7bfa; }
 .mv-views { position: absolute; top: 12px; left: 12px; margin: 0; z-index: 2; }
+.mv-measure { position: absolute; top: 48px; left: 12px; z-index: 2; padding: 6px 10px; border-radius: 8px; background: rgba(18,21,28,.88); border: 1px solid var(--border);
+  font: 12px var(--mono); color: var(--text); pointer-events: none; }
+.mv-measure b { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin-right: 8px; }
+.mv-measure .x { color: #e5484d; } .mv-measure .y { color: #46a758; } .mv-measure .z { color: #3e7bfa; }
+/* Buttons joined in one group (as the Rig card's Torque Lock and Go 0). */
+.btn-join { display: inline-flex; }
+.btn-join > .btn { position: relative; }
+.btn-join > .btn:not([hidden]):not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.btn-join > .btn:not([hidden]) + .btn { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; }
+.btn-join > .btn.primary { z-index: 1; } .btn-join > .btn:hover { z-index: 2; }
 .mve-size { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; }
 .mve-size > span:not(.mve-sub) { white-space: pre; }
 .mve-size .mve-sub { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); }
@@ -906,13 +916,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <span class="cap" id="mvCap"></span>
     <span class="spacer"></span>
     <span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, gray">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span>
-    <button class="btn small" id="mvReset" title="The whole model, from the front (F)">Reset View</button>
-    <button class="btn small" id="mvEditBtn" title="Level it, turn it onto an axis, scale it to a known size; save it as a new model (OBJ, and STL)">Edit</button>
-    <button class="btn small" id="mvOpen" title="Open it in the Mac's app for it (Preview, unless another is set: Blender, say, in the Finder's Get Info) to edit it">Open in App</button>
-    <button class="btn small" id="mvReveal" title="Its folder, in the Finder">Show in Finder</button>
+    <span class="btn-join" id="mvTools"><button class="btn small" id="mvEditBtn" title="Level it, turn it onto an axis, scale it to a known size; save it as a new model (OBJ, and STL)">Edit</button><button class="btn small" id="mvMeasureBtn" title="Click two points on the model: the distance between them (Measure again: cleared)">Measure</button></span>
+    <span class="btn-join"><button class="btn small" id="mvOpen" title="Open it in the Mac's app for it (Preview, unless another is set: Blender, say, in the Finder's Get Info) to edit it">Open in App</button><button class="btn small" id="mvReveal" title="Its folder, in the Finder">Show in Finder</button></span>
     <button class="icon-btn" id="mvClose" title="Close (Esc)" aria-label="Close">✕</button>
   </div>
   <div class="stage model-stage" id="mvStage"><canvas id="mvCanvas"></canvas>
+    <div class="mv-measure" id="mvMeasure" hidden></div>
     <span class="views seg mv-views" id="mvViews"><button data-v="3d" title="Z up, X right and away, Y left and away">3D</button><button data-v="front" title="X right, Z up, Y away">Front</button><button data-v="side" title="Y right, Z up, X towards you">Side</button><button data-v="top" title="Y right, X down, Z towards you">Top</button></span>
     <div class="mv-hint">Drag to turn · right-drag (or ⇧ drag) to move · wheel to zoom · F: the whole model · Esc: the capture</div>
     <div class="mv-msg" id="mvMsg" hidden></div>
@@ -1456,7 +1465,8 @@ function openModel(name, m) {
   $("mvCap").textContent = `${name} · ${m.name} · ${fmt}`;
   $("modelViewer").hidden = false;
   const msg = (text, cls = "") => { $("mvMsg").hidden = !text; $("mvMsg").className = "mv-msg " + cls; $("mvMsg").textContent = text; };
-  $("mvLook").hidden = $("mvReset").hidden = $("mvEditBtn").hidden = $("mvViews").hidden = m.format !== "obj";
+  $("mvLook").hidden = $("mvTools").hidden = $("mvViews").hidden = m.format !== "obj";
+  mvMeasure(false);
   segPick("mvViews", "3d");
   mveFresh(m);
   if (m.format !== "obj") {
@@ -1491,7 +1501,26 @@ function mvLook(v) {
 }
 $("mvLook").onclick = (e) => { const v = e.target.dataset?.v; if (v) mvLook(v); };
 mvLook(state.mvLook); // (the viewer itself: as it opens, a module's)
-$("mvReset").onclick = () => mvView("3d");
+// Measure: two points clicked on the model, the distance between them (in
+// the File units; its X, Y, Z parts too); a third starts again; Measure
+// again clears it.
+const mvm = { on: false, pts: [] };
+function mvMeasure(on) {
+  mvm.on = on;
+  mvm.pts = [];
+  $("mvMeasureBtn").classList.toggle("primary", on);
+  if (on) mvePicking(null); // (an Edit step picking: no longer)
+  window.modelView.onPick = on ? (p) => { if (mvm.pts.length >= 2) mvm.pts = []; mvm.pts.push(p); mvMeasureShow(); } : null;
+  mvMeasureShow();
+}
+function mvMeasureShow() {
+  const el = $("mvMeasure"), [a, b] = mvm.pts;
+  el.hidden = !mvm.on;
+  if (mvm.on) el.innerHTML = !a ? "<b>Measure</b>click a point on the model" : !b ? "<b>Measure</b>click a second point" :
+    `<b>Distance</b>${mveNum(a.distanceTo(b))} ${segOf("mveFileUnit")}  <span class="x">X</span> ${mveNum(Math.abs(b.x - a.x))} <span class="y">Y</span> ${mveNum(Math.abs(b.z - a.z))} <span class="z">Z</span> ${mveNum(Math.abs(b.y - a.y))}`;
+  mvMarks();
+}
+$("mvMeasureBtn").onclick = () => mvMeasure(!mvm.on);
 $("mvBack").onclick = closeModel;
 $("mvClose").onclick = closeModel; // (the gallery stays: its ✕ closes it)
 async function mvOpen(reveal) {
@@ -1559,11 +1588,18 @@ function mveShow() {
     $("mveSize").innerHTML = `<span class="mve-sub">Size</span><span><b class="x">X</b> ${x}  <b class="y">Y</b> ${y}  <b class="z">Z</b> ${z}</span>` +
       `<span class="mve-sub">Resolution</span><span>${Math.round(st.triangles).toLocaleString()} triangles</span>`;
   }
-  mv.markers(Object.entries(mve.picks).map(([k2, pts]) => ({ points: pts, color: MVE_COLORS[k2], line: k2 === "level" ? "loop" : true })));
+  mvMarks();
   try { localStorage.setItem("modelEditUnits", JSON.stringify([u, segOf("mveFileUnit")])); } catch {}
 }
 $("mveDist").oninput = mveShow;
+// mvMarks: the points picked (Edit's steps, the measure) on the model.
+function mvMarks() {
+  const sets = Object.entries(mve.picks).map(([k, pts]) => ({ points: pts, color: MVE_COLORS[k], line: k === "level" ? "loop" : true }));
+  if (mvm.on) sets.push({ points: mvm.pts, color: 0xffffff, line: true });
+  window.modelView.markers(sets);
+}
 function mvePicking(st) {
+  if (st && mvm.on) mvMeasure(false); // (measuring: no longer)
   mve.picking = st;
   window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); mveShow(); } : null;
   mveShow();

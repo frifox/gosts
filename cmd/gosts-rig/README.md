@@ -103,7 +103,8 @@ A capture's models (its folders with an OBJ or a USDZ in them: Build Model's, or
 gallery, a tile each with a picture of the model (rendered in the page the first time, with three.js, and kept in the
 cache folder). A click shows it over the page in 3D: drag to turn it, right-drag (or ⇧ drag) to move it, the wheel to
 zoom (at the pointer), F for the whole model again; Textured, Clay (its shape, gray) or Wireframe (its triangles); its
-triangles and size (cm) in the bar. **Open in App** opens it in the Mac's app for it, to edit it (Preview, unless
+triangles and size (cm) in the bar. **Measure**: click two points on the model, the distance between them (and its X, Y,
+Z parts) shows; a third click starts again, Measure again clears it. **Open in App** opens it in the Mac's app for it, to edit it (Preview, unless
 another's set: Blender, say, in the Finder's Get Info); **Show in Finder** shows its folder. A USDZ isn't shown in the
 page (three.js can't read Apple's), only opened. Its tile's bin moves the model's folder to the Trash.
 

@@ -338,14 +338,14 @@ export function createModelView(canvas) {
   function stats() { return holder ? { ...modelStats(holder), size: box().getSize(new THREE.Vector3()).toArray() } : null; }
 
   // ------------------------------------------------------------ editing
-  function editing(on) { editOn = on; markers([]); ground(); canvas.style.cursor = on ? "crosshair" : ""; }
-  // A click (not a drag) on the model, editing: the triangle's corner
-  // nearest it, to onPick.
+  function editing(on) { editOn = on; ground(); }
+  // A click (not a drag) on the model, while picking (onPick set: Edit's
+  // steps, Measure): the triangle's corner nearest it, to onPick.
   const ray = new THREE.Raycaster();
   let down = null;
   canvas.addEventListener("pointerdown", (e) => { down = e.button === 0 ? [e.clientX, e.clientY] : null; });
   canvas.addEventListener("pointerup", (e) => {
-    if (!down || !editOn || !onPick || !obj || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
+    if (!down || !onPick || !obj || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4) return;
     const b = canvas.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2((e.clientX - b.left) / b.width * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1), camera);
     const hit = ray.intersectObject(obj, true)[0];
@@ -532,7 +532,7 @@ export function createModelView(canvas) {
     editing, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, parts,
     settle: () => tweenEnd(), // (a move going on: there at once)
     setInset,
-    set onPick(f) { onPick = f; },
+    set onPick(f) { onPick = f; canvas.style.cursor = f ? "crosshair" : ""; },
   };
 }
 
