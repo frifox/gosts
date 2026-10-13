@@ -1,7 +1,10 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -29,11 +32,38 @@ func TestModelOptions(t *testing.T) {
 		func(o *modelOptions) { o.Detail, o.MaxPolygons = "custom", 0 },
 		func(o *modelOptions) { o.Detail, o.TextureMaps = "custom", nil },
 		func(o *modelOptions) { o.Detail, o.TextureMaps = "custom", []string{"shine"} },
+		func(o *modelOptions) { o.Out = "../x" },
+		func(o *modelOptions) { o.Out = "" },
+		func(o *modelOptions) { o.Out = buildDir },
+		func(o *modelOptions) { o.Out = "samples" },
 	} {
 		o := defaultModelOptions()
 		bad(&o)
 		if o.check() == nil {
 			t.Errorf("%+v passed", o)
 		}
+	}
+}
+
+// TestModelOutNotOurs: an output folder with files in it that no build here
+// made isn't cleared (it'd go to the Trash): refused.
+func TestModelOutNotOurs(t *testing.T) {
+	old := photoDir
+	photoDir = t.TempDir()
+	defer func() { photoDir = old }()
+	dir := filepath.Join(photoDir, "cap")
+	os.MkdirAll(filepath.Join(dir, "stuff"), 0o755)
+	os.WriteFile(filepath.Join(dir, "stuff", "keep.txt"), []byte("x"), 0o644)
+	cam := &cameraConn{out: func(any) {}}
+	a := &app{camera: cam, cap: &capture{camera: cam, out: func(any) {}}}
+	b := &modelBuilder{out: func(any) {}}
+	o := defaultModelOptions()
+	o.Out = "stuff"
+	err := b.start(a, "cap", o)
+	if err == nil || !strings.Contains(err.Error(), "has files in it") {
+		t.Fatalf("got %v, want refused", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "stuff", "keep.txt")); err != nil {
+		t.Error("its file's gone")
 	}
 }

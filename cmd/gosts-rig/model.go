@@ -35,6 +35,7 @@ const (
 
 // modelOptions are apple-obj-cap's (see its --help), as the page sets them.
 type modelOptions struct {
+	Out           string   `json:"out"`         // the model's folder in the capture's (default model)
 	Format        string   `json:"format"`      // obj | usdz
 	Detail        string   `json:"detail"`      // preview | reduced | medium | full | raw | custom
 	Ordering      string   `json:"ordering"`    // sequential | unordered
@@ -54,7 +55,7 @@ type modelOptions struct {
 }
 
 func defaultModelOptions() modelOptions {
-	return modelOptions{Format: "obj", Detail: "full", Ordering: "sequential", Sensitivity: "normal", Masking: true, Mesh: "triangle",
+	return modelOptions{Out: modelDir, Format: "obj", Detail: "full", Ordering: "sequential", Sensitivity: "normal", Masking: true, Mesh: "triangle",
 		Checkpoint: true, Gravity: true, MaxPolygons: 250000, TextureDim: "8k", TextureMaps: []string{"all"}, TextureFormat: "png", JPEGQuality: 0.8}
 }
 
@@ -70,6 +71,10 @@ func oneOf(v string, allowed ...string) bool {
 // check says what's wrong with the options, if anything.
 func (o modelOptions) check() error {
 	switch {
+	case !cleanName(o.Out) || strings.ContainsAny(o.Out, `:*?"<>|`):
+		return errors.New("the output folder: one folder name, no slashes, no leading dot, nor any of : * ? \" < > |")
+	case o.Out == buildDir || o.Out == sampleSub:
+		return fmt.Errorf("the output folder can't be %s: that's the build's own (or the sample shots')", o.Out)
 	case !oneOf(o.Format, "obj", "usdz"):
 		return fmt.Errorf("format %q?", o.Format)
 	case !oneOf(o.Detail, "preview", "reduced", "medium", "full", "raw", "custom"):
@@ -245,16 +250,31 @@ func (b *modelBuilder) start(a *app, name string, o modelOptions) error {
 		return fmt.Errorf("a model is being built already (%s)", b.state.Folder)
 	}
 	b.mu.Unlock()
+	out, work := filepath.Join(dir, o.Out), filepath.Join(dir, buildDir)
+	// Object Capture writes only into an empty folder: one with something
+	// in it goes to the Trash first, if it's this capture's model from
+	// before (the output folder its last build used); else it's not ours to
+	// clear: another name, please.
+	clear := false
+	if ents, err := os.ReadDir(out); err == nil && len(ents) > 0 {
+		last := defaultModelOptions()
+		if data, err := os.ReadFile(filepath.Join(work, "config.json")); err == nil {
+			json.Unmarshal(data, &last)
+		}
+		if last.Out != o.Out {
+			return fmt.Errorf("%s has files in it (not a model built here): pick another output folder, or empty it", o.Out)
+		}
+		clear = true
+	}
 	tool, err := objCapTool()
 	if err != nil {
 		return err
 	}
-	out, work := filepath.Join(dir, modelDir), filepath.Join(dir, buildDir)
-	if ents, err := os.ReadDir(out); err == nil && len(ents) > 0 { // a model from before: the Trash (Object Capture writes only into an empty folder)
+	if clear {
 		if err := trash(out); err != nil {
-			return fmt.Errorf("the model from before (%s) couldn't go to the Trash: %w", modelDir, err)
+			return fmt.Errorf("the model from before (%s) couldn't go to the Trash: %w", o.Out, err)
 		}
-		log.Printf("model: %s's model from before moved to the Trash", name)
+		log.Printf("model: %s's model from before (%s) moved to the Trash", name, o.Out)
 	}
 	if err := os.MkdirAll(work, 0o755); err != nil {
 		return err

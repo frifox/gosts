@@ -90,8 +90,8 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .needs-sample:disabled:hover::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); right: 0; z-index: 50; width: max-content; max-width: 240px;
   padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text);
   font: 400 12px/1.4 system-ui, sans-serif; white-space: normal; text-align: left; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; }
-input[type=number], input.count-box, select { width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: 13px var(--mono); }
-input[type=number]:disabled, select:disabled { opacity: .45; cursor: not-allowed; }
+input[type=number], input[type=text], input.count-box, select { width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: 13px var(--mono); }
+input[type=number]:disabled, input[type=text]:disabled, select:disabled { opacity: .45; cursor: not-allowed; }
 label:has(> input:disabled) { color: var(--muted); }
 input[type=range] { width: 100%; accent-color: var(--accent); }
 .btn { border: 1px solid var(--border); background: var(--panel-2); color: var(--text); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
@@ -410,12 +410,15 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .gallery-bar .views.seg { margin-left: 0; }
 /* Build Model's panel, under the gallery's bar. */
 .model-panel { border-bottom: 1px solid var(--border); background: var(--panel); padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 10px; }
-.model-panel .mp-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; }
-/* Two columns: the build's options left, the detail (and what it means) right; Process below both. */
-.model-panel .mp-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 40px; max-width: 920px; }
-@media (max-width: 760px) { .model-panel .mp-cols { grid-template-columns: minmax(0, 1fr); } }
+.model-panel .mp-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; }
+.model-panel .mp-poly { width: 110px; } .model-panel .mp-tex { width: 76px; } .model-panel .mp-out { flex: 1; min-width: 120px; }
+/* Three columns: the build's options; the detail (and what it means); where it goes and Start. The bar below them. */
+.model-panel .mp-cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, .8fr); gap: 12px 40px; max-width: 1200px; }
+@media (max-width: 1000px) { .model-panel .mp-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .model-panel .mp-cols { grid-template-columns: minmax(0, 1fr); } }
+.model-panel input[type=text] { width: 100%; box-sizing: border-box; }
+.model-panel .mp-go { display: flex; gap: 8px; }
 .model-panel .mp-col, .model-panel .mp-custom { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.model-panel .mp-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .model-panel .mp-checks, .model-panel .mp-maps { display: flex; flex-direction: column; gap: 6px; }
 .model-panel .mp-maps-col { display: flex; flex-direction: column; gap: 6px; }
 .model-panel .mp-head { font-size: 12px; color: var(--muted); }
@@ -430,10 +433,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .model-panel .mp-check.off { opacity: .45; cursor: default; }
 .model-panel #mCustom.preset { opacity: .55; } /* a preset's: shown, not set */
 .model-panel #mCustom.preset .mp-check { cursor: default; }
-.model-panel .mp-run { align-items: flex-start; } /* (the bar level with Process, its note below) */
+.model-panel .mp-run { max-width: 1200px; }
 .model-panel .mp-progress { flex: 1; min-width: 220px; }
 .model-panel .mp-progress .progress { margin-top: 0; }
-.model-panel .mp-progress .progress.big { box-sizing: border-box; height: calc(1.4em + 14px); font-size: 14px; } /* Process's height: its line, 6px padding and a border each side */
+.model-panel .mp-progress .progress.big { box-sizing: border-box; height: calc(1.4em + 14px); font-size: 14px; } /* a button's height: its line, 6px padding and a border each side */
 .model-panel #mStatus { margin-top: 4px; font-size: 12px; }
 /* A photo's mark from the build: used (green ✓), rejected (red ✕), skipped, not placed, being read. */
 .thumb .mmark { position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
@@ -442,8 +445,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .thumb .mmark.invalid { background: var(--bad); }
 .thumb .mmark.skipped { background: #6b7484; }
 .thumb .mmark.unaligned { background: var(--warn); }
-.thumb .mmark.loaded { background: transparent; box-shadow: none; }
-.thumb .mmark.loaded::before { content: ""; width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; animation: spin .8s linear infinite; }
 .gallery-grid.list .thumb .mmark { position: static; flex: none; order: -1; }
 .thumb .meta { display: none; }
 /* A folder: a yellow folder (Windows 11's look), its tab at the top left,
@@ -773,8 +774,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   <div class="model-panel" id="modelPanel" hidden>
     <div class="mp-cols">
       <div class="mp-col">
-        <div class="mp-pair"><label>Format<span class="views seg" id="mFormat"><button data-v="obj" title="A folder: the mesh, its materials and textures">OBJ</button><button data-v="usdz" title="One file, for Quick Look and Reality Composer">USDZ</button></span></label><label>Photo order<span class="views seg" id="mOrdering"><button data-v="sequential" title="Each photo overlaps the one before (a rig's rings)">Sequential</button><button data-v="unordered" title="In no particular order">Unordered</button></span></label></div>
-        <div class="mp-pair"><label>Features<span class="views seg" id="mSensitivity"><button data-v="normal">Normal</button><button data-v="high" title="Finds more on plain objects; slower">High</button></span></label><label>Mesh<span class="views seg" id="mMesh"><button data-v="triangle">Triangles</button><button data-v="quad" title="Nicer to edit (Blender, say)">Quads</button></span></label></div>
+        <div class="mp-row"><label>Photo order<span class="views seg" id="mOrdering"><button data-v="sequential" title="Each photo overlaps the one before (a rig's rings)">Sequential</button><button data-v="unordered" title="In no particular order">Unordered</button></span></label><label>Features<span class="views seg" id="mSensitivity"><button data-v="normal">Normal</button><button data-v="high" title="Finds more on plain objects; slower">High</button></span></label><label>Mesh<span class="views seg" id="mMesh"><button data-v="triangle">Triangles</button><button data-v="quad" title="Nicer to edit (Blender, say)">Quads</button></span></label></div>
         <div class="mp-checks">
           <span class="mp-head">Options</span>
           <label class="mp-check"><input type="checkbox" id="mMasking"> Mask out the background</label>
@@ -795,8 +795,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <option value="custom">Custom…</option></select></label>
         <!-- With a preset: what it does, greyed (see modelFormShown). -->
         <div class="mp-custom" id="mCustom">
-          <label>Most polygons<input type="number" id="mMaxPolygons" min="1" step="1000"></label>
-          <div class="mp-pair"><label>Texture size<select id="mTextureDim"><option value="1k">1K</option><option value="2k">2K</option><option value="4k">4K</option><option value="8k">8K</option><option value="16k">16K</option></select></label><label>Texture format<span class="views seg" id="mTextureFormat"><button data-v="png">PNG</button><button data-v="jpeg">JPEG</button></span></label></div>
+          <div class="mp-row"><label class="mp-poly">Most polygons<input type="number" id="mMaxPolygons" min="1" step="1000"></label><label class="mp-tex">Texture size<select id="mTextureDim"><option value="1k">1K</option><option value="2k">2K</option><option value="4k">4K</option><option value="8k">8K</option><option value="16k">16K</option></select></label><label>Texture format<span class="views seg" id="mTextureFormat"><button data-v="png">PNG</button><button data-v="jpeg">JPEG</button></span></label></div>
           <label id="mJpegLabel">JPEG quality<input type="number" id="mJpegQuality" min="0" max="1" step="0.05"></label>
           <div class="mp-maps-col"><span class="mp-head">Texture maps</span><span class="mp-maps" id="mTextureMaps">
             <label class="mp-check"><input type="checkbox" value="diffuse"> Colour</label>
@@ -806,10 +805,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <label class="mp-check"><input type="checkbox" value="ao"> Ambient occlusion</label></span></div>
         </div>
       </div>
+      <div class="mp-col">
+        <div class="mp-row"><label class="mp-out" title="The model's folder, in the capture's: Object Capture writes into an empty one (a model built there before goes to the Trash first)">Output folder<input type="text" id="mOut" spellcheck="false" autocomplete="off"></label><label>Format<span class="views seg" id="mFormat"><button data-v="obj" title="A folder: the mesh, its materials and textures">OBJ</button><button data-v="usdz" title="One file, for Quick Look and Reality Composer">USDZ</button></span></label></div>
+        <div class="mp-go"><button class="btn primary" id="mProcess">Start Process</button><button class="btn danger" id="mCancel" hidden>Cancel build</button></div>
+      </div>
     </div>
-    <div class="mp-row mp-run">
-      <button class="btn primary" id="mProcess">Process</button>
-      <button class="btn danger" id="mCancel" hidden>Cancel build</button>
+    <div class="mp-run">
       <div class="mp-progress"><div class="progress big"><div class="bar" id="mBar"></div><span class="label" id="mLabel"></span></div>
         <div class="hint" id="mStatus"></div></div>
     </div>
@@ -1419,6 +1420,7 @@ function modelFormShown() {
   $("mCustom").title = custom ? "" : `What ${$("mDetail").selectedOptions[0].textContent.split(":")[0]} does, roughly (Apple's figures): pick Custom… to set these yourself`;
 }
 function modelFormFill(o, gravity) {
+  $("mOut").value = o.out || "model";
   segSet("mFormat", o.format); $("mDetail").value = o.detail; segSet("mOrdering", o.ordering); segSet("mSensitivity", o.sensitivity); segSet("mMesh", o.mesh);
   $("mMasking").checked = o.masking; $("mIgnoreBBox").checked = o.ignoreBBox; $("mCheckpoint").checked = o.checkpoint;
   $("mGravity").checked = o.gravity && gravity; $("mGravity").disabled = !gravity;
@@ -1432,7 +1434,7 @@ function modelFormFill(o, gravity) {
 function modelFormRead() {
   customRead();
   const c = customVals; // (the custom settings as set, whichever detail: a preset's shown values aren't settings)
-  return { format: segGet("mFormat"), detail: $("mDetail").value, ordering: segGet("mOrdering"), sensitivity: segGet("mSensitivity"), mesh: segGet("mMesh"),
+  return { out: $("mOut").value.trim(), format: segGet("mFormat"), detail: $("mDetail").value, ordering: segGet("mOrdering"), sensitivity: segGet("mSensitivity"), mesh: segGet("mMesh"),
     masking: $("mMasking").checked, ignoreBBox: $("mIgnoreBBox").checked, checkpoint: $("mCheckpoint").checked, gravity: $("mGravity").checked,
     bounds: $("mBounds").checked, pointCloud: $("mPointCloud").checked, maxPolygons: c.maxPolygons, textureDim: c.textureDim,
     textureMaps: c.textureMaps, textureFormat: c.textureFormat, jpegQuality: c.jpegQuality };
@@ -1480,8 +1482,9 @@ function modelShow() {
   if ($("gallery").hidden) return;
   const m = modelOf(), busy = !!state.model?.running, mine = busy && state.model.folder === galleryFolder();
   $("mProcess").disabled = busy;
-  $("mProcess").title = busy && !mine ? `A model is being built (${state.model.folder}): one at a time` : "Build the model: the options saved, then Object Capture run";
+  $("mProcess").title = busy && !mine ? `A model is being built (${state.model.folder}): one at a time` : "Build the model: the options saved, then Object Capture run (into the output folder)";
   $("mCancel").hidden = !mine;
+  $("mProcess").hidden = mine; // building this one: Cancel in its place
   $("buildModelBtn").textContent = mine ? "Building…" : "Build Model";
   if (!m) { $("mBar").style.width = "0"; $("mLabel").textContent = ""; $("mStatus").textContent = busy ? `Building ${state.model.folder}…` : ""; return; }
   const pct = Math.round((m.fraction || 0) * 100);
@@ -1500,7 +1503,7 @@ function modelShow() {
 // modelMarks: each photo shown (the gallery's) marked as the build has it.
 function modelMarks() {
   const m = modelOf(), photos = m?.photos || {}, reasons = m?.reasons || {};
-  const MARK = { aligned: ["✓", "Used in the model"], invalid: ["✕", "Rejected"], skipped: ["↷", "Skipped"], unaligned: ["?", "Not placed in the model"], loaded: ["", "Being read"] };
+  const MARK = { aligned: ["✓", "Used in the model"], invalid: ["✕", "Rejected"], skipped: ["↷", "Skipped"], unaligned: ["?", "Not placed in the model"] }; // being read: no mark till known
   for (const t of $("galleryGrid").querySelectorAll(".thumb[data-file]")) {
     const st = photos[t.dataset.file], mk = MARK[st];
     let el = t.querySelector(":scope > .mmark");
