@@ -411,7 +411,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-trim .x { color: #e5484d; } .mve-trim .y { color: #46a758; } .mve-trim .z { color: #3e7bfa; }
 .mve-trim .mve-end { color: var(--muted); font-size: 11px; }
 .mve-trim input[type=range] { width: 100%; min-width: 0; accent-color: #ffb020; }
-.mve-trim .mve-val { font: 11px var(--mono); color: var(--text); min-width: 74px; text-align: right; }
+.mve-trim .mve-val { font: 11px var(--mono); color: var(--text); min-width: 52px; text-align: right; }
 .mve-rot .x { color: #e5484d; } .mve-rot .y { color: #46a758; } .mve-rot .z { color: #3e7bfa; }
 .mv-views { position: absolute; top: 12px; left: 12px; margin: 0; z-index: 2; }
 .mve-size .mve-sub { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); margin: 8px 0 2px; }
@@ -1532,12 +1532,11 @@ function mveConfirm(on) {
   $("mveSave").textContent = on ? "Confirm" : "Save";
   $("mveWarn").textContent = on ? "Some edits not applied. Save anyways?" : "";
 }
-// mveNum: a length (m) in the file's units (File units); mveLen: with them.
+// mveNum: a length (m) in the file's units (File units).
 function mveNum(m) {
   const u = segOf("mveFileUnit");
   return (m / window.modelEdit.UNITS[u]).toFixed({ mm: 1, in: 2, m: 3 }[u]);
 }
-const mveLen = (m) => `${mveNum(m)} ${segOf("mveFileUnit")}`;
 function mveShow() {
   mveConfirm(false);
   const mv = window.modelView, u = segOf("mveUnit"), k = 1 / window.modelEdit.UNITS[u];
@@ -1614,7 +1613,7 @@ function mveTrimShow() {
   mveConfirm(false);
   if (!mve.ext) return;
   const t = mveTrimBox();
-  for (const ax of "xyz") for (const i of [0, 1]) $("mvEdit").querySelector(`[data-val="${ax}${i}"]`).textContent = mveLen(t[ax][i]);
+  for (const ax of "xyz") for (const i of [0, 1]) $("mvEdit").querySelector(`[data-val="${ax}${i}"]`).textContent = mveNum(t[ax][i]);
   const moved = [...$("mvEdit").querySelectorAll(".mve-trim input")].some((r) => Number(r.value) !== (r.dataset.end === "0" ? 0 : 1000));
   const empty = t.x[0] >= t.x[1] || t.y[0] >= t.y[1] || t.z[0] >= t.z[1];
   $("mveTrim").disabled = !moved || empty;
