@@ -12,6 +12,20 @@ Terminal or browser needed.
   the rig and the camera.
 - Captures go to `~/Pictures/gosts-rig`, and settings are shared with the command-line gosts-rig.
 
+## Download
+
+Get `GoSTS-Rig-<version>-macos-arm64.zip` from the [Releases](https://github.com/frifox/gosts/releases) page (Apple
+silicon Macs), unzip it and move **GoSTS Rig** to Applications. It's signed ad hoc, not by Apple, so the first time
+macOS won't open it by double-click: right-click it → **Open** (or System Settings → Privacy & Security → **Open
+Anyway**). For a real camera, also `brew install gphoto2`.
+
+A release is made by pushing a version tag: GitHub Actions ([release.yml](../../.github/workflows/release.yml)) runs
+the tests, builds the app with build.sh and attaches the zip to the tag's release.
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
 ## Build
 
 Needs Go and the Xcode command line tools (`xcode-select --install`).
