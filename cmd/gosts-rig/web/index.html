@@ -515,9 +515,17 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .model-panel .mp-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; }
 .model-panel .mp-poly { width: 110px; } .model-panel .mp-tex { width: 76px; } .model-panel .mp-out { flex: 1; min-width: 120px; }
 /* Three columns: the build's options; the detail (and what it means); where it goes and Start. The bar below them. */
-.model-panel .mp-cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, .8fr); gap: 12px 40px; max-width: 1200px; }
-@media (max-width: 1000px) { .model-panel .mp-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 680px) { .model-panel .mp-cols { grid-template-columns: minmax(0, 1fr); } }
+/* Four columns where they fit: the options, the detail, its texture maps,
+   where it goes; narrower, the maps under the detail (three), then two,
+   then one. */
+.model-panel .mp-cols { display: grid; gap: 12px 40px; max-width: 1560px; align-items: start;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, .8fr); grid-template-areas: "opts detail maps out"; }
+.model-panel .mp-c-opts { grid-area: opts; } .model-panel .mp-c-detail { grid-area: detail; }
+.model-panel .mp-c-maps { grid-area: maps; } .model-panel .mp-c-out { grid-area: out; }
+@media (max-width: 1440px) { .model-panel .mp-cols { max-width: 1200px; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, .8fr);
+  grid-template-areas: "opts detail out" "opts maps out"; } }
+@media (max-width: 1000px) { .model-panel .mp-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "opts detail" "opts maps" "out out"; } }
+@media (max-width: 680px) { .model-panel .mp-cols { grid-template-columns: minmax(0, 1fr); grid-template-areas: "opts" "detail" "maps" "out"; } }
 .model-panel input[type=text] { width: 100%; box-sizing: border-box; }
 .model-panel .mp-go { display: flex; gap: 8px; }
 .model-panel .mp-col, .model-panel .mp-custom { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
@@ -539,8 +547,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .model-panel .mp-check code { font: 12px var(--mono); color: var(--text); }
 .model-panel .mp-checks .mp-check > span { color: var(--muted); }
 .model-panel .mp-check.off { opacity: .45; cursor: default; }
-.model-panel #mCustom.preset { opacity: .55; } /* a preset's: shown, not set */
-.model-panel #mCustom.preset .mp-check { cursor: default; }
+.model-panel .mp-custom.preset { opacity: .55; } /* a preset's: shown, not set */
+.model-panel .mp-custom.preset .mp-check { cursor: default; }
 .model-panel .mp-run { display: flex; align-items: flex-start; gap: 12px; }
 .model-panel .mp-progress { flex: 1; min-width: 220px; }
 .model-panel .mp-progress .progress { margin-top: 0; }
@@ -884,7 +892,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   <!-- Build Model: Object Capture's options (apple-obj-cap's), Process, and how the build goes; the photos marked below. -->
   <div class="model-panel" id="modelPanel" hidden>
     <div class="mp-cols">
-      <div class="mp-col">
+      <div class="mp-col mp-c-opts">
         <div class="mp-row"><label>Photo order<span class="views seg" id="mOrdering"><button data-v="sequential" title="Each photo overlaps the one before (a rig's rings)">Sequential</button><button data-v="unordered" title="In no particular order">Unordered</button></span></label><label>Features<span class="views seg" id="mSensitivity"><button data-v="normal">Normal</button><button data-v="high" title="Finds more on plain objects; slower">High</button></span></label><label>Mesh<span class="views seg" id="mMesh"><button data-v="triangle">Triangles</button><button data-v="quad" title="Nicer to edit (Blender, say)">Quads</button></span></label></div>
         <div class="mp-checks">
           <span class="mp-head">Options</span>
@@ -896,7 +904,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <label class="mp-check"><input type="checkbox" id="mPointCloud"> <span><code>pointCloud</code>: save point cloud as pointcloud.ply</span></label>
         </div>
       </div>
-      <div class="mp-col">
+      <div class="mp-col mp-c-detail">
         <label>Detail Preset<select id="mDetail">
         <option value="preview">Preview: quick, ~25k polygons, 1K texture</option>
         <option value="reduced">Reduced: ~50k polygons, 2K textures</option>
@@ -908,6 +916,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mp-custom" id="mCustom">
           <div class="mp-row"><label class="mp-poly">Most polygons<input type="number" id="mMaxPolygons" min="1" step="1000"></label><label class="mp-tex">Texture size<select id="mTextureDim"><option value="1k">1K</option><option value="2k">2K</option><option value="4k">4K</option><option value="8k">8K</option><option value="16k">16K</option></select></label><label>Texture format<span class="views seg" id="mTextureFormat"><button data-v="png">PNG</button><button data-v="jpeg">JPEG</button></span></label></div>
           <label id="mJpegLabel">JPEG quality<input type="number" id="mJpegQuality" min="0" max="1" step="0.05"></label>
+        </div>
+      </div>
+      <div class="mp-col mp-c-maps">
+        <div class="mp-custom" id="mCustomMaps">
           <div class="mp-maps-col"><span class="mp-head">Texture maps</span><div class="mp-maps" id="mTextureMaps">
             <span class="mp-sub"><b>Color &amp; finish</b>: how the surface looks</span>
             <label class="mp-check"><input type="checkbox" value="diffuse"> <span><b>Color</b> (diffuse): the surface's color, taken from the photos</span></label>
@@ -918,7 +930,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <label class="mp-check"><input type="checkbox" value="displacement"> <span><b>Displacement</b>: really moves the surface (Blender, say)</span></label></div></div>
         </div>
       </div>
-      <div class="mp-col">
+      <div class="mp-col mp-c-out">
         <div class="mp-row"><label class="mp-out" title="The model's folder, in the capture's: Object Capture writes into an empty one (a model built there before goes to the Trash first)">Output folder<input type="text" id="mOut" spellcheck="false" autocomplete="off"></label><label>Format<span class="views seg" id="mFormat"><button data-v="obj" title="A folder: the mesh, its materials and textures">OBJ</button><button data-v="usdz" title="One file, for Quick Look and Reality Composer">USDZ</button></span></label></div>
       </div>
     </div>
@@ -2019,7 +2031,9 @@ const autoOut = () => `model-${$("mDetail").value}`;
 function modelOutAuto() { if (outAuto) $("mOut").value = autoOut(); }
 $("mOut").oninput = () => { const v = $("mOut").value.trim(); outAuto = v === "" || v === autoOut(); };
 $("mOut").onblur = () => { if (!$("mOut").value.trim()) { outAuto = true; modelOutAuto(); } };
-for (const el of $("mCustom").querySelectorAll("input, select")) el.addEventListener("change", customRead);
+// The custom settings: in two parts (the numbers; the texture maps).
+const customParts = () => [$("mCustom"), $("mCustomMaps")];
+for (const box of customParts()) for (const el of box.querySelectorAll("input, select")) el.addEventListener("change", customRead);
 // modelFormShown: the custom settings, the custom ones or the preset's (grayed).
 function modelFormShown() {
   const d = $("mDetail").value, custom = d === "custom", v = custom ? customVals : MODEL_PRESETS[d] || customVals;
@@ -2031,9 +2045,11 @@ function modelFormShown() {
   segSet("mTextureFormat", v.textureFormat);
   $("mJpegQuality").value = customVals.jpegQuality;
   $("mJpegLabel").hidden = v.textureFormat !== "jpeg";
-  for (const el of $("mCustom").querySelectorAll("input, select, button")) el.disabled = !custom;
-  $("mCustom").classList.toggle("preset", !custom);
-  $("mCustom").title = custom ? "" : `What ${$("mDetail").selectedOptions[0].textContent.split(":")[0]} does, roughly (Apple's figures): pick Custom… to set these yourself`;
+  for (const box of customParts()) {
+    for (const el of box.querySelectorAll("input, select, button")) el.disabled = !custom;
+    box.classList.toggle("preset", !custom);
+    box.title = custom ? "" : `What ${$("mDetail").selectedOptions[0].textContent.split(":")[0]} does, roughly (Apple's figures): pick Custom… to set these yourself`;
+  }
 }
 function modelFormFill(o, gravity) {
   outAuto = !o.out || o.out === "model" || o.out === `model-${o.detail}`; // ("model": the default before)
