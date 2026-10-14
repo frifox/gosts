@@ -55,6 +55,18 @@ func (p *Port) SetPosition(id uint8, pos int) {
 	}
 }
 
+// Turn turns servo id to pos by hand (physical steps, multi-turn): its goal
+// stays as it was (with torque off it doesn't resist).
+func (p *Port) Turn(id uint8, pos int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, s := range p.servos {
+		if s.mem[5] == id {
+			s.pos, s.vel, s.mvel = float64(pos), 0, 0
+		}
+	}
+}
+
 // factoryMem is the factory memory table (sts3215_memory_table.xlsx).
 func factoryMem(id uint8) [71]byte {
 	var m [71]byte

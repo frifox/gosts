@@ -421,6 +421,16 @@ func (r *rig) moveToAt(elevation, azimuth *float64, speedE, speedA int) error {
 	return r.withBus(func(bus *gosts.Bus) error {
 		acc := uint8(c.Motion.Acc)
 		speed := speedE
+		var ids []uint8
+		if elevation != nil {
+			ids = append(ids, ro.ElevationLeader, ro.ElevationFollower)
+		}
+		if azimuth != nil {
+			ids = append(ids, ro.Azimuth)
+		}
+		if err := r.knowTurns(bus, false, ids...); err != nil {
+			return err
+		}
 		if elevation != nil {
 			e := math.Max(c.Motion.ElevationMin, math.Min(c.Motion.ElevationMax, *elevation))
 			targets, err := elevationTargets(bus, ro, e, speed, acc)
@@ -502,6 +512,9 @@ func (r *rig) platformTurns() (float64, error) {
 	}
 	var p float64
 	err = r.withBus(func(bus *gosts.Bus) error {
+		if err := r.knowTurns(bus, true, ro.Azimuth); err != nil {
+			return err
+		}
 		cur, err := bus.Servo(ro.Azimuth).AbsolutePosition()
 		if ro.InvertAzimuth {
 			cur = -cur
@@ -528,40 +541,60 @@ func (r *rig) resetPlatformTurns() error {
 		return err
 	}
 	return r.withBus(func(bus *gosts.Bus) error {
-		sv := bus.Servo(ro.Azimuth)
-		zero, err := sv.Zero()
-		if err != nil {
+		if err := resetTurns(bus, ro.Azimuth); err != nil {
 			return err
 		}
-		before, err := sv.Position()
-		if err != nil {
-			return err
-		}
-		calErr := sv.CalibrateMiddle()
-		if err := sv.SetZero(zero); err != nil { // the zero back, whatever happened
-			return errors.Join(calErr, fmt.Errorf("putting the platform servo's zero back (%d): %w", zero, err))
-		}
-		if calErr != nil {
-			return calErr
-		}
-		now, err := sv.Position()
-		if err != nil {
-			return err
-		}
-		if err := sv.SetGoal(now); err != nil { // hold it there
-			return err
-		}
-		if z, err := sv.Zero(); err != nil || z != zero {
-			return fmt.Errorf("the platform servo's zero is %d after the reset, not %d (%v)", z, zero, err)
-		}
-		if d := gosts.CircularDiff(now, before); d < -3 || d > 3 {
-			return fmt.Errorf("the platform moved %d steps in the reset", d)
-		}
-		if at, err := sv.AbsolutePosition(); err != nil || at < -gosts.StepsPerRev || at > 2*gosts.StepsPerRev {
-			return fmt.Errorf("the platform servo's count is %d after the reset (%v)", at, err)
-		}
-		return nil
+		return bus.Servo(ro.Azimuth).EnableTorque(true) // (holding there, as the capture goes on)
 	})
+}
+
+// resetTurns starts servo id's turn count afresh where it is, without
+// moving it (see resetPlatformTurns): its goal then where it is, its torque
+// as it was. Checked: if its angle moved or the count isn't within a turn
+// after, it says so.
+func resetTurns(bus *gosts.Bus, id uint8) error {
+	sv := bus.Servo(id)
+	on, err := sv.TorqueEnabled()
+	if err != nil {
+		return err
+	}
+	zero, err := sv.Zero()
+	if err != nil {
+		return err
+	}
+	before, err := sv.Position()
+	if err != nil {
+		return err
+	}
+	calErr := sv.CalibrateMiddle()
+	if err := sv.SetZero(zero); err != nil { // the zero back, whatever happened
+		return errors.Join(calErr, fmt.Errorf("putting servo %d's zero back (%d): %w", id, zero, err))
+	}
+	if calErr != nil {
+		return calErr
+	}
+	now, err := sv.Position()
+	if err != nil {
+		return err
+	}
+	if err := sv.SetGoal(now); err != nil { // its goal where it is (that switches torque on)
+		return err
+	}
+	if !on {
+		if err := sv.EnableTorque(false); err != nil {
+			return err
+		}
+	}
+	if z, err := sv.Zero(); err != nil || z != zero {
+		return fmt.Errorf("servo %d's zero is %d after the reset, not %d (%v)", id, z, zero, err)
+	}
+	if d := gosts.CircularDiff(now, before); d < -3 || d > 3 {
+		return fmt.Errorf("servo %d moved %d steps in the reset", id, d)
+	}
+	if at, err := sv.AbsolutePosition(); err != nil || at < -gosts.StepsPerRev || at > 2*gosts.StepsPerRev {
+		return fmt.Errorf("servo %d's count is %d after the reset (%v)", id, at, err)
+	}
+	return nil
 }
 
 // unwindPlatform turns the platform whole turns (logical: + like azimuth),
@@ -582,6 +615,9 @@ func (r *rig) unwindPlatform(ctx context.Context, turns int) error {
 	}
 	var goal int
 	if err := r.withBus(func(bus *gosts.Bus) error {
+		if err := r.knowTurns(bus, false, ro.Azimuth); err != nil {
+			return err
+		}
 		sv := bus.Servo(ro.Azimuth)
 		abs, err := sv.AbsolutePosition()
 		if err != nil {
@@ -717,6 +753,47 @@ const (
 	holdDrift  = 60
 	holdStrain = 0.8
 )
+
+// knowTurns makes sure the servos' turn counts are known first. A
+// multi-turn servo with torque off that was turned past the 0/4095 seam from
+// its goal (by hand, say) has none (gosts.ErrTurnUnknown): moving it then
+// could take it a whole turn the wrong way. Those have their count started
+// afresh where they are (resetTurns: no move; holding with the stale goal
+// would pull them to it, and switching multi-turn off and on doesn't reset
+// the count), then Torque Lock (as the page's switch, checked), and with
+// release they're let go again after: the count's known all the same then
+// (their goal is where they are).
+func (r *rig) knowTurns(bus *gosts.Bus, release bool, ids ...uint8) error {
+	var unknown []string
+	var lock []uint8
+	for _, id := range ids {
+		_, err := bus.Servo(id).AbsolutePosition()
+		switch {
+		case errors.Is(err, gosts.ErrTurnUnknown):
+			unknown = append(unknown, fmt.Sprintf("#%d", id))
+			lock = append(lock, id)
+		case err != nil:
+			return fmt.Errorf("servo %d: %w", id, err)
+		}
+	}
+	if len(lock) == 0 {
+		return nil
+	}
+	r.logf("info", "servo %s: turn count unknown (turned by hand with torque off?): Torque Lock on to learn it", strings.Join(unknown, ", "))
+	defer r.torqueStale.Store(true) // (the page's switches: on)
+	for _, id := range lock {
+		if err := resetTurns(bus, id); err != nil {
+			return fmt.Errorf("learning servo %d's turn count: %w", id, err)
+		}
+	}
+	if err := holdChecked(bus, lock); err != nil {
+		return fmt.Errorf("learning the turn count: %w", err)
+	}
+	if release {
+		return bus.SyncTorque(false, lock...)
+	}
+	return nil
+}
 
 // holdChecked switches torque on, holding where they are (see Servo.Hold),
 // for the servos not holding already, and checks they really just hold.

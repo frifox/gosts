@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/frifox/gosts"
 	"github.com/frifox/gosts/cmd/gosts-ctl/console"
+	servosim "github.com/frifox/gosts/cmd/gosts-ctl/servo-sim"
 )
 
 // Servo Ctl's one group of two of the three servos found is the elevation,
@@ -151,4 +154,51 @@ func TestSimServoSettings(t *testing.T) {
 	if b, _ := os.ReadFile(real); !strings.Contains(string(b), "Members = [10, 11]") {
 		t.Fatal("the real settings changed")
 	}
+}
+
+// A servo turned by hand past the 0/4095 seam from its goal, torque off, has
+// no known turn count (gosts.ErrTurnUnknown): a move gets Torque Lock on it
+// first (holding where it is: the count from there), then goes.
+func TestTurnCountLearned(t *testing.T) {
+	var port *servosim.Port
+	old := newSimPort
+	newSimPort = func(ro Roles) *servosim.Port { port = newSim(ro); return port }
+	defer func() { newSimPort = old }()
+	cfg, _ := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	ro := r.roles()
+	if err := r.torque(false, "azimuth"); err != nil {
+		t.Fatal(err)
+	}
+	port.Turn(ro.Azimuth, -15) // (its goal 0: a step the other side of the seam)
+	r.withBus(func(bus *gosts.Bus) error {
+		if _, err := bus.Servo(ro.Azimuth).AbsolutePosition(); !errors.Is(err, gosts.ErrTurnUnknown) {
+			t.Fatalf("set up: %v, want the turn count unknown", err)
+		}
+		return nil
+	})
+	if _, err := r.platformTurns(); err != nil { // (a reading: learned, torque back off)
+		t.Fatal(err)
+	}
+	r.withBus(func(bus *gosts.Bus) error {
+		if on, _ := bus.Servo(ro.Azimuth).TorqueEnabled(); on {
+			t.Error("torque left on after a reading")
+		}
+		return nil
+	})
+	port.Turn(ro.Azimuth, -4096-30) // (by hand again, a turn on)
+	az := 10.0
+	if err := r.moveTo(nil, &az); err != nil {
+		t.Fatalf("move: %v", err)
+	}
+	r.withBus(func(bus *gosts.Bus) error {
+		if on, _ := bus.Servo(ro.Azimuth).TorqueEnabled(); !on {
+			t.Error("torque off after a move")
+		}
+		return nil
+	})
 }
