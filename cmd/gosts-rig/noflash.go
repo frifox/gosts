@@ -2,9 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -12,14 +9,10 @@ import (
 // photos is looked at as it comes over, and one much darker than the ones
 // before it (under flashDark of theirs: the flash didn't fire, overheated)
 // pauses the capture for DarkMinutes; then it carries on from that photo's
-// shot. The photos from it on (the dark one, and any taken after it before
-// the pause took hold) are set aside in the capture's noFlashDir, and their
-// shots taken again.
-
-// noFlashDir is where a capture's photos set aside go (in its folder): out
-// of its photos (Browse, Build Model and the photogrammetry apps see only
-// the folder's own), kept.
-const noFlashDir = "no-flash"
+// shot, the photo taken again in its place. The dark photo, and any taken
+// after it before the pause took hold, are deleted (to the Trash, off the
+// timeline: as the timeline's bin does). A photo taken again that comes out
+// dark too is caught the same way: another pause, another try.
 
 // noFlashRecent is how many of the last bright photos set the brightness a
 // photo is compared with (their median).
@@ -42,7 +35,7 @@ func (c *capture) checkFlash(n, i int, p photo) {
 	c.mu.Lock()
 	if !c.running || i >= len(c.shots) || c.photoShot[n] != i {
 		c.mu.Unlock()
-		return // (stopped, or set aside meanwhile)
+		return // (stopped, or deleted meanwhile)
 	}
 	normal := median(c.bright)
 	dark := len(c.bright) >= 3 && b < flashDark*normal
@@ -59,10 +52,11 @@ func (c *capture) checkFlash(n, i int, p photo) {
 }
 
 // noFlash: shot i's photo n came out dark (brightness b, the ones before
-// normal): the capture goes back to shot i, its photos from there set aside,
-// and pauses for the Cooldown's DarkMinutes (unless it's pausing already).
+// normal): the capture goes back to shot i, its photos from there deleted
+// (their pictures still coming too), and pauses for the Cooldown's
+// DarkMinutes (unless it's pausing already).
 func (c *capture) noFlash(n, i int, b, normal float64) {
-	var aside []string
+	var drop []int
 	c.mu.Lock()
 	if !c.running || i > c.index {
 		c.mu.Unlock()
@@ -70,46 +64,26 @@ func (c *capture) noFlash(n, i int, b, normal float64) {
 	}
 	for j := i; j < len(c.shots); j++ {
 		s := &c.shots[j]
-		if s.File != "" {
-			aside = append(aside, s.File)
-		}
 		s.File, s.Done, s.ActualElevation, s.ActualAzimuth = "", false, nil, nil
 	}
-	if c.aside == nil {
-		c.aside = map[int]bool{}
-	}
-	for k, j := range c.photoShot { // (their pictures still coming: set aside as they come)
+	for k, j := range c.photoShot {
 		if j >= i {
-			c.aside[k] = true
+			drop = append(drop, k)
 			delete(c.photoShot, k)
 		}
 	}
 	c.index = i
-	dir := c.folder
 	cooling := !c.cooling.IsZero()
 	c.mu.Unlock()
-	for _, f := range aside {
-		setAside(dir, f)
+	for _, k := range drop {
+		c.camera.delete(k) // (to the Trash, off the timeline; one still coming: when it comes)
 	}
 	d := time.Duration(c.rig.cfg.get().Cooldown.DarkMinutes * float64(time.Minute))
-	c.rig.logf("info", "capture: photo %d came out dark (brightness %.0f, the ones before %.0f: the flash didn't fire?): set aside, with any after it; %s, then on from its shot (%d)",
-		n, b, normal, map[bool]string{true: "pausing already", false: fmt.Sprintf("pausing %v to let the flash cool", d.Round(time.Second))}[cooling], i+1)
+	c.rig.logf("info", "capture: photo %d came out dark (brightness %.0f, the ones before %.0f: the flash didn't fire?): deleted, with %d after it; %s, then it's taken again (shot %d)",
+		n, b, normal, len(drop)-1, map[bool]string{true: "pausing already", false: fmt.Sprintf("pausing %v to let the flash cool", d.Round(time.Second))}[cooling], i+1)
 	if !cooling {
 		c.pauseFor(d)
 	}
 	c.saveSoon()
 	c.send()
-}
-
-// setAside moves file (in the capture's folder dir) into its noFlashDir.
-func setAside(dir, file string) {
-	to := filepath.Join(dir, noFlashDir)
-	if err := os.MkdirAll(to, 0o755); err != nil {
-		return
-	}
-	os.Rename(filepath.Join(dir, file), filepath.Join(to, file))
-	xmp := strings.TrimSuffix(file, filepath.Ext(file)) + ".xmp" // (its RealityScan pose, if written)
-	if _, err := os.Stat(filepath.Join(dir, xmp)); err == nil {
-		os.Rename(filepath.Join(dir, xmp), filepath.Join(to, xmp))
-	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"fmt"
 	"bytes"
 	"context"
@@ -20,6 +21,7 @@ type flashCam struct {
 	mu            sync.Mutex
 	n             int
 	fires, hiccup int
+	darks         []int // more photos that come out dark
 }
 
 func (f *flashCam) Shoot(ctx context.Context, s shutter) error {
@@ -28,7 +30,7 @@ func (f *flashCam) Shoot(ctx context.Context, s shutter) error {
 	n := f.n
 	f.mu.Unlock()
 	lum := uint8(150)
-	if n > f.fires || n == f.hiccup {
+	if n > f.fires || n == f.hiccup || slices.Contains(f.darks, n) {
 		lum = 15
 	}
 	img := image.NewGray(image.Rect(0, 0, 64, 48))

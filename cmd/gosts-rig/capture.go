@@ -228,10 +228,8 @@ type capture struct {
 	saveTimer *time.Timer
 	saveMu    sync.Mutex
 
-	// No-flash photos (see noflash.go): the last bright ones' brightness,
-	// and the photos set aside (their pictures still to come).
+	// No-flash photos (see noflash.go): the last bright ones' brightness.
 	bright []float64
-	aside  map[int]bool
 }
 
 type captureMsg struct {
@@ -492,7 +490,7 @@ func (c *capture) begin(p Plan) error {
 	c.rows, c.spacing = rows, spacing
 	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
 	c.plan, c.folder, c.photoShot, c.complete, c.resumable, c.began = p, batchFolder(), map[int]int{}, false, false, c.started
-	c.bright, c.aside = nil, nil
+	c.bright = nil
 	c.mu.Unlock()
 	c.saveNow() // (its plan and shots, in its folder: resumable from the start)
 	how := fmt.Sprintf("in %d rows, Stop & Shoot", rows)
@@ -591,7 +589,7 @@ func (c *capture) resumeRun() error {
 	if c.photoShot == nil {
 		c.photoShot = map[int]int{}
 	}
-	c.bright, c.aside = nil, nil
+	c.bright = nil
 	left, total := len(c.shots)-c.index, len(c.shots)
 	c.mu.Unlock()
 	c.rig.logf("info", "capture resumed: %d of %d photos left", left, total)
@@ -788,12 +786,9 @@ func (c *capture) photo(ctx context.Context, wait bool) error {
 		return fmt.Errorf("camera: %w", err)
 	}
 	c.mu.Lock()
-	if c.index != i { // (gone back to an earlier shot meanwhile, a no-flash photo's: this one's set aside)
-		if c.aside == nil {
-			c.aside = map[int]bool{}
-		}
-		c.aside[n] = true
+	if c.index != i { // (gone back to an earlier shot meanwhile, a no-flash photo's: this one goes)
 		c.mu.Unlock()
+		c.camera.delete(n)
 		return nil
 	}
 	if c.photoShot != nil {

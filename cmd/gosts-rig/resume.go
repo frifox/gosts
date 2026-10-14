@@ -138,15 +138,6 @@ func (c *capture) saveNow() {
 // the capture's shots, that's recorded (and saved soon).
 func (c *capture) pictured(n int, p photo) {
 	c.mu.Lock()
-	if c.aside[n] { // (a no-flash photo's, or one after it: see noflash.go)
-		delete(c.aside, n)
-		dir := c.folder
-		c.mu.Unlock()
-		if len(p.Files) > 0 && filepath.Dir(p.Files[0]) == dir {
-			setAside(dir, filepath.Base(p.Files[0]))
-		}
-		return
-	}
 	i, ok := c.photoShot[n]
 	if ok && i < len(c.shots) && len(p.Files) > 0 && filepath.Dir(p.Files[0]) == c.folder {
 		c.shots[i].File = filepath.Base(p.Files[0])
