@@ -62,7 +62,7 @@ capture. **New Capture** starts a fresh folder; **Browse** opens past captures t
 
 ## Camera settings
 
-The **sliders** button in the Camera card opens **Control**: the camera's settings next to a live preview or a sample
+The **camera** button in the Camera card opens **Control**: the camera's settings next to a live preview or a sample
 shot (zoom, focus, shutter, aperture, ISO and white balance).
 
 - **Gray Card**: drag a box over a gray card to get a matching white balance.
