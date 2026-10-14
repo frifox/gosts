@@ -3012,7 +3012,7 @@ $("viewer").onclick = (e) => {
 // drags the view, a click there centers it; presets and a slider set the
 // zoom (about the middle of the view).
 const vz = { s: 1, x: 0, y: 0, fit: true, dragged: false, onPhoto: false };
-const VZ_MIN = 0.1, VZ_MAX = 2, VZ_SEL_MAX = 8; // (a sweep's part selected: up to 800%)
+const VZ_MIN = 0.1, VZ_MAX = 2, VZ_SEL_MAX = 8; // (a sweep's part selected: up to 800%; the wheel and the rest only out from there)
 function vzNat() { const i = $("viewerImg"); return [i.naturalWidth || 1, i.naturalHeight || 1]; }
 function vzStage() { const st = $("viewerStage"); return [st.clientWidth, st.clientHeight]; }
 function vzFitScale() { const [w, h] = vzNat(), [W, H] = vzStage(); return Math.min(W / w, H / h); }
@@ -3041,7 +3041,7 @@ function vzApply() {
 }
 // vzZoom: zoom s, keeping the photo point under (cx, cy) on the stage there.
 function vzZoom(s, cx, cy) {
-  s = Math.min(state.sweep ? VZ_SEL_MAX : VZ_MAX, Math.max(Math.min(VZ_MIN, vzFitScale()), s)); // (a sweep's: as far as a selection goes)
+  s = Math.min(Math.max(VZ_MAX, vz.s), Math.max(Math.min(VZ_MIN, vzFitScale()), s)); // (past VZ_MAX by a sweep's selection: out from there only, back to VZ_MAX)
   const px = (cx - vz.x) / vz.s, py = (cy - vz.y) / vz.s;
   vz.fit = false; vz.s = s; vz.x = cx - px * s; vz.y = cy - py * s;
   vzApply();
