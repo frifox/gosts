@@ -383,8 +383,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .sweep-strip button.on { border-color: var(--accent); background: rgba(91,140,255,.18); }
 .sweep-strip img, .sweep-strip .pending { width: 108px; height: 72px; object-fit: cover; border-radius: 5px; background: rgba(255,255,255,.08); display: block; }
 .sweep-sel { position: absolute; border: 2px dashed #fff; box-shadow: 0 0 0 1px #000; pointer-events: none; z-index: 2; }
-.fstop-sweep { width: 18px; height: 18px; padding: 0; margin-left: 6px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; vertical-align: -3px; }
-.fstop-sweep svg { width: 12px; height: 12px; }
+/* A select and a button after it, joined (F-stop and its sweep): the select as wide as the column leaves it
+   (width 0: WebKit won't shrink a select below its longest option), so the row stays one line. */
+.select-join { display: flex; }
+.select-join select { flex: 1 1 0; width: 0; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.select-join .btn { flex: none; margin-left: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; position: relative; }
+.select-join .btn:hover { z-index: 1; }
 /* Opening a photo: a placeholder with a spinner (as a photo being taken)
    till it's in, not the photo seen before. */
 .viewer .vload { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(80%, 120vh); max-height: 80%; aspect-ratio: 3 / 2;
@@ -3100,17 +3104,18 @@ function renderSettings(list) {
     label.textContent = st.label;
     if (st.range) { into.appendChild(rangeSetting(st, label)); continue; }
     const sel = document.createElement("select");
+    let sweepBtn = null;
     if (st.key === "aperture" && !st.readOnly && st.choices?.length > 1) { // (a sweep: a sample at each, compared)
       sel.id = "apertureSel";
-      label.htmlFor = sel.id; // (the label's the select's: the button beside its name's its own)
+      label.htmlFor = sel.id; // (the label's the select's, not the button joined to it)
       const b = document.createElement("button");
       b.type = "button";
-      b.className = "icon-btn fstop-sweep";
+      b.className = "btn small icon-sm fstop-sweep";
       b.title = "Take a sample shot at every F-stop and compare them";
       b.setAttribute("aria-label", b.title);
       b.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 2l2.2 5M14 8l-5 2.2M8 14l-2.2-5M2 8l5-2.2"/></svg>';
       b.onclick = (e) => { e.preventDefault(); fstopSweep(st); };
-      label.appendChild(b);
+      sweepBtn = b;
     }
     sel.disabled = st.readOnly;
     for (const c of st.choices) sel.add(new Option(c, c, false, c === st.current));
@@ -3130,7 +3135,12 @@ function renderSettings(list) {
       into.appendChild(label);
       continue;
     }
-    label.appendChild(sel);
+    if (sweepBtn) { // (joined, after it)
+      const row = document.createElement("div");
+      row.className = "select-join";
+      row.append(sel, sweepBtn);
+      label.appendChild(row);
+    } else label.appendChild(sel);
     into.appendChild(label);
   }
 }
