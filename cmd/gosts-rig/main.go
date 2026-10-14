@@ -103,6 +103,25 @@ func main() {
 	ctl.OnChange = func() { a.rig.rolesFromGroups(ctl.Groups(), ctl.Mirrored) }
 	ctl.OnMove = a.rig.forgetTarget
 	ctl.OnScan = a.rig.adoptFound
+	// The simulator has Servo Settings of its own (beside the real rig's):
+	// #1 and #2 a group, #1 mirrored, as the simulated rig has them.
+	simCtlPath := filepath.Join(filepath.Dir(*ctlPath), "gosts-rig-sim.toml")
+	a.rig.ctlFor = func(sim bool) {
+		path := *ctlPath
+		if sim {
+			path = simCtlPath
+		}
+		if err := ctl.UseConfig(path); err != nil {
+			log.Printf("servo console: %v", err)
+			return
+		}
+		if sim {
+			ro := simRoles(Roles{})
+			if err := ctl.SeedGroup("Elevation", []uint8{ro.ElevationLeader, ro.ElevationFollower}, ro.ElevationLeader); err != nil {
+				log.Printf("servo console: %v", err)
+			}
+		}
+	}
 	if err := a.cap.preview(c.Plan); err != nil {
 		log.Print(err)
 	}

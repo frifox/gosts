@@ -2,8 +2,13 @@ package main
 
 import (
 	"context"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/frifox/gosts/cmd/gosts-ctl/console"
 )
 
 // Servo Ctl's one group of two of the three servos found is the elevation,
@@ -104,5 +109,46 @@ func TestSimRoles(t *testing.T) {
 	}
 	if r.setRoles(Roles{ElevationLeader: 2, ElevationFollower: 1, Azimuth: 3}) == nil {
 		t.Fatal("the simulator's roles set")
+	}
+}
+
+// Connecting the simulator gives Servo Settings the simulator's own settings
+// (#1 and #2 a group, #1 mirrored), the real rig's left as they are.
+func TestSimServoSettings(t *testing.T) {
+	dir := t.TempDir()
+	real := filepath.Join(dir, "config.toml")
+	os.WriteFile(real, []byte("[10]\nMirrored = true\n\n[group.pitch]\nName = \"Pitch\"\nMembers = [10, 11]\n"), 0o644)
+	ctlCfg, _, err := console.LoadConfig(real)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctl := console.New(ctlCfg, nil, 50*time.Millisecond, false)
+	cfg, _ := loadConfig(filepath.Join(dir, "rig.toml"))
+	r := &rig{cfg: cfg, out: func(any) {}}
+	r.ctlFor = func(sim bool) {
+		if sim {
+			ctl.UseConfig(filepath.Join(dir, "gosts-rig-sim.toml"))
+			ctl.SeedGroup("Elevation", []uint8{1, 2}, 1)
+		} else {
+			ctl.UseConfig(real)
+		}
+	}
+	r.attach = ctl.Attach
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	if g := ctl.Groups(); len(g) != 1 || len(g[0]) != 2 || g[0][0] != 1 || g[0][1] != 2 {
+		t.Fatalf("groups %v, want [[1 2]]", g)
+	}
+	if !ctl.Mirrored(1) || ctl.Mirrored(2) {
+		t.Fatal("#1 should be mirrored, #2 not")
+	}
+	r.ctlFor(false) // (a real board's: the real settings back)
+	if g := ctl.Groups(); len(g) != 1 || g[0][0] != 10 || !ctl.Mirrored(10) {
+		t.Fatalf("real settings: %v", g)
+	}
+	if b, _ := os.ReadFile(real); !strings.Contains(string(b), "Members = [10, 11]") {
+		t.Fatal("the real settings changed")
 	}
 }

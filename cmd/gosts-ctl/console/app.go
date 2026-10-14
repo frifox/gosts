@@ -174,6 +174,47 @@ func (a *App) Groups() [][]uint8 {
 // Mirrored reports whether servo id is mirrored in the console's settings.
 func (a *App) Mirrored(id uint8) bool { return a.cfg.Get(id).Mirrored }
 
+// UseConfig switches the console to the settings file at path (gosts-rig:
+// the simulated rig's own, or the real rig's), its windows told; nothing if
+// it's working with that one already.
+func (a *App) UseConfig(path string) error {
+	if a.cfg.Path() == path {
+		return nil
+	}
+	warnings, err := a.cfg.Use(path)
+	for _, w := range warnings {
+		log.Print(w)
+	}
+	if err != nil {
+		return err
+	}
+	a.BroadcastState()
+	return nil
+}
+
+// SeedGroup makes sure members (leader first) are a group, named name if
+// it's made now (none of them in a group yet), and that the mirrored ones,
+// and only they, are mirrored: the simulated rig's servos, as the rig has
+// them. Saved if anything changed.
+func (a *App) SeedGroup(name string, members []uint8, mirrored ...uint8) error {
+	for _, id := range members {
+		if m := slices.Contains(mirrored, id); a.cfg.Get(id).Mirrored != m {
+			if err := a.cfg.Update(id, func(sc *internal.ServoConfig) { sc.Mirrored = m }); err != nil {
+				return err
+			}
+		}
+	}
+	for _, id := range members {
+		if a.cfg.GroupOf(id) != "" {
+			a.BroadcastState()
+			return nil
+		}
+	}
+	_, err := a.cfg.SetGroup("", internal.GroupConfig{Name: name, Members: members})
+	a.BroadcastState()
+	return err
+}
+
 // LoadConfig reads the console's settings file (servo names, mirroring, zero,
 // ranges, groups), created on the first change; warnings are about entries
 // it ignored.

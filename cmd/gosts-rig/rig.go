@@ -33,6 +33,9 @@ type rig struct {
 	// found, let go of before the bus closes (nil: none).
 	attach func(bus *gosts.Bus, port string, baud int, ids []uint8)
 	detach func()
+	// ctlFor, if set, readies the servo console for the board about to be
+	// connected (sim: the simulator's own settings).
+	ctlFor func(sim bool)
 
 	torqueStale atomic.Bool // the torque switches changed: read them on the next poll, not in a second
 
@@ -72,6 +75,9 @@ func (r *rig) connect(ctx context.Context, port string, baud int) error {
 		return errors.New("no port selected")
 	}
 	r.disconnect()
+	if r.ctlFor != nil {
+		r.ctlFor(port == simPort)
+	}
 	if baud <= 0 {
 		baud = gosts.DefaultBaudRate
 	}

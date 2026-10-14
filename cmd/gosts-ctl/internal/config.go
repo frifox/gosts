@@ -202,6 +202,26 @@ func LoadConfig(path string) (*Config, []string, error) {
 	return c, warnings, nil
 }
 
+// Use switches c to the settings file at path (read as LoadConfig reads
+// it): whatever holds c works with those from now on.
+func (c *Config) Use(path string) ([]string, error) {
+	n, warnings, err := LoadConfig(path)
+	if err != nil {
+		return warnings, err
+	}
+	c.mu.Lock()
+	c.path, c.listenAddr, c.servos, c.groups = n.path, n.listenAddr, n.servos, n.groups
+	c.mu.Unlock()
+	return warnings, nil
+}
+
+// Path is the settings file c is working with.
+func (c *Config) Path() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.path
+}
+
 // Get returns servo id's settings (the zero value if there are none).
 func (c *Config) Get(id uint8) ServoConfig {
 	c.mu.Lock()
