@@ -1077,12 +1077,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       </section>
       <section data-step="center">
         <div class="mve-head"><b>Center</b></div>
-        <div class="mve-row"><button class="btn small" data-pick="center">Pick Point</button><span class="mve-n"></span><button class="btn small" data-clear="center">Clear</button></div>
+        <div class="mve-row"><button class="btn small" data-pick="center">Pick Point</button><span class="mve-n"></span></div>
         <div class="mve-row"><span class="mve-label">Axis to center</span><span class="btn-join mve-axes-go" id="mveAxesGo"><button class="btn small" data-axis="x" disabled title="Slide the model along X so the point is at 0 on it">X</button><button class="btn small" data-axis="y" disabled title="Slide the model along Y so the point is at 0 on it">Y</button><button class="btn small" data-axis="z" disabled title="Slide the model along Z so the point is at 0 on it">Z</button></span><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="center" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveCenter" disabled title="Keep it where it's been moved">Apply</button></span></div>
       </section>
       <section data-step="scale">
         <div class="mve-head"><b>Scale</b></div>
-        <div class="mve-row"><button class="btn small" data-pick="scale">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="scale">Clear</button></div>
+        <div class="mve-row"><button class="btn small" data-pick="scale">Pick Points</button><span class="mve-n"></span></div>
         <div class="mve-row"><input type="number" id="mveDist" min="0" step="any" placeholder="distance"><span class="views seg" id="mveUnit"><button data-v="mm">mm</button><button data-v="in">in</button></span><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="scale" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveScale" disabled title="Scale the model so the points are that far apart">Apply</button></span></div>
       </section>
       <section class="mve-save">
@@ -1866,11 +1866,8 @@ function mvePicking(st) {
   mveShow();
 }
 $("mvEdit").addEventListener("click", (e) => {
-  const pk = e.target.closest("[data-pick]")?.dataset.pick, cl = e.target.closest("[data-clear]")?.dataset.clear;
+  const pk = e.target.closest("[data-pick]")?.dataset.pick;
   if (pk) mvePicking(mve.picking === pk ? null : pk);
-  if (cl === "center") return mveOriginCancel();
-  if (cl === "align" && mve.alignFrom) return mveAlignCancel(false);
-  if (cl) { mve.picks[cl] = []; mveShow(); }
 });
 // mveDo applies an edit (made by f), steps back-able; the picks done with.
 // The model moves there (the view stays as it is).
@@ -1958,16 +1955,14 @@ $("mvEdit").addEventListener("click", async (e) => {
   }
   mveShow();
 });
-// A step's Cancel shows while its Apply is enabled (Level's and Align's
-// too as soon as a point's picked: they've no Clear); its Clear, meanwhile,
-// not (Cancel clears too: the row's room).
+// A step's Cancel shows while its Apply is enabled, or as soon as a point's
+// picked (the steps with points: Cancel is how they're cleared).
 window.mveCancelSyncs = [];
 for (const b of document.querySelectorAll("#mvEdit [data-cancel]")) {
-  const k = b.dataset.cancel, apply = b.nextElementSibling, clear = document.querySelector(`#mvEdit [data-clear="${k}"]`);
+  const k = b.dataset.cancel, apply = b.nextElementSibling;
   const sync = () => {
-    const started = !apply.disabled || ((k === "level" || k === "align") && (mve.picks[k].length > 0 || !!mve.alignFrom && k === "align"));
+    const started = !apply.disabled || (mve.picks[k]?.length > 0) || (k === "align" && !!mve.alignFrom);
     b.hidden = !started;
-    if (clear) clear.hidden = started;
   };
   new MutationObserver(sync).observe(apply, { attributes: true, attributeFilter: ["disabled"] });
   window.mveCancelSyncs.push(sync);
