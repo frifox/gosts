@@ -228,8 +228,10 @@ type capture struct {
 	saveTimer *time.Timer
 	saveMu    sync.Mutex
 
-	// No-flash photos (see noflash.go): the last bright ones' brightness.
-	bright []float64
+	// No-flash photos (see noflash.go): the last bright ones' brightness,
+	// and the photos to delete as the capture carries on (kept while cooling).
+	bright    []float64
+	dropLater []int
 }
 
 type captureMsg struct {
@@ -536,6 +538,7 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	}
 	c.waitPictures()
 	c.mu.Lock()
+	c.dropNow() // (no-flash photos kept while cooling, stopped then: not a shot's)
 	c.running, c.paused, c.cancel, c.cooling = false, false, nil, time.Time{}
 	// Complete: every shot's photo saved. Else it's resumable: the shots
 	// taken first (marked Before), the rest after, in their order, Resume
@@ -592,6 +595,7 @@ func (c *capture) resumeRun() error {
 	c.bright = nil
 	left, total := len(c.shots)-c.index, len(c.shots)
 	c.mu.Unlock()
+	c.seedBright() // (its photos before: what a new one's compared with)
 	c.rig.logf("info", "capture resumed: %d of %d photos left", left, total)
 	if !p.Moving {
 		exp := c.camera.exposure()
@@ -786,9 +790,9 @@ func (c *capture) photo(ctx context.Context, wait bool) error {
 		return fmt.Errorf("camera: %w", err)
 	}
 	c.mu.Lock()
-	if c.index != i { // (gone back to an earlier shot meanwhile, a no-flash photo's: this one goes)
+	if c.index != i { // (gone back to an earlier shot meanwhile, a no-flash photo's: this one goes too)
+		c.dropLater = append(c.dropLater, n)
 		c.mu.Unlock()
-		c.camera.delete(n)
 		return nil
 	}
 	if c.photoShot != nil {
@@ -1024,6 +1028,7 @@ func (c *capture) pause(on bool) error {
 		return errors.New("no capture is running")
 	}
 	if c.paused && !on {
+		c.dropNow() // (no-flash photos: gone just before it carries on)
 		close(c.resume)
 		c.resume = make(chan struct{})
 		c.cooling = time.Time{} // (cooling over, or cut short)
