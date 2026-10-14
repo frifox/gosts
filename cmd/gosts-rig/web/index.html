@@ -372,7 +372,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 /* A list's Refresh, while it refreshes itself (see autoRefresh): a ring at its right running down to the next. */
 .btn.refresh { display: inline-flex; align-items: center; gap: 6px; }
 .poll-ring { width: 10px; height: 10px; border-radius: 50%; flex: none;
-  background: conic-gradient(var(--accent) calc(var(--left, 1) * 360deg), var(--border) 0);
+  background: conic-gradient(var(--border) calc((1 - var(--left, 1)) * 360deg), var(--accent) 0); /* (the time gone: from 12 o'clock, clockwise) */
   -webkit-mask: radial-gradient(circle, transparent 2.5px, #000 3px); mask: radial-gradient(circle, transparent 2.5px, #000 3px); }
 .poll-ring[hidden], .btn.busy .poll-ring { display: none; }
 .btn.busy:disabled { opacity: 1; } /* busy, not unavailable: the spinner at full strength */
