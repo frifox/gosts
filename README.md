@@ -2,7 +2,7 @@
 
 - **[gosts](#quick-start)**: the core library, a Go package for controlling Waveshare/Feetech ST series serial bus servos.
 - **[cmd/gosts-ctl](cmd/gosts-ctl)**: a small web console for configuring servos. Has servo simulator for testing.
-- **[cmd/gosts-rig](cmd/gosts-rig)**: automated photogrammetry app. Configure rig hardware, capture photos, generate and edit 3D models. 
+- **[cmd/gosts-rig](cmd/gosts-rig)**: automated photogrammetry rig. Configure hardware, capture photos, generate and edit 3D models. 
 - **[cmd/gosts-rig-macos](cmd/gosts-rig-macos)**: gosts-rig as a Mac app (GoSTS Rig) for convenience.
 - **[cmd/apple-obj-cap](cmd/apple-obj-cap)**: gosts-rig dependency, builds a 3D model using Apple's Object Capture API.
 
@@ -32,7 +32,7 @@ go install github.com/frifox/gosts/cmd/gosts-rig@latest && gosts-rig --rig sim -
 
 ## Hardware
 
-- Waveshare/Feetech ST family servo. Tested with Wavesahre ST3215.
+- Waveshare/Feetech ST family servo. Tested with Waveshare ST3215.
 - A **Waveshare Bus Servo Adapter (A)** on USB (or another serial adapter wired to the servo bus).
 - A 6–12 V supply for the servos, into the adapter.
 
