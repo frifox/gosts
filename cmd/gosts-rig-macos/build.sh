@@ -8,7 +8,8 @@ set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
 app="$here/build/GoSTS Rig.app"
-version=$(git -C "$root" describe --tags --always --dirty 2>/dev/null || echo dev)
+version=$(git -C "$root" describe --tags --match 'gosts-rig-v*' --always --dirty 2>/dev/null || echo dev)
+version=${version#gosts-rig-} # (the app's tags: gosts-rig-v1.0.0; plain v… are the library's)
 
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"

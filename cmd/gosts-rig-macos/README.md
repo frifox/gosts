@@ -21,11 +21,12 @@ silicon Macs), unzip it and move **GoSTS Rig** to Applications. It's signed ad h
 macOS won't open it by double-click: try once, then System Settings → Privacy & Security → **Open Anyway** (on macOS
 14 and earlier, right-click it → **Open** works too). For a real camera, also `brew install gphoto2`.
 
-A release is made by pushing a version tag: GitHub Actions ([release.yml](../../.github/workflows/release.yml)) runs
-the tests, builds the app (as `make` does) and attaches the zip to the tag's release.
+A release is made by pushing a `gosts-rig-v…` tag (plain `v…` tags are the library's Go module versions): GitHub
+Actions ([release.yml](../../.github/workflows/release.yml)) runs the tests, builds the app (as `make` does) and
+attaches the zip to a release titled "GoSTS Rig v1.0.0". Tags aren't sent by a plain `git push`: push the tag itself.
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag gosts-rig-v1.0.0 && git push origin gosts-rig-v1.0.0
 ```
 
 ## Build

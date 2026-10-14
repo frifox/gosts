@@ -1,13 +1,15 @@
-# Release: pushing a version tag (v0.1.0, say) builds GoSTS Rig for macOS
-# (Apple silicon, signed ad hoc) with what it bundles (gosts-rig and Build
-# Model's apple-obj-cap), and puts it on the tag's GitHub Release.
+# Release: pushing a GoSTS Rig version tag (gosts-rig-v1.0.0, say: plain
+# v1.0.0 tags are the library's, Go module versions) builds GoSTS Rig for
+# macOS (Apple silicon, signed ad hoc) with what it bundles (gosts-rig and
+# Build Model's apple-obj-cap), and puts it on the tag's GitHub Release,
+# "GoSTS Rig v1.0.0".
 #
-#   git tag v0.1.0 && git push origin v0.1.0
+#   git tag gosts-rig-v1.0.0 && git push origin gosts-rig-v1.0.0
 name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["gosts-rig-v*"]
 
 permissions:
   contents: write # (to make the Release)
@@ -33,16 +35,17 @@ jobs:
       - name: Zip
         run: |
           cd cmd/gosts-rig-macos/build
-          ditto -c -k --sequesterRsrc --keepParent "GoSTS Rig.app" "GoSTS-Rig-${GITHUB_REF_NAME}-macos-arm64.zip"
+          ditto -c -k --sequesterRsrc --keepParent "GoSTS Rig.app" "GoSTS-Rig-${GITHUB_REF_NAME#gosts-rig-}-macos-arm64.zip"
 
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          zip="cmd/gosts-rig-macos/build/GoSTS-Rig-${GITHUB_REF_NAME}-macos-arm64.zip"
+          version="${GITHUB_REF_NAME#gosts-rig-}" # (v1.0.0)
+          zip="cmd/gosts-rig-macos/build/GoSTS-Rig-${version}-macos-arm64.zip"
           notes="GoSTS Rig for macOS (Apple silicon). Unzip and move it to Applications. It's signed ad hoc, not by Apple, so the first time: open it once, then System Settings → Privacy & Security → Open Anyway (on macOS 14 and earlier, right-click → Open works too). For a real camera: brew install gphoto2."
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$zip" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$zip" --title "$GITHUB_REF_NAME" --generate-notes --notes "$notes"
+            gh release create "$GITHUB_REF_NAME" "$zip" --title "GoSTS Rig ${version}" --generate-notes --notes "$notes"
           fi
