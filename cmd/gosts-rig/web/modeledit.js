@@ -97,13 +97,14 @@ export function fitEdge(pts) {
   const length = Math.max(...pts.map((p) => Math.abs(new THREE.Vector3().subVectors(p, c).dot(d)))) * 2;
   return { theta, c, length };
 }
-export function align(pts, axis, box) {
+export function align(pts, axis, box, flip = false) {
   const { theta } = fitEdge(pts);
   const target = axis === "y" ? -Math.PI / 2 : 0;
   // Turning by phi about y takes a direction's angle θ to θ − phi.
   let phi = (theta - target) % Math.PI;
   if (phi > Math.PI / 2) phi -= Math.PI;
   if (phi <= -Math.PI / 2) phi += Math.PI;
+  if (flip) phi += Math.PI; // (the other way round: still along the axis)
   const m = new THREE.Matrix4().makeRotationY(phi);
   return recenter(box(m)).multiply(m);
 }

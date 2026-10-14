@@ -411,6 +411,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 #mveAxesGo [data-axis=x] { color: #e5484d; } #mveAxesGo [data-axis=y] { color: #46a758; } #mveAxesGo [data-axis=z] { color: #3e7bfa; }
 #mveAxis button { font-weight: 600; }
 #mveAxis [data-v=x] { color: #e5484d; } #mveAxis [data-v=y] { color: #46a758; }
+#mveFlip.on { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); } /* (on: turned 180° more) */
 #mveAxis button.active { background: color-mix(in srgb, currentColor 22%, var(--panel-2)); box-shadow: inset 0 0 0 1px currentColor; } /* (picked: its own color) */
 #mveAxis button:first-child { border-radius: 7px 0 0 7px; } #mveAxis button:last-child { border-radius: 0 7px 7px 0; } /* (the outline round the group's corners, not cut by them) */
 .mv-edit .mve-close { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 7px; font-size: 12px; }
@@ -1056,7 +1057,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <section data-step="align">
         <div class="mve-head"><b>Align</b></div>
         <div class="mve-row"><button class="btn small" data-pick="align">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="align">Clear</button></div>
-        <div class="mve-row"><span class="mve-label">To axis</span><span class="views seg" id="mveAxis"><button data-v="x">X</button><button data-v="y">Y</button></span><span class="spacer"></span><button class="btn small primary" id="mveAlign" disabled>Align</button></div>
+        <div class="mve-row"><span class="mve-label">To axis</span><span class="views seg" id="mveAxis"><button data-v="x">X</button><button data-v="y">Y</button></span><button class="btn small" id="mveFlip" disabled title="Turn it 180° more: the edge still along the axis, the model the other way round">Flip</button><span class="spacer"></span><button class="btn small primary" id="mveAlign" disabled title="Keep it turned as shown">Align</button></div>
       </section>
       <section data-rot>
         <div class="mve-head"><b>Rotate</b></div>
@@ -1726,7 +1727,7 @@ const mve = { picks: { level: [], align: [], scale: [], center: [] }, picking: n
 const MVE_COLORS = { level: 0xffb020, align: 0x46a758, scale: 0x3e7bfa, center: 0xe05ad8 };
 const segPick = (id, v) => { for (const b of $(id).children) b.classList.toggle("active", b.dataset.v === v); };
 const segOf = (id) => $(id).querySelector(".active")?.dataset.v;
-for (const id of ["mveAxis", "mveUnit", "mveFileUnit"]) $(id).onclick = (e) => { if (e.target.dataset?.v) { segPick(id, e.target.dataset.v); mveShow(); mveTrimShow(); } };
+for (const id of ["mveUnit", "mveFileUnit"]) $(id).onclick = (e) => { if (e.target.dataset?.v) { segPick(id, e.target.dataset.v); mveShow(); mveTrimShow(); } };
 segPick("mveUnit", "mm"); segPick("mveFileUnit", "mm"); // (Align's axis: none till one's picked)
 try { const u = localStorage.getItem("modelEditUnits"); if (u) { const [a, b] = JSON.parse(u); segPick("mveUnit", a); segPick("mveFileUnit", b); } } catch {}
 $("mveTris").value = 50000;
@@ -1745,7 +1746,7 @@ $("mveSimplify").addEventListener("change", mveTrisCheck);
 function mvePending() {
   const p = [];
   if (mve.picks.level.length) p.push("Level");
-  if (mve.picks.align.length) p.push("Align");
+  if (mve.picks.align.length || mve.alignFrom) p.push("Align");
   if (mve.picks.scale.length) p.push("Scale");
   if (mve.picks.center.length || mve.originFrom) p.push("Origin");
   if (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z)) p.push("Rotate");
@@ -1774,7 +1775,9 @@ function mveShow() {
     sec.querySelector("[data-pick]").textContent = mve.picking === st ? "Picking…" : st === "center" ? "Pick Point" : "Pick Points";
   }
   $("mveLevel").disabled = mve.picks.level.length < 3;
-  $("mveAlign").disabled = mve.picks.align.length < 2 || !segOf("mveAxis");
+  $("mveAlign").disabled = !(mve.alignFrom && segOf("mveAxis"));
+  $("mveFlip").disabled = !mve.alignFrom || !segOf("mveAxis");
+  $("mveFlip").classList.toggle("on", mve.alignFlip);
   for (const b of $("mveAxesGo").children) {
     b.disabled = mve.picks.center.length !== 1;
     b.classList.toggle("on", mve.centerAxes.has(b.dataset.axis));
@@ -1784,7 +1787,7 @@ function mveShow() {
   const sp = mve.picks.scale;
   $("mveScale").disabled = sp.length !== 2 || !(Number($("mveDist").value) > 0);
   $("mveDist").placeholder = sp.length === 2 ? `now ${(sp[0].distanceTo(sp[1]) * k).toFixed(u === "mm" ? 1 : 3)}` : "distance";
-  $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length && !mve.originFrom && !mve.rotFrom;
+  $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length && !mve.originFrom && !mve.rotFrom && !mve.alignFrom;
   const st = mv.stats();
   mve.tris = st ? Math.round(st.triangles) : 0;
   mveTrisCheck();
@@ -1830,7 +1833,7 @@ function mvePlaneCover(c, u, v) {
 }
 // mvMarks: the points picked (Edit's steps, the measure) on the model.
 function mvMarks() {
-  const sets = Object.entries(mve.picks).map(([k, pts]) => ({ points: pts, color: MVE_COLORS[k], line: k === "scale", follow: k === "center", plane: mvePlaneOf(k, pts) }));
+  const sets = Object.entries(mve.picks).map(([k, pts]) => ({ points: pts, color: MVE_COLORS[k], line: k === "scale", follow: k === "center" || k === "align", plane: mvePlaneOf(k, pts) }));
   if (mvm.on) sets.push({ points: mvm.pts, color: MV_MEASURE, line: true });
   window.modelView.markers(sets);
 }
@@ -1838,13 +1841,14 @@ function mvePicking(st) {
   if (st && mvm.on) mvMeasure(false); // (measuring: no longer)
   mve.picking = st;
   if (st) window.modelView.hoverColor(MVE_COLORS[st]);
-  window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 1) mve.picks.center.shift(); if (st === "center" && mve.originFrom) { mve.centerAt = p.clone().applyMatrix4(mve.centerOff.clone().invert()); mveCenterGo(); } mveShow(); } : null;
+  window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 1) mve.picks.center.shift(); if (st === "center" && mve.originFrom) { mve.centerAt = p.clone().applyMatrix4(mve.centerOff.clone().invert()); mveCenterGo(); } if (st === "align" && mve.alignFrom) { mve.alignPts.push(p.clone().applyMatrix4(mve.alignOff.clone().invert())); mveAlignGo(); } mveShow(); } : null;
   mveShow();
 }
 $("mvEdit").addEventListener("click", (e) => {
   const pk = e.target.closest("[data-pick]")?.dataset.pick, cl = e.target.closest("[data-clear]")?.dataset.clear;
   if (pk) mvePicking(mve.picking === pk ? null : pk);
   if (cl === "center") return mveOriginCancel();
+  if (cl === "align" && mve.alignFrom) return mveAlignCancel(false);
   if (cl) { mve.picks[cl] = []; mveShow(); }
 });
 // mveDo applies an edit (made by f), steps back-able; the picks done with.
@@ -1857,6 +1861,7 @@ async function mveDo(f) {
     const before = mv.matrix();
     const m = f(mv.boxWith); // (box(m): the model's box after m)
     mveOriginCommit(); // (Origin's Set, not Applied: kept, as a step of its own)
+    mveAlignCommit(); // (Align's shown, not kept yet: the same)
     mve.undo.push(before);
     mve.picks = { level: [], align: [], scale: [], center: [] };
     mveStatus("");
@@ -1977,11 +1982,70 @@ async function mveOriginCancel() {
   mveShow();
   if (from) { await window.modelView.setMatrix(from, true); mveTrimReset(); mveShow(); }
 }
-$("mveAlign").onclick = () => mveDo((box) => {
-  const m = window.modelEdit.align(mve.picks.align, segOf("mveAxis"), box);
-  segPick("mveAxis", null); // (aligned: the axis to be picked again for another)
-  return m;
-});
+// Align: an axis (X or Y; 2 or more points picked) turns the model so the
+// points' edge runs along it, shown at once (the points with it); Flip turns
+// it 180° more; Align keeps it, as one step; the axis clicked again, Clear
+// or Undo put it back. alignFrom: the edit before; alignPts: the points
+// then; alignOff: the turn now.
+mve.alignFrom = null;
+mve.alignPts = null;
+mve.alignOff = null;
+mve.alignFlip = false;
+$("mveAxis").onclick = async (e) => {
+  const v = e.target.closest("[data-v]")?.dataset.v, mv = window.modelView;
+  if (!v) return;
+  segPick("mveAxis", segOf("mveAxis") === v ? null : v); // (the lit one again: unlit)
+  if (!mve.alignFrom && mve.picks.align.length < 2) return mveShow();
+  if (!segOf("mveAxis")) return mveAlignCancel(true);
+  mveRotCommit();
+  mveOriginCommit();
+  if (!mve.alignFrom) { mve.alignFrom = mv.matrix(); mve.alignPts = mve.picks.align.map((p) => p.clone()); mve.alignOff = null; }
+  await mveAlignGo();
+};
+$("mveFlip").onclick = async () => {
+  if (!mve.alignFrom) return;
+  mve.alignFlip = !mve.alignFlip;
+  await mveAlignGo();
+};
+// mveAlignGo turns the model (and the points) as the axis and Flip say.
+async function mveAlignGo() {
+  const mv = window.modelView, E = window.modelEdit, axis = segOf("mveAxis"), from = mve.alignFrom;
+  if (!from || !axis) return mveShow();
+  const back = mv.matrix().invert(); // (boxWith: after the edit now; the turn's from alignFrom)
+  let m;
+  try { m = E.align(mve.alignPts, axis, (k) => mv.boxWith(k.clone().multiply(from).multiply(back)), mve.alignFlip); }
+  catch (err) { mveStatus(err.message, "bad"); return mveShow(); }
+  mveStatus("");
+  mve.alignOff = m;
+  mve.picks.align = mve.alignPts.map((p) => p.clone().applyMatrix4(m));
+  const go = mv.setMatrix(m.clone().multiply(from), true);
+  mveShow();
+  await go;
+  mveTrimReset();
+  mveShow();
+}
+// mveAlignCommit keeps the turn shown as a step (the points done with).
+function mveAlignCommit() {
+  if (!mve.alignFrom) return false;
+  if (segOf("mveAxis")) mve.undo.push(mve.alignFrom);
+  mve.alignFrom = mve.alignPts = mve.alignOff = null;
+  mve.alignFlip = false;
+  segPick("mveAxis", null);
+  mve.picks.align = [];
+  return true;
+}
+// mveAlignCancel puts the model back as it was (the points too, with
+// keepPicks: to pick another axis; else gone).
+async function mveAlignCancel(keepPicks) {
+  const from = mve.alignFrom;
+  mve.picks.align = keepPicks && mve.alignPts ? mve.alignPts : [];
+  mve.alignFrom = mve.alignPts = mve.alignOff = null;
+  mve.alignFlip = false;
+  segPick("mveAxis", null);
+  mveShow();
+  if (from) { await window.modelView.setMatrix(from, true); mveTrimReset(); mveShow(); }
+}
+$("mveAlign").onclick = () => { mveAlignCommit(); mvePicking(null); mveShow(); }; // (done: no longer picking either)
 $("mveScale").onclick = () => mveDo(() => window.modelEdit.scale(mve.picks.scale[0], mve.picks.scale[1], Number($("mveDist").value) * window.modelEdit.UNITS[segOf("mveUnit")]));
 // Rotate: a turn about each axis (−180°…180°), shown on the model as it's
 // set (a slider dragged, or ±90°: past ±180° it comes round the other end);
@@ -2052,6 +2116,7 @@ $("mveRot").onclick = () => { mveRotCommit(); mveShow(); };
 async function mveBack() {
   if (mve.rotFrom) return mveRotCancel(); // (a turn set, not kept yet: that's the step back)
   if (mve.originFrom) return mveOriginCancel(); // (Set, not Applied: that's the step back)
+  if (mve.alignFrom) return mveAlignCancel(true); // (shown, not kept: the same)
   const u = mve.undo.pop();
   if (typeof u === "function") u();
   else if (u) await window.modelView.setMatrix(u, true);
@@ -2061,6 +2126,7 @@ $("mveUndo").onclick = async () => { await mveBack(); mveTrimReset(); mveShow();
 async function mveResetAll() {
   mveRotCommit();
   mveOriginCommit(); // (then undone with the rest)
+  mveAlignCommit();
   let first = null;
   while (mve.undo.length) { const u = mve.undo.pop(); if (typeof u === "function") u(); else first = u; }
   mveShow();
@@ -2072,7 +2138,7 @@ $("mveResetEdit").onclick = mveResetAll;
 // ✕: the edits undone (asked first, if there are any), the points picked
 // dropped, the panel closed.
 $("mveClose").onclick = async () => {
-  const edits = mve.undo.length || mve.originFrom || (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z));
+  const edits = mve.undo.length || mve.originFrom || mve.alignFrom || (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z));
   if (edits && !await confirmDanger("Cancel the edits?", "The model goes back to as it was when you opened Edit (nothing saved is changed).", "Cancel Edits")) return;
   if (edits) await mveResetAll();
   mve.picks = { level: [], align: [], scale: [], center: [] };
@@ -2117,6 +2183,8 @@ function mveFresh(m) {
   mve.picks = { level: [], align: [], scale: [], center: [] };
   mve.undo = [];
   mve.originFrom = null;
+  mve.alignFrom = mve.alignPts = mve.alignOff = null;
+  mve.alignFlip = false;
   mve.centerAxes.clear();
   mve.rotFrom = null;
   mve.rot = { x: 0, y: 0, z: 0 };
