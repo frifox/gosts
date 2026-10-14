@@ -8,8 +8,9 @@ Terminal or browser needed.
   menu checks again.
 - Starts gosts-rig (bundled inside the app, with Build Model's tool) and stops it when you quit. If a capture or a
   model build is still going, it asks first.
-- If gosts-rig is already running (from Terminal, say), it offers to use that one instead, since only one can drive
-  the rig and the camera.
+- If its port (8081) is taken, it asks: **Connect to It** (a gosts-rig already running, from Terminal, say), **Start
+  New** on the next free port (the window's title says which), or **Quit**. Only one gosts-rig can drive the rig and
+  the camera at a time.
 - Captures go to `~/Pictures/gosts-rig`; **Settings…** (⌘,) picks another folder, or moves where the settings
   are kept. The settings are shared with the command-line gosts-rig.
 

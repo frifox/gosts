@@ -77,17 +77,39 @@ func checkDependencies() -> [Missing] {
 
 // MARK: - Ports
 
+// portFree says whether gosts-rig could listen on port: nothing answers
+// there, and it can be bound (as gosts-rig binds: SO_REUSEADDR, so the
+// connections a gosts-rig just quit left closing, TIME_WAIT, don't count).
 func portFree(_ port: Int) -> Bool {
+    if answers(port) { return false }
     let fd = socket(AF_INET, SOCK_STREAM, 0)
     if fd < 0 { return false }
     defer { close(fd) }
+    var on: Int32 = 1
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, socklen_t(MemoryLayout<Int32>.size))
+    var addr = loopback(port)
+    return withUnsafePointer(to: &addr) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0 }
+    }
+}
+
+// answers says whether something accepts connections on 127.0.0.1:port.
+func answers(_ port: Int) -> Bool {
+    let fd = socket(AF_INET, SOCK_STREAM, 0)
+    if fd < 0 { return false }
+    defer { close(fd) }
+    var addr = loopback(port)
+    return withUnsafePointer(to: &addr) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0 }
+    }
+}
+
+func loopback(_ port: Int) -> sockaddr_in {
     var addr = sockaddr_in()
     addr.sin_family = sa_family_t(AF_INET)
     addr.sin_port = in_port_t(UInt16(port).bigEndian)
     addr.sin_addr.s_addr = inet_addr("127.0.0.1")
-    return withUnsafePointer(to: &addr) {
-        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0 }
-    }
+    return addr
 }
 
 func freePort() -> Int {
@@ -105,6 +127,13 @@ func freePort() -> Int {
         $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(fd, $0, &len) }
     }
     return Int(UInt16(bigEndian: addr.sin_port))
+}
+
+// nextFreePort is the first free port after port (one nearby, so it's easy
+// to tell apart; any free one if none is).
+func nextFreePort(after port: Int) -> Int {
+    for p in (port + 1)...(port + 100) where portFree(p) { return p }
+    return freePort()
 }
 
 // isGostsRig says whether a gosts-rig answers at url (its page's title).
@@ -190,8 +219,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             NSApp.terminate(nil)
             return
         }
-        // gosts-rig already running on its usual port (from Terminal, say)?
-        // Two of them would fight over the rig and the camera: use that one.
+        // Its port taken: by a gosts-rig (from Terminal, say, or another copy
+        // of the app), or by something else. Asked: quit, use that gosts-rig,
+        // or start another on the next free port (two would fight over the
+        // rig and the camera: one of them should be on the simulators).
         let usual = URL(string: "http://127.0.0.1:\(preferredPort)/")!
         if portFree(preferredPort) {
             startBackend(port: preferredPort)
@@ -199,26 +230,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         }
         isGostsRig(usual) { yes in
             DispatchQueue.main.async {
+                let next = nextFreePort(after: preferredPort)
+                let a = NSAlert()
                 if yes {
-                    let a = NSAlert()
-                    a.messageText = "gosts-rig is already running"
-                    a.informativeText = "Another gosts-rig is serving on port \(self.preferredPortText) (started from Terminal, perhaps). Only one can use the rig and the camera at a time."
-                    a.addButton(withTitle: "Use It")
-                    a.addButton(withTitle: "Quit")
-                    if a.runModal() == .alertFirstButtonReturn {
-                        self.base = usual
-                        self.web.load(URLRequest(url: usual))
-                    } else {
-                        NSApp.terminate(nil)
-                    }
+                    a.messageText = "gosts-rig is already running on port \(preferredPort)"
+                    a.informativeText = "Another gosts-rig is serving there (started from Terminal, or another GoSTS Rig, perhaps). Connect to it, or start a new one on port \(next): only one of them can use the rig and the camera at a time."
+                    a.addButton(withTitle: "Connect to It")
                 } else {
-                    self.startBackend(port: freePort())
+                    a.messageText = "Port \(preferredPort) is taken"
+                    a.informativeText = "Something other than gosts-rig is using it. Start gosts-rig on port \(next) instead?"
+                }
+                a.addButton(withTitle: "Start New on \(next)")
+                a.addButton(withTitle: "Quit")
+                let r = a.runModal()
+                let connect = yes && r == .alertFirstButtonReturn
+                let start = yes ? r == .alertSecondButtonReturn : r == .alertFirstButtonReturn
+                if connect {
+                    self.base = usual
+                    self.web.load(URLRequest(url: usual))
+                } else if start {
+                    self.startBackend(port: portFree(next) ? next : nextFreePort(after: next))
+                } else {
+                    NSApp.terminate(nil)
                 }
             }
         }
     }
-
-    var preferredPortText: String { String(preferredPort) }
 
     func startBackend(port: Int) {
         guard let exe = Bundle.main.url(forAuxiliaryExecutable: "gosts-rig") else {
@@ -261,6 +298,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         lifeline = life
         let url = URL(string: "http://127.0.0.1:\(port)/")!
         base = url
+        window.title = port == preferredPort ? appName : "\(appName) (port \(port))" // (another beside the usual one: told apart)
         waitForBackend(url, tries: 100)
     }
 
