@@ -375,6 +375,16 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .viewer .stage { flex: 1; min-height: 0; margin: 0 16px 16px; position: relative; overflow: hidden; cursor: zoom-out; touch-action: none; }
 #viewerImg { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; cursor: grab; user-select: none; -webkit-user-drag: none; }
 .viewer .stage.dragging, .viewer .stage.dragging #viewerImg { cursor: grabbing; }
+/* An F-stop sweep (see fstopSweep): a strip of its shots under the photo; a drag selects a part to zoom to. */
+.viewer.sweep .stage, .viewer.sweep .stage #viewerImg { cursor: crosshair; }
+.sweep-strip { display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 14px; flex: none; }
+.sweep-strip button { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px; border: 2px solid transparent; border-radius: 8px;
+  background: rgba(255,255,255,.06); color: #e6e9ef; font: 12px var(--mono); cursor: pointer; }
+.sweep-strip button.on { border-color: var(--accent); background: rgba(91,140,255,.18); }
+.sweep-strip img, .sweep-strip .pending { width: 108px; height: 72px; object-fit: cover; border-radius: 5px; background: rgba(255,255,255,.08); display: block; }
+.sweep-sel { position: absolute; border: 2px dashed #fff; box-shadow: 0 0 0 1px #000; pointer-events: none; z-index: 2; }
+.fstop-sweep { width: 18px; height: 18px; padding: 0; margin-left: 6px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; vertical-align: -3px; }
+.fstop-sweep svg { width: 12px; height: 12px; }
 /* Opening a photo: a placeholder with a spinner (as a photo being taken)
    till it's in, not the photo seen before. */
 .viewer .vload { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(80%, 120vh); max-height: 80%; aspect-ratio: 3 / 2;
@@ -1030,7 +1040,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <button class="btn small" id="viewerOlder" title="Older photo (→)">Older ›</button>
     <button class="icon-btn" id="viewerClose" title="Close (Esc)" aria-label="Close">✕</button>
   </div>
-  <div class="stage" id="viewerStage"><img id="viewerImg" alt="" draggable="false"><div class="vload" id="viewerLoad" hidden></div>
+  <div class="stage" id="viewerStage"><img id="viewerImg" alt="" draggable="false"><div class="vload" id="viewerLoad" hidden></div><div class="sweep-sel" id="sweepSel" hidden></div>
     <canvas class="histo" id="viewerHisto" hidden title="Histogram: how many pixels at each brightness, red, green and blue (dark on the left, bright on the right)"></canvas>
     <div class="vnav" id="vnav">
       <div class="presets" id="vnavPresets"><button class="btn small" data-z="fit" title="The whole photo in the window">Fit</button><button class="btn small" data-z="0.5">50%</button><button class="btn small" data-z="1" title="The photo's own pixels">100%</button><button class="btn small" data-z="1.5">150%</button><button class="btn small" data-z="2">200%</button></div>
@@ -1038,6 +1048,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <div class="zoomrow"><span id="vnavPct">100%</span><input type="range" id="vnavZoom" min="10" max="200" step="1" value="100" title="Zoom"></div>
     </div>
   </div>
+  <div class="sweep-strip" id="sweepStrip" hidden></div>
 </div>
 <div class="viewer" id="modelViewer" hidden>
   <div class="viewer-bar">
@@ -2775,11 +2786,144 @@ function viewerButtons() {
   $("viewerHint").textContent = `  ·  ← → to step, drag or wheel to look around, Esc ${gallery ? "for all photos" : "to close"}`;
 }
 function stepPhoto(d) { // +1 newer, -1 older (a saved capture's: previous, next)
+  if (state.sweep) return sweepGo(state.sweep.i - d); // (an F-stop sweep: ← the one before, → the next)
   if (state.disk) return openDiskPhoto(state.disk.i - d);
   const i = state.photos.findIndex((p) => p.n === state.viewing), j = i + d;
   if (i >= 0 && j >= 0 && j < state.photos.length) openPhoto(state.photos[j].n);
 }
-function closePhoto() { $("viewer").hidden = true; state.viewing = null; state.disk = null; }
+function closePhoto() {
+  $("viewer").hidden = true; state.viewing = null; state.disk = null;
+  if (state.sweep) { state.sweep.cancel = true; state.sweep = null; } // (a sweep going: it stops after the shot being taken)
+  $("viewer").classList.remove("sweep");
+  $("sweepStrip").hidden = true;
+}
+// F-stop sweep (the camera settings' F-stop icon): a sample shot at each
+// F-stop the camera lists, shown in the photo viewer as they come, a strip
+// of them under it. ← → step between them keeping the zoom (to compare the
+// same part); a drag selects a part to zoom to (the photo's shape). An
+// F-stop the camera won't take (gphoto2 may list some it can't: setting it
+// fails, no photo comes, or the photo's at another) is left out. The F-stop
+// set before is put back after; closing the viewer stops it.
+async function fstopSweep(st) {
+  if (state.sweep?.running) return;
+  const was = st.current, sw = state.sweep = { shots: [], i: 0, running: true, cancel: false, skipped: [] };
+  stopLive(true);
+  $("camConfigErr").textContent = "";
+  vz.fit = true;
+  $("viewer").classList.add("sweep");
+  $("sweepStrip").hidden = false;
+  // First the f-stops the lens really has (the camera lists every one there
+  // is: stepped to the ends and back, no shots); one it still won't take is
+  // left out as it comes (below).
+  let choices = st.choices;
+  if (st.probe) {
+    sw.probing = true;
+    sweepShow();
+    try {
+      const list = await send("cameraProbe", { key: "aperture" });
+      renderSettings(list);
+      choices = list.find((x) => x.key === "aperture")?.choices || choices;
+    } catch (e) { $("camConfigErr").textContent = `Finding the lens's f-stops: ${e.message}`; }
+    sw.probing = false;
+  }
+  sweepShow();
+  for (const f of choices) {
+    if (sw.cancel) break;
+    sw.taking = f;
+    sweepStrip(f);
+    try {
+      await send("cameraSet", { key: "aperture", value: f });
+      const got = new Promise((resolve) => { state.sweepWait = resolve; setTimeout(() => resolve(null), 30000); });
+      await send("sampleShot", {});
+      const m = await got;
+      state.sweepWait = null;
+      const at = m?.settings?.aperture;
+      if (!m || (at && at !== f)) { sw.skipped.push(f); continue; } // (none, or at another: not one it takes)
+      sw.shots.push({ f, n: m.n, url: photoURL(m), caption: m.caption || "" });
+      if (!sw.cancel && (sw.shots.length === 1 || sw.i === sw.shots.length - 2)) sweepGo(sw.shots.length - 1); // (following along, unless looking back)
+    } catch { state.sweepWait = null; sw.skipped.push(f); }
+  }
+  sw.running = false;
+  sw.taking = null;
+  sweepStrip(null);
+  try { renderSettings(await send("cameraSet", { key: "aperture", value: was })); } catch (e) { $("camConfigErr").textContent = e.message; }
+  if (state.sweep === sw) sweepShow();
+}
+// sweepShow: the header for the shot shown (or what's going on).
+function sweepShow() {
+  const sw = state.sweep;
+  if (!sw) return;
+  $("viewer").hidden = false;
+  $("viewerHome").hidden = $("viewerBack").hidden = true;
+  const s = sw.shots[sw.i];
+  $("viewerFile").textContent = s ? `F-stop ${s.f}` : "F-stop sweep";
+  $("viewerCap").textContent = (s ? `${sw.i + 1} / ${sw.shots.length}` : "") + (sw.probing ? " · finding the lens's f-stops…" : sw.running ? " · taking…" : "") +
+    (sw.skipped.length ? ` · not taken: ${sw.skipped.join(", ")}` : "");
+  $("viewerNewer").hidden = $("viewerOlder").hidden = false;
+  $("viewerNewer").textContent = "‹ Previous"; $("viewerOlder").textContent = "Next ›";
+  $("viewerNewer").disabled = sw.i <= 0; $("viewerOlder").disabled = sw.i >= sw.shots.length - 1;
+  $("viewerHint").textContent = "  ·  ← → between F-stops (the zoom kept), drag to zoom to a part, Fit for all of it, Esc to close";
+  for (const [k, b] of [...$("sweepStrip").children].entries()) b.classList.toggle("on", k === sw.i);
+}
+// sweepStrip: the strip of shots (and, while one's being taken, its place).
+function sweepStrip(taking) {
+  const sw = state.sweep;
+  if (!sw) return;
+  $("sweepStrip").innerHTML = "";
+  sw.shots.forEach((s, k) => {
+    const b = document.createElement("button");
+    b.innerHTML = `<img alt="" src="${s.url}?thumb"><span>${escHTML(s.f)}</span>`;
+    b.onclick = () => sweepGo(k);
+    $("sweepStrip").appendChild(b);
+  });
+  if (taking) {
+    const b = document.createElement("button");
+    b.disabled = true;
+    b.innerHTML = `<span class="pending"></span><span>${escHTML(taking)}…</span>`;
+    $("sweepStrip").appendChild(b);
+  }
+  sweepShow();
+}
+function sweepGo(k) {
+  const sw = state.sweep;
+  if (!sw || k < 0 || k >= sw.shots.length) return;
+  sw.i = k;
+  viewerSrc(sw.shots[k].url);
+  sweepShow();
+  sweepStrip(sw.running ? (sw.taking || null) : null);
+  $("sweepStrip").children[k]?.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+// sweepSelect: a drag on the photo selects a part (the photo's shape) to
+// zoom to; a click (no drag) does nothing.
+function sweepSelect(e) {
+  const st = $("viewerStage"), b = st.getBoundingClientRect(), sel = $("sweepSel");
+  const [w, h] = vzNat(), aspect = w / h, x0 = e.clientX - b.left, y0 = e.clientY - b.top;
+  let r = null;
+  st.setPointerCapture(e.pointerId);
+  const move = (m) => {
+    let dx = m.clientX - b.left - x0, dy = m.clientY - b.top - y0;
+    if (Math.hypot(dx, dy) < 6) { sel.hidden = true; r = null; return; }
+    // The photo's shape: the larger of the two, the other from it.
+    if (Math.abs(dx) / aspect > Math.abs(dy)) dy = Math.sign(dy || 1) * Math.abs(dx) / aspect;
+    else dx = Math.sign(dx || 1) * Math.abs(dy) * aspect;
+    r = { x: Math.min(x0, x0 + dx), y: Math.min(y0, y0 + dy), w: Math.abs(dx), h: Math.abs(dy) };
+    Object.assign(sel.style, { left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px" });
+    sel.hidden = false;
+  };
+  const up = () => {
+    st.removeEventListener("pointermove", move); st.removeEventListener("pointerup", up); st.removeEventListener("pointercancel", up);
+    sel.hidden = true;
+    if (!r) return;
+    vz.dragged = true; // (not a click on the dark: that closes it)
+    setTimeout(() => (vz.dragged = false));
+    // The part selected, in the photo's pixels, filling the stage.
+    const [W, H] = vzStage(), px = (r.x - vz.x) / vz.s, py = (r.y - vz.y) / vz.s, pw = r.w / vz.s, ph = r.h / vz.s;
+    const s = Math.min(VZ_MAX, Math.min(W / pw, H / ph));
+    vz.fit = false; vz.s = s; vz.x = W / 2 - (px + pw / 2) * s; vz.y = H / 2 - (py + ph / 2) * s;
+    vzApply();
+  };
+  st.addEventListener("pointermove", move); st.addEventListener("pointerup", up); st.addEventListener("pointercancel", up);
+}
 // The header's path, as Browse's: the home (all captures), the capture (its
 // photos: the folder open in the gallery, else the capture now's), the
 // photo (all of it again, fitted).
@@ -2845,7 +2989,7 @@ function viewerLoading(on) {
   $("viewerStage").classList.toggle("loading", on);
   $("viewerLoad").hidden = !on;
 }
-$("viewerImg").addEventListener("load", () => { viewerLoading(false); vz.fit = true; vzApply(); histogram($("viewerImg"), $("viewerHisto")); });
+$("viewerImg").addEventListener("load", () => { viewerLoading(false); if (!state.sweep) vz.fit = true; vzApply(); histogram($("viewerImg"), $("viewerHisto")); }); // (a sweep's shots: the zoom kept, to compare the same part)
 $("viewerImg").addEventListener("error", () => viewerLoading(false));
 $("vnavImg").addEventListener("load", vzApply);
 window.addEventListener("resize", () => { if (!$("viewer").hidden) vzApply(); });
@@ -2864,6 +3008,7 @@ $("viewerStage").addEventListener("wheel", (e) => {
 // Drag the photo to move it (a few pixels' move is a drag, not a click).
 $("viewerStage").addEventListener("pointerdown", (e) => {
   if (e.button !== 0 || e.target.closest(".vnav")) return;
+  if (state.sweep) return sweepSelect(e);
   const st = $("viewerStage"), x0 = vz.x, y0 = vz.y, sx = e.clientX, sy = e.clientY;
   vz.dragged = false;
   vz.onPhoto = !!e.target.closest("#viewerImg");
@@ -2952,6 +3097,18 @@ function renderSettings(list) {
     label.textContent = st.label;
     if (st.range) { into.appendChild(rangeSetting(st, label)); continue; }
     const sel = document.createElement("select");
+    if (st.key === "aperture" && !st.readOnly && st.choices?.length > 1) { // (a sweep: a sample at each, compared)
+      sel.id = "apertureSel";
+      label.htmlFor = sel.id; // (the label's the select's: the button beside its name's its own)
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "icon-btn fstop-sweep";
+      b.title = "Take a sample shot at every F-stop and compare them";
+      b.setAttribute("aria-label", b.title);
+      b.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 2l2.2 5M14 8l-5 2.2M8 14l-2.2-5M2 8l5-2.2"/></svg>';
+      b.onclick = (e) => { e.preventDefault(); fstopSweep(st); };
+      label.appendChild(b);
+    }
     sel.disabled = st.readOnly;
     for (const c of st.choices) sel.add(new Option(c, c, false, c === st.current));
     if (!st.choices.includes(st.current)) sel.add(new Option(st.current || "–", st.current, true, true));
@@ -3218,6 +3375,7 @@ $("sampleBtn").onclick = async () => {
 };
 function samplePending(n) { state.samplePending = n; $("sampleBox").classList.add("taking"); }
 function sampleArrived(m) {
+  state.sweepWait?.(m); // (an F-stop sweep waiting for its shot)
   if (m.at < (state.sampleAt || 0)) return; // an older one, late
   state.sampleShown = m.n; state.sampleAt = m.at; state.sampleSettings = m.settings || {};
   sampleButtons(true);

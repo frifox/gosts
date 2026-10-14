@@ -239,6 +239,22 @@ func (a *app) exec(req request) (any, error) {
 			return nil, err
 		}
 		return a.cameraSettings()
+	case "cameraProbe": // the F-stop sweep: first the f-stops the lens really has
+		if a.cap.msg().Running {
+			return nil, errors.New("a capture is running")
+		}
+		sc, err := a.settingsCam()
+		if err != nil {
+			return nil, err
+		}
+		pc, ok := sc.(proberCamera)
+		if !ok {
+			return nil, errors.New("this camera can't be probed")
+		}
+		if err := pc.Probe(req.Key); err != nil {
+			return nil, err
+		}
+		return a.cameraSettings()
 	case "autofocus": // Camera Settings' Focus: focus once (and stay, in Manual): how it went
 		fc, err := a.focusCam()
 		if err != nil {
@@ -393,7 +409,7 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 // cameraRequests are the requests that talk to the camera (in turn, beside
 // the rest: see handleWS).
 var cameraRequests = map[string]bool{
-	"cameras": true, "cameraConnect": true, "shoot": true, "cameraSettings": true, "cameraSet": true,
+	"cameras": true, "cameraConnect": true, "shoot": true, "cameraSettings": true, "cameraSet": true, "cameraProbe": true,
 	"autofocus": true, "focusNudge": true, "measurePace": true, "sampleShot": true, "shootBurst": true, "gphoto2Shell": true,
 }
 
