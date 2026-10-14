@@ -4,7 +4,9 @@
 # pane shows a page, not a command's output. The page follows the log as
 # it's written and says how it ended; then the server and the page's tab
 # close (a few seconds on: time for the page to fetch the end).
-# Refuses while GoSTS Rig is running (its app replaced under it).
+# GoSTS Rig running: it's asked to quit first (as Quit does: it asks you if a
+# capture or a model build is going), and opened again after; if it doesn't
+# quit (you said no), nothing's installed.
 set -u
 
 port=${1:-8089}
@@ -50,12 +52,24 @@ python3 -m http.server "$port" --bind 127.0.0.1 --directory "$dir" >/dev/null 2>
 server=$!
 
 {
-  if pgrep -f '/Applications/GoSTS Rig.app/Contents/MacOS/' >/dev/null; then
-    echo "GoSTS Rig is running: quit it first, then run make install again."
+  running() { pgrep -f '/Applications/GoSTS Rig.app/Contents/MacOS/' >/dev/null; }
+  reopen=false
+  if running; then
+    echo "GoSTS Rig is running: asking it to quit…"
+    osascript -e 'tell application "GoSTS Rig" to quit' 2>&1
+    for _ in $(seq 120); do running || break; sleep 0.5; done # (a minute: it may be asking you)
+    reopen=true
+  fi
+  if running; then
+    echo "GoSTS Rig didn't quit: nothing installed. Quit it, then run make install again."
     code=1
   else
     cd "$root" && make install
     code=$?
+    if [ "$code" = 0 ] && $reopen; then
+      echo "opening GoSTS Rig again"
+      open "/Applications/GoSTS Rig.app"
+    fi
   fi
   echo "$code" > "$dir/status.txt.tmp" && mv "$dir/status.txt.tmp" "$dir/status.txt"
 } 2>&1 | tee -a "$dir/log.txt"
