@@ -1185,22 +1185,22 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <h2 id="appSettingsTitle">Settings<span class="spacer"></span><button class="icon-btn" id="appSettingsClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
     <div class="card-body app-settings">
       <div class="as-item">
-        <div class="as-label">Captures folder</div>
-        <div class="as-hint">Where captures are saved (a folder each), and where Browse looks.</div>
+        <div class="as-label">Root capture folder</div>
+        <div class="as-hint">Where captures are saved.</div>
         <div class="as-row"><span class="as-path mono" id="asPhotos"></span>
           <button class="btn small" data-choose="photos">Choose…</button><button class="btn small" data-default="photos">Default</button></div>
         <div class="as-note" id="asPhotosNote"></div>
       </div>
       <div class="as-item">
         <div class="as-label">Settings folder</div>
-        <div class="as-hint">Where gosts-rig keeps its settings (config.toml): moved there when changed.</div>
+        <div class="as-hint">Where gosts-rig keeps its settings (config.toml).</div>
         <div class="as-row"><span class="as-path mono" id="asSettings"></span>
           <button class="btn small" data-choose="settings">Choose…</button><button class="btn small" data-default="settings">Default</button></div>
         <div class="as-note" id="asSettingsNote"></div>
       </div>
       <div class="as-item">
         <div class="as-label">Backend</div>
-        <div class="as-hint">gosts-rig itself, the program behind this page. Public serves this page to your network too (a phone, another computer), not this Mac alone; Exit quits it (the rig and the camera let go).</div>
+        <div class="as-hint">gosts-rig itself, the program behind this page.</div>
         <div class="as-row"><button class="btn small" id="asPublic" title="Serve this page to your network too (every address, the same port), or this Mac alone again">Public</button><span class="as-path mono" id="asBackend"></span><button class="btn small danger" id="asExit">Exit Backend</button></div>
         <div class="as-note" id="asPublicNote"></div>
       </div>
