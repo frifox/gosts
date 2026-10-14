@@ -301,8 +301,8 @@ td.mono { font-family: var(--mono); }
 .cooldown #coolMin { width: 40px; }
 .cooldown #coolDarkMin { width: 46px; } /* (its line has room: 3 digits, "120") */
 .cooldown #coolShots { width: 50px; } /* (room for 3 digits: "160", the row still in 300 px) */
-/* Not picked: its numbers faded and off. */
-.cool-line.off input[type=number], .cool-line.off > .cool-text { opacity: .45; }
+/* Not picked: the option dimmed (its numbers off too); the one picked as it is. */
+.cool-line.off .cool-text, .cool-line.off input[type=number] { opacity: .5; }
 .cooldown input[type=number]:disabled { cursor: default; }
 .cooldown input[type=radio] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
 /* The AR400's overheat table, under the pause: a line a power, a click applies its pause. */
@@ -862,7 +862,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <!-- Cooling the flash during a capture: not at all; a pause when a photo comes out dark (the flash didn't
                fire), then on from that photo's shot; or a pause after every so many photos. Resume carries on sooner. -->
           <div class="cooldown" id="cooldownRow">
-            <div class="cool-line" title="No pauses for the flash">
+            <div class="cool-line" id="coolNoneLine" title="No pauses for the flash">
               <label><input type="radio" name="coolMode" id="coolNone"> <span class="cool-text">No cooldown for flash</span></label></div>
             <div class="cool-line off" id="coolDarkLine" title="During a capture: each photo is looked at as it comes over; one much darker than the ones before (the flash didn't fire: overheated) is set aside (no-flash folder), the capture pauses this long, then takes that photo's shot again and carries on">
               <label><input type="radio" name="coolMode" id="coolDark"> <span class="cool-text">Cooldown after no-flash for</span></label>
@@ -3797,6 +3797,7 @@ function coolFields(cd) {
 // coolRow: the ways not picked: their numbers faded and off.
 function coolRow() {
   const shots = $("coolOn").checked, dark = $("coolDark").checked;
+  $("coolNoneLine").classList.toggle("off", shots || dark);
   $("coolShotsLine").classList.toggle("off", !shots);
   $("coolDarkLine").classList.toggle("off", !dark);
   $("coolMin").disabled = $("coolShots").disabled = !shots;
