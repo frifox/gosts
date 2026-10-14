@@ -27,6 +27,14 @@
         "go run ./cmd/gosts-rig --listen localhost:8082 --rig sim --camera sim --config \"${TMPDIR:-/tmp}/gosts-rig-sim.toml\" --ctl-config \"${TMPDIR:-/tmp}/gosts-ctl-sim.toml\" --photos \"$HOME/Pictures/gosts-rig-sim\""
       ],
       "port": 8082
+    },
+    {
+      "name": "make install",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "if pgrep -f '/Applications/GoSTS Rig.app/Contents/MacOS/' >/dev/null; then echo 'GoSTS Rig is running: quit it first, then run make install again.'; exit 1; fi; make install"
+      ]
     }
   ]
 }
