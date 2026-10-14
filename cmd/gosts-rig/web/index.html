@@ -290,7 +290,7 @@ td.mono { font-family: var(--mono); }
 /* The end of an auto-focus: how it went (ok: green), or what's wrong (amber). */
 .focus-warn { padding: 8px 12px; background: rgba(240,167,66,.14); border-top: 1px solid rgba(240,167,66,.5); color: #f0a742; font-size: 12px; line-height: 1.4; }
 .focus-warn.ok { background: rgba(60,207,122,.12); border-top-color: rgba(60,207,122,.5); color: #3ccf7a; }
-.cooldown { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 80px; font-size: 13px; color: var(--text); white-space: nowrap; }
+.cooldown { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font-size: 13px; color: var(--text); white-space: nowrap; }
 .cool-line { display: flex; align-items: center; gap: 3px; min-height: 28px; }
 .camcfg-params .cooldown label { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--text); cursor: pointer; }
 /* Cooling the flash (a capture paused by the cooldown): a warning, as wide as the card, styled as a button. */
@@ -367,6 +367,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .btn.busy::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; border-radius: 50%;
   border: 2px solid var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
 .btn.busy:disabled { opacity: 1; } /* busy, not unavailable: the spinner at full strength */
+.flash-params { max-width: 340px; }
 @media (max-width: 860px) { .camcfg-body { grid-template-columns: 1fr; } }
 /* A photo full size, over the whole page. */
 .viewer { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.92); display: flex; flex-direction: column; }
@@ -734,7 +735,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <button class="btn small" id="camRefresh" style="text-transform:none;letter-spacing:0">Refresh</button>
         <span class="battery" id="camBattery" title="The camera's battery" hidden><svg viewBox="0 0 24 12" aria-hidden="true"><rect x="0.75" y="0.75" width="20" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="21.5" y="3.5" width="2" height="5" rx="0.8" fill="currentColor"/><rect id="camBatteryFill" x="2.5" y="2.5" width="16.5" height="7" rx="1" fill="currentColor"/></svg><span id="camBatteryText"></span></span>
         <button class="btn small icon danger" id="camDisconnectBtn" title="Disconnect the camera (a capture running stops)" aria-label="Disconnect the camera" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 16l-4 4M16 16l4 4M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5zM17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5zM3 21l2.5 -2.5M18.5 5.5l2.5 -2.5M10 11l-2 2M13 14l-2 2"/></svg></button>
-        <button class="btn small icon" id="camConfigBtn" title="Camera settings, with sample shots and live preview" aria-label="Camera settings" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button>
+        <button class="btn small icon" id="camCtlBtn" title="Camera control: zoom, focus, exposure and color, with sample shots and live preview" aria-label="Camera control" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4"/></svg></button>
+        <button class="btn small icon" id="camConfigBtn" title="Settings: the flash's cooldown during a capture, and its limits" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button>
       </h2>
       <!-- No camera: pick one and connect. -->
       <div class="card-body" id="cameraBody">
@@ -869,10 +871,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     </div>
   </section>
 
-  <!-- Settings: the camera's (from the gear in its card's title, which card lights up), in place of Photos
-       and Rig View till ✕. -->
+  <!-- Control: the camera's settings, with sample shots and live view (from the Camera card's Control button,
+       which card lights up), in place of Photos and Rig View till ✕. -->
   <section class="card settings-card" id="settingsCard" hidden>
-    <h2>Settings <span class="dev-name" id="settingsWhat"></span><span class="spacer"></span>
+    <h2>Control <span class="dev-name">Camera</span><span class="spacer"></span>
       <button class="icon-btn" id="settingsClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
     <div id="camConfigModal" hidden>
       <div class="card-body camcfg-body">
@@ -882,29 +884,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <button class="btn" id="liveBtn" title="The camera's live view, over and over: to frame the object and judge the exposure and white balance as you change them (lower resolution than a photo: use a sample shot for focus and the gray card)">Show Live Preview</button>
             <button class="btn primary" id="sampleBtn">Take Sample Shot</button>
           </div>
-          <!-- Cooldown: a capture pauses now and then (a flash that gets hot), and carries on by itself. -->
-          <!-- Cooling the flash during a capture: not at all; a pause when a photo comes out dark (the flash didn't
-               fire), then on from that photo's shot; or a pause after every so many photos. Resume carries on sooner. -->
-          <div class="cooldown" id="cooldownRow">
-            <div class="cool-line" id="coolNoneLine" title="No pauses for the flash">
-              <label><input type="radio" name="coolMode" id="coolNone"> <span class="cool-text">No cooldown for flash</span></label></div>
-            <div class="cool-line off" id="coolDarkLine" title="During a capture: each photo is looked at as it comes over; one much darker than the ones before (the flash didn't fire: overheated) is set aside (no-flash folder), the capture pauses this long, then takes that photo's shot again and carries on">
-              <label><input type="radio" name="coolMode" id="coolDark"> <span class="cool-text">Cooldown after no-flash for</span></label>
-              <input type="number" id="coolDarkMin" min="0.5" max="120" step="0.5" disabled> <span class="cool-text">mins</span></div>
-            <div class="cool-line off" id="coolShotsLine" title="During a capture: after every so many photos, pause this long (the flash cooling), then carry on">
-              <label><input type="radio" name="coolMode" id="coolOn"> <span class="cool-text">Cooldown after</span></label>
-              <input type="number" id="coolShots" min="1" step="1" disabled> <span class="cool-text">shots for</span>
-              <input type="number" id="coolMin" min="0.5" max="120" step="0.5" disabled> <span class="cool-text">mins</span></div>
-          </div>
-          <!-- The Godox AR400's overheat protection (its manual, p. 22): continuous flashes at each power before
-               it slows down. A click on a line sets the pause above: 10 minutes after 80% of them. -->
-          <table class="flash-heat" id="flashHeat">
-            <thead><tr><th>AR400 power</th><th>Flashes Limit</th><th>Pause</th></tr></thead>
-            <tbody></tbody>
-          </table>
-          <div class="heat-levels"><div class="heat-row"><span class="views seg" id="heatLevelSeg"><button data-v="safe" title="60% of the limit between pauses, resting 15 minutes">Safe</button><button data-v="acceptable" title="80% of the limit between pauses, resting 10 minutes">Acceptable</button><button data-v="risky" title="Up to the limit between pauses, resting 5 minutes">Risky</button></span>
-            <button class="btn small" id="flashMeasureBtn" disabled title="Pick the flash's power in the table first">Measure</button></div>
-            <span class="hint" id="heatNote"></span></div>
           <div class="err" id="camConfigErr"></div>
         </div>
         <div class="camcfg-preview">
@@ -936,6 +915,38 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <div hidden id="focusPark"><button class="btn small needs-sample" id="focusBtn" disabled data-title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again" data-tip="Focus needs a sample shot, please take one">Focus</button><span class="focus-pick" id="focusPick" hidden><span class="views seg" id="focusModeSeg"><button data-m="nearfar" title="Focus between two cards, the nearest and farthest the object reaches: the depth of field centered on them">Near/Far Points</button><button data-m="single" title="Focus on one part: drag a rectangle around it">Single Point</button></span><button class="btn small" id="focusPickCancel" title="Cancel">✕</button><button class="btn small primary" id="focusStart">Start</button></span></div>
           <div hidden id="grayPark"><button class="btn small needs-sample" id="grayBtn" disabled data-title="Balance white from a gray card: drag a rectangle inside the card in the sample, and the app works out the color temperature that makes it neutral" data-tip="Gray Card needs a sample shot, please take one">Gray Card</button></div>
         </div>
+      </div>
+    </div>
+  </section>
+  <!-- Settings: the capture's, for the flash (the Camera card's gear): its cooldown, and its limits. -->
+  <section class="card settings-card" id="flashCard" hidden>
+    <h2>Settings <span class="dev-name">Camera</span><span class="spacer"></span>
+      <button class="icon-btn" id="flashClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
+    <div class="card-body">
+      <div class="camcfg-params flash-params">
+        <!-- Cooling the flash during a capture: not at all; a pause when a photo comes out dark (the flash didn't
+             fire), then on from that photo's shot; or a pause after every so many photos. Resume carries on sooner. -->
+        <div class="cooldown" id="cooldownRow">
+          <div class="cool-line" id="coolNoneLine" title="No pauses for the flash">
+            <label><input type="radio" name="coolMode" id="coolNone"> <span class="cool-text">No cooldown for flash</span></label></div>
+          <div class="cool-line off" id="coolDarkLine" title="During a capture: each photo is looked at as it comes over; one much darker than the ones before (the flash didn't fire: overheated) is set aside (no-flash folder), the capture pauses this long, then takes that photo's shot again and carries on">
+            <label><input type="radio" name="coolMode" id="coolDark"> <span class="cool-text">Cooldown after no-flash for</span></label>
+            <input type="number" id="coolDarkMin" min="0.5" max="120" step="0.5" disabled> <span class="cool-text">mins</span></div>
+          <div class="cool-line off" id="coolShotsLine" title="During a capture: after every so many photos, pause this long (the flash cooling), then carry on">
+            <label><input type="radio" name="coolMode" id="coolOn"> <span class="cool-text">Cooldown after</span></label>
+            <input type="number" id="coolShots" min="1" step="1" disabled> <span class="cool-text">shots for</span>
+            <input type="number" id="coolMin" min="0.5" max="120" step="0.5" disabled> <span class="cool-text">mins</span></div>
+        </div>
+        <!-- The Godox AR400's overheat protection (its manual, p. 22): continuous flashes at each power before
+             it slows down. A click on a line sets the pause above: 10 minutes after 80% of them. -->
+        <table class="flash-heat" id="flashHeat">
+          <thead><tr><th>AR400 power</th><th>Flashes Limit</th><th>Pause</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="heat-levels"><div class="heat-row"><span class="views seg" id="heatLevelSeg"><button data-v="safe" title="60% of the limit between pauses, resting 15 minutes">Safe</button><button data-v="acceptable" title="80% of the limit between pauses, resting 10 minutes">Acceptable</button><button data-v="risky" title="Up to the limit between pauses, resting 5 minutes">Risky</button></span>
+          <button class="btn small" id="flashMeasureBtn" disabled title="Pick the flash's power in the table first">Measure</button></div>
+          <span class="hint" id="heatNote"></span></div>
+        <div class="err" id="flashErr"></div>
       </div>
     </div>
   </section>
@@ -1364,7 +1375,7 @@ function onCamera(m) {
   $("cameraBody").hidden = $("camRefresh").hidden = m.connected;
   $("captureBody").hidden = !m.connected;
   setPill("cam", m.connected, `cam: ${m.connected ? (m.id === "sim" ? "simulator" : m.name) : "none"}`);
-  $("camConfigBtn").hidden = $("camDisconnectBtn").hidden = !m.connected;
+  $("camCtlBtn").hidden = $("camDisconnectBtn").hidden = !m.connected;
   // Battery: shown when the camera says, amber below 20%, red below 10%.
   const pct = parseInt(m.battery, 10);
   $("camBattery").hidden = !m.connected || !m.battery;
@@ -3233,20 +3244,32 @@ function openCamConfig() {
   loadSettings();
 }
 function closeCamConfig() { stopLive(); hideSettings(); }
-$("camConfigBtn").onclick = () => ($("camConfigModal").hidden ? openCamConfig() : closeCamConfig()); // the gear toggles
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !e.defaultPrevented && !$("camConfigModal").hidden) closeCamConfig(); });
+$("camCtlBtn").onclick = () => ($("camConfigModal").hidden ? openCamConfig() : closeCamConfig()); // the button toggles
+// Settings (the gear): the flash's cooldown and limits (Control closes for it, and the other way round).
+function openFlashCfg() {
+  stopLive();
+  $("flashErr").textContent = "";
+  showSettings("flashCard");
+}
+$("camConfigBtn").onclick = () => ($("flashCard").hidden ? openFlashCfg() : hideSettings());
+$("flashClose").onclick = () => hideSettings();
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || e.defaultPrevented) return;
+  if (!$("camConfigModal").hidden) closeCamConfig();
+  else if (!$("flashCard").hidden) hideSettings();
+});
 
 // ---------------------------------------------------------------- settings card
-// The Settings card: the camera's settings, in place of Photos and Rig View
-// (the gear in the Camera card's title, which lights up) till ✕, Esc, or
-// that gear again.
-function showSettings() {
+// The Camera card's Control (settingsCard: the camera's settings) or
+// Settings (flashCard: the flash's cooldown), in place of Photos and Rig
+// View (the Camera card lit up) till ✕, Esc, or its button again.
+function showSettings(card = "settingsCard") {
   showCtl(false);
-  $("camConfigModal").hidden = false;
-  $("settingsWhat").textContent = "Camera";
+  $("camConfigModal").hidden = card !== "settingsCard";
   $("captureCard").classList.add("selected");
   $("cameraCard").hidden = $("viewCard").hidden = true;
-  $("settingsCard").hidden = false;
+  $("settingsCard").hidden = card !== "settingsCard";
+  $("flashCard").hidden = card !== "flashCard";
 }
 // showCtl opens Servo Settings (gosts-ctl's console) as the right side's
 // only card (the Rig card lit up), or closes it. Closed, its page goes (so
@@ -3255,7 +3278,7 @@ function showSettings() {
 function showCtl(on) {
   on = on && !state.cap?.running && !!state.server?.connected;
   if (on === !!state.ctlOpen) return;
-  if (on && !$("settingsCard").hidden) closeCamConfig();
+  if (on && (!$("settingsCard").hidden || !$("flashCard").hidden)) closeCamConfig();
   state.ctlOpen = on;
   $("ctlCard").hidden = !on;
   $("cameraCard").hidden = $("viewCard").hidden = on;
@@ -3277,7 +3300,7 @@ document.addEventListener("click", (e) => { if (e.target.closest(".ctl-link")) {
 function hideSettings() {
   $("camConfigModal").hidden = true;
   $("captureCard").classList.remove("selected");
-  $("settingsCard").hidden = true;
+  $("settingsCard").hidden = $("flashCard").hidden = true;
   $("cameraCard").hidden = $("viewCard").hidden = false;
 }
 $("settingsClose").onclick = () => closeCamConfig();
@@ -4288,11 +4311,11 @@ $("pPhotos").addEventListener("change", heatNote);
 heatTable();
 async function saveCool() {
   coolRow();
-  $("camConfigErr").textContent = "";
+  $("flashErr").textContent = "";
   const cd = { On: $("coolOn").checked, Minutes: Number($("coolMin").value), Shots: Math.round(Number($("coolShots").value)),
     Dark: $("coolDark").checked, DarkMinutes: Number($("coolDarkMin").value) };
   try { await send("cooldown", { cooldown: cd }); }
-  catch (e) { $("camConfigErr").textContent = e.message; coolFields(state.server?.config.Cooldown); }
+  catch (e) { $("flashErr").textContent = e.message; coolFields(state.server?.config.Cooldown); }
 }
 for (const id of ["coolNone", "coolDark", "coolOn"]) $(id).onchange = saveCool;
 for (const id of ["coolMin", "coolShots", "coolDarkMin"]) {
@@ -4797,8 +4820,8 @@ let skLast = 0;
 })(0);
 // Cards fold by their title (not by the buttons and switches in it). All
 // start open; each window remembers which were folded. Both Camera cards,
-// Rig, Rig View and Settings don't fold: they're what the page is for (only Log does).
-const UNFOLDING = ["captureCard", "rigCard", "cameraCard", "viewCard", "settingsCard", "ctlCard"];
+// Rig, Rig View, Control and Settings don't fold: they're what the page is for (only Log does).
+const UNFOLDING = ["captureCard", "rigCard", "cameraCard", "viewCard", "settingsCard", "flashCard", "ctlCard"];
 (function cards() {
   let folded = {};
   try { folded = JSON.parse(localStorage.getItem("foldedCards") || "{}") || {}; } catch {}

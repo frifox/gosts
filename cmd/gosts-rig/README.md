@@ -62,13 +62,16 @@ capture. **New Capture** starts a fresh folder; **Browse** opens past captures t
 
 ## Camera settings
 
-The **gear** in the Camera card opens the camera's settings next to a live preview or a sample shot: zoom, focus,
-shutter, aperture, ISO and white balance.
+The **sliders** button in the Camera card opens **Control**: the camera's settings next to a live preview or a sample
+shot (zoom, focus, shutter, aperture, ISO and white balance).
 
 - **Gray Card**: drag a box over a gray card to get a matching white balance.
 - **Focus**: drag a box over what matters and **Auto** focuses there, or place two contrast cards at the object's
   nearest and farthest points and let it focus between them.
-- **Flash cooling**: pause for a few minutes every so many shots, with presets for the Godox AR400.
+- **F-stop sweep**: the button by the f-stop takes a sample at every f-stop your lens has, to compare side by side.
+
+The **gear** next to it opens **Settings**, for flash cooling: pause after a photo comes out without flash, or every so
+many shots, with presets for the Godox AR400 (and **Measure** to find your flash's own limit).
 
 ## Building a model
 
