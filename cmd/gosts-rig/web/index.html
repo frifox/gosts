@@ -440,6 +440,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-trim .x { color: #e5484d; } .mve-trim .y { color: #46a758; } .mve-trim .z { color: #3e7bfa; }
 .mve-trim .mve-val { font: 11px var(--mono); color: var(--text); min-width: 46px; text-align: right; }
 .mve-trim .mve-val[data-val$="1"] { text-align: left; }
+/* Rotate's degrees and Trim's ends: click to type a value. */
+.mve-trim .mve-val, .mve-rot .mve-deg { cursor: text; border-radius: 4px; }
+.mve-trim .mve-val:hover, .mve-rot .mve-deg:hover { background: var(--panel-2); }
+.mve-val-input { width: 52px; padding: 1px 3px; font: 11px var(--mono); text-align: right; }
 /* An axis' box sides, min and max, on one slider: two range inputs over a
    track, only their handles taking the pointer; what's kept, filled. */
 .mve-dual { position: relative; height: 18px; min-width: 0; --a: 0%; --b: 100%; }
@@ -1072,7 +1076,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       </section>
       <section data-trim>
         <div class="mve-head"><b>Trim</b></div>
-        <div class="mve-trim"><b class="x">X</b><span class="mve-val" data-val="x0"></span><span class="mve-dual" data-ax="x"><span class="mve-fill"></span><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="0" aria-label="X min"><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="1" aria-label="X max"></span><span class="mve-val" data-val="x1"></span><b class="y">Y</b><span class="mve-val" data-val="y0"></span><span class="mve-dual" data-ax="y"><span class="mve-fill"></span><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="0" aria-label="Y min"><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="1" aria-label="Y max"></span><span class="mve-val" data-val="y1"></span><b class="z">Z</b><span class="mve-val" data-val="z0"></span><span class="mve-dual" data-ax="z"><span class="mve-fill"></span><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="0" aria-label="Z min"><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="1" aria-label="Z max"></span><span class="mve-val" data-val="z1"></span></div>
+        <div class="mve-trim"><b class="x">X</b><span class="mve-val" data-val="x0"></span><span class="mve-dual" data-ax="x"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" data-ax="x" data-end="0" aria-label="X min"><input type="range" min="0" max="10000" step="1" data-ax="x" data-end="1" aria-label="X max"></span><span class="mve-val" data-val="x1"></span><b class="y">Y</b><span class="mve-val" data-val="y0"></span><span class="mve-dual" data-ax="y"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" data-ax="y" data-end="0" aria-label="Y min"><input type="range" min="0" max="10000" step="1" data-ax="y" data-end="1" aria-label="Y max"></span><span class="mve-val" data-val="y1"></span><b class="z">Z</b><span class="mve-val" data-val="z0"></span><span class="mve-dual" data-ax="z"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" data-ax="z" data-end="0" aria-label="Z min"><input type="range" min="0" max="10000" step="1" data-ax="z" data-end="1" aria-label="Z max"></span><span class="mve-val" data-val="z1"></span></div>
         <div class="mve-row"><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="trim" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveTrim" disabled title="Cut away what's outside the box">Apply</button></span></div>
       </section>
       <section data-step="center">
@@ -1890,22 +1894,24 @@ async function mveDo(f) {
   mvePicking(null);
 }
 // Trim: a box (Blender's axes, meters: x, y, z each [min, max]) from the
-// model's extents in, by the sliders (each 0–1000 across the extents, a
-// little over); shown as it'd cut (the viewer's clipping) once moved in.
+// model's extents in, by the sliders (each 0–TRIM_N across the extents, a
+// little over; fine enough for a value typed in: see mveEditValue); shown as
+// it'd cut (the viewer's clipping) once moved in.
+const TRIM_N = 10000;
 function mveTrimReset() {
   if (!window.modelView.stats()) { mve.ext = null; return; } // (no model in yet)
   const b = window.modelView.box(), pad = 0.01 * Math.max(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z);
   // Blender's x, y, z: x, −z, y here.
   mve.ext = { x: [b.min.x - pad, b.max.x + pad], y: [-b.max.z - pad, -b.min.z + pad], z: [b.min.y - pad, b.max.y + pad] };
   mve.Box3 = b.constructor;
-  for (const r of $("mvEdit").querySelectorAll(".mve-trim input")) r.value = r.dataset.end === "0" ? 0 : 1000;
+  for (const r of $("mvEdit").querySelectorAll(".mve-trim input")) r.value = r.dataset.end === "0" ? 0 : TRIM_N;
   mveTrimShow();
 }
 function mveTrimBox() {
   const t = {};
   for (const r of $("mvEdit").querySelectorAll(".mve-trim input")) {
     const [lo, hi] = mve.ext[r.dataset.ax];
-    (t[r.dataset.ax] ||= [])[r.dataset.end] = lo + (hi - lo) * r.value / 1000;
+    (t[r.dataset.ax] ||= [])[r.dataset.end] = lo + (hi - lo) * r.value / TRIM_N;
   }
   return t;
 }
@@ -1915,11 +1921,11 @@ function mveTrimShow() {
   const t = mveTrimBox();
   for (const ax of "xyz") for (const i of [0, 1]) $("mvEdit").querySelector(`[data-val="${ax}${i}"]`).textContent = mveNum(t[ax][i]);
   for (const d of $("mvEdit").querySelectorAll(".mve-trim .mve-dual")) {
-    const [lo, hi] = [...d.querySelectorAll("input")].map((r) => Number(r.value) / 1000);
+    const [lo, hi] = [...d.querySelectorAll("input")].map((r) => Number(r.value) / TRIM_N);
     d.style.setProperty("--a", lo); d.style.setProperty("--b", hi);
     d.querySelector('[data-end="0"]').style.zIndex = lo > 0.5 ? 2 : 1; // (both at one end: the one that can move, on top)
   }
-  const moved = [...$("mvEdit").querySelectorAll(".mve-trim input")].some((r) => Number(r.value) !== (r.dataset.end === "0" ? 0 : 1000));
+  const moved = [...$("mvEdit").querySelectorAll(".mve-trim input")].some((r) => Number(r.value) !== (r.dataset.end === "0" ? 0 : TRIM_N));
   const empty = t.x[0] >= t.x[1] || t.y[0] >= t.y[1] || t.z[0] >= t.z[1];
   $("mveTrim").disabled = !moved || empty;
   window.modelView.clip(moved && !empty ? mveThreeBox(t) : null);
@@ -1937,6 +1943,56 @@ $("mvEdit").querySelector(".mve-trim").addEventListener("input", (e) => {
   if (r.dataset.end === "0" && Number(r.value) > Number(other.value)) r.value = other.value;
   if (r.dataset.end === "1" && Number(r.value) < Number(other.value)) r.value = other.value;
   mveTrimShow();
+});
+// A Rotate degree or a Trim end clicked: typed in (Enter or away: set;
+// Esc: as it was). Rotate's: the turn (−180…180, wrapped); Trim's: that end
+// of the box in the file units shown, within the model's extents and the
+// other end.
+function mveEditValue(span, value, commit) {
+  if (span.querySelector("input")) return;
+  const was = span.textContent, inp = document.createElement("input");
+  inp.type = "number";
+  inp.step = "any";
+  inp.className = "mve-val-input";
+  inp.value = value;
+  span.textContent = "";
+  span.appendChild(inp);
+  inp.focus();
+  inp.select();
+  let done = false;
+  const end = (ok) => {
+    if (done) return;
+    done = true;
+    const v = Number(inp.value);
+    inp.remove();
+    span.textContent = was;
+    if (ok && inp.value.trim() !== "" && Number.isFinite(v)) commit(v);
+  };
+  inp.onkeydown = (e) => {
+    e.stopPropagation(); // (typing: not the viewer's keys)
+    if (e.key === "Enter") end(true);
+    else if (e.key === "Escape") end(false);
+  };
+  inp.onblur = () => end(true);
+}
+$("mvEdit").querySelector(".mve-rot").addEventListener("click", (e) => {
+  const span = e.target.closest("[data-deg-of]");
+  if (!span || e.target.tagName === "INPUT") return;
+  const ax = span.dataset.degOf;
+  mveEditValue(span, mve.rot[ax], (v) => rotSet(ax, v, true));
+});
+$("mvEdit").querySelector(".mve-trim").addEventListener("click", (e) => {
+  const span = e.target.closest("[data-val]");
+  if (!span || e.target.tagName === "INPUT" || !mve.ext) return;
+  const ax = span.dataset.val[0], end = span.dataset.val[1], k = window.modelEdit.UNITS[segOf("mveFileUnit")];
+  mveEditValue(span, Number(mveNum(mveTrimBox()[ax][end])), (v) => {
+    const [lo, hi] = mve.ext[ax], r = $("mvEdit").querySelector(`.mve-trim input[data-ax="${ax}"][data-end="${end}"]`);
+    const other = Number($("mvEdit").querySelector(`.mve-trim input[data-ax="${ax}"][data-end="${end === "0" ? 1 : 0}"]`).value);
+    let n = Math.round((v * k - lo) / (hi - lo) * TRIM_N);
+    n = Math.max(0, Math.min(TRIM_N, n));
+    r.value = end === "0" ? Math.min(n, other) : Math.max(n, other);
+    mveTrimShow();
+  });
 });
 // Cancel (beside a step's Apply, while it's enabled): the step back as it
 // was before it was started: its points, axis, sliders or box, and the
@@ -2144,7 +2200,7 @@ async function mveRotCancel() {
   if (from) { await window.modelView.setMatrix(from, true); mveTrimReset(); mveShow(); }
 }
 $("mvEdit").querySelector(".mve-rot").addEventListener("click", (e) => {
-  const b = e.target.closest("[data-rot]");
+  const b = e.target.closest("button[data-rot]"); // (the ±90° buttons: not the section, which has data-rot too)
   if (b) rotSet(b.dataset.rot, mve.rot[b.dataset.rot] + Number(b.dataset.deg), true);
 });
 $("mvEdit").querySelector(".mve-rot").addEventListener("input", (e) => {
