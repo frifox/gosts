@@ -561,6 +561,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .crumbs { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 14px; font-weight: 650; }
 .crumb { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
 .crumbs .crumb-btn { max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The path's end: where it is, not a button to it (no handler; clicked, nothing: not passed to what's under it either). */
+.crumbs .crumb-cur { cursor: default; }
+.crumbs .crumb-cur:hover:not(:disabled) { border-color: var(--border); }
 .crumbs .crumb-home { width: 30px; height: calc(12px * 1.4 + 8px); padding: 0; display: inline-flex; align-items: center; justify-content: center; } /* (a small button's height: its line, padding, border; alone too) */
 .crumbs .crumb-home svg { width: 16px; height: 16px; }
 .crumbs { gap: 10px; }
@@ -1008,7 +1011,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 </div>
 
 <div class="gallery" id="gallery" hidden>
-  <div class="gallery-bar"><nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="galleryUp" data-tip="~/Pictures/gosts-rig" aria-label="All captures (Backspace)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg></button><button class="btn small crumb-btn" id="galleryTitle" hidden></button></span></nav><button class="icon-btn pen-btn" id="galleryRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button><span class="spacer"></span>
+  <div class="gallery-bar"><nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="galleryUp" data-tip="~/Pictures/gosts-rig" aria-label="All captures (Backspace)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg></button><button class="btn small crumb-btn crumb-cur" id="galleryTitle" tabindex="-1" hidden></button></span></nav><button class="icon-btn pen-btn" id="galleryRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button><span class="spacer"></span>
     <button class="btn small primary" id="resumeCapBtn" hidden>Resume</button>
     <button class="btn small" id="buildModelBtn" title="Build a 3D model from these photos, with Apple's Object Capture" hidden>Build Model</button><span class="spacer"></span>
     <span class="views seg" id="galleryViewSeg"><button data-v="grid">Thumbnails</button><button data-v="list">List</button></span>
@@ -1070,7 +1073,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 </div>
 <div class="viewer" id="viewer" hidden>
   <div class="viewer-bar">
-    <nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="viewerHome" data-tip="~/Pictures/gosts-rig" aria-label="All captures"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg></button><button class="btn small crumb-btn" id="viewerBack" title="Back to the photos (Esc)">Capture</button><button class="btn small crumb-btn" id="viewerFile" title="The whole photo again"></button></span><span class="crumb-meta" id="viewerCap"></span></nav><span class="hint" id="viewerHint"></span>
+    <nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="viewerHome" data-tip="~/Pictures/gosts-rig" aria-label="All captures"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg></button><button class="btn small crumb-btn" id="viewerBack" title="Back to the photos (Esc)">Capture</button><button class="btn small crumb-btn crumb-cur" id="viewerFile" tabindex="-1"></button></span><span class="crumb-meta" id="viewerCap"></span></nav><span class="hint" id="viewerHint"></span>
     <span class="spacer"></span>
     <button class="btn small" id="viewerNewer" title="Newer photo (←)">‹ Newer</button>
     <button class="btn small" id="viewerOlder" title="Older photo (→)">Older ›</button>
@@ -1088,7 +1091,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 </div>
 <div class="viewer" id="modelViewer" hidden>
   <div class="viewer-bar">
-    <nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="mvHome" data-tip="~/Pictures/gosts-rig" aria-label="All captures"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg></button><button class="btn small crumb-btn" id="mvBack" title="Back to the capture (Esc)">Capture</button><button class="btn small crumb-btn" id="mvFile" title="Load the model again"></button></span><button class="icon-btn pen-btn" id="mvRename" title="Rename this model (its folder)" aria-label="Rename this model"></button><span class="crumb-meta" id="mvCap"></span></nav>
+    <nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="mvHome" data-tip="~/Pictures/gosts-rig" aria-label="All captures"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg></button><button class="btn small crumb-btn" id="mvBack" title="Back to the capture (Esc)">Capture</button><button class="btn small crumb-btn crumb-cur" id="mvFile" tabindex="-1"></button></span><button class="icon-btn pen-btn" id="mvRename" title="Rename this model (its folder)" aria-label="Rename this model"></button><span class="crumb-meta" id="mvCap"></span></nav>
     <span class="spacer"></span>
     <span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, gray">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span>
     <span class="btn-join" id="mvTools"><button class="btn small" id="mvMeasureBtn" title="Click two points on the model: the distance between them (Measure again: cleared)">Measure</button><button class="btn small" id="mvEditBtn" title="Level it, turn it onto an axis, scale it to a known size; save it as a new model (OBJ, and STL)">Edit</button></span>
@@ -1783,20 +1786,9 @@ function mvMeasureShow() {
 $("mvMeasureBtn").onclick = () => mvMeasure(!mvm.on);
 $("mvMeasureClose").onclick = () => mvMeasure(false);
 // The header's path, as Browse's: the home (all captures), the capture (back
-// to its photos), the model (loaded again).
+// to its photos), the model (where it is: not a button).
 $("mvBack").onclick = closeModel;
 $("mvHome").onclick = () => { closeModel(); openGallery(null); };
-$("mvFile").onclick = async () => {
-  const v = state.mv;
-  if (!v) return;
-  if ((mve.undo.length || mve.alignFrom || mve.originFrom || mve.rotFrom) && !await confirmDanger("Load the model again?",
-    "The edits not saved go (the model as it's saved is loaded).", "Load Again")) return;
-  let m = v.m;
-  try { m = (await getJSON(`/batches/${encodeURIComponent(v.name)}/models`)).find((x) => x.name === v.m.name) || m; } catch {} // (as it is on disk now)
-  const editing = !$("mvEdit").hidden;
-  openModel(v.name, m);
-  if (editing) mveOpen(true);
-};
 $("mvClose").onclick = closeModel; // (the gallery stays: its ✕ closes it)
 async function mvOpen(reveal) {
   const v = state.mv;
@@ -2580,7 +2572,6 @@ function closeGallery() { $("gallery").hidden = true; state.gal.seq++; }
 $("viewAllBtn").onclick = () => openGallery("current");
 $("openCaptureBtn").onclick = () => openGallery(null);
 $("galleryUp").onclick = () => { if (state.gal.where !== null) galleryGo(null); };
-$("galleryTitle").onclick = () => { $("galleryGrid").scrollTop = 0; }; // (where it is: its top)
 $("galleryClose").onclick = closeGallery;
 // ---------------------------------------------------------------- build model
 // Build Model (a folder open in Browse): Object Capture's options (all of
@@ -3008,10 +2999,9 @@ function sweepSelect(e) {
 }
 // The header's path, as Browse's: the home (all captures), the capture (its
 // photos: the folder open in the gallery, else the capture now's), the
-// photo (all of it again, fitted).
+// photo (where it is: not a button).
 $("viewerBack").onclick = () => { const gallery = !$("gallery").hidden; closePhoto(); if (!gallery) openGallery("current"); };
 $("viewerHome").onclick = () => { closePhoto(); openGallery(null); };
-$("viewerFile").onclick = () => { const src = $("viewerImg").getAttribute("src"); if (src) viewerSrc(src); };
 $("viewerNewer").onclick = () => stepPhoto(1);
 $("viewerOlder").onclick = () => stepPhoto(-1);
 // A click on the dark around the photo (not a drag, not the navigator, not a
