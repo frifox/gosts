@@ -1735,7 +1735,7 @@ function openModel(name, m) {
   }
   msg("Loading the mesh", "busy");
   window.modelView.look(state.mvLook);
-  mvShown.axes = mvShown.ground = true;
+  mvShown.axes = false; mvShown.ground = true; // (as each model opens: the ground, no axes)
   mvShowApply();
   const scale = window.modelEdit.UNITS[m.edit?.units] || 1; // (an edited model: in its units; the viewer's in meters)
   window.modelView.show(modelBase(name, m), m.file, (t) => { if (state.mv?.m === m) msg(t, "busy"); }, scale).then((st) => {
@@ -2310,8 +2310,8 @@ $("mveClose").onclick = async () => {
 // The view presets (top left), in Blender's and Fusion's axes (see VIEWS in modelview.js).
 function mvView(v) { segPick("mvViews", v); window.modelView.view(v, true); } // (gliding there)
 $("mvViews").onclick = (e) => { if (e.target.dataset?.v) mvView(e.target.dataset.v); };
-// Axis, Ground: each shown or not (both shown again as each model opens).
-const mvShown = { axes: true, ground: true };
+// Axis, Ground: each shown or not (as each model opens: the ground only).
+const mvShown = { axes: false, ground: true };
 try { localStorage.removeItem("modelShown"); } catch {} // (as was kept before: no longer)
 function mvShowApply() {
   for (const b of $("mvShow").children) b.classList.toggle("active", !!mvShown[b.dataset.v]);

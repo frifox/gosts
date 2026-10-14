@@ -378,7 +378,7 @@ export function createModelView(canvas) {
   // axes from the origin, as Blender and Fusion show them (z up): X red
   // (+x), Y green (−z here: a y-up OBJ's), Z blue (+y); each shown as set
   // (show()). A few times the model's size, lines 1, 2 or 5 × 10ⁿ m apart.
-  let showAxes = true, showGround = true;
+  let showAxes = false, showGround = true; // (as a model opens: see the page's mvShown)
   function ground() {
     drop(grid); drop(axes); grid = axes = null;
     if (!holder) return;
