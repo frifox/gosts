@@ -123,7 +123,10 @@ func (a *app) setSettingsDir(dir string) error {
 }
 
 // chooseFolder asks for a folder with macOS' own chooser (gosts-rig runs on
-// the Mac the page is on), starting at from; "" if canceled.
+// the Mac the page is on), starting at from; "" if canceled. System Events
+// shows it (in front at once: osascript bringing itself to the front takes
+// some 2 s); if that's not allowed (Privacy & Security → Automation),
+// osascript itself does.
 func chooseFolder(prompt, from string) (string, error) {
 	if runtime.GOOS != "darwin" {
 		return "", errors.New("choosing a folder needs macOS")
@@ -135,11 +138,21 @@ func chooseFolder(prompt, from string) (string, error) {
 		}
 		from = filepath.Dir(from) // (not there: the nearest folder that is)
 	}
+	choose := "POSIX path of (choose folder with prompt (item 1 of argv) default location (POSIX file (item 2 of argv)))"
 	out, err := exec.Command("osascript",
 		"-e", "on run argv",
+		"-e", `tell application "System Events"`,
 		"-e", "activate", // (the chooser in front)
-		"-e", "POSIX path of (choose folder with prompt (item 1 of argv) default location (POSIX file (item 2 of argv)))",
+		"-e", "return "+choose,
+		"-e", "end tell",
 		"-e", "end run", prompt, from).CombinedOutput()
+	if err != nil && strings.Contains(string(out), "-1743") { // (not allowed to ask System Events)
+		out, err = exec.Command("osascript",
+			"-e", "on run argv",
+			"-e", "activate",
+			"-e", choose,
+			"-e", "end run", prompt, from).CombinedOutput()
+	}
 	if err != nil {
 		if strings.Contains(string(out), "-128") { // User canceled.
 			return "", nil

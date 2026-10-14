@@ -107,5 +107,5 @@ simplified to fewer triangles if you like.
 
 The **gear** at the right of the header picks the captures' folder and where the settings are kept (with macOS'
 folder chooser). Settings are kept in `~/Library/Application Support/gosts-rig/config.toml` on macOS by default (`~/.config/gosts-rig/` on
-Linux); `--config` picks another file. **Public** there serves the page to your network too (open it from a phone or
+Linux); `--config` picks another file. **Bind to 0.0.0.0** there serves the page to your network too (open it from a phone or
 another computer; there's no password, so anyone on the network can use the rig), and **Exit Backend** quits gosts-rig.

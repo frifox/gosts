@@ -30,6 +30,8 @@
 	<false/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Runs a turntable photogrammetry rig: github.com/frifox/gosts</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Settings' Choose… shows macOS' folder chooser through System Events, so it opens at once.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
