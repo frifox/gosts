@@ -68,7 +68,8 @@ shot (zoom, focus, shutter, aperture, ISO and white balance).
 - **Gray Card**: drag a box over a gray card to get a matching white balance.
 - **Focus**: drag a box over what matters and **Auto** focuses there, or place two contrast cards at the object's
   nearest and farthest points and let it focus between them.
-- **F-stop sweep**: the button by the f-stop takes a sample at every f-stop your lens has, to compare side by side.
+- **F-stop sweep**: the button by the f-stop takes a sample at every f-stop your lens has, to compare side by side;
+  **Use** sets the one you like.
 
 The **gear** next to it opens **Settings**, for flash cooling: pause after a photo comes out without flash, or every so
 many shots, with presets for the Godox AR400 (and **Measure** to find your flash's own limit).

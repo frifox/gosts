@@ -388,8 +388,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 /* An F-stop sweep (see fstopSweep): a strip of its shots under the photo; a drag selects a part to zoom to. */
 .viewer.sweep .stage, .viewer.sweep .stage #viewerImg { cursor: crosshair; }
 .sweep-strip { display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 14px; flex: none; }
-.sweep-strip button { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px; border: 2px solid transparent; border-radius: 8px;
+.sweep-strip button:not(.sweep-use) { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px; border: 2px solid transparent; border-radius: 8px;
   background: rgba(255,255,255,.06); color: #e6e9ef; font: 12px var(--mono); cursor: pointer; }
+/* At its end: the F-stop shown, set on the camera (back to Camera Control). */
+.sweep-strip .sweep-use { flex: none; align-self: center; margin-left: auto; white-space: nowrap; }
 .sweep-strip button.on { border-color: var(--accent); background: rgba(91,140,255,.18); }
 /* The sweep going: a spinner in the viewer's header, on the thumbnail being taken, and on its button. */
 .viewer-bar .crumb-meta.busy::before, .sweep-strip .pending::after { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px;
@@ -2926,7 +2928,13 @@ function sweepShow() {
   $("viewerNewer").textContent = "‹ Previous"; $("viewerOlder").textContent = "Next ›";
   $("viewerNewer").disabled = sw.i <= 0; $("viewerOlder").disabled = sw.i >= sw.shots.length - 1;
   $("viewerHint").textContent = "";
-  for (const [k, b] of [...$("sweepStrip").children].entries()) b.classList.toggle("on", k === sw.i);
+  for (const [k, b] of [...$("sweepStrip").querySelectorAll("button:not(.sweep-use)")].entries()) b.classList.toggle("on", k === sw.i);
+  const use = $("sweepUse");
+  if (use) {
+    use.textContent = s ? `Use ${s.f}` : "Use";
+    use.disabled = !s || sw.running;
+    use.title = sw.running ? "When it's taken them all" : s ? `Set the camera to ${s.f} and go back to Camera Control` : "";
+  }
 }
 // sweepStrip: the strip of shots (and, while one's being taken, its place).
 function sweepStrip(taking) {
@@ -2945,7 +2953,21 @@ function sweepStrip(taking) {
     b.innerHTML = `<span class="pending"></span><span>${escHTML(taking)}…</span>`;
     $("sweepStrip").appendChild(b);
   }
+  const use = document.createElement("button");
+  use.className = "btn primary sweep-use";
+  use.id = "sweepUse";
+  use.onclick = sweepUse;
+  $("sweepStrip").appendChild(use);
   sweepShow();
+}
+// sweepUse: the F-stop shown, set on the camera (the sweep done: it put the
+// one before back); the viewer closes, back to Camera Control.
+async function sweepUse() {
+  const sw = state.sweep, s = sw?.shots[sw.i];
+  if (!s || sw.running) return;
+  closePhoto();
+  try { renderSettings(await send("cameraSet", { key: "aperture", value: s.f })); }
+  catch (e) { $("camConfigErr").textContent = e.message; }
 }
 function sweepGo(k) {
   const sw = state.sweep;
@@ -2999,6 +3021,7 @@ $("viewerOlder").onclick = () => stepPhoto(-1);
 // button) goes back: to All Photos where it was left, if the photo was
 // opened from there, else to the page (the pointer says so: zoom out).
 $("viewer").onclick = (e) => {
+  if (state.sweep) return; // (an F-stop sweep: ✕, Esc, or Use)
   if (e.target.closest("button, .vnav, #viewerImg") || vz.dragged || vz.onPhoto) return; // (onPhoto: pressed on it; the click comes from the stage, which held the pointer)
   closePhoto();
 };
