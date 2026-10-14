@@ -20,7 +20,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"io"
 	"io/fs"
@@ -202,20 +201,18 @@ func main() {
 	mux.HandleFunc("POST /batches/{name}/delete", a.handleBatchDelete)
 	mux.HandleFunc("POST /batches/{name}/{file}/delete", a.handleBatchPhotoDelete)
 	mux.Handle("/ctl/", http.StripPrefix("/ctl", ctl.Routes()))
-	hs := &http.Server{Addr: *addr, Handler: mux}
-	go func() {
-		<-ctx.Done()
-		a.cap.stop()
-		hs.Close()
-	}()
+	hs := &http.Server{Handler: mux}
+	if err := a.listen(hs, *addr); err != nil { // (where it can change: Settings' Public)
+		log.Fatal(err)
+	}
 	open := *addr
 	if strings.HasPrefix(open, ":") {
 		open = "localhost" + open
 	}
 	log.Printf("listening on %s; open http://%s", *addr, open)
-	if err := hs.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal(err)
-	}
+	<-ctx.Done()
+	a.cap.stop()
+	hs.Close()
 }
 
 // ctlConfigPath is gosts-ctl's settings file (gosts-ctl/config.toml in the

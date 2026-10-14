@@ -742,6 +742,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .app-settings .as-note { color: var(--warn); font-size: 12px; margin-top: 6px; }
 .app-settings .as-note:empty { display: none; }
 .app-settings .as-row .btn.danger { margin-left: auto; }
+.app-settings #asPublic.on { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
+.app-settings #asPublicNote a { color: inherit; }
 /* gosts-rig quit (Exit Backend): the page over everything, till it's back. */
 .backend-gone { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; background: rgba(10,12,16,.82); }
 .backend-gone[hidden] { display: none; }
@@ -1198,8 +1200,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       </div>
       <div class="as-item">
         <div class="as-label">Backend</div>
-        <div class="as-hint">gosts-rig itself, the program behind this page: quit it (the rig and the camera let go).</div>
-        <div class="as-row"><span class="as-path mono" id="asBackend"></span><button class="btn small danger" id="asExit">Exit Backend</button></div>
+        <div class="as-hint">gosts-rig itself, the program behind this page. Public serves this page to your network too (a phone, another computer), not this Mac alone; Exit quits it (the rig and the camera let go).</div>
+        <div class="as-row"><button class="btn small" id="asPublic" title="Serve this page to your network too (every address, the same port), or this Mac alone again">Public</button><span class="as-path mono" id="asBackend"></span><button class="btn small danger" id="asExit">Exit Backend</button></div>
+        <div class="as-note" id="asPublicNote"></div>
       </div>
       <div class="err" id="asErr"></div>
     </div>
@@ -2489,7 +2492,11 @@ async function galleryGo(where) {
 const appSet = { s: null };
 function appSettingsShow(s) {
   appSet.s = s;
-  $("asBackend").textContent = location.host;
+  $("asBackend").textContent = s.listen || location.host;
+  $("asPublic").classList.toggle("on", !!s.public);
+  $("asPublicNote").innerHTML = !s.public ? "" : (s.publicUrls?.length
+    ? `On your network: ${s.publicUrls.map((u) => `<a href="${escHTML(u)}" target="_blank" rel="noopener">${escHTML(u)}</a>`).join(", ")}. `
+    : "On your network (no address found for this Mac). ") + "Anyone there can open it and use the rig: there's no password.";
   $("asPhotos").textContent = s.photos;
   $("asPhotos").title = s.photos;
   $("asSettings").textContent = s.settings;
@@ -2518,7 +2525,7 @@ $("appSettingsModal").onclick = async (e) => {
   if (!b || !appSet.s) return;
   const k = b.dataset.choose || b.dataset.default, set = k === "photos" ? "setPhotos" : "setSettingsDir";
   $("asErr").textContent = "";
-  for (const x of document.querySelectorAll("#appSettingsModal .as-row .btn:not(#asExit)")) x.disabled = true;
+  for (const x of document.querySelectorAll("#appSettingsModal .as-row .btn:not(#asExit):not(#asPublic)")) x.disabled = true;
   try {
     let dir = appSet.s[k + "Default"];
     if (b.dataset.choose) {
@@ -2532,6 +2539,15 @@ $("appSettingsModal").onclick = async (e) => {
   } finally {
     appSettingsShow(appSet.s);
   }
+};
+// Public: served to the network too, or this Mac alone again (the page
+// stays connected either way).
+$("asPublic").onclick = async () => {
+  $("asErr").textContent = "";
+  $("asPublic").disabled = true;
+  try { appSettingsShow(await send("public", { on: !appSet.s?.public })); }
+  catch (e) { $("asErr").textContent = e.message; }
+  $("asPublic").disabled = false;
 };
 // Exit Backend: gosts-rig quits (asked first only while something's going:
 // a capture, a model build, the flash measured, an F-stop sweep); the page

@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,7 @@ type app struct {
 	mu      sync.Mutex
 	clients map[*client]struct{}
 	quit    func() // gosts-rig quits (cleanly: see main), as for Ctrl-C
+	net     listening // where the pages are served (see listen)
 }
 
 type client struct {
@@ -186,6 +188,11 @@ func (a *app) exec(req request) (any, error) {
 		}
 		a.rig.sendState() // windows follow the plan's mode
 		return nil, a.cap.preview(*req.Plan)
+	case "public": // Settings' Public: served to the network (On), or this Mac alone
+		if err := a.setPublic(req.On); err != nil {
+			return nil, err
+		}
+		return a.appSettings(), nil
 	case "appSettings": // the header's gear: the folders
 		return a.appSettings(), nil
 	case "chooseFolder": // macOS' folder chooser: prompt Key, starting at Value ("" back: canceled)
@@ -338,7 +345,17 @@ func (a *app) exec(req request) (any, error) {
 	return nil, errors.New("unknown command " + req.Type)
 }
 
-var upgrader = websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }} // meant for localhost
+// upgrader takes the pages' own websockets (and a program's, with no
+// Origin), not another site's: a page elsewhere, open in a browser here or
+// (Public) on the network, can't drive the rig.
+var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
+	o := r.Header.Get("Origin")
+	if o == "" {
+		return true
+	}
+	u, err := url.Parse(o)
+	return err == nil && strings.EqualFold(u.Host, r.Host)
+}}
 
 func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)

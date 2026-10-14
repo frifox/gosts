@@ -26,10 +26,17 @@ type appSettingsMsg struct {
 	Settings        string `json:"settings"`
 	SettingsDefault string `json:"settingsDefault"`
 	SettingsFlag    bool   `json:"settingsFlag"`
+	// Where the pages are served: Public (to the network: the addresses to
+	// open it at), or this Mac alone.
+	Listen    string   `json:"listen"`
+	Public    bool     `json:"public"`
+	PublicURL []string `json:"publicUrls,omitempty"`
 }
 
 func (a *app) appSettings() appSettingsMsg {
+	listen, public, urls := a.served()
 	return appSettingsMsg{
+		Listen: listen, Public: public, PublicURL: urls,
 		Photos: homeShort(photoDir), PhotosDefault: homeShort(defaultPhotoDir()), PhotosFlag: flagsSet.photos,
 		Settings: homeShort(filepath.Dir(a.cfg.filePath())), SettingsDefault: homeShort(defaultSettingsDir()), SettingsFlag: flagsSet.config,
 	}
