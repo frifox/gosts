@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -114,4 +115,39 @@ func TestThumbnailSample(t *testing.T) {
 	}
 	img, _ := jpeg.Decode(bytes.NewReader(th))
 	t.Logf("%s: thumbnail %v in %v (preview inside: %v)", filepath.Base(path), img.Bounds().Size(), time.Since(start), jpegPreview(data, batchThumbWidth) != nil)
+}
+
+// TestThumbCacheRename: a folder renamed keeps its photos' and models'
+// pictures in the cache (they're kept by the file, not its path); a photo
+// changed gets a new one.
+func TestThumbCacheRename(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // (the cache folder: ~/Library/Caches)
+	var buf bytes.Buffer
+	jpeg.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 64, 48)), nil)
+	root := t.TempDir()
+	from, to := filepath.Join(root, "capture"), filepath.Join(root, "renamed")
+	os.MkdirAll(filepath.Join(from, "model"), 0o755)
+	os.WriteFile(filepath.Join(from, "a.jpg"), buf.Bytes(), 0o644)
+	os.WriteFile(filepath.Join(from, "model", "m.obj"), []byte("v 0 0 0\n"), 0o644)
+	info, _ := os.Stat(filepath.Join(from, "a.jpg"))
+	if _, err := batchThumb(filepath.Join(from, "a.jpg"), info); err != nil {
+		t.Fatal(err)
+	}
+	m := builtModel{File: "m.obj", Size: 8}
+	before := modelThumbPath(filepath.Join(from, "model"), m)
+	if err := os.Rename(from, to); err != nil {
+		t.Fatal(err)
+	}
+	info, _ = os.Stat(filepath.Join(to, "a.jpg"))
+	if !fileExists(thumbCache(fmt.Sprintf("%s|%d", fileID(filepath.Join(to, "a.jpg"), info), batchThumbWidth), "")) {
+		t.Error("the photo's thumbnail isn't kept for it in the renamed folder")
+	}
+	if after := modelThumbPath(filepath.Join(to, "model"), m); after != before {
+		t.Error("the model's picture is kept elsewhere after its folder's renamed")
+	}
+	os.Chtimes(filepath.Join(to, "a.jpg"), time.Now(), time.Now().Add(time.Hour)) // (changed)
+	changed, _ := os.Stat(filepath.Join(to, "a.jpg"))
+	if fileID(filepath.Join(to, "a.jpg"), changed) == fileID(filepath.Join(to, "a.jpg"), info) {
+		t.Error("a photo changed keeps its old thumbnail")
+	}
 }

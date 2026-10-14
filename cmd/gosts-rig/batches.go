@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -220,13 +221,13 @@ const batchThumbWidth = 600
 // machine.
 var thumbSlots = make(chan struct{}, 3)
 
-// batchThumb is a photo's thumbnail, from the cache (by the file's path,
-// size and time) or made now and kept there.
+// batchThumb is a photo's thumbnail, from the cache (by the file itself,
+// not its path: see fileID, so a folder renamed keeps its thumbnails) or
+// made now and kept there.
 func batchThumb(path string, info os.FileInfo) ([]byte, error) {
-	sum := sha1.Sum([]byte(fmt.Sprintf("%s|%d|%d|%d", path, info.Size(), info.ModTime().UnixNano(), batchThumbWidth)))
-	cache := ""
-	if dir, err := os.UserCacheDir(); err == nil {
-		cache = filepath.Join(dir, "gosts-rig", "thumbs", hex.EncodeToString(sum[:])+".jpg")
+	cache := thumbCache(fmt.Sprintf("%s|%d", fileID(path, info), batchThumbWidth),
+		fmt.Sprintf("%s|%d|%d|%d", path, info.Size(), info.ModTime().UnixNano(), batchThumbWidth))
+	if cache != "" {
 		if data, err := os.ReadFile(cache); err == nil {
 			return data, nil
 		}
@@ -245,6 +246,35 @@ func batchThumb(path string, info os.FileInfo) ([]byte, error) {
 		os.WriteFile(cache, t, 0o644)
 	}
 	return t, nil
+}
+
+// fileID names a file whatever its path (its folder renamed, or it: the
+// same): its device and inode, with its size and time (changed: another);
+// its path, size and time where there's no inode.
+func fileID(path string, info os.FileInfo) string {
+	if st, ok := info.Sys().(*syscall.Stat_t); ok {
+		return fmt.Sprintf("ino|%d|%d|%d|%d", st.Dev, st.Ino, info.Size(), info.ModTime().UnixNano())
+	}
+	return fmt.Sprintf("%s|%d|%d", path, info.Size(), info.ModTime().UnixNano())
+}
+
+// thumbCache is where a picture keyed key is kept (the cache folder's
+// thumbs; "" if there's none). One kept under old (as they were keyed
+// before: by path) is moved there, not made again.
+func thumbCache(key, old string) string {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return ""
+	}
+	at := func(k string) string {
+		sum := sha1.Sum([]byte(k))
+		return filepath.Join(dir, "gosts-rig", "thumbs", hex.EncodeToString(sum[:])+".jpg")
+	}
+	p := at(key)
+	if old != "" && !fileExists(p) {
+		os.Rename(at(old), p) // (none: nothing)
+	}
+	return p
 }
 
 // renameBatch renames a batch folder (and its samples' folder with it). The

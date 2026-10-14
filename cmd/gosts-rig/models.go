@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -163,14 +161,18 @@ func (a *app) handleModelFile(w http.ResponseWriter, r *http.Request) {
 const modelThumbLook = 8
 
 // modelThumbPath is where a model's picture is kept: in the cache folder, by
-// the model's path, size and time (a rebuild: a new one).
+// the model's file itself (see fileID: its folder, or the capture's,
+// renamed, the same; a rebuild, a new one) and its folder's size.
 func modelThumbPath(dir string, m builtModel) string {
-	base, err := os.UserCacheDir()
-	if err != nil {
-		return ""
+	key := ""
+	if info, err := os.Stat(filepath.Join(dir, m.File)); err == nil {
+		key = fmt.Sprintf("model|%d|%s|%s|%d", modelThumbLook, fileID(filepath.Join(dir, m.File), info), m.File, m.Size)
 	}
-	sum := sha1.Sum([]byte(fmt.Sprintf("model|%d|%s|%s|%d|%d", modelThumbLook, dir, m.File, m.Size, m.At)))
-	return filepath.Join(base, "gosts-rig", "thumbs", hex.EncodeToString(sum[:])+".jpg")
+	old := fmt.Sprintf("model|%d|%s|%s|%d|%d", modelThumbLook, dir, m.File, m.Size, m.At) // (as kept before)
+	if key == "" {
+		return thumbCache(old, "")
+	}
+	return thumbCache(key, old)
 }
 
 // handleModelThumb serves a model's picture (GET
