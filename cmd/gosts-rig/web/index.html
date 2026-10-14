@@ -1321,7 +1321,7 @@ function log(msg, level = "info") {
 function renderPorts(ports) {
   state.ports = ports || [];
   const el = $("ports");
-  const items = [...state.ports.map((p) => ({ name: p.name, detail: p.detail, likely: p.likely })), { name: "sim", detail: "Simulated rig (servos 1, 2, 3)", sim: true }];
+  const items = [...state.ports.map((p) => ({ name: p.name, detail: p.detail, likely: p.likely })), { name: "sim", detail: "Simulated rig", sim: true }];
   // Lit (a hint: the one to click; a click connects): the board used last,
   // if it's here; else the likely adapter; else the simulator.
   if (state.autoPort || !items.some((p) => p.name === state.selectedPort)) {

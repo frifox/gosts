@@ -312,7 +312,7 @@ const simCameraID = "sim"
 // whatever gphoto2 finds attached over USB right now (the Sony A6600,
 // PTP-connected).
 func listCameras() []cameraInfo {
-	cams := []cameraInfo{{ID: simCameraID, Name: "Simulator", Detail: "Simulated camera: takes a photo about every second, as a real one would, saved as a JPEG of the Rig View"}}
+	cams := []cameraInfo{{ID: simCameraID, Name: "Simulator", Detail: "Simulated camera"}}
 	for _, d := range gphoto2Detect() {
 		cams = append(cams, cameraInfo{ID: gphoto2Prefix + d.port, Name: d.model, Detail: "USB, " + d.port + " (gphoto2)"})
 	}
