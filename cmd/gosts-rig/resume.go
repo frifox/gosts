@@ -177,7 +177,11 @@ func (a *app) adopt(name string) error {
 	if err := a.cfg.update(func(cf *Config) { cf.Plan = s.Plan }); err != nil {
 		return err
 	}
-	a.camera.resumeIn(dir, s.taken())
+	var files []string
+	for _, sh := range shots[:index] {
+		files = append(files, sh.File)
+	}
+	a.camera.resumeIn(dir, files) // (its photos on the timeline again)
 	c.mu.Lock()
 	c.shots, c.index, c.plan, c.folder, c.complete, c.resumable = shots, index, s.Plan, dir, false, true
 	c.began, c.photoShot = s.Started, map[int]int{}

@@ -78,7 +78,7 @@ func thumbnail(jpg []byte, width int) ([]byte, error) {
 
 // thumb is photo n's thumbnail, made the first time it's asked for.
 func (c *cameraConn) thumb(n int) ([]byte, bool) {
-	p, ok := c.photo(n)
+	p, ok := c.pictureOf(n)
 	if !ok {
 		return nil, false
 	}

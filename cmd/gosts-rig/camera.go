@@ -990,6 +990,27 @@ func (c *cameraConn) picture(n int, p photo) bool {
 	return true
 }
 
+// pictureOf is photo n with its picture: read from its file if it isn't
+// in memory (a resumed capture's photos from before: see resumeIn), and kept.
+func (c *cameraConn) pictureOf(n int) (photo, bool) {
+	p, ok := c.photo(n)
+	if !ok || len(p.JPEG) > 0 || len(p.Files) == 0 {
+		return p, ok
+	}
+	jpg, err := photoJPEG(p.Files[0])
+	if err != nil {
+		return p, false
+	}
+	c.mu.Lock()
+	if q, ok := c.photos[n]; ok && len(q.JPEG) == 0 {
+		q.JPEG = jpg
+		c.photos[n] = q
+	}
+	c.mu.Unlock()
+	p.JPEG = jpg
+	return p, true
+}
+
 // photo is photo n's picture, if it's on the timeline.
 func (c *cameraConn) photo(n int) (photo, bool) {
 	c.mu.Lock()
@@ -1013,12 +1034,22 @@ func (c *cameraConn) timeline() photosMsg {
 }
 
 // resumeIn makes the capture in folder dir (an interrupted one: see
-// resume.go) the current one: the timeline cleared, the photos to come going
-// into its folder, numbered on from the taken ones already there.
-func (c *cameraConn) resumeIn(dir string, taken int) {
+// resume.go) the current one: its photos taken (files, in order) on the
+// timeline again (their pictures read from the files when they're wanted:
+// see pictureOf), the photos to come going into its folder, numbered on.
+func (c *cameraConn) resumeIn(dir string, files []string) {
 	c.mu.Lock()
-	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight, c.simRendered, c.simDirs = nil, nil, nil, nil, nil, nil, nil
-	c.count, c.pending, c.taken, c.nums = 0, 0, taken, nil
+	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight, c.simRendered, c.simDirs = map[int]photo{}, nil, nil, nil, nil, nil, nil
+	c.nums = map[int]int{}
+	for i, f := range files {
+		n, path := i+1, filepath.Join(dir, f)
+		p := photo{Files: []string{path}, Num: n, At: time.Now()}
+		if st, err := os.Stat(path); err == nil {
+			p.At = st.ModTime()
+		}
+		c.photos[n], c.nums[n] = p, n
+	}
+	c.count, c.pending, c.taken = len(files), 0, len(files)
 	c.gen++
 	c.mu.Unlock()
 	batch.Lock()

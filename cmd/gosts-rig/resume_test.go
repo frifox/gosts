@@ -107,6 +107,12 @@ func TestCaptureResume(t *testing.T) {
 	if !m.Resumable || m.Index != taken || !m.Shots[0].Before || m.Shots[taken].Done {
 		t.Fatalf("opened: resumable %v, index %d", m.Resumable, m.Index)
 	}
+	if tl := b.camera.timeline(); len(tl.Photos) != taken || tl.Photos[0].Num != 1 {
+		t.Fatalf("timeline: %d photos, want the %d taken", len(tl.Photos), taken)
+	}
+	if p, ok := b.camera.pictureOf(1); !ok || len(p.JPEG) == 0 {
+		t.Fatal("photo 1's picture: not read from its file")
+	}
 	if err := b.cap.start(b.cfg.get().Plan); err != nil {
 		t.Fatal(err)
 	}

@@ -405,7 +405,7 @@ func (a *app) handlePhoto(w http.ResponseWriter, r *http.Request) {
 		jpg, ok = a.camera.thumb(n)
 	} else {
 		var p photo
-		p, ok = a.camera.photo(n)
+		p, ok = a.camera.pictureOf(n)
 		jpg = p.JPEG
 	}
 	if !ok {
