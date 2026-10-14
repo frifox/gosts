@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -201,4 +202,48 @@ func TestTurnCountLearned(t *testing.T) {
 		}
 		return nil
 	})
+}
+
+// Near the end of the platform servo's reach (±7.5 turns), a move the short
+// way is out of it: gosts would turn the platform a whole turn back instead
+// (seen: nearly a full turn from 0° to 1.1°). The count's started afresh
+// where it is first, and the move goes the short way.
+func TestPlatformRoom(t *testing.T) {
+	var port *servosim.Port
+	old := newSimPort
+	newSimPort = func(ro Roles) *servosim.Port {
+		port = newSim(ro)
+		return port
+	}
+	defer func() { newSimPort = old }()
+	cfg, _ := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	ro := r.roles()
+	port.SetPosition(ro.Azimuth, 7*gosts.StepsPerRev+819) // 7.2 turns round: at 72°
+	r.withBus(func(bus *gosts.Bus) error { return bus.Servo(ro.Azimuth).EnableTorque(true) }) // (holding there, as in a capture)
+	if err := r.waitStill(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := r.platformTurns()
+	az := wrap180(72 + 170) // 170° on, the short way: past 7.5 turns
+	if err := r.moveTo(nil, &az); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.waitStill(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := r.platformTurns()
+	_, a, _ := r.angles()
+	if math.Abs(wrap180(a-az)) > 2 {
+		t.Fatalf("at %.1f°, want %.1f°", a, az)
+	}
+	if math.Abs(after) > 1.5 { // (started afresh: not 6.5 turns, a whole turn back from 7.45)
+		t.Fatalf("the platform is %.2f turns round after (%.2f before): it went the long way", after, before)
+	}
+	t.Logf("before %.2f turns, after %.2f", before, after)
+	_ = ro
 }

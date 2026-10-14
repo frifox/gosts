@@ -408,7 +408,47 @@ func stepsFor(deg float64, invert bool) int {
 // the short way round. The elevation is kept within the configured range.
 func (r *rig) moveTo(elevation, azimuth *float64) error {
 	speed := r.cfg.get().Motion.Speed
+	if azimuth != nil {
+		if err := r.platformRoom(wrap180(*azimuth)); err != nil {
+			return err
+		}
+	}
 	return r.moveToAt(elevation, azimuth, speed, speed)
+}
+
+// platformRoom: the platform servo's goals reach only about ±7.5 turns from
+// where its count started, so near that end the short way to azimuth a is
+// out of reach, and gosts turns it a whole turn the other way instead (seen:
+// nearly a full turn to go from 0° to 1.1°). Then its count is started
+// afresh where it stands (no move: resetTurns), and the move goes the short
+// way. (Not for a capture's moving shots: their laps see to it, see spiral.)
+func (r *rig) platformRoom(a float64) error {
+	ro, err := r.ready()
+	if err != nil {
+		return err
+	}
+	return r.withBus(func(bus *gosts.Bus) error {
+		if err := r.knowTurns(bus, false, ro.Azimuth); err != nil {
+			return err
+		}
+		sv := bus.Servo(ro.Azimuth)
+		cur, err := sv.AbsolutePosition()
+		if err != nil {
+			return err
+		}
+		goal, err := sv.ShortestGoal(stepsFor(a, ro.InvertAzimuth), -gosts.MultiTurnLimit, gosts.MultiTurnLimit)
+		if err != nil {
+			return err
+		}
+		if abs(goal-cur) <= gosts.StepsPerRev/2+8 { // the short way: in reach
+			return nil
+		}
+		if moving, err := sv.Moving(); err != nil || moving {
+			return err // (not while it's turning: the move goes as it is)
+		}
+		r.logf("info", "azimuth: the platform is %.1f turns round, at the end of its servo's reach: its count started afresh where it is (no move), so it goes the short way, not a whole turn back", float64(cur)/gosts.StepsPerRev)
+		return resetTurns(bus, ro.Azimuth)
+	})
 }
 
 // moveToAt is moveTo with a speed per axis (step/s).

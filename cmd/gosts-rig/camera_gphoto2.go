@@ -294,6 +294,26 @@ func cameraFileNumber(name string) int {
 
 var gphoto2FileNumber = regexp.MustCompile(`(\d+)\.[A-Za-z0-9]+$`)
 
+// fileNumberSpan: a camera numbers its files 0001–9999, then starts again at
+// 0001 (a new folder on the card: a Sony does).
+const fileNumberSpan = 10000
+
+// unwrapFileNumber is file number k (as the camera names it: 1–9999) on a
+// count that goes on past 9999: the one nearest ref, the number expected
+// (0: not known yet: k as it is). So after DSC09999, DSC00001 is 10001.
+func unwrapFileNumber(k, ref int) int {
+	if k <= 0 || ref <= 0 {
+		return k
+	}
+	best := k + (ref/fileNumberSpan)*fileNumberSpan
+	for _, c := range []int{best - fileNumberSpan, best + fileNumberSpan} {
+		if c > 0 && abs(c-ref) < abs(best-ref) {
+			best = c
+		}
+	}
+	return best
+}
+
 // gphoto2Added is a "FILEADDED name folder" line: a file the camera wrote.
 var gphoto2Added = regexp.MustCompile(`FILEADDED (\S+)`)
 
@@ -328,6 +348,15 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 	}
 	var queue []waiting  // photos taken whose JPEG hasn't come yet, oldest first
 	next := 0            // the number the next photo fired will get (0: not known yet)
+	// unwrap: a file's number on the count past 9999 (see unwrapFileNumber),
+	// near the number expected next (or the waiting photos').
+	unwrap := func(k int) int {
+		ref := next
+		for _, w := range queue {
+			ref = max(ref, w.num)
+		}
+		return unwrapFileNumber(k, ref)
+	}
 	saw := func(k int) { // a file numbered k is on the camera: new photos come after it
 		next = max(next, k+1)
 		for _, w := range queue {
@@ -418,7 +447,7 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 		for _, l := range strings.Split(out, "\n") {
 			if m := gphoto2Added.FindStringSubmatch(l); m != nil {
 				log.Printf("camera: on the card: %s", m[1])
-				k := cameraFileNumber(m[1])
+				k := unwrap(cameraFileNumber(m[1]))
 				confirm(k)
 				if k > 0 {
 					settle(k)
@@ -439,7 +468,7 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 				log.Printf("camera: %s: %v", name, rerr)
 				continue
 			}
-			k := cameraFileNumber(name)
+			k := unwrap(cameraFileNumber(name))
 			confirm(k)
 			if k > 0 {
 				settle(k)

@@ -532,3 +532,94 @@ func TestGphoto2CloseStuck(t *testing.T) {
 		t.Fatal("the stuck command still waiting")
 	}
 }
+
+// fakeWrapGphoto2 is fakeGphoto2 with the camera's numbers near their end:
+// 9997, 9998, 9999, then 0001, 0002… (a new folder on the card).
+const fakeWrapGphoto2 = `#!/bin/sh
+case "$*" in
+*--auto-detect*)
+  echo "Model                          Port"
+  echo "----------------------------------------------------------"
+  echo "Fake Camera (PC Control)       usb:001,002"
+  exit 0;;
+esac
+n=0; fired=0
+prompt() { printf 'gphoto2: {%s} /> ' "$PWD"; }
+prompt
+while IFS= read -r line; do
+  echo "$line"
+  case "$line" in
+  trigger-capture) sleep 0.05; fired=$((fired+1));;
+  wait-event-and-download*)
+    sleep 0.05
+    while [ $n -lt $fired ]; do
+      n=$((n+1)); k=$(( (9995 + n) % 9999 + 1 )); name=$(printf 'capt_DSC%05d' $k)
+      printf 'JPEG %d' $n > "$name.JPG"
+      echo "Saving file as $name.JPG"
+      echo "FILEADDED $name.ARW /"
+    done;;
+  exit|quit) exit 0;;
+  esac
+  prompt
+done
+`
+
+// The camera's file numbers start again after 9999 (DSC00001): the photos
+// after it still get their own pictures (seen: a capture stuck at the
+// rollover, each photo "no one's", fired again and again).
+func TestGphoto2NumberRollover(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "gphoto2"), []byte(fakeWrapGphoto2), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	defer func(d string) { photoDir = d }(photoDir)
+	photoDir = t.TempDir()
+	cam, _, err := openCamera(gphoto2Prefix + "usb:001,002")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cam.Close()
+	var mu sync.Mutex
+	got := map[int]string{}
+	for i := 1; i <= 5; i++ { // 9997, 9998, 9999, 0001, 0002
+		i := i
+		if err := cam.Shoot(context.Background(), shutter{firing: func() {}, folder: batchFolder, got: func(p photo, err error) {
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				got[i] = "error: " + err.Error()
+				return
+			}
+			got[i] = string(p.JPEG)
+		}}); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(60 * time.Millisecond) // (each its picture before the next: as a capture goes)
+	}
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		mu.Lock()
+		n := len(got)
+		mu.Unlock()
+		if n == 5 || time.Now().After(deadline) {
+			break
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for i := 1; i <= 5; i++ {
+		if want := fmt.Sprintf("JPEG %d", i); got[i] != want {
+			t.Errorf("photo %d: %q, want %q", i, got[i], want)
+		}
+	}
+}
+
+func TestUnwrapFileNumber(t *testing.T) {
+	for _, c := range []struct{ k, ref, want int }{
+		{1, 10000, 10001}, {9999, 10000, 9999}, {5, 0, 5}, {120, 118, 120}, {2, 20001, 20002}, {9998, 20001, 19998},
+	} {
+		if got := unwrapFileNumber(c.k, c.ref); got != c.want {
+			t.Errorf("unwrap(%d, %d) = %d, want %d", c.k, c.ref, got, c.want)
+		}
+	}
+}

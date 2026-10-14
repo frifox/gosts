@@ -497,6 +497,9 @@ func (c *capture) begin(p Plan) error {
 		how = fmt.Sprintf("on a %d-turn spiral, Continuous", rows)
 	}
 	c.rig.logf("info", "capture started: %d photos about %.0f° apart, %s", len(shots), spacing, how)
+	if at, err := c.rig.platformTurns(); err == nil {
+		c.rig.logf("info", "capture: the platform is %.2f turns round (its servo reaches ±7.5)", at)
+	}
 	if !p.Moving {
 		// Stop & Shoot keeps still while the shutter's open (see shutterHold).
 		exp := c.camera.exposure()
