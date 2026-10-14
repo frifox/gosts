@@ -60,4 +60,4 @@ server=$!
   echo "$code" > "$dir/status.txt.tmp" && mv "$dir/status.txt.tmp" "$dir/status.txt"
 } 2>&1 | tee -a "$dir/log.txt"
 
-sleep 3 # (the page polls every 0.4 s: it has the end by then, and stops)
+sleep 1 # (the page polls every 0.4 s: it has the end by then, and stops)

@@ -6,6 +6,8 @@
 - **[cmd/gosts-rig-macos](cmd/gosts-rig-macos)**: gosts-rig as a Mac app (GoSTS Rig) for convenience.
 - **[cmd/apple-obj-cap](cmd/apple-obj-cap)**: gosts-rig dependency, builds a 3D model using Apple's Object Capture API.
 
+Vibe coded with Claude.
+
 ## Example apps
 
 <table>
