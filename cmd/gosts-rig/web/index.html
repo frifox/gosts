@@ -39,7 +39,8 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .pill-group > .pill:not(:first-child) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; background: var(--panel-2); }
 .layout { flex: 1; display: grid; grid-template-columns: minmax(340px, 430px) minmax(0, 1fr); /* the right column never wider than the page */ gap: 14px; padding: 14px; min-height: 0; }
-.left { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; min-height: 0; }
+.left { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; overflow-x: hidden; min-height: 0; } /* (never a sideways scrollbar: the cards fit the column, with the scrollbar too) */
+.left > * { min-width: 0; }
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
 .card > h2 { margin: 0; padding: 10px 14px; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
 .card-body { padding: 12px 14px; }
@@ -266,7 +267,7 @@ td.mono { font-family: var(--mono); }
 .cap-btns { display: flex; gap: 8px; margin-top: 10px; }
 .export-line { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; color: var(--muted); }
 .export-line .check { display: flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer; }
-.export-line select { flex: 1; min-width: 0; width: auto; }
+.export-line select { flex: 1 1 0; min-width: 0; width: 0; } /* (as wide as the row leaves it, not its longest option: WebKit, the Mac app's, won't shrink a select below that) */
 .cap-btns .btn { flex: 1; }
 .pace-line { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .pace-line .hint { margin: 0; flex: 1; }
