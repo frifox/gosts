@@ -195,6 +195,12 @@ td.mono { font-family: var(--mono); }
 .ports { display: flex; flex-direction: column; gap: 6px; }
 .port { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; background: var(--panel-2); }
 .port.sel { border-color: var(--accent); background: var(--accent-weak); }
+/* A click connects (no Connect button): the one connecting with a spinner, the others waiting meanwhile. */
+.port:hover { border-color: var(--accent); }
+.port.connecting::after { content: ""; flex: none; margin-left: auto; width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.ports.busy .port { cursor: default; }
+.ports.busy .port:not(.connecting) { opacity: .5; }
 .port .name { font-family: var(--mono); font-size: 12px; }
 .port .detail { color: var(--muted); font-size: 12px; }
 .badge { font-size: 11px; border-radius: 6px; padding: 1px 6px; background: var(--accent-weak); color: var(--accent); }
@@ -757,15 +763,14 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <section class="card" id="captureCard">
       <h2>Camera <span class="dev-name" id="camDevName"></span><span class="spacer"></span>
         <span class="battery" id="camBattery" title="The camera's battery" hidden><svg viewBox="0 0 24 12" aria-hidden="true"><rect x="0.75" y="0.75" width="20" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="21.5" y="3.5" width="2" height="5" rx="0.8" fill="currentColor"/><rect id="camBatteryFill" x="2.5" y="2.5" width="16.5" height="7" rx="1" fill="currentColor"/></svg><span id="camBatteryText"></span></span>
-        <button class="btn small icon danger" id="camDisconnectBtn" title="Disconnect the camera (a capture running stops)" aria-label="Disconnect the camera" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 16l-4 4M16 16l4 4M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5zM17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5zM3 21l2.5 -2.5M18.5 5.5l2.5 -2.5M10 11l-2 2M13 14l-2 2"/></svg></button>
+        <button class="btn small icon danger" id="camDisconnectBtn" title="Disconnect the camera (asks first only while it's busy: capturing, a sample, focusing, live preview)" aria-label="Disconnect the camera" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 16l-4 4M16 16l4 4M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5zM17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5zM3 21l2.5 -2.5M18.5 5.5l2.5 -2.5M10 11l-2 2M13 14l-2 2"/></svg></button>
         <button class="btn small refresh" id="camRefresh" style="text-transform:none;letter-spacing:0"><span class="lbl">Refresh</span></button>
         <span class="btn-join"><button class="btn small icon" id="camCtlBtn" title="Camera control: zoom, focus, exposure and color, with sample shots and live preview" aria-label="Camera control" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5h3l1.8-2.5h8.4L18 8.5h3V19H3z"/><circle cx="12" cy="13.5" r="3.4"/><path d="M12 10.1v1.4M15.4 13.5H14M12 16.9v-1.4M8.6 13.5H10"/></g></svg></button>
         <button class="btn small icon" id="camConfigBtn" title="Settings: the flash's cooldown during a capture, and its limits" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button></span>
       </h2>
-      <!-- No camera: pick one and connect. -->
+      <!-- No camera: click one to connect to it. -->
       <div class="card-body" id="cameraBody">
         <div class="ports" id="cameras"><div class="hint">Looking for cameras…</div></div>
-        <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="camConnectBtn" disabled>Connect</button></div>
         <div class="err" id="camErr"></div>
       </div>
       <!-- Camera connected: plan and run the capture. -->
@@ -818,15 +823,14 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 
     <section class="card" id="rigCard">
       <h2>Rig <span class="dev-name" id="rigDevName"></span><span class="spacer"></span>
-        <button class="btn small icon danger" id="rigDisconnectBtn" title="Disconnect the rig's board (a capture running stops)" aria-label="Disconnect the rig's board" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 16l-4 4M16 16l4 4M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5zM17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5zM3 21l2.5 -2.5M18.5 5.5l2.5 -2.5M10 11l-2 2M13 14l-2 2"/></svg></button>
+        <button class="btn small icon danger" id="rigDisconnectBtn" title="Disconnect the rig's board (asks first only while it's capturing or moving)" aria-label="Disconnect the rig's board" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 16l-4 4M16 16l4 4M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5zM17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5zM3 21l2.5 -2.5M18.5 5.5l2.5 -2.5M10 11l-2 2M13 14l-2 2"/></svg></button>
         <button class="btn small refresh" id="refreshPorts" style="text-transform:none;letter-spacing:0"><span class="lbl">Refresh</span></button>
         <span class="btn-join"><button class="btn small danger" id="stopBtn" title="Stop the rig where it is" style="text-transform:none;letter-spacing:0" hidden>Stop</button>
         <button class="btn small icon" id="rigCfgBtn" title="Servo settings: each servo's settings, tuning, limits and telemetry (gosts-ctl's console)" aria-label="Servo settings" disabled></button></span>
       </h2>
-      <!-- No board: pick its port and connect. -->
+      <!-- No board: click its port to connect to it. -->
       <div class="card-body" id="connectBody">
         <div class="ports" id="ports"><div class="hint">Looking for serial ports…</div></div>
-        <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="connectBtn" disabled>Connect</button></div>
         <p class="hint">Close gosts-ctl first: only one program can use the serial port. Once the board is connected,
           its console is here too: Servo Settings, the gear in this card's title.</p>
         <div class="err" id="connectErr"></div>
@@ -1301,8 +1305,8 @@ function renderPorts(ports) {
   state.ports = ports || [];
   const el = $("ports");
   const items = [...state.ports.map((p) => ({ name: p.name, detail: p.detail, likely: p.likely })), { name: "sim", detail: "Simulated rig (servos 1, 2, 3)", sim: true }];
-  // Pre-selected (till picked, or it's gone): the board used last, if it's
-  // here; else the likely adapter; else the simulator.
+  // Lit (a hint: the one to click; a click connects): the board used last,
+  // if it's here; else the likely adapter; else the simulator.
   if (state.autoPort || !items.some((p) => p.name === state.selectedPort)) {
     state.autoPort = true; // till one's clicked
     const last = state.server?.config?.Port;
@@ -1311,14 +1315,28 @@ function renderPorts(ports) {
   el.innerHTML = "";
   for (const p of items) {
     const d = document.createElement("div");
-    d.className = "port" + (p.name === state.selectedPort ? " sel" : "");
+    d.className = "port" + (p.name === state.selectedPort ? " sel" : "") + (state.rigConnecting && p.name === state.selectedPort ? " connecting" : ""); // (listed again while it connects: still)
     d.innerHTML = `<span class="name"></span><span class="detail"></span>${p.likely ? '<span class="badge">likely adapter</span>' : ""}`;
     d.querySelector(".name").textContent = p.sim ? "Simulator" : p.name;
     d.querySelector(".detail").textContent = p.detail || "";
-    d.onclick = () => { state.selectedPort = p.name; state.autoPort = false; renderPorts(state.ports); };
+    d.title = `Connect to ${p.sim ? "the simulator" : p.name}`;
+    d.onclick = () => rigConnect(p.name, d);
     el.appendChild(d);
   }
-  $("connectBtn").disabled = !state.selectedPort;
+}
+// rigConnect connects to the board on port (its line in the list, d: a
+// spinner meanwhile; the list waits).
+async function rigConnect(port, d) {
+  if (state.rigConnecting) return;
+  state.selectedPort = port; state.autoPort = false;
+  $("connectErr").textContent = "";
+  state.rigConnecting = true;
+  for (const x of $("ports").children) { x.classList.toggle("sel", x === d); x.classList.toggle("connecting", x === d); }
+  $("ports").classList.add("busy");
+  await act("connect", { port, baud: 1000000 }, $("connectErr"));
+  state.rigConnecting = false;
+  for (const x of $("ports").children) x.classList.remove("connecting");
+  $("ports").classList.remove("busy");
 }
 // searching: a Refresh button, while it looks for devices: a spinner and
 // "Searching…", for at least a moment (so a quick search is seen to happen).
@@ -1351,20 +1369,14 @@ autoRefresh($("refreshPorts"), 3000, () => !state.server?.connected && !state.ri
     if (!state.server?.connected && JSON.stringify(list || []) !== JSON.stringify(state.ports)) renderPorts(list);
   }).catch(() => {}));
 $("refreshPorts").onclick = () => searching($("refreshPorts"), () => send("ports").then(renderPorts).catch((e) => ($("connectErr").textContent = e.message)));
-$("connectBtn").onclick = async () => {
-  $("connectErr").textContent = "";
-  $("connectBtn").disabled = state.rigConnecting = true;
-  await act("connect", { port: state.selectedPort, baud: 1000000 }, $("connectErr"));
-  $("connectBtn").disabled = state.rigConnecting = false;
-};
 
 // ---------------------------------------------------------------- camera
 // The left Camera card (captureCard): the cameras to connect to, or once one is connected the
 // capture itself.
 function renderCameras(list) {
   state.cameras = list || [];
-  // Pre-selected (till picked, or it's gone): the camera used last, if it's
-  // here; else a real one; else the simulator.
+  // Lit (a hint: the one to click; a click connects): the camera used last,
+  // if it's here; else a real one; else the simulator.
   if (state.autoCamera || !state.cameras.some((c) => c.id === state.selectedCamera)) {
     state.autoCamera = true; // till one's clicked
     const last = state.server?.config?.Camera, real = state.cameras.filter((c) => c.id !== "sim");
@@ -1375,28 +1387,33 @@ function renderCameras(list) {
   if (!state.cameras.length) el.innerHTML = '<div class="hint">No cameras found.</div>';
   for (const c of state.cameras) {
     const d = document.createElement("div");
-    d.className = "port" + (c.id === state.selectedCamera ? " sel" : "");
+    d.className = "port" + (c.id === state.selectedCamera ? " sel" : "") + (state.camConnecting && c.id === state.selectedCamera ? " connecting" : ""); // (listed again while it connects: still)
     d.innerHTML = '<span class="name"></span><span class="detail"></span>';
     d.querySelector(".name").textContent = c.name;
     d.querySelector(".detail").textContent = c.detail || "";
-    d.onclick = () => { state.selectedCamera = c.id; state.autoCamera = false; renderCameras(state.cameras); };
+    d.title = `Connect to ${c.name}`;
+    d.onclick = () => camConnect(c.id, d);
     el.appendChild(d);
   }
-  $("camConnectBtn").disabled = !state.selectedCamera;
 }
 $("camRefresh").onclick = () => searching($("camRefresh"), () => send("cameras").then(renderCameras).catch((e) => ($("camErr").textContent = e.message)));
-$("camConnectBtn").onclick = async () => {
+// camConnect connects to camera id (its line in the list, d: a spinner
+// meanwhile; the list waits).
+async function camConnect(id, d) {
+  if (state.camConnecting) return;
+  state.selectedCamera = id; state.autoCamera = false;
   $("camErr").textContent = "";
-  $("camConnectBtn").disabled = true;
   state.camConnecting = true; // (no scanning meanwhile)
-  try { await send("cameraConnect", { camera: state.selectedCamera }); }
-  catch (e) {
-    $("camErr").textContent = e.message;
-    send("cameras").then(renderCameras).catch(() => {}); // (gone since it was listed? off the list now)
-  }
+  for (const x of $("cameras").children) { x.classList.toggle("sel", x === d); x.classList.toggle("connecting", x === d); }
+  $("cameras").classList.add("busy");
+  let failed = false;
+  try { await send("cameraConnect", { camera: id }); }
+  catch (e) { $("camErr").textContent = e.message; failed = true; }
   state.camConnecting = false;
-  $("camConnectBtn").disabled = false;
-};
+  for (const x of $("cameras").children) x.classList.remove("connecting");
+  $("cameras").classList.remove("busy");
+  if (failed) send("cameras").then(renderCameras).catch(() => {}); // (gone since it was listed? off the list now)
+}
 // The camera list keeps itself up to date while it's shown (a camera
 // plugged in, or switched off: an A6600 takes a few seconds to leave the
 // bus, so a Refresh just after can still list it): every few seconds,
@@ -4818,10 +4835,11 @@ $("rigCfgBtn").onclick = () => showCtl(!state.ctlOpen);
 // device goes, so do its settings if they're open (errors: in the log).
 // Both ask first: one click by mistake would drop the device (and stop a
 // capture).
+// Disconnect: at once, unless the device is busy (asked first then).
 $("rigDisconnectBtn").onclick = async () => {
-  const running = !!state.cap?.running;
-  if (!await confirmDanger("Disconnect the rig?",
-    (running ? "The capture running stops. " : "") + "The servos keep their torque as they are. To use the rig again, connect its board in the Rig card.",
+  const running = !!state.cap?.running, moving = !$("stopBtn").hidden;
+  if ((running || moving) && !await confirmDanger("Disconnect the rig?",
+    (running ? "The capture running stops. " : "") + (moving ? "The rig is moving: the servos carry on to where they're headed, with nothing to stop them once it's disconnected (Stop first to halt them). " : "") + "They keep their torque as they are.",
     "Disconnect")) return;
   $("rigDisconnectBtn").disabled = true;
   let ok = true;
@@ -4833,9 +4851,9 @@ $("rigDisconnectBtn").onclick = async () => {
 };
 $("camDisconnectBtn").onclick = async () => {
   const running = !!state.cap?.running;
-  if (!await confirmDanger("Disconnect the camera?",
-    (running ? "The capture running stops. " : "") + "Photos already taken stay on the timeline. To use the camera again, pick it in the Camera card.",
-    "Disconnect")) return;
+  const busy = running ? "The capture running stops." : state.sampleTaking || state.sweep?.running ? "A sample shot is being taken." :
+    state.focusBusy ? "It's focusing." : flash.running ? "The flash is being measured: that stops." : state.live ? "The live preview stops." : "";
+  if (busy && !await confirmDanger("Disconnect the camera?", busy + " Photos already taken stay on the timeline.", "Disconnect")) return;
   $("camDisconnectBtn").disabled = true;
   let ok = true;
   try { await send("cameraDisconnect", {}); } catch (e) { ok = false; log(e.message, "error"); }
