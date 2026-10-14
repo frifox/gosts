@@ -227,6 +227,11 @@ type capture struct {
 	began     time.Time // its first run's start
 	saveTimer *time.Timer
 	saveMu    sync.Mutex
+
+	// No-flash photos (see noflash.go): the last bright ones' brightness,
+	// and the photos set aside (their pictures still to come).
+	bright []float64
+	aside  map[int]bool
 }
 
 type captureMsg struct {
@@ -487,6 +492,7 @@ func (c *capture) begin(p Plan) error {
 	c.rows, c.spacing = rows, spacing
 	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
 	c.plan, c.folder, c.photoShot, c.complete, c.resumable, c.began = p, batchFolder(), map[int]int{}, false, false, c.started
+	c.bright, c.aside = nil, nil
 	c.mu.Unlock()
 	c.saveNow() // (its plan and shots, in its folder: resumable from the start)
 	how := fmt.Sprintf("in %d rows, Stop & Shoot", rows)
@@ -585,6 +591,7 @@ func (c *capture) resumeRun() error {
 	if c.photoShot == nil {
 		c.photoShot = map[int]int{}
 	}
+	c.bright, c.aside = nil, nil
 	left, total := len(c.shots)-c.index, len(c.shots)
 	c.mu.Unlock()
 	c.rig.logf("info", "capture resumed: %d of %d photos left", left, total)
@@ -781,6 +788,14 @@ func (c *capture) photo(ctx context.Context, wait bool) error {
 		return fmt.Errorf("camera: %w", err)
 	}
 	c.mu.Lock()
+	if c.index != i { // (gone back to an earlier shot meanwhile, a no-flash photo's: this one's set aside)
+		if c.aside == nil {
+			c.aside = map[int]bool{}
+		}
+		c.aside[n] = true
+		c.mu.Unlock()
+		return nil
+	}
 	if c.photoShot != nil {
 		c.photoShot[n] = i // (its picture's file: the shot's, when it comes; see pictured)
 	}
@@ -800,13 +815,21 @@ func (c *capture) photo(ctx context.Context, wait bool) error {
 // shots stop where they are, the photos asked for already still taken.
 func (c *capture) cooldown() {
 	d := time.Duration(c.rig.cfg.get().Cooldown.Minutes * float64(time.Minute))
-	until := time.Now().Add(d)
 	c.mu.Lock()
 	n := c.index
+	c.mu.Unlock()
+	c.rig.logf("info", "capture: pausing %v after %d photos, to let the flash cool", d.Round(time.Second), n)
+	c.pauseFor(d)
+}
+
+// pauseFor pauses the capture for d (cooling the flash), then carries on
+// by itself (Resume sooner).
+func (c *capture) pauseFor(d time.Duration) {
+	until := time.Now().Add(d)
+	c.mu.Lock()
 	c.paused, c.cooling = true, until
 	c.setPaused(true)
 	c.mu.Unlock()
-	c.rig.logf("info", "capture: pausing %v after %d photos, to let the flash cool", d.Round(time.Second), n)
 	time.AfterFunc(d, func() {
 		c.mu.Lock()
 		mine := c.running && c.paused && c.cooling.Equal(until) // not resumed (or stopped) meanwhile

@@ -289,7 +289,8 @@ td.mono { font-family: var(--mono); }
 /* The end of an auto-focus: how it went (ok: green), or what's wrong (amber). */
 .focus-warn { padding: 8px 12px; background: rgba(240,167,66,.14); border-top: 1px solid rgba(240,167,66,.5); color: #f0a742; font-size: 12px; line-height: 1.4; }
 .focus-warn.ok { background: rgba(60,207,122,.12); border-top-color: rgba(60,207,122,.5); color: #3ccf7a; }
-.cooldown { display: flex; align-items: center; gap: 4px; margin-top: 80px; font-size: 13px; color: var(--text); white-space: nowrap; }
+.cooldown { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 80px; font-size: 13px; color: var(--text); white-space: nowrap; }
+.cool-line { display: flex; align-items: center; gap: 4px; min-height: 28px; }
 .camcfg-params .cooldown label { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--text); cursor: pointer; }
 /* Cooling the flash (a capture paused by the cooldown): a warning, as wide as the card, styled as a button. */
 .cool-badge { display: block; width: 100%; box-sizing: border-box; margin-top: 10px; padding: 6px 12px; border-radius: 8px; text-align: center;
@@ -297,12 +298,12 @@ td.mono { font-family: var(--mono); }
 .cool-badge[hidden] { display: none; }
 .cooldown input[type=number] { width: 46px; padding: 4px 6px; text-align: center; }
 .cooldown #coolMin, .cooldown #coolShots { padding-left: 3px; padding-right: 3px; }
-.cooldown #coolMin { width: 42px; }
+.cooldown #coolMin, .cooldown #coolDarkMin { width: 42px; }
 .cooldown #coolShots { width: 50px; } /* (room for 3 digits: "160", the row still in 300 px) */
-/* Unticked: the rest faded and off. */
-.cooldown.off .cool-text, .cooldown.off input[type=number] { opacity: .45; }
+/* Not picked: its numbers faded and off. */
+.cool-line.off input[type=number], .cool-line.off > .cool-text { opacity: .45; }
 .cooldown input[type=number]:disabled { cursor: default; }
-.cooldown input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.cooldown input[type=radio] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
 /* The AR400's overheat table, under the pause: a line a power, a click applies its pause. */
 .flash-heat { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 12px; }
 .flash-heat th { text-align: left; font-weight: 500; color: var(--muted); padding: 3px 6px; border-bottom: 1px solid var(--border); }
@@ -857,10 +858,18 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <button class="btn primary" id="sampleBtn">Take Sample Shot</button>
           </div>
           <!-- Cooldown: a capture pauses now and then (a flash that gets hot), and carries on by itself. -->
-          <div class="cooldown off" id="cooldownRow" title="During a capture: after every so many photos, pause this long (the flash cooling), then carry on. Resume carries on sooner.">
-            <label><input type="checkbox" id="coolOn"> <span class="cool-text">Pause for</span></label>
-            <input type="number" id="coolMin" min="0.5" max="120" step="0.5" disabled> <span class="cool-text">minutes after</span>
-            <input type="number" id="coolShots" min="1" step="1" disabled> <span class="cool-text">shots</span>
+          <!-- Cooling the flash during a capture: not at all; a pause when a photo comes out dark (the flash didn't
+               fire), then on from that photo's shot; or a pause after every so many photos. Resume carries on sooner. -->
+          <div class="cooldown" id="cooldownRow">
+            <div class="cool-line" title="No pauses for the flash">
+              <label><input type="radio" name="coolMode" id="coolNone"> <span class="cool-text">No cooldown for flash</span></label></div>
+            <div class="cool-line off" id="coolDarkLine" title="During a capture: each photo is looked at as it comes over; one much darker than the ones before (the flash didn't fire: overheated) is set aside (no-flash folder), the capture pauses this long, then takes that photo's shot again and carries on">
+              <label><input type="radio" name="coolMode" id="coolDark"> <span class="cool-text">Auto-pause after no-flash photo for</span></label>
+              <input type="number" id="coolDarkMin" min="0.5" max="120" step="0.5" disabled> <span class="cool-text">minutes</span></div>
+            <div class="cool-line off" id="coolShotsLine" title="During a capture: after every so many photos, pause this long (the flash cooling), then carry on">
+              <label><input type="radio" name="coolMode" id="coolOn"> <span class="cool-text">Pause for</span></label>
+              <input type="number" id="coolMin" min="0.5" max="120" step="0.5" disabled> <span class="cool-text">minutes after</span>
+              <input type="number" id="coolShots" min="1" step="1" disabled> <span class="cool-text">shots</span></div>
           </div>
           <!-- The Godox AR400's overheat protection (its manual, p. 22): continuous flashes at each power before
                it slows down. A click on a line sets the pause above: 10 minutes after 80% of them. -->
@@ -3776,17 +3785,21 @@ for (const id of ["mSecPic", "mSpeed", "mAcc"]) {
 // The Cooldown fields from the config (not while one's being typed in).
 function coolFields(cd) {
   if (!cd) return;
-  const typing = ["coolMin", "coolShots"].includes(document.activeElement?.id);
+  const typing = ["coolMin", "coolShots", "coolDarkMin"].includes(document.activeElement?.id);
   $("coolOn").checked = !!cd.On;
+  $("coolDark").checked = !cd.On && !!cd.Dark;
+  $("coolNone").checked = !cd.On && !cd.Dark;
   coolRow();
-  if (!typing) { $("coolMin").value = cd.Minutes; $("coolShots").value = cd.Shots; }
+  if (!typing) { $("coolMin").value = cd.Minutes; $("coolShots").value = cd.Shots; $("coolDarkMin").value = cd.DarkMinutes; }
   heatRows();
 }
-// coolRow: unticked, the minutes and shots faded and off.
+// coolRow: the ways not picked: their numbers faded and off.
 function coolRow() {
-  const on = $("coolOn").checked;
-  $("cooldownRow").classList.toggle("off", !on);
-  $("coolMin").disabled = $("coolShots").disabled = !on;
+  const shots = $("coolOn").checked, dark = $("coolDark").checked;
+  $("coolShotsLine").classList.toggle("off", !shots);
+  $("coolDarkLine").classList.toggle("off", !dark);
+  $("coolMin").disabled = $("coolShots").disabled = !shots;
+  $("coolDarkMin").disabled = !dark;
   heatRows();
 }
 // The Godox AR400's overheat protection (its manual, p. 22): how many
@@ -3903,12 +3916,13 @@ heatTable();
 async function saveCool() {
   coolRow();
   $("camConfigErr").textContent = "";
-  const cd = { On: $("coolOn").checked, Minutes: Number($("coolMin").value), Shots: Math.round(Number($("coolShots").value)) };
+  const cd = { On: $("coolOn").checked, Minutes: Number($("coolMin").value), Shots: Math.round(Number($("coolShots").value)),
+    Dark: $("coolDark").checked, DarkMinutes: Number($("coolDarkMin").value) };
   try { await send("cooldown", { cooldown: cd }); }
   catch (e) { $("camConfigErr").textContent = e.message; coolFields(state.server?.config.Cooldown); }
 }
-$("coolOn").onchange = saveCool;
-for (const id of ["coolMin", "coolShots"]) {
+for (const id of ["coolNone", "coolDark", "coolOn"]) $(id).onchange = saveCool;
+for (const id of ["coolMin", "coolShots", "coolDarkMin"]) {
   $(id).onchange = saveCool;
   $(id).onkeydown = (e) => { if (e.key === "Enter") $(id).blur(); };
 }

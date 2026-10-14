@@ -155,6 +155,12 @@ func (a *app) exec(req request) (any, error) {
 		if cd.Shots < 1 || cd.Minutes <= 0 || cd.Minutes > 120 {
 			return nil, errors.New("pause after 1 or more shots, for more than 0 and up to 120 minutes")
 		}
+		if cd.DarkMinutes <= 0 || cd.DarkMinutes > 120 {
+			return nil, errors.New("pause after a no-flash photo for more than 0 and up to 120 minutes")
+		}
+		if cd.On && cd.Dark {
+			return nil, errors.New("one way of pausing at a time")
+		}
 		if err := a.cfg.update(func(c *Config) { c.Cooldown = cd }); err != nil {
 			return nil, err
 		}

@@ -36,11 +36,16 @@ type Config struct {
 }
 
 // Cooldown pauses a capture now and then (a flash that gets hot): after
-// every Shots photos, for Minutes, then it carries on by itself.
+// every Shots photos, for Minutes, then it carries on by itself (On). Or,
+// with Dark instead, when a photo comes out much darker than the ones before
+// (the flash didn't fire: overheated), for DarkMinutes, then it carries on
+// from that photo's shot (see capture.noFlash).
 type Cooldown struct {
-	On      bool    `toml:"On"`
-	Shots   int     `toml:"Shots"`
-	Minutes float64 `toml:"Minutes"`
+	On          bool    `toml:"On"`
+	Shots       int     `toml:"Shots"`
+	Minutes     float64 `toml:"Minutes"`
+	Dark        bool    `toml:"Dark"`
+	DarkMinutes float64 `toml:"DarkMinutes"`
 }
 
 // every is how many photos go between pauses (0: none).
@@ -182,7 +187,7 @@ func defaultConfig() Config {
 		Roles:      Roles{ElevationLeader: 1, ElevationFollower: 2, Azimuth: 3, LeaderMirrored: true},
 		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80, SecPerPhoto: 2, SpeedBy: SpeedByPhoto},
 		Plan:       Plan{Photos: 150, SettleMS: 800, Path: PathRings, ExportFor: ExportApple},
-		Cooldown:   Cooldown{Shots: 50, Minutes: 2},
+		Cooldown:   Cooldown{Shots: 50, Minutes: 2, DarkMinutes: 10},
 		Rig:        rigBuilt(),
 	}
 }

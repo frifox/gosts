@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"bytes"
 	"context"
 	"image"
@@ -38,7 +39,7 @@ func (f *flashCam) Shoot(ctx context.Context, s shutter) error {
 	jpeg.Encode(&b, img, nil)
 	p := photo{JPEG: b.Bytes(), At: time.Now()}
 	if s.folder != nil {
-		path := filepath.Join(s.folder(), "f.jpg")
+		path := filepath.Join(s.folder(), fmt.Sprintf("f%03d.jpg", n))
 		os.WriteFile(path, p.JPEG, 0o644)
 		p.Files = []string{path}
 	}
