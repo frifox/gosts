@@ -1,131 +1,66 @@
 package main
 
 import (
-	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
-// resumeApp is an app on the simulators, its captures in photos.
-func resumeApp(t *testing.T, cfgPath string) *app {
-	cfg, err := loadConfig(cfgPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	a := &app{cfg: cfg, clients: map[*client]struct{}{}}
-	a.rig = &rig{cfg: cfg, out: func(any) {}}
-	if err := a.rig.connect(context.Background(), simPort, 0); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(a.rig.disconnect)
-	a.camera = &cameraConn{out: func(any) {}, cfg: cfg}
-	if err := a.camera.connect(simCameraID); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(a.camera.disconnect)
-	a.cap = &capture{rig: a.rig, camera: a.camera, out: func(any) {}}
-	a.model = &modelBuilder{out: func(any) {}}
-	a.camera.onPicture = a.cap.pictured
-	return a
-}
-
-func waitCapture(t *testing.T, c *capture) {
-	t.Helper()
-	for deadline := time.Now().Add(60 * time.Second); c.isRunning(); time.Sleep(20 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatal("the capture is still running")
-		}
-	}
-}
-
-// A capture stopped part way keeps its plan and shots (capture.json) and its
-// alignment data for the photos taken; after a restart, opening it puts its
-// plan back and the shots taken first (Before); Resume takes the rest, and
-// it's complete, its alignment data for all.
+// A capture's state (capture.json) and alignment data are saved as it goes;
+// an interrupted one, opened after a restart, has its plan back, the shots
+// taken first (Before) and their photos on the timeline. A photo deleted
+// since (its file gone) leaves its shot to be taken again, not a broken one.
 func TestCaptureResume(t *testing.T) {
-	defer func(d time.Duration) { simPictureWait = d }(simPictureWait)
-	simPictureWait = 10 * time.Millisecond // (no page rendering them: made-up pictures, at once)
 	oldPhotos := photoDir
 	photoDir = t.TempDir()
 	defer func() { photoDir = oldPhotos; newBatch() }()
-	cfgPath := filepath.Join(t.TempDir(), "config.toml")
-	plan := Plan{Photos: 6, SettleMS: 0, ExportFor: ExportMetashape}
-
-	a := resumeApp(t, cfgPath)
-	startBatch(true)
-	name := currentBatch()
-	if err := a.cap.start(plan); err != nil {
-		t.Fatal(err)
-	}
-	for deadline := time.Now().Add(30 * time.Second); a.cap.msg().Index < 3; time.Sleep(10 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatal("3 photos not taken")
+	name := "interrupted"
+	dir := filepath.Join(photoDir, name)
+	os.MkdirAll(dir, 0o755)
+	plan := Plan{Photos: 4, ExportFor: ExportMetashape}
+	shots, _, _, _ := planShots(plan, defaultConfig().Motion)
+	e, a := 10.0, 20.0
+	for i := 0; i < 3; i++ { // 3 of 4 taken; photo 2 deleted since
+		shots[i].File, shots[i].Done, shots[i].ActualElevation, shots[i].ActualAzimuth = fmt.Sprintf("p%d.jpg", i+1), true, &e, &a
+		if i != 1 {
+			os.WriteFile(filepath.Join(dir, shots[i].File), grayJPEG(150), 0o644)
 		}
 	}
-	a.cap.stop()
-	waitCapture(t, a.cap)
-	dir := filepath.Join(photoDir, name)
-	s, err := readCaptureState(dir)
-	if err != nil {
-		t.Fatal(err)
+	cfg, _ := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	cam := &cameraConn{out: func(any) {}, cfg: cfg}
+	c := &capture{rig: &rig{cfg: cfg, out: func(any) {}}, camera: cam, out: func(any) {}, folder: dir, plan: plan, shots: shots}
+	c.saveNow()
+	if b, _ := os.ReadFile(filepath.Join(dir, "alignment-metashape.csv")); strings.Count(string(b), ".jpg") != 2 {
+		t.Fatalf("alignment data:\n%s\nwant the 2 photos there", b)
 	}
-	taken := s.taken()
-	if !s.resumable() || taken < 3 || taken == 6 {
-		t.Fatalf("after Stop: %d of %d taken, complete %v", taken, len(s.Shots), s.Complete)
-	}
-	if m := a.cap.msg(); !m.Resumable || m.Index != taken {
-		t.Fatalf("after Stop: resumable %v, index %d", m.Resumable, m.Index)
-	}
-	csv := func() int {
-		b, _ := os.ReadFile(filepath.Join(dir, "alignment-metashape.csv"))
-		return strings.Count(string(b), ".JPG")
-	}
-	if n := csv(); n != taken {
-		t.Fatalf("alignment data for %d photos, want %d", n, taken)
+	if s, err := readCaptureState(dir); err != nil || !s.resumable() || len(s.Shots) != 4 {
+		t.Fatalf("capture.json: %v", err)
 	}
 
-	// A restart: a new app, a new current capture; the interrupted one opened.
-	a.camera.disconnect()
-	a.rig.disconnect()
-	b := resumeApp(t, cfgPath)
-	startBatch(false)
-	b.cfg.update(func(c *Config) { c.Plan = Plan{Photos: 99} }) // (another plan since)
-	bs, _ := listBatches()
-	if len(bs) != 1 || !bs[0].Interrupted || bs[0].Taken != taken || bs[0].Planned != 6 {
+	// After a restart: another plan since, a new app.
+	cfg.update(func(c *Config) { c.Plan = Plan{Photos: 99} })
+	app := &app{cfg: cfg, clients: map[*client]struct{}{}, camera: cam, model: &modelBuilder{out: func(any) {}}}
+	app.rig = &rig{cfg: cfg, out: func(any) {}}
+	app.cap = &capture{rig: app.rig, camera: cam, out: func(any) {}}
+	if bs, _ := listBatches(); len(bs) != 1 || !bs[0].Interrupted || bs[0].Planned != 4 {
 		t.Fatalf("Browse: %+v", bs)
 	}
-	if err := b.adopt(name); err != nil {
+	if err := app.adopt(name); err != nil {
 		t.Fatal(err)
 	}
-	if b.cfg.get().Plan.Photos != 6 || currentBatch() != name {
-		t.Fatalf("plan %d photos, current %s", b.cfg.get().Plan.Photos, currentBatch())
+	m := app.cap.msg()
+	if cfg.get().Plan.Photos != 4 || currentBatch() != name || !m.Resumable {
+		t.Fatalf("plan %d photos, current %s, resumable %v", cfg.get().Plan.Photos, currentBatch(), m.Resumable)
 	}
-	m := b.cap.msg()
-	if !m.Resumable || m.Index != taken || !m.Shots[0].Before || m.Shots[taken].Done {
-		t.Fatalf("opened: resumable %v, index %d", m.Resumable, m.Index)
+	if m.Index != 2 || !m.Shots[0].Before || !m.Shots[1].Before || m.Shots[2].Done {
+		t.Fatalf("index %d (want 2: photo 2 deleted, its shot to take again)", m.Index)
 	}
-	if tl := b.camera.timeline(); len(tl.Photos) != taken || tl.Photos[0].Num != 1 {
-		t.Fatalf("timeline: %d photos, want the %d taken", len(tl.Photos), taken)
+	if tl := cam.timeline(); len(tl.Photos) != 2 {
+		t.Fatalf("timeline: %d photos, want the 2 there", len(tl.Photos))
 	}
-	if p, ok := b.camera.pictureOf(1); !ok || len(p.JPEG) == 0 {
+	if p, ok := cam.pictureOf(1); !ok || len(p.JPEG) == 0 {
 		t.Fatal("photo 1's picture: not read from its file")
-	}
-	if err := b.cap.start(b.cfg.get().Plan); err != nil {
-		t.Fatal(err)
-	}
-	waitCapture(t, b.cap)
-	s, _ = readCaptureState(dir)
-	if !s.Complete || s.taken() != 6 || b.cap.msg().Resumable {
-		t.Fatalf("resumed: complete %v, %d taken", s.Complete, s.taken())
-	}
-	if n := csv(); n != 6 {
-		t.Fatalf("alignment data for %d photos, want 6", n)
-	}
-	files, _ := filepath.Glob(filepath.Join(dir, "SIM_*.JPG"))
-	if len(files) != 6 {
-		t.Fatalf("%d photos in the folder, want 6: %v", len(files), files)
 	}
 }

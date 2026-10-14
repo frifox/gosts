@@ -119,8 +119,8 @@ func (c *capture) saveNow() {
 	r := c.rig.cfg.get().Rig
 	var photos []exportPhoto
 	for _, sh := range s.Shots {
-		if sh.File == "" || sh.ActualElevation == nil || sh.ActualAzimuth == nil {
-			continue // not taken (or no pose)
+		if sh.File == "" || sh.ActualElevation == nil || sh.ActualAzimuth == nil || !fileExists(filepath.Join(dir, sh.File)) {
+			continue // not taken (or no pose, or deleted since)
 		}
 		photos = append(photos, exportPhoto{Path: filepath.Join(dir, sh.File), Pose: camPose(r, *sh.ActualElevation, *sh.ActualAzimuth)})
 	}
@@ -172,6 +172,11 @@ func (a *app) adopt(name string) error {
 	}
 	if !s.resumable() {
 		return errors.New("that capture is complete")
+	}
+	for i, sh := range s.Shots { // (a photo deleted since: its shot's not taken, to be taken again)
+		if sh.File != "" && !fileExists(filepath.Join(dir, sh.File)) {
+			s.Shots[i].File = ""
+		}
 	}
 	c := a.cap
 	shots, index := takenFirst(s.Shots) // (taken: their file saved; Resume carries on from the first not)
