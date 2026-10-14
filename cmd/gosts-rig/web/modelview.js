@@ -505,7 +505,7 @@ export function createModelView(canvas) {
           new THREE.LineBasicMaterial({ color: s.color, transparent: true, opacity: 0.7, depthWrite: false }));
         edge.applyMatrix4(at);
         edge.renderOrder = 8;
-        marks.add(face, edge);
+        (s.follow ? onModel : marks).add(face, edge); // (following: it turns with the model, as its points do)
       } else if (s.line && s.points.length > 1) {
         const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(s.line === "loop" ? [...s.points, s.points[0]] : s.points),
           new THREE.LineBasicMaterial({ color: s.color, depthTest: false, transparent: true }));
