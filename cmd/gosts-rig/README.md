@@ -83,8 +83,8 @@ watch its progress. Each photo gets a mark: used, rejected, or skipped.
 ## Viewing and editing models
 
 A capture's models appear first in its gallery. Click one to look around it in 3D (Textured, Clay or Wireframe), with
-views from the Front, Side, Top or 3D. **Measure** shows the distance between two points; **Open in App** and
-**Show in Finder** take it further.
+views from the Front, Side, Top or 3D. **Measure** shows the distance between two points; **Show in Finder** finds its
+file.
 
 **Edit** gets a model ready for Blender, Fusion 360 and the like: click points on the model, then
 
