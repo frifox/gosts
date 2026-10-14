@@ -223,6 +223,8 @@ td.mono { font-family: var(--mono); }
 .btn.small.icon { padding: 0; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; }
 .btn.small.icon svg { width: 15px; height: 15px; }
 .btn.small.icon.on { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); } /* (its card open) */
+/* In a joined group, the whole group lit with it (the icon colored only on the one pressed). */
+.btn-join:has(> .btn.on) > .btn:not(.danger) { border-color: var(--accent); background: var(--accent-weak); }
 .battery.low { color: var(--warn); }
 .battery.empty { color: var(--bad); }
 /* Camera: the timeline of photos (3:2), newest on the left, scrolling sideways. */
