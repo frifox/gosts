@@ -29,6 +29,7 @@ func TestMain(m *testing.M) {
 	photoDir = dir
 	code := m.Run()
 	os.RemoveAll(dir)
+	removeSamples() // (the sample shots the tests took)
 	os.Exit(code)
 }
 
@@ -202,8 +203,8 @@ func TestCamerasNowBusy(t *testing.T) {
 }
 
 // TestNewCapture: New Capture makes the new folder at once, empty (the
-// next photos and sample shots go there), shown in Browse though empty; two
-// in a second get different ones.
+// next photos go there; sample shots don't: see sampleFolder), shown in
+// Browse though empty; two in a second get different ones.
 func TestNewCapture(t *testing.T) {
 	old := photoDir
 	photoDir = t.TempDir()
@@ -217,8 +218,9 @@ func TestNewCapture(t *testing.T) {
 	if bs, _ := listBatches(); len(bs) != 1 || bs[0].Name != f || !bs[0].Current || bs[0].Count != 0 {
 		t.Errorf("Browse: %+v, want the new one (empty, current) alone", bs)
 	}
-	if got := filepath.Base(filepath.Dir(sampleFolder())); got != f {
-		t.Errorf("samples go in %s, want in %s", got, f)
+	defer removeSamples()
+	if strings.HasPrefix(sampleFolder(), photoDir) {
+		t.Errorf("samples go in %s, in the captures' folder", sampleFolder())
 	}
 	if st, err := os.Stat(filepath.Join(photoDir, f)); err != nil || !st.IsDir() {
 		t.Fatalf("folder %s not made: %v", f, err)
@@ -229,7 +231,8 @@ func TestNewCapture(t *testing.T) {
 }
 
 // TestBatchEmpty: a capture is empty till something's taken or coming
-// (a sample shot too), or its folder has a file (from before a restart).
+// (not a sample shot: not the capture's), or its folder has a file (from
+// before a restart).
 func TestBatchEmpty(t *testing.T) {
 	old := photoDir
 	photoDir = t.TempDir()
@@ -244,9 +247,10 @@ func TestBatchEmpty(t *testing.T) {
 		t.Error("a photo coming, and empty")
 	}
 	c.inFlight = nil
-	os.WriteFile(filepath.Join(sampleFolder(), "s.JPG"), []byte("x"), 0o644)
-	if c.batchStatus().Empty {
-		t.Error("a sample shot in its folder, and empty")
+	c.samples, c.inFlight = map[int]string{2: ""}, map[int]bool{2: true}
+	c.photos = map[int]photo{3: {Sample: true}}
+	if !c.batchStatus().Empty {
+		t.Error("sample shots (not the capture's), and not empty")
 	}
 	c.reset(false) // (not made yet: nothing in it)
 	if !c.batchStatus().Empty {
@@ -286,5 +290,30 @@ func TestSimSaves(t *testing.T) {
 		if b, err := os.ReadFile(want); err != nil || string(b) != "rendered" {
 			t.Errorf("photo %d's file: %q, %v", n, b, err)
 		}
+	}
+}
+
+// A samples folder a gone run left is deleted as the next starts; a live
+// one's (this run's) stays.
+func TestCleanStaleSamples(t *testing.T) {
+	gone := filepath.Join(os.TempDir(), samplesPrefix+"99999999") // (no such process)
+	mine := sampleFolder()
+	defer removeSamples()
+	if err := os.MkdirAll(gone, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(gone, "s.JPG"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(mine, "s.JPG"), []byte("x"), 0o644)
+	cleanStaleSamples()
+	if fileExists(gone) {
+		os.RemoveAll(gone)
+		t.Error("a gone run's samples folder stayed")
+	}
+	if !fileExists(filepath.Join(mine, "s.JPG")) {
+		t.Error("this run's sample was deleted")
+	}
+	discard([]string{filepath.Join(mine, "s.JPG")})
+	if fileExists(filepath.Join(mine, "s.JPG")) {
+		t.Error("a discarded sample's file stayed")
 	}
 }

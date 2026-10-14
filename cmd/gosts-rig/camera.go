@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"sync"
 	"time"
 )
@@ -90,11 +91,83 @@ const batchName = "2006-01-02 15.04.05"
 // first photo).
 func batchFolder() string { return batchDir("") }
 
-// sampleFolder is the current batch's sample shots' folder: "samples" in
-// its folder (made now if it's the first), so they go with the capture.
-func sampleFolder() string { return batchDir(string(filepath.Separator) + sampleSub) }
+// Sample shots' files: not in a capture's folder (they're not its photos,
+// and they'd make one), but a folder of the run's own in the temp folder
+// (gosts-rig-samples-<pid>). Shown from memory, they're only kept while the
+// app has them: each is deleted as its sample goes (deleted, New Capture,
+// the oldest dropped: see discard), the folder as the app quits, and one
+// left by a run that's gone (it crashed) as the next starts.
+var samples struct {
+	sync.Mutex
+	dir string
+}
 
-// sampleSub is the sample shots' folder in a capture's.
+// samplesPrefix names the runs' sample folders (and the pid after it).
+const samplesPrefix = "gosts-rig-samples-"
+
+// sampleFolder is the run's sample shots' folder (made now if it's the first).
+func sampleFolder() string {
+	samples.Lock()
+	defer samples.Unlock()
+	if samples.dir == "" {
+		d := filepath.Join(os.TempDir(), samplesPrefix+strconv.Itoa(os.Getpid()))
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			log.Printf("samples: %v", err)
+		}
+		samples.dir = d
+	}
+	return samples.dir
+}
+
+// isSampleFile says whether f is in the run's sample shots' folder.
+func isSampleFile(f string) bool {
+	samples.Lock()
+	defer samples.Unlock()
+	return samples.dir != "" && filepath.Dir(f) == samples.dir
+}
+
+// removeSamples deletes the run's sample shots' folder (the app quitting).
+func removeSamples() {
+	samples.Lock()
+	defer samples.Unlock()
+	if samples.dir != "" {
+		os.RemoveAll(samples.dir)
+		samples.dir = ""
+	}
+}
+
+// cleanStaleSamples deletes the sample folders of runs that are gone.
+func cleanStaleSamples() {
+	dirs, _ := filepath.Glob(filepath.Join(os.TempDir(), samplesPrefix+"*"))
+	for _, d := range dirs {
+		pid, err := strconv.Atoi(strings.TrimPrefix(filepath.Base(d), samplesPrefix))
+		if err != nil || pid == os.Getpid() {
+			continue
+		}
+		if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) { // (no such process: that run's gone)
+			os.RemoveAll(d)
+		}
+	}
+}
+
+// discard gets rid of a photo's files: a sample's deleted (the run's own
+// copies), any other's to the Trash.
+func discard(files []string) {
+	for _, f := range files {
+		if isSampleFile(f) {
+			os.Remove(f)
+			continue
+		}
+		if _, err := os.Stat(f); err == nil {
+			if err := trashPhoto(f); err != nil {
+				log.Printf("photos: deleting %s: %v", f, err)
+			}
+		}
+	}
+}
+
+// sampleSub is the sample shots' folder in a capture's (as they were kept
+// before: a model isn't saved by that name).
 const sampleSub = "samples"
 
 func batchDir(suffix string) string {
@@ -171,11 +244,22 @@ type batchMsg struct {
 	Dir   string `json:"dir"` // the folder the captures are in (~ for home)
 }
 
-// batchStatus is the current capture's batchMsg: empty if the timeline
-// (samples too) has nothing taken or coming and its folder no files.
+// batchStatus is the current capture's batchMsg: empty if the timeline has
+// nothing taken or coming and its folder no files (sample shots aren't the
+// capture's: see sampleFolder).
 func (c *cameraConn) batchStatus() batchMsg {
 	c.mu.Lock()
-	n := len(c.photos) + len(c.inFlight)
+	n := 0
+	for k, p := range c.photos {
+		if _, sample := c.samples[k]; !sample && !p.Sample {
+			n++
+		}
+	}
+	for k := range c.inFlight {
+		if _, sample := c.samples[k]; !sample {
+			n++
+		}
+	}
 	c.mu.Unlock()
 	m := batchNow()
 	m.Empty = n == 0 && (m.Name == "" || !hasFiles(filepath.Join(photoDir, m.Name)))
@@ -917,13 +1001,7 @@ func (c *cameraConn) delete(n int) {
 	}
 	c.deleted[n] = true
 	c.mu.Unlock()
-	for _, f := range files {
-		if _, err := os.Stat(f); err == nil {
-			if err := trashPhoto(f); err != nil {
-				log.Printf("photos: deleting %s: %v", f, err)
-			}
-		}
-	}
+	discard(files)
 	c.out(photoEventMsg{Type: "photoDeleted", N: n})
 	c.out(c.batchStatus())
 }
@@ -966,11 +1044,7 @@ func (c *cameraConn) picture(n int, p photo) bool {
 		gone := c.deleted[n]
 		c.mu.Unlock()
 		if gone { // deleted while it was coming: its files go too
-			for _, f := range p.Files {
-				if _, err := os.Stat(f); err == nil {
-					trashPhoto(f)
-				}
-			}
+			discard(p.Files)
 		}
 		return false
 	}
@@ -988,11 +1062,16 @@ func (c *cameraConn) picture(n int, p photo) bool {
 		}
 	}
 	c.photos[n] = p
-	for k := range c.photos {
+	var old []string // (the oldest dropped: a sample's files with it)
+	for k, q := range c.photos {
 		if k <= c.count-maxPhotos {
+			if q.Sample {
+				old = append(old, q.Files...)
+			}
 			delete(c.photos, k)
 		}
 	}
+	defer discard(old)
 	if c.pending == n {
 		c.pending = 0
 	}
@@ -1026,6 +1105,17 @@ func (c *cameraConn) pictureOf(n int) (photo, bool) {
 	return p, true
 }
 
+// sampleFiles are the sample shots' files (c.mu held).
+func (c *cameraConn) sampleFiles() []string {
+	var fs []string
+	for _, p := range c.photos {
+		if p.Sample {
+			fs = append(fs, p.Files...)
+		}
+	}
+	return fs
+}
+
 // photo is photo n's picture, if it's on the timeline.
 func (c *cameraConn) photo(n int) (photo, bool) {
 	c.mu.Lock()
@@ -1054,6 +1144,7 @@ func (c *cameraConn) timeline() photosMsg {
 // see pictureOf), the photos to come going into its folder, numbered on.
 func (c *cameraConn) resumeIn(dir string, files []string) {
 	c.mu.Lock()
+	defer discard(c.sampleFiles()) // (the samples gone with them)
 	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight, c.simRendered, c.simDirs = map[int]photo{}, nil, nil, nil, nil, nil, nil
 	c.nums = map[int]int{}
 	for i, f := range files {
@@ -1080,10 +1171,12 @@ func (c *cameraConn) resumeIn(dir string, files []string) {
 // deleted: no empty one left in its place). Its name.
 func (c *cameraConn) reset(make bool) string {
 	c.mu.Lock()
+	gone := c.sampleFiles() // (the samples go with them)
 	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight, c.simRendered, c.simDirs = nil, nil, nil, nil, nil, nil, nil
 	c.count, c.pending, c.taken, c.nums = 0, 0, 0, nil
 	c.gen++
 	c.mu.Unlock()
+	discard(gone)
 	startBatch(make)
 	c.out(c.timeline())
 	c.out(c.batchStatus())

@@ -171,6 +171,8 @@ func main() {
 			log.Printf("camera %s: %v", cam, err)
 		}
 	}()
+	cleanStaleSamples()   // (sample shots a run that's gone left)
+	defer removeSamples() // (this run's: after the camera's gone)
 	defer a.camera.disconnect()
 	defer a.rig.disconnect()
 	go a.rig.pollLoop(ctx)

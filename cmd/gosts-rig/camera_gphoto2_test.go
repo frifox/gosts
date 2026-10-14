@@ -255,8 +255,8 @@ func TestGphoto2Leftovers(t *testing.T) {
 	}
 }
 
-// Sample shots go in a folder of their own beside the batch's: the same
-// name, with "-samples".
+// Sample shots go in the run's samples folder (not the capture's), and
+// their files go when they do (New Capture).
 func TestSampleFolder(t *testing.T) {
 	bin := t.TempDir()
 	if err := os.WriteFile(filepath.Join(bin, "gphoto2"), []byte(fakeGphoto2), 0o755); err != nil {
@@ -293,13 +293,16 @@ func TestSampleFolder(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	samples, _ := filepath.Glob(filepath.Join(photoDir, "*", "samples", "*.JPG"))
+	defer removeSamples()
+	samples, _ := filepath.Glob(filepath.Join(sampleFolder(), "*.JPG"))
 	photos, _ := filepath.Glob(filepath.Join(photoDir, "*", "*.JPG"))
-	if len(samples) != 1 || len(photos) != 1 {
-		t.Fatalf("samples %v, photos %v: want the sample alone in <batch>/samples", samples, photos)
+	inCapture, _ := filepath.Glob(filepath.Join(photoDir, "*", "*", "*.JPG"))
+	if len(samples) != 1 || len(photos) != 1 || len(inCapture) != 0 {
+		t.Fatalf("samples %v, photos %v, in the capture's folders %v: want the sample alone in the run's samples folder", samples, photos, inCapture)
 	}
-	if want := filepath.Dir(samples[0]); want != filepath.Join(batchFolder(), "samples") {
-		t.Errorf("sample folder %q, want the batch's samples folder", want)
+	c.reset(false) // (New Capture: the samples go, their files too)
+	if left, _ := filepath.Glob(filepath.Join(sampleFolder(), "*")); len(left) != 0 {
+		t.Errorf("after New Capture, the samples folder has %v", left)
 	}
 }
 
