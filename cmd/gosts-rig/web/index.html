@@ -943,6 +943,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 
 <div class="gallery" id="gallery" hidden>
   <div class="gallery-bar"><nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="galleryUp" data-tip="~/Pictures/gosts-rig" aria-label="All captures (Backspace)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg></button><button class="btn small crumb-btn" id="galleryTitle" hidden></button></span></nav><button class="icon-btn pen-btn" id="galleryRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button><span class="spacer"></span>
+    <button class="btn small primary" id="resumeCapBtn" hidden>Resume</button>
     <button class="btn small" id="buildModelBtn" title="Build a 3D model from these photos, with Apple's Object Capture" hidden>Build Model</button><span class="spacer"></span>
     <span class="views seg" id="galleryViewSeg"><button data-v="grid">Thumbnails</button><button data-v="list">List</button></span>
     <button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
@@ -1491,8 +1492,15 @@ function folderTile(name, count, img, current, open, rename, info) {
   return b;
 }
 // openFolder opens a capture from Captures, to look at. (An interrupted
-// one's tile has Resume, on hover: see resumeCapture.)
-function openFolder(b) { galleryGo(b.current ? "current" : b.name); }
+// one: Resume, on its tile on hover and in its bar: see resumeCapture.)
+function openFolder(b) {
+  state.gal.info = b; // (its bar's Resume: whether it's interrupted)
+  galleryGo(b.current ? "current" : b.name);
+}
+$("resumeCapBtn").onclick = () => {
+  const b = state.gal.info;
+  if (b?.name === state.gal.where) resumeCapture(b);
+};
 // resumeCapture makes the interrupted capture shown the current one (see
 // resume.go): its plan and photos back, the Camera card's button Resume.
 // Asked first if the capture now has photos (they stay saved). Browse closes,
@@ -2149,6 +2157,10 @@ async function renderGallery() {
   $("galleryTitle").hidden = where === null;
   $("galleryRename").hidden = where === null || !galleryFolder();
   $("buildModelBtn").hidden = where === null || !galleryFolder();
+  // An interrupted capture opened (see openFolder): Resume, beside Build Model.
+  const intr = where !== null && state.gal.info?.name === where && state.gal.info.interrupted && !state.gal.info.current ? state.gal.info : null;
+  $("resumeCapBtn").hidden = !intr || !!state.cap?.running;
+  if (intr) $("resumeCapBtn").title = `${intr.taken} of ${intr.planned} photos taken: make this the current capture, its plan back, to take the rest (Resume in the Camera card)`;
   if (where === null) $("modelPanel").hidden = true;
   if (where === "current") {
     g.innerHTML = "";
