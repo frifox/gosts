@@ -391,6 +391,13 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .sweep-strip button { flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px; border: 2px solid transparent; border-radius: 8px;
   background: rgba(255,255,255,.06); color: #e6e9ef; font: 12px var(--mono); cursor: pointer; }
 .sweep-strip button.on { border-color: var(--accent); background: rgba(91,140,255,.18); }
+/* The sweep going: a spinner in the viewer's header, on the thumbnail being taken, and on its button. */
+.viewer-bar .crumb-meta.busy::before, .sweep-strip .pending::after { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px;
+  border-radius: 50%; border: 2px solid rgba(255,255,255,.18); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.sweep-strip .pending { display: flex !important; align-items: center; justify-content: center; }
+.sweep-strip .pending::after { width: 18px; height: 18px; margin: 0; }
+.fstop-sweep.busy svg { display: none; }
+.fstop-sweep.busy::before { margin-right: 0; }
 .sweep-strip img, .sweep-strip .pending { width: 108px; height: 72px; object-fit: cover; border-radius: 5px; background: rgba(255,255,255,.08); display: block; }
 .sweep-sel { position: absolute; border: 2px dashed #fff; box-shadow: 0 0 0 1px #000; pointer-events: none; z-index: 2; }
 /* A select and a button after it, joined (F-stop and its sweep): the select as wide as the column leaves it
@@ -2837,6 +2844,8 @@ function closePhoto() {
   $("viewer").hidden = true; state.viewing = null; state.disk = null;
   if (state.sweep) { state.sweep.cancel = true; state.sweep = null; } // (a sweep going: it stops after the shot being taken)
   $("viewer").classList.remove("sweep");
+  $("viewerCap").classList.remove("busy");
+  document.querySelector(".fstop-sweep")?.classList.remove("busy");
   $("sweepStrip").hidden = true;
 }
 // F-stop sweep (the camera settings' F-stop icon): a sample shot at each
@@ -2851,6 +2860,7 @@ async function fstopSweep(st) {
   const was = st.current, sw = state.sweep = { shots: [], i: 0, running: true, cancel: false, skipped: [] };
   stopLive(true);
   $("camConfigErr").textContent = "";
+  document.querySelector(".fstop-sweep")?.classList.add("busy");
   vz.fit = true;
   $("viewer").classList.add("sweep");
   $("sweepStrip").hidden = false;
@@ -2902,8 +2912,9 @@ function sweepShow() {
   $("viewerHome").hidden = $("viewerBack").hidden = true;
   const s = sw.shots[sw.i];
   $("viewerFile").textContent = s ? `F-stop ${s.f}` : "F-stop sweep";
-  $("viewerCap").textContent = (s ? `${sw.i + 1} / ${sw.shots.length}` : "") + (sw.probing ? " · finding the lens's f-stops…" : sw.running ? " · taking…" : "") +
-    (sw.skipped.length ? ` · not taken: ${sw.skipped.join(", ")}` : "");
+  $("viewerCap").textContent = [s && `${sw.i + 1} / ${sw.shots.length}`, sw.probing ? "finding the lens's f-stops…" : sw.running && "taking…",
+    sw.skipped.length && `not taken: ${sw.skipped.join(", ")}`].filter(Boolean).join(" · ");
+  $("viewerCap").classList.toggle("busy", !!sw.running); // (a spinner till it's done)
   $("viewerNewer").hidden = $("viewerOlder").hidden = false;
   $("viewerNewer").textContent = "‹ Previous"; $("viewerOlder").textContent = "Next ›";
   $("viewerNewer").disabled = sw.i <= 0; $("viewerOlder").disabled = sw.i >= sw.shots.length - 1;
@@ -3153,6 +3164,7 @@ function renderSettings(list) {
       b.setAttribute("aria-label", b.title);
       b.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 2l2.2 5M14 8l-5 2.2M8 14l-2.2-5M2 8l5-2.2"/></svg>';
       b.onclick = (e) => { e.preventDefault(); fstopSweep(st); };
+      b.classList.toggle("busy", !!state.sweep?.running); // (taking the shots)
       sweepBtn = b;
     }
     sel.disabled = st.readOnly;
