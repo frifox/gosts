@@ -936,7 +936,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             </div></div>
           <div class="hint mono" id="sampleCaption"></div>
           <!-- Gray Card lives by the color temperature slider (renderSettings puts it there); parked here meanwhile. -->
-          <div hidden id="focusPark"><button class="btn small needs-sample" id="focusBtn" disabled data-title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again" data-tip="Focus needs a sample shot, please take one">Focus</button><span class="focus-pick" id="focusPick" hidden><span class="views seg" id="focusModeSeg"><button data-m="nearfar" title="Focus between two cards, the nearest and farthest the object reaches: the depth of field centered on them">Near/Far Points</button><button data-m="single" title="Focus on one part: drag a rectangle around it">Single Point</button></span><button class="btn small" id="focusPickCancel" title="Cancel">✕</button><button class="btn small primary" id="focusStart">Start</button></span></div>
+          <div hidden id="focusPark"><button class="btn small needs-sample" id="focusBtn" disabled data-title="Check the focus: drag a rectangle around a part of the sample to see it large, then focus (autofocus, or by hand) and see it again" data-tip="Focus needs a sample shot, please take one">Focus</button><span class="focus-pick" id="focusPick" hidden><span class="views seg" id="focusModeSeg"><button data-m="single" title="Focus on one part: drag a rectangle around it">Single Point</button><button data-m="nearfar" title="Focus between two cards, the nearest and farthest the object reaches: the depth of field centered on them">Near/Far Points</button></span><button class="btn small" id="focusPickCancel" title="Cancel">✕</button><button class="btn small primary" id="focusStart">Start</button></span></div>
           <div hidden id="grayPark"><button class="btn small needs-sample" id="grayBtn" disabled data-title="Balance white from a gray card: drag a rectangle inside the card in the sample, and the app works out the color temperature that makes it neutral" data-tip="Gray Card needs a sample shot, please take one">Gray Card</button></div>
         </div>
       </div>
@@ -3538,7 +3538,7 @@ function focusPick(on) {
   $("focusBtn").hidden = on;
   if (on) row.appendChild($("focusPick"));
   $("focusPick").hidden = !on;
-  for (const b of $("focusModeSeg").children) b.classList.toggle("active", b.dataset.m === (state.focusMode || "nearfar")); // (Near/Far first)
+  for (const b of $("focusModeSeg").children) b.classList.toggle("active", b.dataset.m === (state.focusMode || "single")); // (Single Point first)
 }
 $("focusModeSeg").onclick = (e) => {
   e.preventDefault();
@@ -3551,7 +3551,7 @@ $("focusPickCancel").onclick = (e) => { e.preventDefault(); focusPick(false); };
 $("focusStart").onclick = (e) => {
   e.preventDefault();
   focusPick(false);
-  const nearFar = (state.focusMode || "nearfar") === "nearfar";
+  const nearFar = state.focusMode === "nearfar";
   state.selecting = nearFar ? "focusNear" : "focus";
   $("sampleBox").classList.add("selecting");
   $("focusBtn").textContent = "Cancel";
