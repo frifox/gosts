@@ -425,6 +425,7 @@ type cameraConn struct {
 	firedAt        []time.Time               // when the queued photos' shutters went, recently (see measurePace)
 	simRendered    map[int]bool              // simulated photos a page has rendered (coming over: see simPicture)
 	simDirs        map[int]string            // the folders simulated photos are saved in (see simSave)
+	onPicture      func(n int, p photo)      // a photo's picture came over (the capture records its file: see capture.pictured)
 	simLink        time.Time                 // the simulated camera's link is busy till then (see simDownload)
 	exposed        time.Duration             // the shutter speed last read (see exposure), for the estimate
 	taken          int                       // the capture's photos asked for, sample shots not counted: their numbers to show (see photoInfo)
@@ -983,6 +984,9 @@ func (c *cameraConn) picture(n int, p photo) bool {
 	c.mu.Unlock()
 	c.out(photoMsg{Type: "photo", N: n, Num: p.Num, File: p.fileName(), At: p.At.UnixMilli(), Sample: p.Sample, Caption: p.Caption, Settings: p.Settings})
 	c.out(c.batchStatus())
+	if c.onPicture != nil && !p.Sample {
+		c.onPicture(n, p)
+	}
 	return true
 }
 
@@ -1006,6 +1010,22 @@ func (c *cameraConn) timeline() photosMsg {
 	}
 	slices.SortFunc(m.Photos, func(a, b photoInfo) int { return a.N - b.N })
 	return m
+}
+
+// resumeIn makes the capture in folder dir (an interrupted one: see
+// resume.go) the current one: the timeline cleared, the photos to come going
+// into its folder, numbered on from the taken ones already there.
+func (c *cameraConn) resumeIn(dir string, taken int) {
+	c.mu.Lock()
+	c.photos, c.deleted, c.samples, c.sampleSettings, c.inFlight, c.simRendered, c.simDirs = nil, nil, nil, nil, nil, nil, nil
+	c.count, c.pending, c.taken, c.nums = 0, 0, taken, nil
+	c.gen++
+	c.mu.Unlock()
+	batch.Lock()
+	batch.dir = dir
+	batch.Unlock()
+	c.out(c.timeline())
+	c.out(c.batchStatus())
 }
 
 // reset starts a new capture: the timeline cleared, and a new batch; its

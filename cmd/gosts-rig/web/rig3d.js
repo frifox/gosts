@@ -261,7 +261,7 @@ export function createRig(container) {
   grid.material.opacity = 0.12; grid.material.transparent = true;
   scene.add(grid);
 
-  const shotColors = { pending: new THREE.Color(0x8a93a3), done: new THREE.Color(0x3ccf7a) };
+  const shotColors = { pending: new THREE.Color(0x8a93a3), done: new THREE.Color(0x3ccf7a), before: new THREE.Color(0xe5484d) }; // (before: taken in an interrupted run, red)
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   let rig = null;       // the built rig: parts that move, and its measurements
   let pv = null;        // running path preview (see startPreview)
@@ -405,10 +405,10 @@ export function createRig(container) {
       const m = new THREE.Matrix4();
       list.forEach((s, i) => {
         const p = shotPos(s.done ? s.actualElevation ?? s.elevation : s.elevation, s.done ? s.actualAzimuth ?? s.azimuth : s.azimuth);
-        if ((pv && i < pv.consumed) || (cv && s.done)) m.makeScale(0, 0, 0); // consumed by the path preview or capture
+        if ((pv && i < pv.consumed) || (cv && s.done && !s.before)) m.makeScale(0, 0, 0); // consumed by the path preview or capture
         else m.makeTranslation(p.x, p.y, p.z);
         rig.shotMesh.setMatrixAt(i, m);
-        rig.shotMesh.setColorAt(i, s.done ? shotColors.done : shotColors.pending);
+        rig.shotMesh.setColorAt(i, s.before ? shotColors.before : s.done ? shotColors.done : shotColors.pending);
       });
       rig.shotMesh.instanceMatrix.needsUpdate = true;
       if (rig.shotMesh.instanceColor) rig.shotMesh.instanceColor.needsUpdate = true;

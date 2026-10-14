@@ -197,6 +197,7 @@ td.mono { font-family: var(--mono); }
 .port .name { font-family: var(--mono); font-size: 12px; }
 .port .detail { color: var(--muted); font-size: 12px; }
 .badge { font-size: 11px; border-radius: 6px; padding: 1px 6px; background: var(--accent-weak); color: var(--accent); }
+.badge.interrupted { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); } /* (a capture to resume) */
 /* The Log takes the left column's height the cards above leave (its bottom level with the Rig
    View's), at least 120px. */
 #logCard { flex: 1 0 auto; display: flex; flex-direction: column; }
@@ -923,7 +924,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         </div>
       </div>
       <div class="legend">
-        <span style="--c:var(--pending)">planned shot</span><span style="--c:var(--done)">taken</span><span style="--c:var(--accent)">next</span>
+        <span style="--c:var(--pending)">planned shot</span><span style="--c:var(--bad)" id="legendBefore" hidden>taken before</span><span style="--c:var(--done)">taken</span><span style="--c:var(--accent)">next</span>
       </div>
     </div>
   </section>
@@ -1463,14 +1464,15 @@ const galleryFolder = () => state.gal.where === "current" ? $("batchName").textC
 $("galleryRename").onclick = () => { const n = galleryFolder(); if (n) renameCapture(n); };
 // folderTile: a capture's tile; a click opens it; ✎ (on hover) renames its
 // folder (one on disk: rename).
-function folderTile(name, count, img, current, open, rename) {
+function folderTile(name, count, img, current, open, rename, info) {
   const b = document.createElement("div");
   b.className = "thumb folder";
   b.tabIndex = 0;
   b.setAttribute("role", "button");
   b.title = `Open ${name}`;
   b.innerHTML = `<div class="fold">${img ? `<img alt="" loading="lazy" decoding="async" src="${img}">` : '<div class="empty">No photos yet</div>'}</div><div class="info"><b>${escHTML(name)}</b>` +
-    (current ? '<span class="badge">Current</span>' : "") + `<span class="count">${count} photo${count === 1 ? "" : "s"}</span></div>` +
+    (current ? '<span class="badge">Current</span>' : "") +
+    (info?.interrupted ? `<span class="badge interrupted" title="Stopped short: ${info.taken} of ${info.planned} photos taken. Open it to resume.">Interrupted ${info.taken}/${info.planned}</span>` : "") + `<span class="count">${count} photo${count === 1 ? "" : "s"}</span></div>` +
     (rename ? `<button class="edit" title="Rename ${escHTML(name)}" aria-label="Rename">${pencilIcon}</button>` +
       `<button class="del" title="Delete ${escHTML(name)} (to the Trash; asks first)" aria-label="Delete">${trashIcon}</button>` : "");
   b.onclick = (e) => { if (!e.target.closest(".edit, .del")) open(); };
@@ -1480,6 +1482,20 @@ function folderTile(name, count, img, current, open, rename) {
     b.querySelector(".del").onclick = () => deleteCapture(name, count);
   }
   return b;
+}
+// openFolder opens a capture from Captures. An interrupted one (see
+// resume.go) becomes the current capture: its plan back, Capture is Resume
+// (asked first if the capture now has photos: they stay saved).
+async function openFolder(b) {
+  if (b.interrupted && !b.current && !state.cap?.running) {
+    if (state.photos.length && !await confirmDanger(`Resume ${b.name}?`,
+      `It's the current capture then: its plan comes back, and Resume takes the ${b.planned - b.taken} photos left. The ${state.photos.length} photos of the capture now stay saved (Browse has them).`, "Open to Resume")) return;
+    try {
+      await send("openCapture", { folder: b.name });
+      return galleryGo(b.name); // (its photos on disk: the timeline starts empty)
+    } catch (e) { log(`${b.name}: ${e.message}`, "error"); }
+  }
+  galleryGo(b.current ? "current" : b.name);
 }
 // postBatch posts to a batch's address (rename, delete), the error its text.
 async function postBatch(path, body) {
@@ -2146,7 +2162,7 @@ async function renderGallery() {
       // its photos in memory only).
       if (state.photos.length && !bs.some((b) => b.current))
         g.appendChild(folderTile("Current Batch", state.photos.length, photoURL(state.photos[Math.floor((state.photos.length - 1) / 2)]) + "&thumb", true, () => galleryGo("current")));
-      for (const b of bs) g.appendChild(folderTile(b.name, b.count, b.mid ? batchURL(b.name, b.mid) + "?thumb" : "", b.current, () => galleryGo(b.current ? "current" : b.name), true));
+      for (const b of bs) g.appendChild(folderTile(b.name, b.count, b.mid ? batchURL(b.name, b.mid) + "?thumb" : "", b.current, () => openFolder(b), true, b));
       if (!g.children.length) g.innerHTML = `<span class="hint">No captures yet: they are saved in ${escHTML(state.photoDir || "~/Pictures/gosts-rig")}.</span>`;
     } else {
       const ps = await getJSON(`/batches/${encodeURIComponent(where)}`);
@@ -4207,7 +4223,7 @@ $("previewBtn").onclick = () => {
 // planLock: while a preview or a capture runs, what would change the plan
 // (the photos, moving shots, the path) can't be changed.
 function planLock() {
-  const busy = !!(window.rig3d?.previewing() || state.cap?.running);
+  const busy = !!(window.rig3d?.previewing() || state.cap?.running || state.cap?.resumable);
   for (const id of ["pPhotos", "pMoving", "paceBtn", "pExport"]) $(id).disabled = busy;
   for (const b of [...$("pathSeg").children, ...$("shootSeg").children]) b.disabled = busy;
 }
@@ -4284,6 +4300,11 @@ function onCapture(m) {
   capCount();
   // Preview and Capture; while capturing, Pause and Stop in their places.
   $("startBtn").hidden = $("previewBtn").hidden = m.running;
+  // An interrupted capture (see resume.go): Resume, its shots left; the plan
+  // as it was (locked: New Capture starts afresh).
+  $("startBtn").textContent = m.resumable ? "Resume" : "Capture";
+  $("startBtn").title = m.resumable ? "Carry on with the photos left, as the capture was planned" : "Take the photos";
+  $("legendBefore").hidden = !m.shots.some((s) => s.before);
   $("pauseBtn").hidden = $("abortBtn").hidden = !m.running;
   $("previewBtn").disabled = m.shots.length < 2;
   if (m.running) { stopPreview(); showCtl(false); }

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -25,6 +24,11 @@ type shot struct {
 	// 0°.
 	ActualElevation *float64 `json:"actualElevation,omitempty"`
 	ActualAzimuth   *float64 `json:"actualAzimuth,omitempty"`
+	// File is its photo's file (in the capture's folder) once the picture
+	// came over: it's taken (see resume.go).
+	File string `json:"file,omitempty"`
+	// Before: taken in an earlier run of the capture (it was interrupted).
+	Before bool `json:"before,omitempty"`
 }
 
 // planShots spreads p.Photos points as evenly as possible over the band of
@@ -200,7 +204,6 @@ type capture struct {
 	running     bool
 	paused      bool
 	holding     bool // moving shots held for the camera to catch up (see pace)
-	first       int  // the capture's first photo's number (shot i is photo first+i: see exportAlignment)
 	note        string
 	cancel      context.CancelFunc
 	resume      chan struct{}
@@ -212,6 +215,18 @@ type capture struct {
 	started     time.Time
 	rows        int
 	spacing     float64
+
+	// Resuming (see resume.go): the capture's plan and folder (where its
+	// state is saved), the photos' shots, whether it's complete, and
+	// whether it's one that stopped short, Resume carrying it on.
+	plan      Plan
+	folder    string
+	photoShot map[int]int // photo number → shot
+	complete  bool
+	resumable bool
+	began     time.Time // its first run's start
+	saveTimer *time.Timer
+	saveMu    sync.Mutex
 }
 
 type captureMsg struct {
@@ -231,13 +246,16 @@ type captureMsg struct {
 	// Estimate is about how long (s) the plan takes, not running (see
 	// capture.estimate).
 	Estimate float64 `json:"estimate,omitempty"`
+	// Resumable: an interrupted capture, its plan kept: the Capture button
+	// is Resume (the shots left), New Capture starting afresh.
+	Resumable bool `json:"resumable,omitempty"`
 }
 
 func (c *capture) msg() captureMsg {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	m := captureMsg{Type: "capture", Running: c.running, Paused: c.paused, Index: c.index, Total: len(c.shots),
-		Shots: append([]shot(nil), c.shots...), Note: c.note, Rows: c.rows, Spacing: c.spacing}
+		Shots: append([]shot(nil), c.shots...), Note: c.note, Rows: c.rows, Spacing: c.spacing, Resumable: c.resumable && !c.running}
 	if c.running {
 		m.Elapsed = time.Since(c.started).Seconds()
 		m.Active = m.Elapsed - c.pausedFor().Seconds()
@@ -397,6 +415,11 @@ func (c *capture) preview(p Plan) error {
 		c.mu.Unlock()
 		return errors.New("a capture is running")
 	}
+	if c.resumable { // (its own plan and shots kept, to resume)
+		c.mu.Unlock()
+		c.send()
+		return nil
+	}
 	c.shots, c.index, c.note, c.rows, c.spacing = shots, 0, "", rows, spacing
 	c.mu.Unlock()
 	c.send()
@@ -428,6 +451,12 @@ func (c *capture) begin(p Plan) error {
 	if !c.camera.connected() {
 		return errors.New("connect a camera first (the simulator will do for a try)")
 	}
+	c.mu.Lock()
+	resuming := c.resumable && c.index < len(c.shots)
+	c.mu.Unlock()
+	if resuming {
+		return c.resumeRun()
+	}
 	shots, rows, spacing, err := planShots(p, c.rig.cfg.get().Motion)
 	if err != nil {
 		return err
@@ -455,10 +484,11 @@ func (c *capture) begin(p Plan) error {
 	}
 	c.shots, c.index, c.running, c.paused, c.cancel = shots, 0, true, false, cancel
 	c.pausedAt, c.pausedTotal = time.Time{}, 0
-	c.first = c.camera.photoCount() + 1
 	c.rows, c.spacing = rows, spacing
 	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
+	c.plan, c.folder, c.photoShot, c.complete, c.resumable, c.began = p, batchFolder(), map[int]int{}, false, false, c.started
 	c.mu.Unlock()
+	c.saveNow() // (its plan and shots, in its folder: resumable from the start)
 	how := fmt.Sprintf("in %d rows, Stop & Shoot", rows)
 	switch {
 	case p.Moving && p.path() == PathRings:
@@ -500,6 +530,21 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	c.waitPictures()
 	c.mu.Lock()
 	c.running, c.paused, c.cancel, c.cooling = false, false, nil, time.Time{}
+	// Complete: every shot's photo saved. Else it's resumable: the shots
+	// taken first (marked Before), the rest after, in their order, Resume
+	// carrying on with them.
+	c.complete = true
+	for _, s := range c.shots {
+		c.complete = c.complete && s.File != ""
+	}
+	c.resumable = !c.complete
+	if c.resumable {
+		c.shots, c.index = takenFirst(c.shots)
+	}
+	if c.saveTimer != nil {
+		c.saveTimer.Stop()
+		c.saveTimer = nil
+	}
 	done := c.index
 	switch {
 	case errors.Is(err, context.Canceled):
@@ -516,14 +561,55 @@ func (c *capture) run(ctx context.Context, p Plan) {
 		level = "error"
 	}
 	c.rig.logf(level, "capture: %s", note)
+	c.saveNow() // (its state, and its alignment data: all the photos taken)
 	c.send()
-	if p.ExportFor != "" {
-		c.exporting.Add(1) // (the capture's folder left as it is till it's written: see renameBatch)
-		go func() {
-			defer c.exporting.Add(-1)
-			c.exportAlignment(p.ExportFor)
-		}()
+}
+
+// resumeRun carries on the capture's plan with the shots left (the plan as
+// it was: c.plan).
+func (c *capture) resumeRun() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	c.mu.Lock()
+	if c.running {
+		c.mu.Unlock()
+		cancel()
+		return errors.New("a capture is already running")
 	}
+	p := c.plan
+	c.running, c.paused, c.cancel, c.resumable = true, false, cancel, false
+	c.pausedAt, c.pausedTotal = time.Time{}, 0
+	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
+	if c.photoShot == nil {
+		c.photoShot = map[int]int{}
+	}
+	left, total := len(c.shots)-c.index, len(c.shots)
+	c.mu.Unlock()
+	c.rig.logf("info", "capture resumed: %d of %d photos left", left, total)
+	if !p.Moving {
+		exp := c.camera.exposure()
+		c.mu.Lock()
+		c.hold = shutterHold(exp)
+		c.mu.Unlock()
+	}
+	c.send()
+	go c.run(ctx, p)
+	return nil
+}
+
+// takenFirst orders shots taken first (marked Before: done in a run before),
+// then the rest (not done), each in its order, and says how many are taken.
+func takenFirst(shots []shot) ([]shot, int) {
+	var taken, left []shot
+	for _, s := range shots {
+		if s.File != "" {
+			s.Done, s.Before = true, true
+			taken = append(taken, s)
+		} else {
+			s.Done, s.Before, s.ActualElevation, s.ActualAzimuth = false, false, nil, nil
+			left = append(left, s)
+		}
+	}
+	return append(taken, left...), len(taken)
 }
 
 // waitPictures waits for the photos asked for to come over from the camera
@@ -545,36 +631,6 @@ func (c *capture) waitPictures() {
 		}
 	}
 	c.rig.logf("error", "capture: %d photos didn't come over from the camera", c.camera.backlog())
-}
-
-// exportAlignment writes the capture's alignment data for app kind (see
-// writeExport) beside its photos, once their pictures are all in.
-func (c *capture) exportAlignment(kind string) {
-	for deadline := time.Now().Add(pictureWait + 10*time.Second); c.camera.backlog() > 0 && time.Now().Before(deadline); {
-		time.Sleep(200 * time.Millisecond)
-	}
-	c.mu.Lock()
-	shots, first := append([]shot(nil), c.shots[:c.index]...), c.first
-	c.mu.Unlock()
-	r := c.rig.cfg.get().Rig
-	var photos []exportPhoto
-	for i, s := range shots {
-		p, ok := c.camera.photo(first + i)
-		if !ok || len(p.Files) == 0 || s.ActualElevation == nil || s.ActualAzimuth == nil {
-			continue // no file (not saved), or no pose
-		}
-		photos = append(photos, exportPhoto{Path: p.Files[0], Pose: camPose(r, *s.ActualElevation, *s.ActualAzimuth)})
-	}
-	if len(photos) == 0 {
-		c.rig.logf("info", "capture: no photo files to export alignment data for")
-		return
-	}
-	dir := filepath.Dir(photos[0].Path)
-	if err := writeExport(kind, dir, photos, exportIntrinsics{FocalMM: c.camera.focalLength()}); err != nil {
-		c.rig.logf("error", "capture: exporting alignment data (%s): %v", kind, err)
-		return
-	}
-	c.rig.logf("info", "capture: alignment data for %s written in %s (%d photos)", kind, dir, len(photos))
 }
 
 // spiralRange is how far (turns) the platform servo's goals reach either way.
@@ -717,10 +773,14 @@ func (c *capture) photo(ctx context.Context, wait bool) error {
 			c.send() // the page has the shot already; now where it was taken
 		}
 	}
-	if err := c.camera.shoot(ctx, wait, firing); err != nil {
+	n, err := c.camera.takeIn(ctx, wait, firing, false, nil)
+	if err != nil {
 		return fmt.Errorf("camera: %w", err)
 	}
 	c.mu.Lock()
+	if c.photoShot != nil {
+		c.photoShot[n] = i // (its picture's file: the shot's, when it comes; see pictured)
+	}
 	c.shots[i].Done = true
 	c.index++
 	n, total := c.index, len(c.shots)

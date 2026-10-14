@@ -28,6 +28,11 @@ type batchInfo struct {
 	Count   int    `json:"count"`
 	Mid     string `json:"mid"`
 	Current bool   `json:"current"`
+	// Interrupted: a capture that stopped short (see resume.go): taken of
+	// planned photos; opened, it can be resumed.
+	Interrupted bool `json:"interrupted,omitempty"`
+	Taken       int  `json:"taken,omitempty"`
+	Planned     int  `json:"planned,omitempty"`
 }
 
 // batchPhoto is a photo in a batch folder.
@@ -106,7 +111,11 @@ func listBatches() ([]batchInfo, error) {
 		if len(ps) > 0 {
 			mid = ps[(len(ps)-1)/2].File
 		}
-		out = append(out, batchInfo{Name: n, Count: len(ps), Mid: mid, Current: n == current})
+		bi := batchInfo{Name: n, Count: len(ps), Mid: mid, Current: n == current}
+		if s, err := readCaptureState(filepath.Join(photoDir, n)); err == nil && s.resumable() {
+			bi.Interrupted, bi.Taken, bi.Planned = true, s.taken(), len(s.Shots)
+		}
+		out = append(out, bi)
 	}
 	slices.SortFunc(out, func(a, b batchInfo) int { return strings.Compare(b.Name, a.Name) })
 	return out, nil
@@ -286,6 +295,7 @@ func (a *app) renameBatch(from, to string) error {
 		batch.dir = dst
 		if a.camera != nil {
 			a.camera.relocate(src, dst) // (the timeline's files: there now)
+			a.cap.relocate(src, dst)
 		}
 	}
 	batch.Unlock()
@@ -387,6 +397,7 @@ func (a *app) deleteBatch(name string) error {
 			return errors.New(why)
 		}
 		a.camera.reset(false)
+		a.cap.forget()
 	}
 	if err := trash(dir); err != nil {
 		return err

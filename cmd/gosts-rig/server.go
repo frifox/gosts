@@ -282,7 +282,14 @@ func (a *app) exec(req request) (any, error) {
 	case "modelCancel":
 		return nil, a.model.cancel()
 	case "photosReset": // New Capture: the timeline cleared, a new folder
-		return map[string]string{"folder": a.camera.reset(true)}, nil
+		if a.cap.isRunning() {
+			return nil, errors.New("a capture is running")
+		}
+		folder := a.camera.reset(true)
+		a.cap.forget() // (an interrupted one: left as it is, in its folder)
+		return map[string]string{"folder": folder}, nil
+	case "openCapture": // Browse: an interrupted capture opened, to resume
+		return nil, a.adopt(req.Folder)
 	case "cameraDisconnect":
 		a.cap.stop()
 		a.camera.disconnect()
