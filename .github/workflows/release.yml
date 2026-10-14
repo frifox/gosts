@@ -43,9 +43,9 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#gosts-rig-}" # (v1.0.0)
           zip="cmd/gosts-rig-macos/build/GoSTS-Rig-${version}-macos-arm64.zip"
-          notes="GoSTS Rig for macOS (Apple silicon). Unzip and move it to Applications. It's signed ad hoc, not by Apple, so the first time: open it once, then System Settings → Privacy & Security → Open Anyway (on macOS 14 and earlier, right-click → Open works too). For a real camera: brew install gphoto2."
+          notes="Automated photogrammetry rig. Configure hardware, capture photos, generate/edit 3D models. Use with MacOS."
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$zip" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$zip" --title "GoSTS Rig ${version}" --generate-notes --notes "$notes"
+            gh release create "$GITHUB_REF_NAME" "$zip" --title "GoSTS Rig ${version}" --notes "$notes"
           fi
