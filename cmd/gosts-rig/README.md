@@ -101,5 +101,6 @@ simplified to fewer triangles if you like.
 - Use **manual focus** for captures: in autofocus the camera won't fire until it finds focus.
 - Shoot against a plain backdrop: the object turns, not the camera.
 
-Settings are kept in `~/Library/Application Support/gosts-rig/config.toml` on macOS (`~/.config/gosts-rig/` on
+The **gear** at the right of the header picks the captures' folder and where the settings are kept (with macOS'
+folder chooser). Settings are kept in `~/Library/Application Support/gosts-rig/config.toml` on macOS by default (`~/.config/gosts-rig/` on
 Linux); `--config` picks another file.

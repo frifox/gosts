@@ -50,6 +50,10 @@ func main() {
 	ctlPath := flag.String("ctl-config", ctlConfigPath(), "the servo console's settings file (Servo Ctl: gosts-ctl's, shared with it), created on the first change")
 	withStdin := flag.Bool("exit-with-stdin", false, "quit (cleanly) when stdin closes: for an app that starts gosts-rig, so it goes when the app does, even if the app crashes")
 	flag.Parse()
+	flag.Visit(func(f *flag.Flag) {
+		flagsSet.photos = flagsSet.photos || f.Name == "photos"
+		flagsSet.config = flagsSet.config || f.Name == "config"
+	})
 
 	cfg, err := loadConfig(*cfgPath)
 	if err != nil {

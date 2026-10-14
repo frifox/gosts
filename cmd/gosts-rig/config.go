@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/BurntSushi/toml"
@@ -229,6 +230,26 @@ func loadConfig(path string) (*configFile, error) {
 	return f, nil
 }
 
+// filePath is where the config is saved.
+func (f *configFile) filePath() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.path
+}
+
+// moveTo saves the config at path from now on (written there now).
+func (f *configFile) moveTo(path string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	old := f.path
+	f.path = path
+	if err := f.save(); err != nil {
+		f.path = old
+		return err
+	}
+	return nil
+}
+
 func (f *configFile) get() Config {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -272,10 +293,29 @@ func (f *configFile) save() error {
 	return os.Rename(tmp.Name(), f.path)
 }
 
-// defaultConfigPath is gosts-rig/config.toml in the user's config
-// directory. One left from before the rename (gosts/config.toml) is copied
-// there the first time.
+// defaultSettingsDir is where gosts-rig keeps its settings unless they were
+// moved (see settingsPointer): gosts-rig in the user's config directory.
+func defaultSettingsDir() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "."
+	}
+	return filepath.Join(dir, "gosts-rig")
+}
+
+// settingsPointer is the file in defaultSettingsDir that says where the
+// settings were moved to (the header's gear: Settings folder), if they were.
+func settingsPointer() string { return filepath.Join(defaultSettingsDir(), "location") }
+
+// defaultConfigPath is config.toml in the settings folder: gosts-rig in the
+// user's config directory, or where it was moved (settingsPointer). One left
+// from before the rename (gosts/config.toml) is copied there the first time.
 func defaultConfigPath() string {
+	if b, err := os.ReadFile(settingsPointer()); err == nil {
+		if dir := strings.TrimSpace(string(b)); dir != "" {
+			return filepath.Join(dir, "config.toml")
+		}
+	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "gosts-rig.toml"

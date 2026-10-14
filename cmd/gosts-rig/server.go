@@ -171,6 +171,20 @@ func (a *app) exec(req request) (any, error) {
 		}
 		a.rig.sendState() // windows follow the plan's mode
 		return nil, a.cap.preview(*req.Plan)
+	case "appSettings": // the header's gear: the folders
+		return a.appSettings(), nil
+	case "chooseFolder": // macOS' folder chooser: prompt Key, starting at Value ("" back: canceled)
+		return chooseFolder(req.Key, req.Value)
+	case "setPhotos": // the captures' folder: Value
+		if err := a.setPhotos(req.Value); err != nil {
+			return nil, err
+		}
+		return a.appSettings(), nil
+	case "setSettingsDir": // the settings' folder (config.toml): Value
+		if err := a.setSettingsDir(req.Value); err != nil {
+			return nil, err
+		}
+		return a.appSettings(), nil
 	case "flashMeasure": // Camera Settings' Measure: the flash's limit at power Key
 		return nil, a.measureFlash(req.Key)
 	case "flashMeasureStop":
@@ -349,7 +363,7 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 			c.push(res)
 		}
 		switch {
-		case req.Type == "connect" || req.Type == "scan" || req.Type == "disconnect" || req.Type == "cameraDisconnect": // slow, or must not wait: keep the window responsive
+		case req.Type == "connect" || req.Type == "scan" || req.Type == "disconnect" || req.Type == "cameraDisconnect" || req.Type == "chooseFolder": // slow, or must not wait (the folder chooser: open till picked): keep the window responsive
 			go run()
 		case cameraRequests[req.Type]:
 			select {
