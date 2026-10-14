@@ -36,6 +36,7 @@ type app struct {
 
 	mu      sync.Mutex
 	clients map[*client]struct{}
+	quit    func() // gosts-rig quits (cleanly: see main), as for Ctrl-C
 }
 
 type client struct {
@@ -91,6 +92,14 @@ type resultMsg struct {
 
 func (a *app) exec(req request) (any, error) {
 	switch req.Type {
+	case "exit": // Settings' Exit Backend: gosts-rig quits, once the page has its answer
+		log.Print("exit: asked from the page: quitting")
+		if a.model.msg().Running {
+			a.model.cancel() // (Object Capture runs apart: it'd go on after)
+		}
+		a.stopMeasure()
+		go func() { time.Sleep(200 * time.Millisecond); a.quit() }()
+		return nil, nil
 	case "ports":
 		return listPorts()
 	case "connect":

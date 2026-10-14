@@ -88,7 +88,7 @@ func main() {
 		}()
 	}
 
-	a := &app{cfg: cfg, clients: map[*client]struct{}{}}
+	a := &app{cfg: cfg, clients: map[*client]struct{}{}, quit: stop}
 	a.rig = &rig{cfg: cfg, out: a.broadcast}
 	a.camera = &cameraConn{out: a.broadcast, cfg: cfg}
 	a.cap = &capture{rig: a.rig, camera: a.camera, out: a.broadcast}

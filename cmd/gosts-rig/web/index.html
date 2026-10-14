@@ -741,6 +741,11 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .app-settings .as-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-2); font-size: 12px; }
 .app-settings .as-note { color: var(--warn); font-size: 12px; margin-top: 6px; }
 .app-settings .as-note:empty { display: none; }
+.app-settings .as-row .btn.danger { margin-left: auto; }
+/* gosts-rig quit (Exit Backend): the page over everything, till it's back. */
+.backend-gone { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; background: rgba(10,12,16,.82); }
+.backend-gone[hidden] { display: none; }
+.backend-gone .card { padding: 20px 24px; max-width: 420px; text-align: center; }
 [hidden] { display: none !important; }
 @media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } .view .card-body { min-height: 420px; } }
 </style>
@@ -1191,10 +1196,17 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
           <button class="btn small" data-choose="settings">Choose…</button><button class="btn small" data-default="settings">Default</button></div>
         <div class="as-note" id="asSettingsNote"></div>
       </div>
+      <div class="as-item">
+        <div class="as-label">Backend</div>
+        <div class="as-hint">gosts-rig itself, the program behind this page: quit it (the rig and the camera let go).</div>
+        <div class="as-row"><span class="as-path mono" id="asBackend"></span><button class="btn small danger" id="asExit">Exit Backend</button></div>
+      </div>
       <div class="err" id="asErr"></div>
     </div>
   </div>
 </div>
+<div class="backend-gone" id="backendGone" hidden><div class="card"><h2 style="justify-content:center">gosts-rig has quit</h2>
+  <p class="hint" style="margin:8px 0 0">Start it again (or GoSTS Rig) and this page comes back by itself.</p></div></div>
 <div class="modal-backdrop" id="confirmModal" style="z-index:70" hidden>
   <div class="modal card" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" style="width:min(420px,100%)">
     <h2 id="confirmTitle">Are you sure?</h2>
@@ -1232,11 +1244,13 @@ function connectWS() {
   ws = new WebSocket(`ws://${location.host}/ws`);
   ws.onopen = () => {
     setPill("ws", true, "ws: connected");
+    $("backendGone").hidden = true; state.exited = false; // (started again)
     send("ports").then(renderPorts).catch(() => {});
     send("cameras").then(renderCameras).catch(() => {});
   };
   ws.onclose = () => {
     setPill("ws", false, "ws: disconnected");
+    if (state.exited) $("backendGone").hidden = false; // (Exit Backend: gone, not lost)
     for (const p of pending.values()) p.reject(new Error("disconnected"));
     pending.clear();
     setTimeout(connectWS, 1000);
@@ -2475,6 +2489,7 @@ async function galleryGo(where) {
 const appSet = { s: null };
 function appSettingsShow(s) {
   appSet.s = s;
+  $("asBackend").textContent = location.host;
   $("asPhotos").textContent = s.photos;
   $("asPhotos").title = s.photos;
   $("asSettings").textContent = s.settings;
@@ -2503,7 +2518,7 @@ $("appSettingsModal").onclick = async (e) => {
   if (!b || !appSet.s) return;
   const k = b.dataset.choose || b.dataset.default, set = k === "photos" ? "setPhotos" : "setSettingsDir";
   $("asErr").textContent = "";
-  for (const x of document.querySelectorAll("#appSettingsModal .as-row .btn")) x.disabled = true;
+  for (const x of document.querySelectorAll("#appSettingsModal .as-row .btn:not(#asExit)")) x.disabled = true;
   try {
     let dir = appSet.s[k + "Default"];
     if (b.dataset.choose) {
@@ -2517,6 +2532,18 @@ $("appSettingsModal").onclick = async (e) => {
   } finally {
     appSettingsShow(appSet.s);
   }
+};
+// Exit Backend: gosts-rig quits (asked first only while something's going:
+// a capture, a model build, the flash measured, an F-stop sweep); the page
+// says so till it's started again.
+$("asExit").onclick = async () => {
+  const busy = state.cap?.running ? "The capture running stops." : state.model?.running ? "The model being built is canceled." :
+    flash.running ? "Measuring the flash stops." : state.sweep?.running ? "The F-stop sweep stops." : "";
+  if (busy && !await confirmDanger("Exit the backend?", busy + " gosts-rig quits; start it again to carry on.", "Exit")) return;
+  $("asErr").textContent = "";
+  state.exited = true;
+  try { await send("exit", {}); closeAppSettings(); }
+  catch (e) { state.exited = false; $("asErr").textContent = e.message; }
 };
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !$("appSettingsModal").hidden) { e.preventDefault(); e.stopPropagation(); closeAppSettings(); }
