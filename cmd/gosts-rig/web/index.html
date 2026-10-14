@@ -1054,12 +1054,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       </div>
       <section data-step="level">
         <div class="mve-head"><b>Level</b></div>
-        <div class="mve-row"><button class="btn small" data-pick="level">Pick Points</button><span class="mve-n"></span><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="level" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveLevel" disabled>Level</button></span></div>
+        <div class="mve-row"><button class="btn small" data-pick="level">Pick Points</button><span class="mve-n"></span><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="level" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveLevel" disabled title="Put the points' plane on the ground">Apply</button></span></div>
       </section>
       <section data-step="align">
         <div class="mve-head"><b>Align</b></div>
         <div class="mve-row"><button class="btn small" data-pick="align">Pick Points</button><span class="mve-n"></span></div>
-        <div class="mve-row"><span class="mve-label">To axis</span><span class="views seg" id="mveAxis"><button data-v="x">X</button><button data-v="y">Y</button></span><button class="btn small" id="mveFlip" disabled title="Turn it 180° more: the edge still along the axis, the model the other way round">Flip</button><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="align" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveAlign" disabled title="Keep it turned as shown">Align</button></span></div>
+        <div class="mve-row"><span class="mve-label">To axis</span><span class="views seg" id="mveAxis"><button data-v="x">X</button><button data-v="y">Y</button></span><button class="btn small" id="mveFlip" disabled title="Turn it 180° more: the edge still along the axis, the model the other way round">Flip</button><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="align" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveAlign" disabled title="Keep it turned as shown">Apply</button></span></div>
       </section>
       <section data-rot>
         <div class="mve-head"><b>Rotate</b></div>
@@ -1073,7 +1073,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <section data-trim>
         <div class="mve-head"><b>Trim</b></div>
         <div class="mve-trim"><b class="x">X</b><span class="mve-val" data-val="x0"></span><span class="mve-dual" data-ax="x"><span class="mve-fill"></span><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="0" aria-label="X min"><input type="range" min="0" max="1000" step="1" data-ax="x" data-end="1" aria-label="X max"></span><span class="mve-val" data-val="x1"></span><b class="y">Y</b><span class="mve-val" data-val="y0"></span><span class="mve-dual" data-ax="y"><span class="mve-fill"></span><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="0" aria-label="Y min"><input type="range" min="0" max="1000" step="1" data-ax="y" data-end="1" aria-label="Y max"></span><span class="mve-val" data-val="y1"></span><b class="z">Z</b><span class="mve-val" data-val="z0"></span><span class="mve-dual" data-ax="z"><span class="mve-fill"></span><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="0" aria-label="Z min"><input type="range" min="0" max="1000" step="1" data-ax="z" data-end="1" aria-label="Z max"></span><span class="mve-val" data-val="z1"></span></div>
-        <div class="mve-row"><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="trim" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveTrim" disabled>Trim</button></span></div>
+        <div class="mve-row"><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="trim" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveTrim" disabled title="Cut away what's outside the box">Apply</button></span></div>
       </section>
       <section data-step="center">
         <div class="mve-head"><b>Center</b></div>
@@ -1083,7 +1083,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <section data-step="scale">
         <div class="mve-head"><b>Scale</b></div>
         <div class="mve-row"><button class="btn small" data-pick="scale">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="scale">Clear</button></div>
-        <div class="mve-row"><input type="number" id="mveDist" min="0" step="any" placeholder="distance"><span class="views seg" id="mveUnit"><button data-v="mm">mm</button><button data-v="in">in</button></span><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="scale" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveScale" disabled>Scale</button></span></div>
+        <div class="mve-row"><input type="number" id="mveDist" min="0" step="any" placeholder="distance"><span class="views seg" id="mveUnit"><button data-v="mm">mm</button><button data-v="in">in</button></span><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="scale" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveScale" disabled title="Scale the model so the points are that far apart">Apply</button></span></div>
       </section>
       <section class="mve-save">
         <div class="mve-head"><b>Save</b></div>
