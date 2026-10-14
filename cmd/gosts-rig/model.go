@@ -56,7 +56,7 @@ type modelOptions struct {
 }
 
 func defaultModelOptions() modelOptions {
-	return modelOptions{Out: defaultOut("full"), Format: "obj", Detail: "full", Ordering: "sequential", Sensitivity: "normal", Masking: true, Mesh: "triangle",
+	return modelOptions{Out: defaultOut("full"), Format: "obj", Detail: "full", Ordering: "sequential", Sensitivity: "high", Masking: true, Mesh: "triangle",
 		Checkpoint: true, Gravity: true, MaxPolygons: 250000, TextureDim: "8k", TextureMaps: []string{"all"}, TextureFormat: "png", JPEGQuality: 0.8}
 }
 
