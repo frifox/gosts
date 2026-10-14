@@ -297,8 +297,9 @@ td.mono { font-family: var(--mono); }
   font: inherit; color: var(--warn); /* (as the capture buttons' text) */ background: color-mix(in srgb, var(--warn) 14%, var(--panel-2)); border: 1px solid color-mix(in srgb, var(--warn) 50%, var(--border)); }
 .cool-badge[hidden] { display: none; }
 .cooldown input[type=number] { width: 46px; padding: 4px 6px; text-align: center; }
-.cooldown #coolMin, .cooldown #coolShots { padding-left: 3px; padding-right: 3px; }
-.cooldown #coolMin, .cooldown #coolDarkMin { width: 40px; }
+.cooldown #coolMin, .cooldown #coolShots, .cooldown #coolDarkMin { padding-left: 3px; padding-right: 3px; }
+.cooldown #coolMin { width: 40px; }
+.cooldown #coolDarkMin { width: 46px; } /* (its line has room: 3 digits, "120") */
 .cooldown #coolShots { width: 50px; } /* (room for 3 digits: "160", the row still in 300 px) */
 /* Not picked: its numbers faded and off. */
 .cool-line.off input[type=number], .cool-line.off > .cool-text { opacity: .45; }
