@@ -198,6 +198,22 @@ export function createModelView(canvas) {
     canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: e.deltaX, deltaMode: e.deltaMode, clientX: e.clientX, clientY: e.clientY, bubbles: true, cancelable: true }));
   }, { capture: true, passive: false });
   controls.zoomToCursor = true;
+  // A double click of the wheel fills the view with the model (as F does):
+  // two wheel clicks (pressed and let go, not dragged: that turns it) close
+  // together.
+  let wheelDown = null, wheelClick = 0;
+  canvas.addEventListener("pointerdown", (e) => { if (e.button === 1) wheelDown = [e.clientX, e.clientY]; }, { capture: true });
+  canvas.addEventListener("pointerup", (e) => {
+    if (e.button !== 1 || !wheelDown) return;
+    const still = Math.hypot(e.clientX - wheelDown[0], e.clientY - wheelDown[1]) <= 4;
+    wheelDown = null;
+    if (!still) { wheelClick = 0; return; }
+    const now = performance.now();
+    if (now - wheelClick < 400) {
+      wheelClick = 0;
+      if (holder) view(null, true, true);
+    } else wheelClick = now;
+  }, { capture: true });
   // holder: the edit (its matrix); in it the model as loaded (in meters).
   let viewName = "3d", holder = null, obj = null, grid = null, axes = null, mode = "textured", running = false, seq = 0, editOn = false, onPick = null, radius = 1;
   const originals = new Map(); // mesh → its own material(s)
