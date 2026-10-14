@@ -1,7 +1,20 @@
 # Go ST Servo
 
-A Go package for Waveshare ST3215 serial bus servos: find them, move them, read how they're doing, and tune
-them. Other Waveshare ST servos, and likely the original Feetech ST ones, should work too.
+## What's in this repo
+
+- **[gosts](#quick-start)**, the library (this folder): a Go package for Waveshare ST3215 serial bus servos. Find
+  them, move them (one at a time or several in sync), read how they're doing, and tune them. Other Waveshare ST
+  servos, and likely the original Feetech ST ones, should work too.
+- **[cmd/gosts-ctl](cmd/gosts-ctl)**: a web console for servos. Find them, set IDs and zero, group them,
+  auto-tune them and watch them live. Has a simulator.
+- **[cmd/gosts-rig](cmd/gosts-rig)**: runs a turntable photogrammetry rig from the browser. Plans a capture, moves
+  the rig, drives the camera (gphoto2), collects the photos and builds a 3D model. Has a simulated rig and camera.
+- **[cmd/gosts-rig-macos](cmd/gosts-rig-macos)**: gosts-rig as a Mac app (GoSTS Rig): double-click to start, checks
+  its dependencies, keeps your settings.
+- **[cmd/apple-obj-cap](cmd/apple-obj-cap)**: builds a 3D model from a folder of photos with Apple's Object
+  Capture (macOS 14+, Apple silicon), reporting progress as JSON lines. gosts-rig's Build Model uses it.
+
+The rest of this page is about the library; each app has its own README.
 
 ## What you need
 
