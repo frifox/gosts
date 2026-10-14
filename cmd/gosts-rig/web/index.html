@@ -544,6 +544,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   background: rgba(15,18,24,.72); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer;
   opacity: 0; transition: opacity .12s; }
 .thumb:hover .edit, .thumb:focus-within .edit { opacity: 1; }
+/* An interrupted capture's Resume (its tile, on hover): over the folder's picture. */
+.thumb .resume { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); opacity: 0; transition: opacity .12s; z-index: 1; }
+.thumb:hover .resume, .thumb:focus-within .resume { opacity: 1; }
+.gallery-grid.list .thumb .resume { position: static; transform: none; flex: none; margin-right: 4px; }
 .thumb .edit:hover { background: var(--accent); border-color: var(--accent); }
 .gallery-grid.list .thumb .edit { position: static; flex: none; margin-right: 4px; }
 .thumb.pending { cursor: progress; border-style: dashed; display: flex; align-items: center; justify-content: center; }
@@ -1473,9 +1477,12 @@ function folderTile(name, count, img, current, open, rename, info) {
   b.innerHTML = `<div class="fold">${img ? `<img alt="" loading="lazy" decoding="async" src="${img}">` : '<div class="empty">No photos yet</div>'}</div><div class="info"><b>${escHTML(name)}</b>` +
     (current ? '<span class="badge">Current</span>' : "") +
     (info?.interrupted ? `<span class="badge interrupted" title="Stopped short: ${info.taken} of ${info.planned} photos taken. Open it to resume.">Interrupted ${info.taken}/${info.planned}</span>` : "") + `<span class="count">${count} photo${count === 1 ? "" : "s"}</span></div>` +
+    (info?.interrupted && !current ? `<button class="btn small primary resume" title="${info.taken} of ${info.planned} photos taken: make this the current capture, its plan back, to take the rest (Resume in the Camera card)">Resume</button>` : "") +
     (rename ? `<button class="edit" title="Rename ${escHTML(name)}" aria-label="Rename">${pencilIcon}</button>` +
       `<button class="del" title="Delete ${escHTML(name)} (to the Trash; asks first)" aria-label="Delete">${trashIcon}</button>` : "");
-  b.onclick = (e) => { if (!e.target.closest(".edit, .del")) open(); };
+  b.onclick = (e) => { if (!e.target.closest(".edit, .del, .resume")) open(); };
+  const r = b.querySelector(".resume");
+  if (r) r.onclick = () => { if (!state.cap?.running) resumeCapture(info); else log("A capture is running: resume after it.", "error"); };
   b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) open(); };
   if (rename) {
     b.querySelector(".edit").onclick = () => renameCapture(name);
@@ -1483,20 +1490,22 @@ function folderTile(name, count, img, current, open, rename, info) {
   }
   return b;
 }
-// openFolder opens a capture from Captures. An interrupted one (see
-// resume.go) becomes the current capture: its plan back, Capture is Resume
-// (asked first if the capture now has photos: they stay saved).
-async function openFolder(b) {
-  if (b.interrupted && !b.current && !state.cap?.running) {
-    if (state.photos.length && !await confirmDanger(`Resume ${b.name}?`,
-      `It's the current capture then: its plan comes back, and Resume takes the ${b.planned - b.taken} photos left. The ${state.photos.length} photos of the capture now stay saved (Browse has them).`, "Open to Resume")) return;
-    try {
-      await send("openCapture", { folder: b.name });
-      return galleryGo(b.name); // (its photos on disk: the timeline starts empty)
-    } catch (e) { log(`${b.name}: ${e.message}`, "error"); }
-  }
-  galleryGo(b.current ? "current" : b.name);
+// openFolder opens a capture from Captures, to look at. (An interrupted
+// one's tile has Resume, on hover: see resumeCapture.)
+function openFolder(b) { galleryGo(b.current ? "current" : b.name); }
+// resumeCapture makes the interrupted capture shown the current one (see
+// resume.go): its plan and photos back, the Camera card's button Resume.
+// Asked first if the capture now has photos (they stay saved). Browse closes,
+// to show it.
+async function resumeCapture(b) {
+  if (state.photos.length && !await confirmDanger(`Resume ${b.name}?`,
+    `It's the current capture then: its plan comes back, and Resume takes the ${b.planned - b.taken} photos left. The ${state.photos.length} photos of the capture now stay saved (Browse has them).`, "Open to Resume")) return;
+  try {
+    await send("openCapture", { folder: b.name });
+    closeGallery();
+  } catch (e) { log(`${b.name}: ${e.message}`, "error"); }
 }
+
 // postBatch posts to a batch's address (rename, delete), the error its text.
 async function postBatch(path, body) {
   const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
