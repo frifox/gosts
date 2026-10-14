@@ -426,6 +426,7 @@ type cameraConn struct {
 	simRendered    map[int]bool              // simulated photos a page has rendered (coming over: see simPicture)
 	simDirs        map[int]string            // the folders simulated photos are saved in (see simSave)
 	onPicture      func(n int, p photo)      // a photo's picture came over (the capture records its file: see capture.pictured)
+	nameFor        func(n int) string        // the name (no extension) photo n's files get, "" for the camera's (see capture.fileStem)
 	simLink        time.Time                 // the simulated camera's link is busy till then (see simDownload)
 	exposed        time.Duration             // the shutter speed last read (see exposure), for the estimate
 	taken          int                       // the capture's photos asked for, sample shots not counted: their numbers to show (see photoInfo)
@@ -614,13 +615,15 @@ func (c *cameraConn) sample(ctx context.Context) error {
 }
 
 func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample bool) error {
-	_, err := c.takeIn(ctx, wait, firing, sample, nil)
+	_, err := c.takeIn(ctx, wait, firing, sample, nil, nil)
 	return err
 }
 
 // takeIn is take, its files saved in folder (nil: the capture's, or its
-// samples'), and the photo's number (0 if it wasn't taken).
-func (c *cameraConn) takeIn(ctx context.Context, wait bool, firing func(), sample bool, folder func() string) (int, error) {
+// samples'), and the photo's number (0 if it wasn't taken); numbered, if
+// set, is told the number as soon as it's given (before the shutter: its
+// picture may come over before takeIn returns).
+func (c *cameraConn) takeIn(ctx context.Context, wait bool, firing func(), sample bool, folder func() string, numbered func(n int)) (int, error) {
 	if firing == nil {
 		firing = func() {}
 	}
@@ -646,6 +649,11 @@ func (c *cameraConn) takeIn(ctx context.Context, wait bool, firing func(), sampl
 	c.mu.Lock()
 	c.count++
 	n, gen := c.count, c.gen
+	if numbered != nil {
+		c.mu.Unlock()
+		numbered(n)
+		c.mu.Lock()
+	}
 	num := 0
 	if !sample { // (a sample shot isn't counted: the photos are 1, 2… all the same)
 		c.taken++
@@ -945,6 +953,11 @@ func (c *cameraConn) forgetFile(path string) {
 // picture sets photo n's picture, adding it to the timeline (once: a later
 // copy of the same photo is ignored).
 func (c *cameraConn) picture(n int, p photo) bool {
+	if c.nameFor != nil && len(p.Files) > 0 {
+		if stem := c.nameFor(n); stem != "" { // (a capture's shot: named after its place in the plan)
+			p.Files = renameStem(p.Files, stem)
+		}
+	}
 	c.landed(n)
 	c.mu.Lock()
 	if _, ok := c.photos[n]; ok || c.deleted[n] || n > c.count || n <= c.count-maxPhotos {

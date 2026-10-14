@@ -29,6 +29,9 @@ type shot struct {
 	File string `json:"file,omitempty"`
 	// Before: taken in an earlier run of the capture (it was interrupted).
 	Before bool `json:"before,omitempty"`
+	// Num is its place in the plan (1…): its photo's name, capt_001.jpg
+	// (see fileStem): the order, whenever it was taken.
+	Num int `json:"num,omitempty"`
 }
 
 // planShots spreads p.Photos points as evenly as possible over the band of
@@ -487,6 +490,9 @@ func (c *capture) begin(p Plan) error {
 		cancel()
 		return errors.New("a capture is already running")
 	}
+	for i := range shots {
+		shots[i].Num = i + 1 // (its place in the plan: its photo's name, see fileStem)
+	}
 	c.shots, c.index, c.running, c.paused, c.cancel = shots, 0, true, false, cancel
 	c.pausedAt, c.pausedTotal = time.Time{}, 0
 	c.rows, c.spacing = rows, spacing
@@ -785,18 +791,22 @@ func (c *capture) photo(ctx context.Context, wait bool) error {
 			c.send() // the page has the shot already; now where it was taken
 		}
 	}
-	n, err := c.camera.takeIn(ctx, wait, firing, false, nil)
+	n, err := c.camera.takeIn(ctx, wait, firing, false, nil, func(n int) {
+		c.mu.Lock()
+		if c.photoShot != nil {
+			c.photoShot[n] = i // (its picture's file: the shot's, named after it, when it comes; see pictured, fileStem)
+		}
+		c.mu.Unlock()
+	})
 	if err != nil {
 		return fmt.Errorf("camera: %w", err)
 	}
 	c.mu.Lock()
 	if c.index != i { // (gone back to an earlier shot meanwhile, a no-flash photo's: this one goes too)
+		delete(c.photoShot, n)
 		c.dropLater = append(c.dropLater, n)
 		c.mu.Unlock()
 		return nil
-	}
-	if c.photoShot != nil {
-		c.photoShot[n] = i // (its picture's file: the shot's, when it comes; see pictured)
 	}
 	c.shots[i].Done = true
 	c.index++

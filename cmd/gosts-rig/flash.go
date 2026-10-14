@@ -130,7 +130,7 @@ func (a *app) flashLoop(ctx context.Context, power string) {
 	dark := 0
 	for m.Shots < flashMaxShots {
 		start := time.Now()
-		n, err := a.camera.takeIn(ctx, true, nil, true, func() string { return dir })
+		n, err := a.camera.takeIn(ctx, true, nil, true, func() string { return dir }, nil)
 		if err == nil {
 			var p photo
 			if p, err = a.camera.waitPicture(ctx, n, 30*time.Second); err == nil {

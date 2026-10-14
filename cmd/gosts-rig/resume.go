@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -178,6 +180,11 @@ func (a *app) adopt(name string) error {
 			s.Shots[i].File = ""
 		}
 	}
+	for i := range s.Shots { // (from before Num: the order they're in)
+		if s.Shots[i].Num == 0 {
+			s.Shots[i].Num = i + 1
+		}
+	}
 	c := a.cap
 	shots, index := takenFirst(s.Shots) // (taken: their file saved; Resume carries on from the first not)
 	if err := a.cfg.update(func(cf *Config) { cf.Plan = s.Plan }); err != nil {
@@ -197,6 +204,43 @@ func (a *app) adopt(name string) error {
 	a.rig.sendState() // (the plan: back)
 	c.send()
 	return nil
+}
+
+// fileStem is the name (no extension) photo n's files get if it's one of
+// the capture's shots: capt_ and its place in the plan (capt_001: as many
+// digits as the plan needs, 3 at least), so the folder's in the plan's
+// order by name, whenever each was taken (a resumed capture takes some
+// shots late). "" for a photo that isn't (Take Photo: the camera's name).
+func (c *capture) fileStem(n int) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	i, ok := c.photoShot[n]
+	if !ok || i >= len(c.shots) || c.shots[i].Num == 0 {
+		return ""
+	}
+	return fmt.Sprintf("capt_%0*d", max(3, len(strconv.Itoa(len(c.shots)))), c.shots[i].Num)
+}
+
+// renameStem renames files (a photo's: its JPEG, its RAW) to stem, each
+// keeping its extension (lower case); one there already by that name (the
+// shot's photo before, taken again) goes to the Trash first. The files as
+// they are now.
+func renameStem(files []string, stem string) []string {
+	out := make([]string, len(files))
+	for i, f := range files {
+		to := filepath.Join(filepath.Dir(f), stem+strings.ToLower(filepath.Ext(f)))
+		out[i] = f
+		if to == f {
+			continue
+		}
+		if fileExists(to) {
+			trash(to)
+		}
+		if err := os.Rename(f, to); err == nil {
+			out[i] = to
+		}
+	}
+	return out
 }
 
 // relocate: the capture's folder was renamed (from to to).
