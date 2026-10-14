@@ -268,6 +268,48 @@ func (a *app) handleModelDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleModelRename renames a model's folder (POST
+// /batches/{name}/models/{model}/rename, {"to": "new name"}): not while a
+// build goes into it, nor to a name taken (or not a folder's).
+func (a *app) handleModelRename(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		To string `json:"to"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	dir, _, ok := modelPath(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	if err := a.model.building(r.PathValue("name"), r.PathValue("model")); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	to := strings.TrimSpace(req.To)
+	if !cleanName(to) || !modelFolderName(to) || strings.ContainsAny(to, `:*?"<>|`) {
+		http.Error(w, "not a folder name: no slashes, no leading dot, nor any of : * ? \" < > |", http.StatusConflict)
+		return
+	}
+	dst := filepath.Join(filepath.Dir(dir), to)
+	if to == filepath.Base(dir) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if _, err := os.Stat(dst); err == nil {
+		http.Error(w, fmt.Sprintf("there's a folder named %q already", to), http.StatusConflict)
+		return
+	}
+	if err := os.Rename(dir, dst); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("model: %s's %s renamed to %s", r.PathValue("name"), filepath.Base(dir), to)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // building is an error if a build is going into capture name's folder out.
 func (b *modelBuilder) building(name, out string) error {
 	b.mu.Lock()

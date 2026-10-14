@@ -623,6 +623,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .folder:hover .fold, .folder:focus-visible .fold { filter: brightness(1.1); }
 .gallery-grid .thumb.folder:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .folder .edit { top: 19px; right: 38px; } /* (the pencil, then the bin) */
+.thumb.model .edit { right: 38px; } /* (a model's: the same) */
 .pen-btn { width: 26px; height: 26px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; padding: 0; flex: none; }
 .pen-btn svg { width: 14px; height: 14px; }
 .card > h2 .pen-btn { margin-block: -3px; }
@@ -1033,7 +1034,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 </div>
 <div class="viewer" id="modelViewer" hidden>
   <div class="viewer-bar">
-    <nav class="crumbs"><button class="btn small crumb-btn" id="mvBack" title="Back to the capture (Esc)">‹ Capture</button><span class="crumb cur" id="mvFile"></span><span class="crumb-meta" id="mvCap"></span></nav>
+    <nav class="crumbs"><button class="btn small crumb-btn" id="mvBack" title="Back to the capture (Esc)">‹ Capture</button><span class="crumb cur" id="mvFile"></span><button class="icon-btn pen-btn" id="mvRename" title="Rename this model (its folder)" aria-label="Rename this model"></button><span class="crumb-meta" id="mvCap"></span></nav>
     <span class="spacer"></span>
     <span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, gray">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span>
     <span class="btn-join" id="mvTools"><button class="btn small" id="mvMeasureBtn" title="Click two points on the model: the distance between them (Measure again: cleared)">Measure</button><button class="btn small" id="mvEditBtn" title="Level it, turn it onto an axis, scale it to a known size; save it as a new model (OBJ, and STL)">Edit</button></span>
@@ -1053,11 +1054,11 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       </div>
       <section data-step="level">
         <div class="mve-head"><b>Level</b></div>
-        <div class="mve-row"><button class="btn small" data-pick="level">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="level">Clear</button><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="level" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveLevel" disabled>Level</button></span></div>
+        <div class="mve-row"><button class="btn small" data-pick="level">Pick Points</button><span class="mve-n"></span><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="level" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveLevel" disabled>Level</button></span></div>
       </section>
       <section data-step="align">
         <div class="mve-head"><b>Align</b></div>
-        <div class="mve-row"><button class="btn small" data-pick="align">Pick Points</button><span class="mve-n"></span><button class="btn small" data-clear="align">Clear</button></div>
+        <div class="mve-row"><button class="btn small" data-pick="align">Pick Points</button><span class="mve-n"></span></div>
         <div class="mve-row"><span class="mve-label">To axis</span><span class="views seg" id="mveAxis"><button data-v="x">X</button><button data-v="y">Y</button></span><button class="btn small" id="mveFlip" disabled title="Turn it 180° more: the edge still along the axis, the model the other way round">Flip</button><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="align" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveAlign" disabled title="Keep it turned as shown">Align</button></span></div>
       </section>
       <section data-rot>
@@ -1475,7 +1476,8 @@ function galleryTitle() {
   if (state.gal.where === "current") $("galleryTitle").textContent = galleryFolder() || "Current Batch";
 }
 const pencilIcon = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5l2.5 2.5L5.5 13H3v-2.5z"/><path d="M9.5 4l2.5 2.5"/></svg>';
-$("batchRename").innerHTML = $("galleryRename").innerHTML = pencilIcon;
+$("batchRename").innerHTML = $("galleryRename").innerHTML = $("mvRename").innerHTML = pencilIcon;
+$("mvRename").onclick = () => { if (state.mv) renameModel(state.mv.name, state.mv.m); };
 $("batchRename").onclick = () => { const n = $("batchName").textContent; if (n) renameCapture(n); };
 // The folder open in the gallery: its name (the batch being taken: the current capture's).
 const galleryFolder = () => state.gal.where === "current" ? $("batchName").textContent : state.gal.where;
@@ -1588,7 +1590,9 @@ function modelTile(name, m) {
   b.title = `${m.name}: the model (${fmt}), in 3D`;
   b.innerHTML = `<img alt="" decoding="async"><span class="mbadge">3D · ${fmt}</span><span class="num">${escHTML(m.name)}</span>` +
     `<span class="meta">${fmtMB(m.size)} · ${new Date(m.at).toLocaleString()}</span>` +
+    `<button class="edit" title="Rename ${escHTML(m.name)} (the model's folder)" aria-label="Rename ${escHTML(m.name)}">${pencilIcon}</button>` +
     `<button class="del" title="Delete ${escHTML(m.name)} (the model's folder, to the Trash; asks first)" aria-label="Delete ${escHTML(m.name)}">${trashIcon}</button>`;
+  b.querySelector(".edit").onclick = () => renameModel(name, m);
   const img = b.querySelector("img");
   // Its picture: the server's, else made here (an OBJ) and given to it.
   const placeholder = (text, busy) => {
@@ -1614,7 +1618,7 @@ function modelTile(name, m) {
     }
   };
   img.src = `${base}thumb?at=${m.at}`;
-  b.onclick = (e) => { if (!e.target.closest(".del")) openModel(name, m); };
+  b.onclick = (e) => { if (!e.target.closest(".del, .edit")) openModel(name, m); };
   b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) openModel(name, m); };
   b.querySelector(".del").onclick = async () => {
     if (!await confirmDanger(`Delete ${m.name}?`, `The model's folder (${m.files.length} file${m.files.length === 1 ? "" : "s"}, ${fmtMB(m.size)}) goes to the Trash, where you can still get it back in the Finder.`, "Delete")) return;
@@ -1768,6 +1772,7 @@ function mveNum(m) {
 }
 function mveShow() {
   mveConfirm(false);
+  for (const f of window.mveCancelSyncs || []) f(); // (Cancel: Level's and Align's points picked too)
   const mv = window.modelView, u = segOf("mveUnit"), k = 1 / window.modelEdit.UNITS[u];
   for (const sec of $("mvEdit").querySelectorAll("section[data-step]")) {
     const st = sec.dataset.step, n = mve.picks[st].length;
@@ -1938,12 +1943,19 @@ $("mvEdit").addEventListener("click", async (e) => {
   }
   mveShow();
 });
-// A step's Cancel shows while its Apply is enabled; its Clear, meanwhile,
+// A step's Cancel shows while its Apply is enabled (Level's and Align's
+// too as soon as a point's picked: they've no Clear); its Clear, meanwhile,
 // not (Cancel clears too: the row's room).
+window.mveCancelSyncs = [];
 for (const b of document.querySelectorAll("#mvEdit [data-cancel]")) {
-  const apply = b.nextElementSibling, clear = document.querySelector(`#mvEdit [data-clear="${b.dataset.cancel}"]`);
-  const sync = () => { b.hidden = apply.disabled; if (clear) clear.hidden = !apply.disabled; };
+  const k = b.dataset.cancel, apply = b.nextElementSibling, clear = document.querySelector(`#mvEdit [data-clear="${k}"]`);
+  const sync = () => {
+    const started = !apply.disabled || ((k === "level" || k === "align") && (mve.picks[k].length > 0 || !!mve.alignFrom && k === "align"));
+    b.hidden = !started;
+    if (clear) clear.hidden = started;
+  };
   new MutationObserver(sync).observe(apply, { attributes: true, attributeFilter: ["disabled"] });
+  window.mveCancelSyncs.push(sync);
   sync();
 }
 $("mveTrim").onclick = () => {
@@ -2370,7 +2382,31 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !$("appSettingsModal").hidden) { e.preventDefault(); e.stopPropagation(); closeAppSettings(); }
 }, true);
 function renameCapture(name) {
+  renameFolder(name, "Rename Capture", `The folder's new name, in <span class="photo-dir">${escHTML(document.querySelector(".photo-dir")?.textContent || "~/Pictures/gosts-rig")}</span>`,
+    `/batches/${encodeURIComponent(name)}/rename`, (to) => {
+      log(`${name} renamed to ${to}`);
+      if (!$("gallery").hidden) { // the gallery where it was, under the new name if it's that folder
+        if (state.gal.where === name) state.gal.where = to;
+        galleryAgain();
+      }
+    });
+}
+// renameModel renames a capture's model's folder (its tile's pencil, or the
+// viewer's, by its name); the viewer showing it goes on with the new name.
+function renameModel(capture, mo) {
+  renameFolder(mo.name, "Rename Model", `The model's folder's new name, in ${escHTML(capture)}`, modelBase(capture, mo) + "rename", (to) => {
+    log(`${capture}: ${mo.name} renamed to ${to}`);
+    mo.name = to; // (its address from now on: modelBase)
+    if (state.mv?.m === mo) $("mvFile").textContent = to;
+    if (!$("gallery").hidden) galleryAgain();
+  });
+}
+// renameFolder asks for a folder's new name (title; label: where it is) and
+// posts it to url ({"to": …}); after(to) once renamed.
+function renameFolder(name, title, label, url, after) {
   const m = $("renameModal"), inp = $("renameInput"), err = $("renameErr");
+  $("renameTitle").textContent = title;
+  m.querySelector('label[for="renameInput"]').innerHTML = label;
   inp.value = name;
   err.textContent = "";
   m.hidden = false;
@@ -2386,14 +2422,10 @@ function renameCapture(name) {
     if (!to || to === name) return done();
     $("renameYes").disabled = true;
     try {
-      const r = await fetch(`/batches/${encodeURIComponent(name)}/rename`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to }) });
+      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to }) });
       if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
       done();
-      log(`${name} renamed to ${to}`);
-      if (!$("gallery").hidden) { // the gallery where it was, under the new name if it's that folder
-        if (state.gal.where === name) state.gal.where = to;
-        galleryAgain();
-      }
+      after(to);
     } catch (e) {
       err.textContent = e.message;
     } finally {
