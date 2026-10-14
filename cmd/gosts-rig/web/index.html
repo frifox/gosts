@@ -369,6 +369,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .setting-row .btn { white-space: nowrap; }
 .btn.busy::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px; border-radius: 50%;
   border: 2px solid var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+/* A list's Refresh, while it refreshes itself (see autoRefresh): a ring running down to the next. */
+.btn.refresh { display: inline-flex; align-items: center; gap: 6px; }
+.poll-ring { width: 10px; height: 10px; border-radius: 50%; flex: none;
+  background: conic-gradient(var(--accent) calc(var(--left, 1) * 360deg), var(--border) 0);
+  -webkit-mask: radial-gradient(circle, transparent 2.5px, #000 3px); mask: radial-gradient(circle, transparent 2.5px, #000 3px); }
+.poll-ring[hidden], .btn.busy .poll-ring { display: none; }
 .btn.busy:disabled { opacity: 1; } /* busy, not unavailable: the spinner at full strength */
 .flash-params { max-width: 340px; }
 @media (max-width: 860px) { .camcfg-body { grid-template-columns: 1fr; } }
@@ -737,7 +743,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <h2>Camera <span class="dev-name" id="camDevName"></span><span class="spacer"></span>
         <span class="battery" id="camBattery" title="The camera's battery" hidden><svg viewBox="0 0 24 12" aria-hidden="true"><rect x="0.75" y="0.75" width="20" height="10.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="21.5" y="3.5" width="2" height="5" rx="0.8" fill="currentColor"/><rect id="camBatteryFill" x="2.5" y="2.5" width="16.5" height="7" rx="1" fill="currentColor"/></svg><span id="camBatteryText"></span></span>
         <button class="btn small icon danger" id="camDisconnectBtn" title="Disconnect the camera (a capture running stops)" aria-label="Disconnect the camera" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 16l-4 4M16 16l4 4M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5zM17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5zM3 21l2.5 -2.5M18.5 5.5l2.5 -2.5M10 11l-2 2M13 14l-2 2"/></svg></button>
-        <button class="btn small" id="camRefresh" style="text-transform:none;letter-spacing:0">Refresh</button>
+        <button class="btn small refresh" id="camRefresh" style="text-transform:none;letter-spacing:0"><span class="poll-ring" hidden></span><span class="lbl">Refresh</span></button>
         <span class="btn-join"><button class="btn small icon" id="camCtlBtn" title="Camera control: zoom, focus, exposure and color, with sample shots and live preview" aria-label="Camera control" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5h3l1.8-2.5h8.4L18 8.5h3V19H3z"/><circle cx="12" cy="13.5" r="3.4"/><path d="M12 10.1v1.4M15.4 13.5H14M12 16.9v-1.4M8.6 13.5H10"/></g></svg></button>
         <button class="btn small icon" id="camConfigBtn" title="Settings: the flash's cooldown during a capture, and its limits" aria-label="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button></span>
       </h2>
@@ -798,7 +804,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <section class="card" id="rigCard">
       <h2>Rig <span class="dev-name" id="rigDevName"></span><span class="spacer"></span>
         <button class="btn small icon danger" id="rigDisconnectBtn" title="Disconnect the rig's board (a capture running stops)" aria-label="Disconnect the rig's board" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M20 16l-4 4M16 16l4 4M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5zM17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5zM3 21l2.5 -2.5M18.5 5.5l2.5 -2.5M10 11l-2 2M13 14l-2 2"/></svg></button>
-        <button class="btn small" id="refreshPorts" style="text-transform:none;letter-spacing:0">Refresh</button>
+        <button class="btn small refresh" id="refreshPorts" style="text-transform:none;letter-spacing:0"><span class="poll-ring" hidden></span><span class="lbl">Refresh</span></button>
         <span class="btn-join"><button class="btn small danger" id="stopBtn" title="Stop the rig where it is" style="text-transform:none;letter-spacing:0" hidden>Stop</button>
         <button class="btn small icon" id="rigCfgBtn" title="Servo settings: each servo's settings, tuning, limits and telemetry (gosts-ctl's console)" aria-label="Servo settings" disabled></button></span>
       </h2>
@@ -1302,19 +1308,40 @@ function renderPorts(ports) {
 // searching: a Refresh button, while it looks for devices: a spinner and
 // "Searching…", for at least a moment (so a quick search is seen to happen).
 async function searching(btn, work) {
-  const text = btn.textContent;
+  const lbl = btn.querySelector(".lbl") || btn, text = lbl.textContent;
   btn.disabled = true;
   btn.classList.add("busy");
-  btn.textContent = "Searching…";
+  lbl.textContent = "Searching…";
   try { await Promise.all([work(), new Promise((r) => setTimeout(r, 600))]); }
-  finally { btn.disabled = false; btn.classList.remove("busy"); btn.textContent = text; }
+  finally { btn.disabled = false; btn.classList.remove("busy"); lbl.textContent = text; }
 }
+// autoRefresh: a list that keeps itself up to date while it's shown: run()
+// every so often while idle() (nothing connected, nor connecting; the page
+// in view), the Refresh button's ring running down to the next (a Refresh
+// clicked: the countdown starts again after it).
+function autoRefresh(btn, every, idle, run) {
+  const ring = btn.querySelector(".poll-ring");
+  let next = 0;
+  setInterval(() => {
+    const on = idle() && !document.hidden && !!state.server && !btn.classList.contains("busy");
+    ring.hidden = !on;
+    if (!on) { next = 0; return; }
+    const now = performance.now();
+    if (!next) next = now + every;
+    if (now >= next) { next = now + every; run(); }
+    ring.style.setProperty("--left", ((next - now) / every).toFixed(3));
+  }, 100);
+}
+autoRefresh($("refreshPorts"), 3000, () => !state.server?.connected && !state.rigConnecting, () =>
+  send("ports").then((list) => {
+    if (!state.server?.connected && JSON.stringify(list || []) !== JSON.stringify(state.ports)) renderPorts(list);
+  }).catch(() => {}));
 $("refreshPorts").onclick = () => searching($("refreshPorts"), () => send("ports").then(renderPorts).catch((e) => ($("connectErr").textContent = e.message)));
 $("connectBtn").onclick = async () => {
   $("connectErr").textContent = "";
-  $("connectBtn").disabled = true;
+  $("connectBtn").disabled = state.rigConnecting = true;
   await act("connect", { port: state.selectedPort, baud: 1000000 }, $("connectErr"));
-  $("connectBtn").disabled = false;
+  $("connectBtn").disabled = state.rigConnecting = false;
 };
 
 // ---------------------------------------------------------------- camera
@@ -1361,14 +1388,11 @@ $("camConnectBtn").onclick = async () => {
 // bus, so a Refresh just after can still list it): every few seconds,
 // while no camera is connected (nor being connected) and the page is in
 // view. The server won't scan while a camera's open anywhere (camerasNow).
-const CAMERA_POLL = 3000;
-setInterval(() => {
-  if (state.camera?.connected || state.camConnecting || document.hidden || !state.server || $("camRefresh").classList.contains("busy")) return;
+autoRefresh($("camRefresh"), 3000, () => !state.camera?.connected && !state.camConnecting, () =>
   send("cameras").then((list) => {
     if (state.camera?.connected) return;
     if (JSON.stringify(list) !== JSON.stringify(state.cameras)) renderCameras(list);
-  }).catch(() => {});
-}, CAMERA_POLL);
+  }).catch(() => {}));
 function onCamera(m) {
   state.camera = m;
   // How often the camera keeps up taking photos (Measure finds it).
