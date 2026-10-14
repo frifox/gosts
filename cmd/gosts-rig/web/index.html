@@ -565,7 +565,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
    details only in the list. */
 .gallery-bar .views.seg { margin-left: 0; }
 /* Build Model's panel, under the gallery's bar. */
-.model-panel { border-bottom: 1px solid var(--border); background: var(--panel); padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 10px; }
+.model-panel { border-bottom: 1px solid var(--border); background: var(--panel); padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 10px; position: relative; }
+.model-panel { padding-right: 44px; } /* (room for the ✕ at its top right) */
+.model-panel .mp-close { position: absolute; top: 8px; right: 10px; width: 26px; height: 26px; border-radius: 7px; font-size: 12px; z-index: 1; }
 .model-panel .mp-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; }
 .model-panel .mp-poly { width: 110px; } .model-panel .mp-tex { width: 76px; } .model-panel .mp-out { flex: 1; min-width: 120px; }
 /* Three columns: the build's options; the detail (and what it means); where it goes and Start. The bar below them. */
@@ -967,6 +969,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
   <!-- Build Model: Object Capture's options (apple-obj-cap's), Process, and how the build goes; the photos marked below. -->
   <div class="model-panel" id="modelPanel" hidden>
+    <button class="icon-btn mp-close" id="mClose" title="Close (as Build Model again)" aria-label="Close">✕</button>
     <div class="mp-cols">
       <div class="mp-col mp-c-opts">
         <div class="mp-row"><label>Photo order<span class="views seg" id="mOrdering"><button data-v="sequential" title="Each photo overlaps the one before (a rig's rings)">Sequential</button><button data-v="unordered" title="In no particular order">Unordered</button></span></label><label>Features<span class="views seg" id="mSensitivity"><button data-v="high" title="Finds more on plain objects; slower">High</button><button data-v="normal">Normal</button></span></label><label>Mesh<span class="views seg" id="mMesh"><button data-v="triangle">Triangles</button><button data-v="quad" title="Nicer to edit (Blender, say)">Quads</button></span></label></div>
@@ -2623,6 +2626,7 @@ function modelPanel(open) {
   if (open) { $("mErr").textContent = ""; modelLoad(); }
 }
 $("buildModelBtn").onclick = () => modelPanel($("modelPanel").hidden);
+$("mClose").onclick = () => modelPanel(false);
 // The page's header, while a model's being built: Building…, a click shows
 // its capture with Build Model's panel open.
 $("hdrBuilding").onclick = async () => {
