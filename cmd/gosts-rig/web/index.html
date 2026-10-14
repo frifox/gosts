@@ -2918,7 +2918,7 @@ function sweepShow() {
   $("viewerNewer").hidden = $("viewerOlder").hidden = false;
   $("viewerNewer").textContent = "‹ Previous"; $("viewerOlder").textContent = "Next ›";
   $("viewerNewer").disabled = sw.i <= 0; $("viewerOlder").disabled = sw.i >= sw.shots.length - 1;
-  $("viewerHint").textContent = "  ·  ← → between F-stops (the zoom kept), drag to zoom to a part, Fit for all of it, Esc to close";
+  $("viewerHint").textContent = "";
   for (const [k, b] of [...$("sweepStrip").children].entries()) b.classList.toggle("on", k === sw.i);
 }
 // sweepStrip: the strip of shots (and, while one's being taken, its place).
@@ -2974,7 +2974,7 @@ function sweepSelect(e) {
     setTimeout(() => (vz.dragged = false));
     // The part selected, in the photo's pixels, filling the stage.
     const [W, H] = vzStage(), px = (r.x - vz.x) / vz.s, py = (r.y - vz.y) / vz.s, pw = r.w / vz.s, ph = r.h / vz.s;
-    const s = Math.min(VZ_MAX, Math.min(W / pw, H / ph));
+    const s = Math.min(VZ_SEL_MAX, Math.min(W / pw, H / ph)); // (past the presets' 200%: a small part, large)
     vz.fit = false; vz.s = s; vz.x = W / 2 - (px + pw / 2) * s; vz.y = H / 2 - (py + ph / 2) * s;
     vzApply();
   };
@@ -3005,7 +3005,7 @@ $("viewer").onclick = (e) => {
 // drags the view, a click there centers it; presets and a slider set the
 // zoom (about the middle of the view).
 const vz = { s: 1, x: 0, y: 0, fit: true, dragged: false, onPhoto: false };
-const VZ_MIN = 0.1, VZ_MAX = 2;
+const VZ_MIN = 0.1, VZ_MAX = 2, VZ_SEL_MAX = 8; // (a sweep's part selected: up to 800%)
 function vzNat() { const i = $("viewerImg"); return [i.naturalWidth || 1, i.naturalHeight || 1]; }
 function vzStage() { const st = $("viewerStage"); return [st.clientWidth, st.clientHeight]; }
 function vzFitScale() { const [w, h] = vzNat(), [W, H] = vzStage(); return Math.min(W / w, H / h); }
@@ -3034,7 +3034,7 @@ function vzApply() {
 }
 // vzZoom: zoom s, keeping the photo point under (cx, cy) on the stage there.
 function vzZoom(s, cx, cy) {
-  s = Math.min(VZ_MAX, Math.max(Math.min(VZ_MIN, vzFitScale()), s));
+  s = Math.min(state.sweep ? VZ_SEL_MAX : VZ_MAX, Math.max(Math.min(VZ_MIN, vzFitScale()), s)); // (a sweep's: as far as a selection goes)
   const px = (cx - vz.x) / vz.s, py = (cy - vz.y) / vz.s;
   vz.fit = false; vz.s = s; vz.x = cx - px * s; vz.y = cy - py * s;
   vzApply();
