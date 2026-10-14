@@ -346,8 +346,8 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 		dir   string // its batch's folder (as the shutter went)
 		num   int    // the camera's number its files will have (0: not known yet)
 	}
-	var queue []waiting  // photos taken whose JPEG hasn't come yet, oldest first
-	next := 0            // the number the next photo fired will get (0: not known yet)
+	var queue []waiting // photos taken whose JPEG hasn't come yet, oldest first
+	next := 0           // the number the next photo fired will get (0: not known yet)
 	// unwrap: a file's number on the count past 9999 (see unwrapFileNumber),
 	// near the number expected next (or the waiting photos').
 	unwrap := func(k int) int {

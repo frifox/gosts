@@ -30,10 +30,10 @@ type FlashLimit struct {
 var flashEvery = time.Second // a shot a second (or the camera's pace, if slower; tests: at once)
 
 const (
-	flashMaxShots = 800         // the manual's most at any power is 500
-	flashDark     = 0.5         // a photo under half the brightness of the bright ones: the flash didn't fire
-	flashDarkRun  = 3           // that many dark in a row: it's stopped (one alone: a slow recycle)
-	flashSimLimit = 12          // the simulated camera's "flash": dark from this shot on
+	flashMaxShots = 800 // the manual's most at any power is 500
+	flashDark     = 0.5 // a photo under half the brightness of the bright ones: the flash didn't fire
+	flashDarkRun  = 3   // that many dark in a row: it's stopped (one alone: a slow recycle)
+	flashSimLimit = 12  // the simulated camera's "flash": dark from this shot on
 )
 
 // flashMsg tells the pages how a measurement is going.
@@ -42,11 +42,11 @@ type flashMsg struct {
 	Running  bool    `json:"running"`
 	Power    string  `json:"power"`
 	Shots    int     `json:"shots"`
-	Flashes  int     `json:"flashes"`  // bright shots so far
-	Bright   float64 `json:"bright"`   // the last shot's brightness (0–255)
-	Normal   float64 `json:"normal"`   // the bright ones' (median of the last few)
-	Result   int     `json:"result"`   // the limit found (0: none yet)
-	Saved    bool    `json:"saved"`    // kept in the config (not for the simulated camera)
+	Flashes  int     `json:"flashes"` // bright shots so far
+	Bright   float64 `json:"bright"`  // the last shot's brightness (0–255)
+	Normal   float64 `json:"normal"`  // the bright ones' (median of the last few)
+	Result   int     `json:"result"`  // the limit found (0: none yet)
+	Saved    bool    `json:"saved"`   // kept in the config (not for the simulated camera)
 	Error    string  `json:"error,omitempty"`
 	Canceled bool    `json:"canceled,omitempty"`
 }

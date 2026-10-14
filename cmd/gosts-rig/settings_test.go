@@ -12,7 +12,7 @@ import (
 // The captures' folder: PhotoDir, applied now.
 func TestAppSettings(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home) // (the user's config directory: in it)
+	t.Setenv("HOME", home)                         // (the user's config directory: in it)
 	os.Mkdir(filepath.Join(home, ".Trash"), 0o755) // (the old config.toml goes there when moved)
 	oldPhotos := photoDir
 	defer func() { photoDir = oldPhotos; newBatch() }()

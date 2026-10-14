@@ -92,7 +92,9 @@ func TestSimRoles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.update(func(c *Config) { c.Roles = Roles{ElevationLeader: 10, ElevationFollower: 11, Azimuth: 12, FollowerMirrored: true} })
+	cfg.update(func(c *Config) {
+		c.Roles = Roles{ElevationLeader: 10, ElevationFollower: 11, Azimuth: 12, FollowerMirrored: true}
+	})
 	r := &rig{cfg: cfg, out: func(any) {}}
 	if err := r.connect(context.Background(), simPort, 0); err != nil {
 		t.Fatal(err)
@@ -223,7 +225,7 @@ func TestPlatformRoom(t *testing.T) {
 	}
 	defer r.disconnect()
 	ro := r.roles()
-	port.SetPosition(ro.Azimuth, 7*gosts.StepsPerRev+819) // 7.2 turns round: at 72°
+	port.SetPosition(ro.Azimuth, 7*gosts.StepsPerRev+819)                                     // 7.2 turns round: at 72°
 	r.withBus(func(bus *gosts.Bus) error { return bus.Servo(ro.Azimuth).EnableTorque(true) }) // (holding there, as in a capture)
 	if err := r.waitStill(context.Background()); err != nil {
 		t.Fatal(err)

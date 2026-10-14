@@ -184,10 +184,45 @@ func stageName(_ s: PhotogrammetrySession.Output.ProcessingStage) -> String {
 
 let imageExts: Set<String> = ["jpg", "jpeg", "png", "heic", "heif"]
 
+// photoFiles are the folder's photos in the order they were taken (Sequential
+// ordering counts on it): by the time in their EXIF (DateTimeOriginal and
+// SubsecTimeOriginal: the camera's clock), else the file's; in the same
+// second, as they were saved, then by name. Not by name alone: a camera's
+// file numbers start again after 9999.
 func photoFiles(in folder: URL) -> [URL] {
-	let urls = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])) ?? []
-	return urls.filter { imageExts.contains($0.pathExtension.lowercased()) && ((try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) ?? false) }
-		.sorted { $0.lastPathComponent < $1.lastPathComponent }
+	let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey]
+	let urls = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])) ?? []
+	let photos = urls.filter { imageExts.contains($0.pathExtension.lowercased()) && ((try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) ?? false) }
+	let taken = Dictionary(uniqueKeysWithValues: photos.map { ($0, takenAt($0)) })
+	let saved = Dictionary(uniqueKeysWithValues: photos.map { ($0, (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast) })
+	return photos.sorted { // (the same second: as they were saved, then by name)
+		let a = taken[$0]!, b = taken[$1]!
+		if a != b { return a < b }
+		if saved[$0]! != saved[$1]! { return saved[$0]! < saved[$1]! }
+		return $0.lastPathComponent < $1.lastPathComponent
+	}
+}
+
+let exifTime: DateFormatter = {
+	let f = DateFormatter()
+	f.locale = Locale(identifier: "en_US_POSIX")
+	f.dateFormat = "yyyy:MM:dd HH:mm:ss"
+	return f
+}()
+
+// takenAt is when the photo at url was taken (see photoFiles).
+func takenAt(_ url: URL) -> Date {
+	if let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+		let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
+		let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any],
+		let s = exif[kCGImagePropertyExifDateTimeOriginal] as? String,
+		var d = exifTime.date(from: s) {
+		if let sub = exif[kCGImagePropertyExifSubsecTimeOriginal] as? String, let frac = Double("0." + sub) {
+			d += frac
+		}
+		return d
+	}
+	return (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
 }
 
 // loadGravity reads gosts-rig's gravity.json: file name → gravity (g, the

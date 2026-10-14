@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
@@ -37,9 +38,10 @@ type batchInfo struct {
 
 // batchPhoto is a photo in a batch folder.
 type batchPhoto struct {
-	File string `json:"file"`
-	Size int64  `json:"size"`
-	At   int64  `json:"at"` // modified, ms since 1970
+	File  string `json:"file"`
+	Size  int64  `json:"size"`
+	At    int64  `json:"at"`    // modified, ms since 1970
+	Taken int64  `json:"taken"` // taken (see photoTaken), ms since 1970: their order
 }
 
 // rawExts are the RAW files a photo may be only (no JPEG beside it): shown
@@ -78,9 +80,15 @@ func batchPhotos(dir string) ([]batchPhoto, error) {
 		if err != nil {
 			continue
 		}
-		out = append(out, batchPhoto{File: n, Size: info.Size(), At: info.ModTime().UnixMilli()})
+		taken := photoTaken(filepath.Join(dir, n), info.ModTime(), info.Size())
+		out = append(out, batchPhoto{File: n, Size: info.Size(), At: info.ModTime().UnixMilli(), Taken: taken.UnixMilli()})
 	}
-	slices.SortFunc(out, func(a, b batchPhoto) int { return strings.Compare(a.File, b.File) })
+	// In the order they were taken (the camera's file numbers start again
+	// after 9999: not by name); in the same second (no sub-second in the
+	// EXIF), as they were saved, then by name.
+	slices.SortFunc(out, func(a, b batchPhoto) int {
+		return cmp.Or(cmp.Compare(a.Taken, b.Taken), cmp.Compare(a.At, b.At), strings.Compare(a.File, b.File))
+	})
 	return out, nil
 }
 
