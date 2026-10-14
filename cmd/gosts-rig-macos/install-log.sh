@@ -2,7 +2,8 @@
 # install-log.sh: make install, its output shown as a page on port $1
 # (default 8089): for Claude's server list (.claude/launch.json), whose
 # pane shows a page, not a command's output. The page follows the log as
-# it's written and says how it ended; the server stays up till stopped.
+# it's written and says how it ended; then the server closes (a few seconds
+# on: time for the page to fetch the end, which it keeps showing).
 # Refuses while GoSTS Rig is running (its app replaced under it).
 set -u
 
@@ -58,4 +59,4 @@ server=$!
   echo "$code" > "$dir/status.txt.tmp" && mv "$dir/status.txt.tmp" "$dir/status.txt"
 } 2>&1 | tee -a "$dir/log.txt"
 
-wait "$server"
+sleep 3 # (the page polls every 0.4 s: it has the end by then, and stops)
