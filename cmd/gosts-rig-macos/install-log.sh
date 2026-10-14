@@ -2,8 +2,8 @@
 # install-log.sh: make install, its output shown as a page on port $1
 # (default 8089): for Claude's server list (.claude/launch.json), whose
 # pane shows a page, not a command's output. The page follows the log as
-# it's written and says how it ended; then the server closes (a few seconds
-# on: time for the page to fetch the end, which it keeps showing).
+# it's written and says how it ended; then the server and the page's tab
+# close (a few seconds on: time for the page to fetch the end).
 # Refuses while GoSTS Rig is running (its app replaced under it).
 set -u
 
@@ -36,6 +36,7 @@ async function poll() {
       st.textContent = code === "0" ? "done ✓" : `failed (exit ${code})`;
       st.className = code === "0" ? "ok" : "bad";
       done = true;
+      setTimeout(() => window.close(), 3000); // (the tab closes as the server does)
     }
   } catch {}
   if (!done) setTimeout(poll, 400);
