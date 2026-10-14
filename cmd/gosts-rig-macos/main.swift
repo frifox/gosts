@@ -198,7 +198,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
 
     // showStatus shows a message in the window (starting, or what went wrong).
-    func showStatus(_ text: String, detail: String = "") {
+    // showStatus fills the window with a message (and a button: a link to
+    // gostsrig:<action>, see the navigation policy).
+    func showStatus(_ text: String, detail: String = "", button: (title: String, action: String)? = nil) {
         let esc = { (s: String) in s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;") }
         web.loadHTMLString("""
         <!doctype html><meta charset="utf-8"><style>
@@ -207,7 +209,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font: 14px -apple-system, sans-serif; }
         body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
         b { font-size: 17px; font-weight: 600; } p { color: var(--muted); margin: 0; max-width: 520px; text-align: center; white-space: pre-wrap; }
-        </style><b>\(esc(text))</b><p>\(esc(detail))</p>
+        a.btn { margin-top: 10px; padding: 7px 16px; border-radius: 8px; background: #2f6fed; color: #fff; text-decoration: none; font-weight: 500; }
+        a.btn:hover { filter: brightness(1.08); }
+        </style><b>\(esc(text))</b><p>\(esc(detail))</p>\(button.map { "<a class=\"btn\" href=\"gostsrig:\($0.action)\">\(esc($0.title))</a>" } ?? "")
         """, baseURL: nil)
     }
 
@@ -324,6 +328,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         backend = nil
         lifeline = nil
         if quitting { return }
+        if p.terminationReason == .exit && p.terminationStatus == 0 { // (it quit as asked: Settings' Exit Backend)
+            showStatus(appName, detail: "gosts-rig isn't running.", button: ("Start GoSTS Rig", "start"))
+            return
+        }
         let tail = logTail(12)
         showStatus("gosts-rig stopped", detail: tail)
         let a = NSAlert()
@@ -445,6 +453,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
 
     // Links away from gosts-rig's page open in the default browser.
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if let url = action.request.url, url.scheme == "gostsrig" { // (showStatus' button)
+            decisionHandler(.cancel)
+            if url.absoluteString == "gostsrig:start", backend == nil {
+                showStatus("Starting…")
+                launch()
+            }
+            return
+        }
         if let url = action.request.url, let base, ["http", "https"].contains(url.scheme ?? ""),
            url.host != base.host || url.port != base.port {
             NSWorkspace.shared.open(url)
