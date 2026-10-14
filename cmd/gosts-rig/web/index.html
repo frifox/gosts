@@ -3195,8 +3195,9 @@ function renderSettings(list) {
       sweepBtn = b;
     }
     sel.disabled = st.readOnly;
-    for (const c of st.choices) sel.add(new Option(c, c, false, c === st.current));
-    if (!st.choices.includes(st.current)) sel.add(new Option(st.current || "–", st.current, true, true));
+    const shown = (c) => (st.key === "aperture" ? c.replace(/^f\//, "") : c); // (F-stop: the number alone)
+    for (const c of st.choices) sel.add(new Option(shown(c), c, false, c === st.current));
+    if (!st.choices.includes(st.current)) sel.add(new Option(st.current ? shown(st.current) : "–", st.current, true, true));
     sel.onchange = async () => {
       $("camConfigErr").textContent = "";
       sel.disabled = true;
