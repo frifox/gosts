@@ -32,9 +32,10 @@
       "name": "make install",
       "runtimeExecutable": "sh",
       "runtimeArgs": [
-        "-c",
-        "if pgrep -f '/Applications/GoSTS Rig.app/Contents/MacOS/' >/dev/null; then echo 'GoSTS Rig is running: quit it first, then run make install again.'; exit 1; fi; make install"
-      ]
+        "cmd/gosts-rig-macos/install-log.sh",
+        "8089"
+      ],
+      "port": 8089
     }
   ]
 }
