@@ -43,7 +43,8 @@ The app is signed ad hoc, so it runs on the Mac that built it.
 
 ## Good to know
 
-- **Help → Show Log** shows what gosts-rig printed (`~/Library/Logs/GoSTS Rig/`).
+- **Help → Show Log** shows what gosts-rig printed: a log each start in `~/Library/Logs/GoSTS Rig/`, named after
+  when it started (`gosts-rig.2026-10-14_12-00-00.log`), the last 10 kept.
 - **Help → Open in Browser** opens the same page in your browser.
 - To try it on the simulators without touching your settings, start it from Terminal with extra gosts-rig flags:
 

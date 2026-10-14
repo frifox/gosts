@@ -156,8 +156,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     var base: URL?        // where gosts-rig's page is
     var quitting = false
 
+    // gosts-rig's output: a log a start (gosts-rig.<start time>.log), the
+    // last keepLogs kept (see newLog).
     let logDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/\(appName)")
-    var logURL: URL { logDir.appendingPathComponent("gosts-rig.log") }
+    var logURL: URL?      // this start's
+    let keepLogs = 10
 
     func applicationDidFinishLaunching(_ note: Notification) {
         buildMenu()
@@ -266,11 +269,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
             showStatus("gosts-rig is missing", detail: "The app is incomplete: build it again (make).")
             return
         }
-        try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
-        let old = logDir.appendingPathComponent("gosts-rig.previous.log")
-        try? FileManager.default.removeItem(at: old)
-        try? FileManager.default.moveItem(at: logURL, to: old)
-        FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        let logURL = newLog()
+        self.logURL = logURL
         let log = try? FileHandle(forWritingTo: logURL)
 
         let p = Process()
@@ -348,8 +348,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         }
     }
 
+    // newLog makes this start's log, gosts-rig.<start time>.log (local time,
+    // e.g. gosts-rig.2026-10-14_12-00-00.log: they sort by name), and deletes
+    // all but the last keepLogs. Logs from before (gosts-rig.log, .previous)
+    // are named after their times first, to be kept with the rest.
+    func newLog() -> URL {
+        let fm = FileManager.default
+        try? fm.createDirectory(at: logDir, withIntermediateDirectories: true)
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let named = { (d: Date, extra: Int) in
+            self.logDir.appendingPathComponent("gosts-rig.\(f.string(from: d))\(extra > 0 ? "-\(extra)" : "").log")
+        }
+        for legacy in ["gosts-rig.previous.log", "gosts-rig.log"] {
+            let u = logDir.appendingPathComponent(legacy)
+            if let d = (try? fm.attributesOfItem(atPath: u.path))?[.modificationDate] as? Date {
+                var to = named(d, 0), k = 0
+                while fm.fileExists(atPath: to.path) { k += 1; to = named(d, k) }
+                try? fm.moveItem(at: u, to: to)
+            }
+        }
+        var url = named(Date(), 0), k = 0
+        while fm.fileExists(atPath: url.path) { k += 1; url = named(Date(), k) } // (two starts in a second)
+        fm.createFile(atPath: url.path, contents: nil)
+        let logs = ((try? fm.contentsOfDirectory(atPath: logDir.path)) ?? [])
+            .filter { $0.hasPrefix("gosts-rig.") && $0.hasSuffix(".log") }
+            .sorted()
+        for old in logs.dropLast(keepLogs) {
+            try? fm.removeItem(at: logDir.appendingPathComponent(old))
+        }
+        return url
+    }
+
     func logTail(_ n: Int) -> String {
-        guard let s = try? String(contentsOf: logURL, encoding: .utf8) else { return "" }
+        guard let logURL, let s = try? String(contentsOf: logURL, encoding: .utf8) else { return "" }
         return s.split(separator: "\n").suffix(n).joined(separator: "\n")
     }
 
@@ -519,7 +552,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     @objc func zoomOut(_ sender: Any?) { web.pageZoom = max(web.pageZoom - 0.1, 0.5) }
     @objc func openInBrowser(_ sender: Any?) { if let base { NSWorkspace.shared.open(base) } }
     @objc func showLog(_ sender: Any?) {
-        if FileManager.default.fileExists(atPath: logURL.path) { NSWorkspace.shared.activateFileViewerSelecting([logURL]) }
+        if let logURL, FileManager.default.fileExists(atPath: logURL.path) { NSWorkspace.shared.activateFileViewerSelecting([logURL]) }
         else { NSWorkspace.shared.open(logDir) }
     }
     @objc func openHelp(_ sender: Any?) { NSWorkspace.shared.open(repoURL) }
