@@ -32,6 +32,7 @@ type app struct {
 	cap    *capture
 	camera *cameraConn
 	model  *modelBuilder
+	flash  flashMeasure // measuring the flash's limit (see flash.go)
 
 	mu      sync.Mutex
 	clients map[*client]struct{}
@@ -170,7 +171,15 @@ func (a *app) exec(req request) (any, error) {
 		}
 		a.rig.sendState() // windows follow the plan's mode
 		return nil, a.cap.preview(*req.Plan)
+	case "flashMeasure": // Camera Settings' Measure: the flash's limit at power Key
+		return nil, a.measureFlash(req.Key)
+	case "flashMeasureStop":
+		a.stopMeasure()
+		return nil, nil
 	case "start":
+		if a.flash.running() {
+			return nil, errors.New("the flash is being measured: stop that first")
+		}
 		if req.Plan == nil {
 			return nil, errors.New("no plan")
 		}
@@ -233,6 +242,9 @@ func (a *app) exec(req request) (any, error) {
 		if a.cap.msg().Running {
 			return nil, errors.New("a capture is running")
 		}
+		if a.flash.running() {
+			return nil, errors.New("the flash is being measured")
+		}
 		return nil, a.camera.sample(context.Background())
 	case "shootBurst": // testing: N photos queued at once, as Moving Shots takes them
 		for i := 0; i < req.N; i++ {
@@ -282,6 +294,11 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 	c.push(a.camera.timeline())
 	c.push(a.camera.batchStatus())
 	c.push(a.model.msg())
+	a.flash.mu.Lock()
+	if a.flash.last.Type != "" {
+		c.push(a.flash.last)
+	}
+	a.flash.mu.Unlock()
 
 	done := make(chan struct{})
 	go func() {

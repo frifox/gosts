@@ -577,6 +577,14 @@ func (c *cameraConn) disconnect() {
 	c.out(c.msg())
 }
 
+// simulated: the simulated camera is connected.
+func (c *cameraConn) simulated() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, sim := c.cam.(*simCamera)
+	return sim
+}
+
 func (c *cameraConn) connected() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -605,6 +613,13 @@ func (c *cameraConn) sample(ctx context.Context) error {
 }
 
 func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample bool) error {
+	_, err := c.takeIn(ctx, wait, firing, sample, nil)
+	return err
+}
+
+// takeIn is take, its files saved in folder (nil: the capture's, or its
+// samples'), and the photo's number (0 if it wasn't taken).
+func (c *cameraConn) takeIn(ctx context.Context, wait bool, firing func(), sample bool, folder func() string) (int, error) {
 	if firing == nil {
 		firing = func() {}
 	}
@@ -612,7 +627,7 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 	cam := c.cam
 	c.mu.Unlock()
 	if cam == nil {
-		return errNoCamera
+		return 0, errNoCamera
 	}
 	caption := ""
 	var settings map[string]string
@@ -664,14 +679,17 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 	if sample {
 		sh.folder = sampleFolder
 	}
+	if folder != nil {
+		sh.folder = folder
+	}
 	if wait {
 		if err := cam.Shoot(ctx, sh); err != nil {
 			c.landed(n)
 			c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: sample})
 			c.out(c.batchStatus())
-			return err
+			return 0, err
 		}
-		return nil
+		return n, nil
 	}
 	c.mu.Lock()
 	if c.queue == nil {
@@ -682,7 +700,7 @@ func (c *cameraConn) take(ctx context.Context, wait bool, firing func(), sample 
 	c.unfired = append(c.unfired, time.Now())
 	c.mu.Unlock()
 	q <- queuedShot{ctx: ctx, cam: cam, n: n, shutter: sh, asked: time.Now()}
-	return nil
+	return n, nil
 }
 
 // queuedShot is a photo for the shooter to take.

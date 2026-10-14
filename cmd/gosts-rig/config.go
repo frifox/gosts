@@ -29,6 +29,9 @@ type Config struct {
 	Plan       Plan               `toml:"Plan"`
 	Rig        Rig                `toml:"-"` // the rig as built (rigBuilt): not a setting
 	Cooldown   Cooldown           `toml:"Cooldown"`
+	// FlashLimits are the flash's overheat limits as measured (Camera
+	// Settings' Measure: see flash.go), by its power ("1/1", "1/2 +0.7", …).
+	FlashLimits map[string]FlashLimit `toml:"FlashLimits,omitempty"`
 }
 
 // Cooldown pauses a capture now and then (a flash that gets hot): after

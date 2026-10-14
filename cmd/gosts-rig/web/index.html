@@ -311,6 +311,11 @@ td.mono { font-family: var(--mono); }
 .flash-heat tbody tr.on td { background: var(--accent-weak); color: var(--accent); }
 .heat-levels { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 10px; }
 .heat-levels .views.seg { margin-left: 0; }
+.heat-row { display: flex; align-items: center; gap: 8px; }
+/* A limit measured on this flash (Measure), in place of the manual's: marked so. */
+.flash-heat td.measured { color: var(--ok); font-weight: 600; }
+.flash-heat td.measured::after { content: " ✓"; }
+.flash-heat tbody tr.on td.measured { color: var(--ok); }
 .heat-levels .hint { font-size: 12px; white-space: normal; }
 /* The histogram over the picture's top right (red, green, blue, adding up where they overlap). */
 .histo { position: absolute; top: 10px; right: 10px; width: 200px; height: 90px; z-index: 2; pointer-events: none;
@@ -846,7 +851,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
             <thead><tr><th>AR400 power</th><th>Flashes Limit</th><th>Pause</th></tr></thead>
             <tbody></tbody>
           </table>
-          <div class="heat-levels"><span class="views seg" id="heatLevelSeg"><button data-v="safe" title="60% of the limit between pauses, resting 15 minutes">Safe</button><button data-v="acceptable" title="80% of the limit between pauses, resting 10 minutes">Acceptable</button><button data-v="risky" title="Up to the limit between pauses, resting 5 minutes">Risky</button></span>
+          <div class="heat-levels"><div class="heat-row"><span class="views seg" id="heatLevelSeg"><button data-v="safe" title="60% of the limit between pauses, resting 15 minutes">Safe</button><button data-v="acceptable" title="80% of the limit between pauses, resting 10 minutes">Acceptable</button><button data-v="risky" title="Up to the limit between pauses, resting 5 minutes">Risky</button></span>
+            <button class="btn small" id="flashMeasureBtn" disabled title="Pick the flash's power in the table first">Measure</button></div>
             <span class="hint" id="heatNote"></span></div>
           <div class="err" id="camConfigErr"></div>
         </div>
@@ -1151,6 +1157,7 @@ function onMessage(m) {
     case "photoFailed": m.sample ? sampleFailed(m.n) : photoGone(m.n); break;
     case "photoDeleted": photoGone(m.n); break;
     case "photos": setPhotos(m.photos); break;
+    case "flashMeasure": onFlashMeasure(m); break;
     case "model": onModel(m); break; // a model being built (Browse → Build Model)
     case "batch": // the capture's name (its folder), and whether it's empty
       $("batchName").textContent = m.name || ""; $("batchRename").hidden = !m.name;
@@ -3674,23 +3681,31 @@ try {
   if (HEAT_LEVELS[lv]) heat.level = lv;
 } catch {}
 const heatEvery = (limit) => Math.max(1, Math.floor(limit * HEAT_LEVELS[heat.level].share));
+// flashLimits: the limits measured on this flash (Measure; the config's
+// FlashLimits), by power: used in place of the manual's.
+let flashLimits = {};
+const heatLimit = (pw) => flashLimits[pw]?.flashes || AR400_HEAT.find(([p]) => p === pw)?.[1];
 function heatTable() {
   const L = HEAT_LEVELS[heat.level];
-  $("flashHeat").tBodies[0].innerHTML = AR400_HEAT.map(([pw, n]) =>
-    `<tr data-power="${pw}" title="The flash at ${pw}: pause ${L.rest} minutes after every ${heatEvery(n)} shots"><td>${pw}</td><td>${n}</td><td>${L.rest} min / ${heatEvery(n)}</td></tr>`).join("");
+  $("flashHeat").tBodies[0].innerHTML = AR400_HEAT.map(([pw, manual]) => {
+    const m = flashLimits[pw], n = heatLimit(pw);
+    const lim = m ? `<td class="measured" title="Measured on this flash ${new Date(m.at).toLocaleDateString()}: ${m.flashes} flashes in a row before it stopped firing (the manual says ${manual})">${n}</td>` : `<td title="The manual's">${n}</td>`;
+    return `<tr data-power="${pw}" title="The flash at ${pw}: pause ${L.rest} minutes after every ${heatEvery(n)} shots"><td>${pw}</td>${lim}<td>${L.rest} min / ${heatEvery(n)}</td></tr>`;
+  }).join("");
   for (const b of $("heatLevelSeg").children) b.classList.toggle("active", b.dataset.v === heat.level);
   heatRows();
 }
 // heatRows: the power picked is lit (while the pause is on).
 function heatRows() {
   for (const tr of $("flashHeat").tBodies[0].rows) tr.classList.toggle("on", $("coolOn").checked && tr.dataset.power === heat.power);
+  flashMeasureBtn();
 }
 // heatApply sets the pause to the line's (the power's, at the level) and
 // saves it.
 function heatApply() {
   const row = AR400_HEAT.find(([p]) => p === heat.power);
   if (!row) { $("heatNote").textContent = "Pick the flash's power in the table first."; return; }
-  const L = HEAT_LEVELS[heat.level], cd = { On: true, Minutes: L.rest, Shots: heatEvery(row[1]) };
+  const L = HEAT_LEVELS[heat.level], cd = { On: true, Minutes: L.rest, Shots: heatEvery(heatLimit(heat.power)) };
   $("coolOn").checked = cd.On;
   $("coolMin").value = cd.Minutes;
   $("coolShots").value = cd.Shots;
@@ -3721,6 +3736,43 @@ $("heatLevelSeg").onclick = (e) => {
   heatTable();
   if (heat.power) heatApply();
 };
+// Measure: sample shots, one a second, at the power picked (the line lit),
+// till the flash stops firing (photos much darker than before: its overheat
+// protection); the flashes till then are its limit there, kept (the config)
+// and shown in the table in place of the manual's. While it runs: Stop.
+const flash = { running: false };
+function flashMeasureBtn() {
+  const b = $("flashMeasureBtn"), picked = !!heat.power && $("coolOn").checked;
+  b.textContent = flash.running ? "Stop" : "Measure";
+  b.classList.toggle("danger", flash.running);
+  b.disabled = !flash.running && !picked;
+  b.title = flash.running ? "Stop measuring (nothing saved)" : picked
+    ? `Measure the flash's limit at ${heat.power}: a sample shot a second till it stops firing (overheated), counting the flashes. Let it cool down after.`
+    : "Pick the flash's power in the table first";
+}
+$("flashMeasureBtn").onclick = async () => {
+  try {
+    if (flash.running) await send("flashMeasureStop", {});
+    else await send("flashMeasure", { key: heat.power });
+  } catch (e) { $("heatNote").textContent = e.message; }
+};
+function onFlashMeasure(m) {
+  flash.running = m.running;
+  flashMeasureBtn();
+  const b = (v) => Math.round(v);
+  if (m.running) {
+    $("heatNote").textContent = `Measuring at ${m.power}: ${m.flashes} flashes in ${m.shots} shots` +
+      (m.shots ? ` (brightness ${b(m.bright)}${m.normal ? `, flashes ${b(m.normal)}` : ""})` : "") + "…";
+  } else if (m.error) {
+    $("heatNote").textContent = `Measuring at ${m.power}: ${m.error}`;
+  } else if (m.canceled) {
+    $("heatNote").textContent = `Measuring at ${m.power}: stopped after ${m.shots} shots (nothing saved).`;
+  } else if (m.result) {
+    $("heatNote").textContent = `${m.power}: ${m.result} flashes in a row before it stopped firing` +
+      (m.saved ? " (saved: the table has it, ✓). " : " (the simulated camera's: not saved). ") + "Let the flash cool down before using it.";
+    if (m.saved && heat.power === m.power) heatApply(); // (the pause from the measured limit)
+  }
+}
 // The plan's photos changed: the note follows (the pause stays as set).
 $("pPhotos").addEventListener("change", heatNote);
 heatTable();
@@ -3748,6 +3800,7 @@ function onState(m) {
     if (state.autoCamera) renderCameras(state.cameras);
   }
   const c = m.config, r = c.Roles;
+  if (JSON.stringify(c.FlashLimits || {}) !== JSON.stringify(flashLimits)) { flashLimits = c.FlashLimits || {}; heatTable(); }
   motionFields(c.Motion);
   // The Rig card: the board's port to connect to, or once connected the rig's controls.
   $("connectBody").hidden = $("refreshPorts").hidden = m.connected;
