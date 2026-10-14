@@ -122,6 +122,19 @@ func (a *app) setSettingsDir(dir string) error {
 	return nil
 }
 
+// showFolder opens the captures' folder (key "photos") or the settings'
+// ("settings") in the Finder (made first if it's not there yet).
+func (a *app) showFolder(key string) error {
+	dir := photoDir
+	if key == "settings" {
+		dir = filepath.Dir(a.cfg.filePath())
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return openFile(dir, false)
+}
+
 // chooseFolder asks for a folder with macOS' own chooser (gosts-rig runs on
 // the Mac the page is on), starting at from; "" if canceled. System Events
 // shows it (in front at once: osascript bringing itself to the front takes

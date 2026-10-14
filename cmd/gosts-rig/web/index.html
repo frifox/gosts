@@ -742,6 +742,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .app-settings .as-note { color: var(--warn); font-size: 12px; margin-top: 6px; }
 .app-settings .as-note:empty { display: none; }
 .app-settings .as-row .btn.danger { margin-left: auto; }
+.app-settings .as-open { display: inline-flex; align-items: center; justify-content: center; padding: 0 7px; align-self: stretch; }
+.app-settings .as-open svg { width: 15px; height: 15px; }
 .app-settings #asPublic.on { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
 .app-settings #asPublicNote a { color: inherit; }
 /* gosts-rig quit (Exit Backend): the page over everything, till it's back. */
@@ -1187,14 +1189,14 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
       <div class="as-item">
         <div class="as-label">Root capture folder</div>
         <div class="as-hint">Where captures are saved.</div>
-        <div class="as-row"><span class="as-path mono" id="asPhotos"></span>
+        <div class="as-row"><button class="btn small as-open" data-show="photos" title="Open it in the Finder" aria-label="Open the captures folder in the Finder"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.6h5.6a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg></button><span class="as-path mono" id="asPhotos"></span>
           <button class="btn small" data-choose="photos">Choose…</button><button class="btn small" data-default="photos">Default</button></div>
         <div class="as-note" id="asPhotosNote"></div>
       </div>
       <div class="as-item">
         <div class="as-label">Settings folder</div>
         <div class="as-hint">Where gosts-rig keeps its settings (config.toml).</div>
-        <div class="as-row"><span class="as-path mono" id="asSettings"></span>
+        <div class="as-row"><button class="btn small as-open" data-show="settings" title="Open it in the Finder" aria-label="Open the settings folder in the Finder"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.6h5.6a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg></button><span class="as-path mono" id="asSettings"></span>
           <button class="btn small" data-choose="settings">Choose…</button><button class="btn small" data-default="settings">Default</button></div>
         <div class="as-note" id="asSettingsNote"></div>
       </div>
@@ -2525,7 +2527,7 @@ $("appSettingsModal").onclick = async (e) => {
   if (!b || !appSet.s) return;
   const k = b.dataset.choose || b.dataset.default, set = k === "photos" ? "setPhotos" : "setSettingsDir";
   $("asErr").textContent = "";
-  for (const x of document.querySelectorAll("#appSettingsModal .as-row .btn:not(#asExit):not(#asPublic)")) x.disabled = true;
+  for (const x of document.querySelectorAll("#appSettingsModal .as-row .btn:not(#asExit):not(#asPublic):not(.as-open)")) x.disabled = true;
   try {
     let dir = appSet.s[k + "Default"];
     if (b.dataset.choose) {
@@ -2540,6 +2542,13 @@ $("appSettingsModal").onclick = async (e) => {
     appSettingsShow(appSet.s);
   }
 };
+// The folder icons: that folder, in the Finder.
+for (const b of document.querySelectorAll("#appSettingsModal [data-show]")) {
+  b.onclick = async () => {
+    $("asErr").textContent = "";
+    try { await send("showFolder", { key: b.dataset.show }); } catch (e) { $("asErr").textContent = e.message; }
+  };
+}
 // Public: served to the network too, or this Mac alone again (the page
 // stays connected either way).
 $("asPublic").onclick = async () => {

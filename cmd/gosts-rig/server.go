@@ -195,6 +195,8 @@ func (a *app) exec(req request) (any, error) {
 		return a.appSettings(), nil
 	case "appSettings": // the header's gear: the folders
 		return a.appSettings(), nil
+	case "showFolder": // Settings' folder icons: the captures' (Key "photos") or the settings' folder, in the Finder
+		return nil, a.showFolder(req.Key)
 	case "chooseFolder": // macOS' folder chooser: prompt Key, starting at Value ("" back: canceled)
 		return chooseFolder(req.Key, req.Value)
 	case "setPhotos": // the captures' folder: Value
