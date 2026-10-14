@@ -245,14 +245,16 @@ td.mono { font-family: var(--mono); }
 .timeline .thumb.new { animation: thumbIn .35s ease-out; }
 @keyframes thumbIn { from { opacity: 0; transform: translateX(-12px); } }
 /* Camera Settings: the settings on the left, the last sample shot on the right. */
-.settings-card { flex: 1; min-height: 0; overflow-y: auto; }
+.settings-card { flex: 1; min-height: 0; overflow-y: auto; container-type: size; } /* (its height: the sample's limit) */
 .card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 18px var(--accent-weak); }
 .camcfg-body { display: grid; grid-template-columns: 300px 1fr; gap: 18px; align-items: start; }
 .camcfg-params label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 10px; }
 .camcfg-params label:first-child { margin-top: 0; }
 .setting-trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 8px; }
 .setting-trio > label:first-child { margin-top: 10px; } /* a row in the list, not its start */
-.camcfg-shot { aspect-ratio: 3 / 2; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2);
+/* The sample as wide as its column, but no taller than the card leaves it (a wide screen: the photo, its focus
+   bar and caption all in view): the card's height less its title (54px), the caption (26px) and the padding. */
+.camcfg-shot { width: min(100%, calc((100cqh - 100px) * 3 / 2)); aspect-ratio: 3 / 2; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2);
   display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; cursor: zoom-in; }
 .camcfg-shot img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .camcfg-shot.live { cursor: default; }
