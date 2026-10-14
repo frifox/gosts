@@ -2846,7 +2846,10 @@ async function fstopSweep(st) {
   sw.running = false;
   sw.taking = null;
   sweepStrip(null);
-  try { renderSettings(await send("cameraSet", { key: "aperture", value: was })); } catch (e) { $("camConfigErr").textContent = e.message; }
+  try {
+    for (const f of sw.skipped) await send("cameraExclude", { key: "aperture", value: f }); // (off the menu: not one it takes)
+    renderSettings(await send("cameraSet", { key: "aperture", value: was }));
+  } catch (e) { $("camConfigErr").textContent = e.message; }
   if (state.sweep === sw) sweepShow();
 }
 // sweepShow: the header for the shot shown (or what's going on).

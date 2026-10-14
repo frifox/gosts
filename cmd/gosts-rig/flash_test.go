@@ -1,15 +1,15 @@
 package main
 
 import (
-	"slices"
-	"fmt"
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"

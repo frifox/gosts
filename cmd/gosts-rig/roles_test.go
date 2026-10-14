@@ -228,7 +228,7 @@ func TestPlatformRoom(t *testing.T) {
 	port.SetPosition(ro.Azimuth, 7*gosts.StepsPerRev+819)                                     // 7.2 turns round: at 72°
 	r.withBus(func(bus *gosts.Bus) error { return bus.Servo(ro.Azimuth).EnableTorque(true) }) // (holding there, as in a capture)
 	before, _ := r.platformTurns()
-	az := wrap180(72 + 170) // 170° on, the short way: past 7.5 turns
+	az := wrap180(72 + 170)                    // 170° on, the short way: past 7.5 turns
 	if err := r.platformRoom(az); err != nil { // (what moveTo does first)
 		t.Fatal(err)
 	}

@@ -278,15 +278,16 @@ var simBusy = time.Second
 // cameraConn asks a page to render the Rig View from the camera (simShoot),
 // or makes one up if no page does.
 type simCamera struct {
-	lag      time.Duration
-	shootMu  sync.Mutex // one photo at a time
-	readyAt  time.Time  // busy with the last photo till then (see simBusy)
-	mu       sync.Mutex
-	n        int
-	settings map[string]string // see Settings
-	probed   bool              // the lens's f-stops found (see Probe)
-	focus    int               // the lens's focus: sharp at 0 (see Autofocus)
-	focusSet bool              // focus set (else it's simFocusStart)
+	lag        time.Duration
+	shootMu    sync.Mutex // one photo at a time
+	readyAt    time.Time  // busy with the last photo till then (see simBusy)
+	mu         sync.Mutex
+	n          int
+	settings   map[string]string // see Settings
+	probed     bool              // the lens's f-stops found (see Probe)
+	noAperture map[string]bool   // and those of them it won't take after all (see Exclude)
+	focus      int               // the lens's focus: sharp at 0 (see Autofocus)
+	focusSet   bool              // focus set (else it's simFocusStart)
 }
 
 func (s *simCamera) Shoot(ctx context.Context, sh shutter) error {

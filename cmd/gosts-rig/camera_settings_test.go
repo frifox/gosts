@@ -368,3 +368,35 @@ func TestZoomSetting(t *testing.T) {
 		t.Fatalf("order: %s, %s", ss[0].Key, ss[1].Key)
 	}
 }
+
+// After probing, an f-stop excluded (the sweep couldn't take it) is off the
+// menu, unless it's the one set; probing again brings it back.
+func TestSimExcludeAperture(t *testing.T) {
+	defer func(d time.Duration) { simProbeTime = d }(simProbeTime)
+	simProbeTime = 0
+	s := &simCamera{}
+	choices := func() string {
+		ss, err := s.Settings()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, st := range ss {
+			if st.Key == "aperture" {
+				return strings.Join(st.Choices, " ")
+			}
+		}
+		return ""
+	}
+	if err := s.Probe("aperture"); err != nil {
+		t.Fatal(err)
+	}
+	s.Exclude("aperture", "f/5.6")
+	s.Exclude("aperture", "f/8") // (the one set: stays)
+	if got := choices(); got != "f/4 f/8 f/11 f/16" {
+		t.Fatalf("after excluding: %s", got)
+	}
+	s.Probe("aperture")
+	if got := choices(); got != "f/4 f/5.6 f/8 f/11 f/16" {
+		t.Fatalf("probed again: %s", got)
+	}
+}

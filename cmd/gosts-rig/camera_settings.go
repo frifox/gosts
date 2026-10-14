@@ -82,8 +82,11 @@ func checkKelvin(value string, min, max, step int) (int, error) {
 // proberCamera is a camera that can find which of a setting's choices really
 // work (the f-stops the lens has): Probe tries them out, leaves the setting
 // as it was, and Settings offers only those from then on.
+// Exclude drops a choice found not to work after all (one the F-stop
+// sweep couldn't take a photo at) till the next Probe.
 type proberCamera interface {
 	Probe(key string) error
+	Exclude(key, value string)
 }
 
 // settingsCamera is a camera whose settings can be read and changed.
@@ -375,7 +378,7 @@ func (g *gphoto2Camera) Settings() ([]cameraSetting, error) {
 			g.mu.Unlock()
 		}
 		for j, ch := range c.choices {
-			if (j >= lo && j <= hi && keepChoice(k.key, ch)) || ch == c.current {
+			if (j >= lo && j <= hi && keepChoice(k.key, ch) && !g.excluded(k.key, ch)) || ch == c.current {
 				s.Choices = append(s.Choices, ch)
 			}
 		}
@@ -596,10 +599,31 @@ func (g *gphoto2Camera) Probe(key string) error {
 		return fmt.Errorf("odd lens range: %s to %s", c.choices[lo], c.choices[hi])
 	}
 	g.mu.Lock()
-	g.apertures = [2]int{lo, hi}
+	g.apertures, g.noAperture = [2]int{lo, hi}, nil
 	g.mu.Unlock()
 	log.Printf("camera: the lens has %s to %s", c.choices[lo], c.choices[hi])
 	return nil
+}
+
+func (g *gphoto2Camera) Exclude(key, value string) {
+	if key != "aperture" {
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.noAperture == nil {
+		g.noAperture = map[string]bool{}
+	}
+	g.noAperture[value] = true
+}
+
+func (g *gphoto2Camera) excluded(key, value string) bool {
+	if key != "aperture" {
+		return false
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.noAperture[value]
 }
 
 // Battery is the camera's battery level, as it says (e.g. "92%").
@@ -639,7 +663,12 @@ func (s *simCamera) Settings() ([]cameraSetting, error) {
 		if k.key == "aperture" {
 			st.Probe, st.Probed = true, s.probed
 			if s.probed {
-				st.Choices = simLens
+				st.Choices = nil
+				for _, f := range simLens {
+					if !s.noAperture[f] || f == st.Current {
+						st.Choices = append(st.Choices, f)
+					}
+				}
 			}
 		}
 		ss = append(ss, st)
@@ -694,9 +723,21 @@ func (s *simCamera) Probe(key string) error {
 	}
 	time.Sleep(simProbeTime) // stepping the aperture, as a real camera would
 	s.mu.Lock()
-	s.probed = true
+	s.probed, s.noAperture = true, nil
 	s.mu.Unlock()
 	return nil
+}
+
+func (s *simCamera) Exclude(key, value string) {
+	if key != "aperture" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.noAperture == nil {
+		s.noAperture = map[string]bool{}
+	}
+	s.noAperture[value] = true
 }
 
 func (s *simCamera) Set(key, value string) error {

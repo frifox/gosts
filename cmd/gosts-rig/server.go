@@ -255,6 +255,15 @@ func (a *app) exec(req request) (any, error) {
 			return nil, err
 		}
 		return a.cameraSettings()
+	case "cameraExclude": // the F-stop sweep: one it couldn't take a photo at, off the menu
+		sc, err := a.settingsCam()
+		if err != nil {
+			return nil, err
+		}
+		if pc, ok := sc.(proberCamera); ok {
+			pc.Exclude(req.Key, req.Value)
+		}
+		return a.cameraSettings()
 	case "autofocus": // Camera Settings' Focus: focus once (and stay, in Manual): how it went
 		fc, err := a.focusCam()
 		if err != nil {
@@ -409,7 +418,7 @@ func (a *app) handleWS(w http.ResponseWriter, r *http.Request) {
 // cameraRequests are the requests that talk to the camera (in turn, beside
 // the rest: see handleWS).
 var cameraRequests = map[string]bool{
-	"cameras": true, "cameraConnect": true, "shoot": true, "cameraSettings": true, "cameraSet": true, "cameraProbe": true,
+	"cameras": true, "cameraConnect": true, "shoot": true, "cameraSettings": true, "cameraSet": true, "cameraProbe": true, "cameraExclude": true,
 	"autofocus": true, "focusNudge": true, "measurePace": true, "sampleShot": true, "shootBurst": true, "gphoto2Shell": true,
 }
 
