@@ -638,6 +638,7 @@ export function createModify(v) {
         group.add(hm);
         hover.meshes.set(o, hm);
       }
+      hm.geometry.deleteAttribute("position"); // (the mesh's own, shared: not freed with it, as the selection's)
       hm.geometry.dispose();
       hm.geometry = new THREE.BufferGeometry();
       hm.geometry.setAttribute("position", o.geometry.getAttribute("position"));
