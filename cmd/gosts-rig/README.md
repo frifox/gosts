@@ -16,6 +16,24 @@ straight off the camera, and turn them into a 3D model. An example app of [Go ST
 No hardware? Both the rig and the camera have simulators. The simulated camera saves what it "sees" in the 3D view
 as JPEGs, just like a real one.
 
+## Dependencies
+
+What it's built on, and what each part does:
+
+- **[gosts](../../README.md)**: drives the servos (the bus, moves, groups), with
+  [gosts-ctl](../gosts-ctl)'s console built in for setting them up, and its servo simulator for `--rig sim`
+- **[gphoto2](http://gphoto.org)**: drives the camera over USB (settings, live view, shooting, downloading)
+- **[Apple Object Capture](https://developer.apple.com/documentation/realitykit/photogrammetrysession)**
+  (RealityKit, via [apple-obj-cap](../apple-obj-cap)): turns a capture's photos into a 3D model, on the Mac
+- **[three.js](https://threejs.org)**: the page's 3D: the rig drawn live, the simulated camera's view, the
+  model viewer and its editor
+- **[three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh)**: fast picking on a model (what the
+  pointer's over, what the brush covers) for the editor's Delete
+- **[meshoptimizer](https://github.com/zeux/meshoptimizer)**: simplifies a model when saving it (Simplify to)
+- **[gorilla/websocket](https://github.com/gorilla/websocket)**: the live link between the rig and its page
+- **[BurntSushi/toml](https://github.com/BurntSushi/toml)**: reads and writes the settings files
+- **[go.bug.st/serial](https://github.com/bugst/go-serial)**: the serial port to the servos (gosts opens it; the rig lists the ports to find the adapter)
+
 ## Install and run
 
 ```bash
