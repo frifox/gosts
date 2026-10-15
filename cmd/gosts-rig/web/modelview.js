@@ -8,6 +8,8 @@ import { OrbitControls } from "./vendor/OrbitControls.js";
 import { OBJLoader } from "./vendor/OBJLoader.js";
 import { MTLLoader } from "./vendor/MTLLoader.js";
 import { createModify } from "./modelmodify.js";
+import { mergeVertices } from "./vendor/BufferGeometryUtils.js";
+import { MeshoptSimplifier } from "./vendor/meshopt_simplifier.module.js";
 
 // fetchText is url's text; progress(loaded, total) as it comes.
 async function fetchText(url, progress) {
@@ -669,6 +671,58 @@ export function createModelView(canvas) {
     ground();
     return () => { for (const [o, old, geo] of swaps) { o.geometry = old; geo.dispose(); } ground(); };
   }
+  // simplify: the model down to about want triangles, with meshoptimizer
+  // (as Save did): each mesh's each material's its share, its corners welded
+  // first (shared where all's the same: place, normal, texture spot), then
+  // laid out again as triangles of their own (as the rest has them). An undo
+  // back.
+  async function simplify(want) {
+    await MeshoptSimplifier.ready;
+    const ms = [];
+    let total = 0;
+    obj.traverse((o) => { if (o.isMesh) { const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry; ms.push([o, g]); total += g.getAttribute("position").count / 3; } });
+    if (!(want >= 1) || want >= total) throw new Error(`it has ${Math.round(total).toLocaleString()} triangles: ask for fewer`);
+    const swaps = [];
+    for (const [o, g] of ms) {
+      const n = g.getAttribute("position").count, names = ["position", "normal", "uv"].filter((k) => g.getAttribute(k));
+      const groups = g.groups.length ? g.groups : [{ start: 0, count: n, materialIndex: 0 }];
+      const chunks = names.map(() => []), ng = [];
+      let tris = 0;
+      for (const gr of groups) {
+        const cnt = Math.min(gr.count, n - gr.start);
+        if (cnt < 3) continue;
+        const sub = new THREE.BufferGeometry();
+        for (const k of names) { const a = g.getAttribute(k); sub.setAttribute(k, new THREE.BufferAttribute(a.array.slice(gr.start * a.itemSize, (gr.start + cnt) * a.itemSize), a.itemSize)); }
+        const w = mergeVertices(sub, 1e-7);
+        let idx = new Uint32Array(w.index.array);
+        const target = Math.max(1, Math.round(want * (cnt / 3) / total)) * 3;
+        if (target < idx.length) {
+          const pos = w.getAttribute("position").array;
+          [idx] = MeshoptSimplifier.simplify(idx, pos instanceof Float32Array ? pos : new Float32Array(pos), 3, target, 1);
+        }
+        names.forEach((k, j) => {
+          const a = w.getAttribute(k), sz = a.itemSize, out = new Float32Array(idx.length * sz);
+          for (let i = 0; i < idx.length; i++) for (let c = 0; c < sz; c++) out[i * sz + c] = a.array[idx[i] * sz + c];
+          chunks[j].push(out);
+        });
+        if (g.groups.length) ng.push({ start: tris * 3, count: idx.length, materialIndex: gr.materialIndex });
+        tris += idx.length / 3;
+        sub.dispose(); w.dispose();
+      }
+      const geo = new THREE.BufferGeometry();
+      names.forEach((k, j) => {
+        const a = g.getAttribute(k), arr = new Float32Array(chunks[j].reduce((s, c) => s + c.length, 0));
+        let at = 0;
+        for (const c of chunks[j]) { arr.set(c, at); at += c.length; }
+        geo.setAttribute(k, new THREE.BufferAttribute(arr, a.itemSize, a.normalized));
+      });
+      for (const gr of ng) geo.addGroup(gr.start, gr.count, gr.materialIndex);
+      swaps.push([o, o.geometry, geo]);
+    }
+    for (const [o, , geo] of swaps) o.geometry = geo;
+    ground();
+    return () => { for (const [o, old, geo] of swaps) { o.geometry = old; geo.dispose(); } ground(); };
+  }
   // parts: the model as edited, for saving: each mesh's each material's
   // triangles (non-indexed, in meters, y up) and the material's name.
   function parts() {
@@ -694,7 +748,7 @@ export function createModelView(canvas) {
   }
   return {
     show, look, reset, view, clear, stats, box,
-    editing, shown, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, parts,
+    editing, shown, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, simplify, parts,
     settle: () => tweenEnd(), // (a move going on: there at once)
     peek: (m) => { if (holder) { tweenEnd(); target = m.clone(); place(m); } }, // (the model there, as a slider drags: the ground left till setMatrix)
     setInset, modify,

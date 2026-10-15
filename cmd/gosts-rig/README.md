@@ -106,9 +106,9 @@ file.
 - **Rotate**: turn it about X, Y or Z
 - **Crop**: cut away what's outside a box (the platform, say)
 - **Scale**: set the real distance between two points
+- **Simplify**: cut it down to fewer triangles, keeping the shape as well as it can
 
-**Save** writes it as a new model (or overwrites this one) in mm, inches or meters, optionally as an STL too, and
-simplified to fewer triangles if you like.
+**Save** writes it as a new model (or overwrites this one) in mm, inches or meters, optionally as an STL too.
 
 ## Tips
 

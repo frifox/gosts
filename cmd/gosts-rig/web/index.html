@@ -1201,13 +1201,16 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-row"><button class="btn small" data-pick="scale">Pick Points</button><span class="mve-n"></span></div>
         <div class="mve-row"><input type="number" id="mveDist" min="0" step="any" placeholder="0.0"><span class="views seg" id="mveUnit"><button data-v="mm">mm</button><button data-v="in">in</button></span><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="scale" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveScale" disabled title="Scale the model so the points are that far apart">Apply</button></span></div>
       </section>
+      <section data-simplify>
+        <div class="mve-head"><b>Simplify</b></div>
+        <div class="mve-row"><span class="mve-label">To about</span><input type="number" id="mveTris" min="100" step="1000"><span class="mve-label">triangles</span><span class="spacer"></span><button class="btn small primary" id="mveSimplifyGo" disabled title="Fewer triangles, the shape kept as well as it can be (meshoptimizer): now, an undo step">Apply</button></div>
+        <div class="mve-warn-line" id="mveTrisWarn" hidden></div>
+      </section>
       <section class="mve-save">
         <div class="mve-head"><b>Save</b></div>
         <div class="mve-field"><label for="mveName">Name</label><div class="mve-row mve-name"><input type="text" id="mveName" spellcheck="false" autocomplete="off"><button class="btn small" id="mveReplace" aria-pressed="false" title="Save over this model (its folder; the one there now goes to the Trash)">Overwrite</button></div></div>
         <div class="mve-row"><span class="mve-label">Units</span><span class="views seg" id="mveFileUnit"><button data-v="mm" title="Fusion 360, CAD: 1 unit = 1 mm">mm</button><button data-v="in">in</button><button data-v="m" title="Blender's own: 1 unit = 1 m">m</button></span></div>
         <label class="mp-check"><input type="checkbox" id="mveSTL"> <span>Also an STL (z up)</span></label>
-        <div class="mve-row"><label class="mp-check"><input type="checkbox" id="mveSimplify"> <span>Simplify to</span></label><input type="number" id="mveTris" min="100" step="1000"><span class="mve-label">triangles</span></div>
-        <div class="mve-warn-line" id="mveTrisWarn" hidden></div>
         <div class="mve-row mve-saverow"><button class="btn small" id="mveUndo" disabled>Undo</button><button class="btn small" id="mveResetEdit" disabled>Reset Edits</button><span class="spacer"></span><span class="mve-warn" id="mveWarn"></span><button class="btn small primary" id="mveSave">Save</button></div>
         <div class="mve-status" id="mveStatus"></div>
       </section>
@@ -1901,16 +1904,41 @@ const segOf = (id) => $(id).querySelector(".active")?.dataset.v;
 for (const id of ["mveUnit", "mveFileUnit"]) $(id).onclick = (e) => { if (e.target.dataset?.v) { segPick(id, e.target.dataset.v); mveShow(); mveTrimShow(); } };
 segPick("mveUnit", "mm"); segPick("mveFileUnit", "mm"); // (Align's axis: none till one's picked)
 try { const u = localStorage.getItem("modelEditUnits"); if (u) { const [a, b] = JSON.parse(u); segPick("mveUnit", a); segPick("mveFileUnit", b); } } catch {}
-$("mveTris").value = 50000;
-// Simplify to more triangles than the model has: said (it'd stay as it is).
+// Simplify: the model down to about the triangles asked for (typed; empty:
+// the suggestion shown, about half), at once: Apply, an undo step.
+// mveTrisWant: that number (0 if it's not one Apply can do).
+function mveTrisWant() {
+  const have = mve.tris || 0, typed = $("mveTris").value.trim(), want = Math.round(Number(typed || $("mveTris").placeholder.replace(/\D/g, "")));
+  return want >= 100 && want < have ? want : 0;
+}
 function mveTrisCheck() {
-  const have = mve.tris || 0, want = Math.round(Number($("mveTris").value)); // (mve.tris: the model's, as mveShow last saw it)
-  const over = $("mveSimplify").checked && have && want > have;
-  $("mveTrisWarn").hidden = !over;
-  if (over) $("mveTrisWarn").textContent = `More than the model has (${have.toLocaleString()}): it'd stay as it is.`;
+  const have = mve.tris || 0, typed = $("mveTris").value.trim(), want = Math.round(Number(typed));
+  $("mveTris").placeholder = have > 200 ? String(Math.max(100, Math.round(have / 2 / 1000) * 1000 || Math.round(have / 2))) : "";
+  const msg = !typed || !have ? "" : want >= have ? `It has ${have.toLocaleString()}: ask for fewer.` : want < 100 ? "100 or more." : "";
+  $("mveTrisWarn").hidden = !msg;
+  $("mveTrisWarn").textContent = msg;
+  $("mveSimplifyGo").disabled = !mveTrisWant();
 }
 $("mveTris").addEventListener("input", mveTrisCheck);
-$("mveSimplify").addEventListener("change", mveTrisCheck);
+$("mveTris").addEventListener("keydown", (e) => { if (e.key === "Enter") $("mveSimplifyGo").click(); });
+$("mveSimplifyGo").onclick = async () => {
+  const want = mveTrisWant();
+  if (!want) return;
+  window.modelView.settle();
+  mveRotCommit();
+  mveOriginCommit(); // (Move's, not Applied: kept, first)
+  mveModCommit(); // (Modify's deletes: the same)
+  $("mveSimplifyGo").disabled = true;
+  mveStatus(`Simplifying: ${(mve.tris || 0).toLocaleString()} triangles to about ${want.toLocaleString()}…`);
+  await new Promise((r) => setTimeout(r, 30)); // (the status shown first)
+  try {
+    mve.undo.push(await window.modelView.simplify(want));
+    $("mveTris").value = "";
+    mveStatus("");
+  } catch (e) { mveStatus(e.message, "bad"); }
+  mveTrimReset();
+  mveShow();
+};
 // mveShow: the panel as the edit is: points picked, what can be done, its size.
 // Steps set up but not applied (points picked, the trim box moved): Save
 // asks first (Confirm), till something changes.
@@ -1919,6 +1947,7 @@ function mvePending() {
   if (mve.picks.level.length) p.push("Level");
   if (mve.picks.align.length || mve.alignFrom) p.push("Align");
   if (mve.picks.scale.length) p.push("Scale");
+  if ($("mveTris").value.trim() && !$("mveSimplifyGo").disabled) p.push("Simplify");
   if (mve.picks.center.length || mve.originFrom) p.push("Move");
   if (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z)) p.push("Rotate");
   if (!$("mveTrim").disabled) p.push("Crop");
@@ -2627,8 +2656,7 @@ $("mveSave").onclick = async () => {
   mveConfirm(false);
   const v = state.mv, replace = $("mveReplace").classList.contains("on"), to = replace ? v?.m.name : $("mveName").value.trim();
   if (!v || !to) return mveStatus("A name, first", "bad");
-  const units = segOf("mveFileUnit"), stl = $("mveSTL").checked, simplify = $("mveSimplify").checked ? Math.round(Number($("mveTris").value)) : 0;
-  if ($("mveSimplify").checked && !(simplify >= 100)) return mveStatus("Simplify to: 100 triangles or more", "bad");
+  const units = segOf("mveFileUnit"), stl = $("mveSTL").checked, simplify = 0; // (Simplify: a step of its own, done before)
   $("mveSave").disabled = true;
   try {
     const mtl = v.m.files.find((f) => f.toLowerCase().endsWith(".mtl")) || "";
