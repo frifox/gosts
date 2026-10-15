@@ -1904,16 +1904,16 @@ const segOf = (id) => $(id).querySelector(".active")?.dataset.v;
 for (const id of ["mveUnit", "mveFileUnit"]) $(id).onclick = (e) => { if (e.target.dataset?.v) { segPick(id, e.target.dataset.v); mveShow(); mveTrimShow(); } };
 segPick("mveUnit", "mm"); segPick("mveFileUnit", "mm"); // (Align's axis: none till one's picked)
 try { const u = localStorage.getItem("modelEditUnits"); if (u) { const [a, b] = JSON.parse(u); segPick("mveUnit", a); segPick("mveFileUnit", b); } } catch {}
-// Simplify: the model down to about the triangles asked for (typed; empty:
-// the suggestion shown, about half), at once: Apply, an undo step.
+// Simplify: the model down to about the triangles asked for (typed; the
+// box shows how many it has now till then), at once: Apply, an undo step.
 // mveTrisWant: that number (0 if it's not one Apply can do).
 function mveTrisWant() {
-  const have = mve.tris || 0, typed = $("mveTris").value.trim(), want = Math.round(Number(typed || $("mveTris").placeholder.replace(/\D/g, "")));
-  return want >= 100 && want < have ? want : 0;
+  const have = mve.tris || 0, typed = $("mveTris").value.trim(), want = Math.round(Number(typed));
+  return typed && want >= 100 && want < have ? want : 0;
 }
 function mveTrisCheck() {
   const have = mve.tris || 0, typed = $("mveTris").value.trim(), want = Math.round(Number(typed));
-  $("mveTris").placeholder = have > 200 ? String(Math.max(100, Math.round(have / 2 / 1000) * 1000 || Math.round(have / 2))) : "";
+  $("mveTris").placeholder = have ? String(have) : ""; // (how many it has now)
   const msg = !typed || !have ? "" : want >= have ? `It has ${have.toLocaleString()}: ask for fewer.` : want < 100 ? "100 or more." : "";
   $("mveTrisWarn").hidden = !msg;
   $("mveTrisWarn").textContent = msg;
