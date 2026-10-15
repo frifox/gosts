@@ -1959,7 +1959,7 @@ function mveShow() {
   $("mveRot").disabled = !(mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z));
   const sp = mve.picks.scale;
   $("mveScale").disabled = sp.length !== 2 || !(Number($("mveDist").value) > 0);
-  $("mveDist").placeholder = sp.length === 2 ? `now ${(sp[0].distanceTo(sp[1]) * k).toFixed(u === "mm" ? 1 : 3)}` : "distance";
+  $("mveDist").placeholder = sp.length === 2 ? `${(sp[0].distanceTo(sp[1]) * k).toFixed(u === "mm" ? 1 : 3)}` : "distance";
   $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length && !mve.originFrom && !mve.rotFrom && !mve.alignFrom && !mveMod().changed();
   const st = mv.stats();
   mve.tris = st ? Math.round(st.triangles) : 0;
