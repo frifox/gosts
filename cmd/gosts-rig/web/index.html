@@ -1203,7 +1203,7 @@ kbd + kbd { margin-left: 3px; }
       <section class="mve-save">
         <div class="mve-head"><b>Save</b></div>
         <div class="mve-field"><label for="mveName">Name</label><div class="mve-row mve-name"><input type="text" id="mveName" spellcheck="false" autocomplete="off"><button class="btn small" id="mveReplace" aria-pressed="false" title="Save over this model (its folder; the one there now goes to the Trash)">Overwrite</button></div></div>
-        <div class="mve-row"><span class="mve-label">File units</span><span class="views seg" id="mveFileUnit"><button data-v="mm" title="Fusion 360, CAD: 1 unit = 1 mm">mm</button><button data-v="in">in</button><button data-v="m" title="Blender's own: 1 unit = 1 m">m</button></span></div>
+        <div class="mve-row"><span class="mve-label">Units</span><span class="views seg" id="mveFileUnit"><button data-v="mm" title="Fusion 360, CAD: 1 unit = 1 mm">mm</button><button data-v="in">in</button><button data-v="m" title="Blender's own: 1 unit = 1 m">m</button></span></div>
         <label class="mp-check"><input type="checkbox" id="mveSTL"> <span>Also an STL (z up)</span></label>
         <div class="mve-row"><label class="mp-check"><input type="checkbox" id="mveSimplify"> <span>Simplify to</span></label><input type="number" id="mveTris" min="100" step="1000"><span class="mve-label">triangles</span></div>
         <div class="mve-warn-line" id="mveTrisWarn" hidden></div>
@@ -1853,7 +1853,7 @@ function mvLook(v) {
 $("mvLook").onclick = (e) => { const v = e.target.dataset?.v; if (v) mvLook(v); };
 mvLook(state.mvLook); // (the viewer itself: as it opens, a module's)
 // Measure: two points clicked on the model, the distance between them (in
-// the File units; its X, Y, Z parts too); a third starts again; Measure
+// the Units; its X, Y, Z parts too); a third starts again; Measure
 // again clears it.
 const mvm = { on: false, pts: [] };
 const MV_MEASURE = 0x22d3ee; // (cyan: seen on white parts and dark alike)
@@ -1931,7 +1931,7 @@ function mveConfirm(on) {
 }
 // Resolution's icon: a mesh triangle (its corners marked).
 const MVE_TRIANGLE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="10" y="3" width="4" height="4" rx="1"/><rect x="3" y="17" width="4" height="4" rx="1"/><rect x="17" y="17" width="4" height="4" rx="1"/><path d="M6.5 17.1l5-9.1M17.5 17.1l-5-9.1M7 19h10"/></svg>';
-// mveNum: a length (m) in the file's units (File units), to digits places
+// mveNum: a length (m) in the file's units (Units), to digits places
 // (the unit's own, if not given).
 function mveNum(m, digits) {
   const u = segOf("mveFileUnit");
