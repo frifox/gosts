@@ -491,7 +491,6 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-trim b { font: 600 12px var(--mono); }
 .mve-trim .x { color: #e5484d; } .mve-trim .y { color: #46a758; } .mve-trim .z { color: #3e7bfa; }
 .mve-trim .mve-val { font: 11px var(--mono); color: var(--text); min-width: 46px; text-align: right; }
-.mve-trim .mve-val[data-val$="1"] { text-align: left; }
 /* Rotate's degrees and Trim's ends: click to type a value. */
 .mve-trim .mve-val, .mve-rot .mve-deg { cursor: text; border-radius: 4px; }
 .mve-trim .mve-val:hover, .mve-rot .mve-deg:hover { background: var(--panel-2); }
@@ -1915,10 +1914,11 @@ function mveConfirm(on) {
 }
 // Resolution's icon: a mesh triangle (its corners marked).
 const MVE_TRIANGLE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="10" y="3" width="4" height="4" rx="1"/><rect x="3" y="17" width="4" height="4" rx="1"/><rect x="17" y="17" width="4" height="4" rx="1"/><path d="M6.5 17.1l5-9.1M17.5 17.1l-5-9.1M7 19h10"/></svg>';
-// mveNum: a length (m) in the file's units (File units).
-function mveNum(m) {
+// mveNum: a length (m) in the file's units (File units), to digits places
+// (the unit's own, if not given).
+function mveNum(m, digits) {
   const u = segOf("mveFileUnit");
-  return (m / window.modelEdit.UNITS[u]).toFixed({ mm: 1, in: 2, m: 3 }[u]);
+  return (m / window.modelEdit.UNITS[u]).toFixed(digits ?? { mm: 1, in: 2, m: 3 }[u]);
 }
 function mveShow() {
   mveConfirm(false);
@@ -2054,7 +2054,7 @@ function mveTrimShow() {
   mveConfirm(false);
   if (!mve.ext) return;
   const t = mveTrimBox();
-  for (const ax of "xyz") for (const i of [0, 1]) $("mvEdit").querySelector(`[data-val="${ax}${i}"]`).textContent = mveNum(t[ax][i]);
+  for (const ax of "xyz") for (const i of [0, 1]) $("mvEdit").querySelector(`[data-val="${ax}${i}"]`).textContent = mveNum(t[ax][i], 1); // (one place always: the columns line up)
   for (const d of $("mvEdit").querySelectorAll(".mve-trim .mve-dual")) {
     const [lo, hi] = [...d.querySelectorAll("input")].map((r) => Number(r.value) / TRIM_N);
     d.style.setProperty("--a", lo); d.style.setProperty("--b", hi);
