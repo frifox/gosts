@@ -99,7 +99,7 @@ file.
 
 **Edit** gets a model ready for Blender, Fusion 360 and the like: click points on the model, then
 
-- **Delete**: select parts of the mesh (lasso, box, brush or magic wand) and delete them, filling the holes left
+- **Modify**: select parts of the mesh (lasso, box, brush or magic wand) and delete them, filling the holes left
 - **Level**: put a surface flat on the ground
 - **Align**: turn an edge to run along X or Y
 - **Rotate**: turn it about X, Y or Z
