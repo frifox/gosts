@@ -495,6 +495,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   pointer-events: none; opacity: 0; visibility: hidden; transition: opacity .12s; }
 .mve-tip:hover::after { opacity: 1; visibility: visible; }
 .mve-tip:disabled { opacity: 1; } .mve-tip:disabled > svg { opacity: .4; } /* (disabled: the icon dimmed, not its tip) */
+.views.seg.mve-off button.active { background: transparent; color: var(--muted); } /* (nothing selected: the choice kept, not lit) */
 /* Tool, Selection, Fill Holes, Fill Texture: each label beside its buttons, the buttons lined up. */
 .mve-fill { display: grid; grid-template-columns: auto auto; justify-content: start; align-items: center; gap: 8px 10px; }
 .mve-fill .views.seg { margin-left: 0; justify-self: start; }
@@ -2409,14 +2410,20 @@ function mveModShow() {
   $("mveModUndo").disabled = !md.canUndo;
   $("mveModRedo").disabled = !md.canRedo;
   $("mveModify").disabled = !md.changed();
-  for (const b of $("mveFillTex").children) b.disabled = segOf("mveFillType") === "none";
+  // Fill Holes and Fill Texture: off till something's selected (their
+  // choices kept, unlit, for when it is); Fill Texture off with None too.
+  for (const b of $("mveFillType").children) b.disabled = !n;
+  for (const b of $("mveFillTex").children) b.disabled = !n || segOf("mveFillType") === "none";
+  $("mveFillType").classList.toggle("mve-off", !n);
+  $("mveFillTex").classList.toggle("mve-off", !n);
   $("mveXray").classList.toggle("on", md.xray);
   $("mveXray").setAttribute("aria-pressed", md.xray);
   $("mvHint").textContent = md.tool ? `${MVE_HINTS[md.tool].replace("%", md.xray ? "all inside, X-Ray" : "what's seen")}${md.tool === "brush" ? ` (${md.brush} px)` : ""} · ⌘ drag or drag scroll to turn · Esc: done` : MV_HINT;
 }
 // The fill: as last set.
-// (Fill Holes: None, Flat or Smooth; kept before as on or off, and a shape.)
-segPick("mveFillType", "none"); segPick("mveFillTex", "extend");
+// (Fill Holes: None, Flat or Smooth; kept before as on or off, and a shape.
+// Never set: Flat and Extend.)
+segPick("mveFillType", "flat"); segPick("mveFillTex", "extend");
 try { const f = JSON.parse(localStorage.getItem("modelFill") || "null"); if (f?.type) segPick("mveFillType", f.on === false ? "none" : f.type); if (f?.tex) segPick("mveFillTex", f.tex); } catch {}
 const mveFillSave = () => { try { localStorage.setItem("modelFill", JSON.stringify({ type: segOf("mveFillType"), tex: segOf("mveFillTex") })); } catch {} };
 for (const id of ["mveFillType", "mveFillTex"]) $(id).onclick = (e) => { const v = e.target.closest("[data-v]")?.dataset.v; if (v) { segPick(id, v); mveFillSave(); mveModShow(); } };
