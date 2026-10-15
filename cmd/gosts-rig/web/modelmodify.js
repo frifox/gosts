@@ -448,8 +448,13 @@ function paintFill(tex, poly, colors, mPer) {
 
 // ------------------------------------------------------------ the editor
 
+// The selection, shown: SEL_MAT where it's seen; SEL_BEHIND (X-Ray) where
+// the model's in front of it, faint, so what's in front reads as it is.
+// (Both pulled forward a little: the triangles themselves count as seen.)
 const SEL_MAT = new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false,
   polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+const SEL_BEHIND = new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false,
+  depthFunc: THREE.GreaterDepth, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
 // DEPTH: each pixel's distance from the camera (view space; 0: nothing),
 // to tell what's seen from what's behind it.
 const DEPTH = new THREE.ShaderMaterial({
@@ -479,7 +484,7 @@ void main() {
 // steps, changed (the page's panel).
 export function createModify(v) {
   const { canvas, camera, renderer, scene, controls, planes } = v;
-  SEL_MAT.clippingPlanes = DEPTH.clippingPlanes = planes;
+  SEL_MAT.clippingPlanes = SEL_BEHIND.clippingPlanes = DEPTH.clippingPlanes = planes;
   const group = new THREE.Group(); // (the selections shown: each over its mesh)
   group.renderOrder = 3;
   scene.add(group);
@@ -549,6 +554,11 @@ export function createModify(v) {
       ov = new THREE.Mesh(new THREE.BufferGeometry(), SEL_MAT);
       ov.matrixAutoUpdate = false;
       ov.raycast = () => {};
+      ov.renderOrder = 3;
+      const behind = new THREE.Mesh(ov.geometry, SEL_BEHIND); // (its faint part: X-Ray's)
+      behind.raycast = () => {};
+      behind.renderOrder = 2;
+      ov.add(behind);
       group.add(ov);
       overlays.set(o, ov);
     }
@@ -561,7 +571,9 @@ export function createModify(v) {
       ov.geometry.setAttribute("position", geo.getAttribute("position"));
       ov.geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(T * 3), 1));
       ov.userData.src = geo;
+      ov.children[0].geometry = ov.geometry;
     }
+    ov.children[0].visible = xray;
     const idx = ov.geometry.index, a = idx.array;
     let k = 0;
     for (let t = 0; t < T; t++) if (sel[t]) { a[k++] = t * 3; a[k++] = t * 3 + 1; a[k++] = t * 3 + 2; }
@@ -876,7 +888,7 @@ export function createModify(v) {
     get tool() { return tool; }, set tool(t) { setTool(t); },
     get brush() { return brush; },
     get xray() { return xray; },
-    set xray(on) { xray = !!on; SEL_MAT.depthTest = !xray; SEL_MAT.needsUpdate = true; onChange(); },
+    set xray(on) { xray = !!on; for (const ov of overlays.values()) ov.children[0].visible = xray; onChange(); },
     brushBy(k) { brush = Math.max(4, Math.min(300, Math.round(brush * k))); if (ring.style.display !== "none") ring.setAttribute("r", brush); onChange(); },
     undo() { if (hist && at > 0) { at--; show(); } },
     redo() { if (hist && at < hist.length - 1) { at++; show(); } },
