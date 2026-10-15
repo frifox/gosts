@@ -1198,7 +1198,7 @@ kbd + kbd { margin-left: 3px; }
       <section data-step="scale">
         <div class="mve-head"><b>Scale</b></div>
         <div class="mve-row"><button class="btn small" data-pick="scale">Pick Points</button><span class="mve-n"></span></div>
-        <div class="mve-row"><input type="number" id="mveDist" min="0" step="any" placeholder="distance"><span class="views seg" id="mveUnit"><button data-v="mm">mm</button><button data-v="in">in</button></span><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="scale" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveScale" disabled title="Scale the model so the points are that far apart">Apply</button></span></div>
+        <div class="mve-row"><input type="number" id="mveDist" min="0" step="any" placeholder="0.0"><span class="views seg" id="mveUnit"><button data-v="mm">mm</button><button data-v="in">in</button></span><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="scale" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveScale" disabled title="Scale the model so the points are that far apart">Apply</button></span></div>
       </section>
       <section class="mve-save">
         <div class="mve-head"><b>Save</b></div>
@@ -1959,7 +1959,7 @@ function mveShow() {
   $("mveRot").disabled = !(mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z));
   const sp = mve.picks.scale;
   $("mveScale").disabled = sp.length !== 2 || !(Number($("mveDist").value) > 0);
-  $("mveDist").placeholder = sp.length === 2 ? `${(sp[0].distanceTo(sp[1]) * k).toFixed(u === "mm" ? 1 : 3)}` : "distance";
+  $("mveDist").placeholder = sp.length === 2 ? `${(sp[0].distanceTo(sp[1]) * k).toFixed(u === "mm" ? 1 : 3)}` : "0.0";
   $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length && !mve.originFrom && !mve.rotFrom && !mve.alignFrom && !mveMod().changed();
   const st = mv.stats();
   mve.tris = st ? Math.round(st.triangles) : 0;
