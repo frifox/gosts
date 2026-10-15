@@ -7,6 +7,7 @@ import * as THREE from "three";
 import { OrbitControls } from "./vendor/OrbitControls.js";
 import { OBJLoader } from "./vendor/OBJLoader.js";
 import { MTLLoader } from "./vendor/MTLLoader.js";
+import { createModify } from "./modelmodify.js";
 
 // fetchText is url's text; progress(loaded, total) as it comes.
 async function fetchText(url, progress) {
@@ -306,10 +307,9 @@ export function createModelView(canvas) {
     glideTick(dt);
     tweenTick(dt);
     shiftTick(dt);
-
-
     last = now;
     controls.update();
+    modify.tick();
     renderer.render(scene, camera);
     requestAnimationFrame(loop);
   }
@@ -324,6 +324,7 @@ export function createModelView(canvas) {
     drop(grid); drop(axes); grid = axes = null;
     clip(null);
     markers([]);
+    modify.reset();
     editOn = false;
     originals.clear();
     renderer.clear();
@@ -440,7 +441,9 @@ export function createModelView(canvas) {
   function stats() { return holder ? { ...modelStats(holder), size: box().getSize(new THREE.Vector3()).toArray() } : null; }
 
   // ------------------------------------------------------------ editing
-  function editing(on) { editOn = on; ground(); }
+  function editing(on) { editOn = on; ground(); modify.shown(on); }
+  // Modify: parts of the model picked out and deleted (see modelmodify.js).
+  const modify = createModify({ canvas, camera, renderer, scene, controls, planes, obj: () => obj, radius: () => radius, changed: () => ground() });
   // A click (not a drag) on the model, while picking (onPick set: Edit's
   // steps, Measure): the triangle's corner nearest it, to onPick.
   const ray = new THREE.Raycaster();
@@ -680,7 +683,7 @@ export function createModelView(canvas) {
     editing, shown, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, parts,
     settle: () => tweenEnd(), // (a move going on: there at once)
     peek: (m) => { if (holder) { tweenEnd(); target = m.clone(); place(m); } }, // (the model there, as a slider drags: the ground left till setMatrix)
-    setInset,
+    setInset, modify,
     set onPick(f) { onPick = f; canvas.style.cursor = f ? "crosshair" : ""; if (!f) hover.visible = false; },
     hoverColor, // (the hover ball's color: the step picking's)
   };

@@ -485,6 +485,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 /* Rotate's degrees and Trim's ends: click to type a value. */
 .mve-trim .mve-val, .mve-rot .mve-deg { cursor: text; border-radius: 4px; }
 .mve-trim .mve-val:hover, .mve-rot .mve-deg:hover { background: var(--panel-2); }
+.mve-tools button { min-width: 58px; }
+.mv-edit .mve-icon { width: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.mv-edit .mve-icon svg { width: 14px; height: 14px; }
+#mveSelN { margin-left: auto; }
 .mve-val-input { width: 52px; padding: 1px 3px; font: 11px var(--mono); text-align: right; }
 /* An axis' box sides, min and max, on one slider: two range inputs over a
    track, only their handles taking the pointer; what's kept, filled. */
@@ -1115,7 +1119,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <div class="mv-measure" id="mvMeasure" hidden><span id="mvMeasureText"></span><button class="mvm-close" id="mvMeasureClose" title="Close Measure" aria-label="Close Measure">✕</button></div>
     <div class="mv-corner"><span class="views seg mv-views" id="mvViews"><button data-v="3d" title="Z up, X right and away, Y left and away">3D</button><button data-v="front" title="X right, Z up, Y away">Front</button><button data-v="side" title="Y right, Z up, X towards you">Side</button><button data-v="top" title="Y right, X down, Z towards you">Top</button></span><span class="mv-show" id="mvShow"><button data-v="axes" title="Axis: the X, Y, Z axes from the origin, shown or not" aria-label="Axis"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 11V2.5M5 11h8.5M5 11l-3.2 3.2"/><path d="M3.6 4.2L5 2.5l1.4 1.7M11.8 9.6l1.7 1.4-1.7 1.4"/></svg></button><button data-v="ground" title="Ground: its grid, shown or not" aria-label="Ground"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5h8l2.5 8h-13z"/><path d="M6.7 4.5l-1 8M9.3 4.5l1 8M2.6 8.5h10.8"/></svg></button></span></div>
 
-    <div class="mv-hint">Drag to move · Drag scroll to turn · Scroll to zoom · F to maximize · Esc to exit</div>
+    <div class="mv-hint" id="mvHint">Drag to move · Drag scroll to turn · Scroll to zoom · F to maximize · Esc to exit</div>
     <div class="mv-msg" id="mvMsg" hidden></div>
     <aside class="mv-edit" id="mvEdit" hidden>
       <button class="icon-btn mve-close" id="mveClose" title="Cancel the edits (back as it was) and close" aria-label="Cancel the edits and close">✕</button>
@@ -1144,6 +1148,13 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mve-head"><b>Trim</b></div>
         <div class="mve-trim"><b class="x">X</b><span class="mve-val" data-val="x0"></span><span class="mve-dual" data-ax="x"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" data-ax="x" data-end="0" aria-label="X min"><input type="range" min="0" max="10000" step="1" data-ax="x" data-end="1" aria-label="X max"></span><span class="mve-val" data-val="x1"></span><b class="y">Y</b><span class="mve-val" data-val="y0"></span><span class="mve-dual" data-ax="y"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" data-ax="y" data-end="0" aria-label="Y min"><input type="range" min="0" max="10000" step="1" data-ax="y" data-end="1" aria-label="Y max"></span><span class="mve-val" data-val="y1"></span><b class="z">Z</b><span class="mve-val" data-val="z0"></span><span class="mve-dual" data-ax="z"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" data-ax="z" data-end="0" aria-label="Z min"><input type="range" min="0" max="10000" step="1" data-ax="z" data-end="1" aria-label="Z max"></span><span class="mve-val" data-val="z1"></span></div>
         <div class="mve-row"><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="trim" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveTrim" disabled title="Cut away what's outside the box">Apply</button></span></div>
+      </section>
+      <section data-modify>
+        <div class="mve-head"><b>Modify</b></div>
+        <div class="mve-row"><span class="views seg mve-tools" id="mveSel"><button data-v="island" title="Click a part: it and all that's joined to it (⇧ adds, ⌥ takes away)">Island</button><button data-v="lasso" title="Draw round what to select: what's seen (⇧ adds, ⌥ takes away)">Lasso</button><button data-v="box" title="Drag a box round what to select: what's seen (⇧ adds, ⌥ takes away)">Box</button><button data-v="brush" title="Paint over what to select: what's seen (⌥ takes away; [ and ] size it)">Brush</button></span></div>
+        <div class="mve-row"><span class="btn-join" id="mveSelOps"><button class="btn small" data-op="grow" disabled title="Add the triangles touching the selection">Grow</button><button class="btn small" data-op="shrink" disabled title="Take away the selection's edge triangles">Shrink</button><button class="btn small" data-op="invert" disabled title="Select what isn't, and not what is">Invert</button><button class="btn small" data-op="clear" disabled title="Select nothing">Clear</button></span><span class="mve-n" id="mveSelN"></span></div>
+        <div class="mve-row"><label class="mp-check"><input type="checkbox" id="mveFill"> <span>Fill holes after delete</span></label><span class="views seg" id="mveFillType"><button data-v="flat" title="Across the hole: its edge's own triangles">Flat</button><button data-v="smooth" title="A smooth skin, as fine as the mesh round it">Smooth</button></span></div>
+        <div class="mve-row"><span class="btn-join"><button class="btn small mve-icon" id="mveModUndo" disabled title="Undo (⌘Z): the last selection or delete" aria-label="Undo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5L2.5 6.5l3 3"/><path d="M2.5 6.5h7a4 4 0 0 1 0 8h-2"/></svg></button><button class="btn small mve-icon" id="mveModRedo" disabled title="Redo (⇧⌘Z)" aria-label="Redo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l3 3-3 3"/><path d="M13.5 6.5h-7a4 4 0 0 0 0 8h2"/></svg></button></span><button class="btn small" id="mveDelete" disabled title="Delete the selected triangles (⌫)">Delete</button><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="modify" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveModify" disabled title="Keep the deletes">Apply</button></span></div>
       </section>
       <section data-step="center">
         <div class="mve-head"><b>Center</b></div>
@@ -1235,6 +1246,7 @@ import { createModelView, modelThumb } from "./modelview.js";
 import * as modelEdit from "./modeledit.js";
 window.modelEdit = modelEdit;
 window.modelView = createModelView(document.getElementById("mvCanvas"));
+window.modelView.modify.onChange = () => mveModShow(); // (Modify's panel: as it is)
 window.modelThumb = modelThumb;
 draw();
 </script>
@@ -1807,7 +1819,7 @@ function mvMeasure(on) {
   mvm.on = on;
   mvm.pts = [];
   $("mvMeasureBtn").classList.toggle("primary", on);
-  if (on) mvePicking(null); // (an Edit step picking: no longer)
+  if (on) { mvePicking(null); mveTool(null); } // (an Edit step picking, Modify's tool: no longer)
   if (on) window.modelView.hoverColor(MV_MEASURE);
   window.modelView.onPick = on ? (p) => { if (mvm.pts.length >= 2) mvm.pts = []; mvm.pts.push(p); mvMeasureShow(); } : null;
   mvMeasureShow();
@@ -1867,6 +1879,7 @@ function mvePending() {
   if (mve.picks.center.length || mve.originFrom) p.push("Origin");
   if (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z)) p.push("Rotate");
   if (!$("mveTrim").disabled) p.push("Trim");
+  if (mveMod()?.changed()) p.push("Modify");
   return p;
 }
 function mveConfirm(on) {
@@ -1904,7 +1917,7 @@ function mveShow() {
   const sp = mve.picks.scale;
   $("mveScale").disabled = sp.length !== 2 || !(Number($("mveDist").value) > 0);
   $("mveDist").placeholder = sp.length === 2 ? `now ${(sp[0].distanceTo(sp[1]) * k).toFixed(u === "mm" ? 1 : 3)}` : "distance";
-  $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length && !mve.originFrom && !mve.rotFrom && !mve.alignFrom;
+  $("mveUndo").disabled = $("mveResetEdit").disabled = !mve.undo.length && !mve.originFrom && !mve.rotFrom && !mve.alignFrom && !mveMod().changed();
   const st = mv.stats();
   mve.tris = st ? Math.round(st.triangles) : 0;
   mveTrisCheck();
@@ -1914,6 +1927,7 @@ function mveShow() {
     $("mveSize").innerHTML = `<span><b class="x">X</b> ${x}  <b class="y">Y</b> ${y}  <b class="z">Z</b> ${z}</span><span><span class="mve-ic" role="img" aria-label="Resolution" title="Resolution">${MVE_TRIANGLE}</span>${tris} triangles</span>`;
   }
   mvMarks();
+  mveModShow();
   try { localStorage.setItem("modelEditUnits", JSON.stringify([u, segOf("mveFileUnit")])); } catch {}
 }
 $("mveDist").oninput = mveShow;
@@ -1957,6 +1971,7 @@ function mvMarks() {
 }
 function mvePicking(st) {
   if (st && mvm.on) mvMeasure(false); // (measuring: no longer)
+  if (st) mveTool(null); // (Modify's tool: no longer)
   mve.picking = st;
   if (st) window.modelView.hoverColor(MVE_COLORS[st]);
   window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 1) mve.picks.center.shift(); if (st === "center" && mve.originFrom) { mve.centerAt = p.clone().applyMatrix4(mve.centerOff.clone().invert()); mveCenterGo(); } if (st === "align" && mve.alignFrom) { mve.alignPts.push(p.clone().applyMatrix4(mve.alignOff.clone().invert())); mveAlignGo(); } mveShow(); } : null;
@@ -2099,6 +2114,7 @@ $("mvEdit").addEventListener("click", async (e) => {
     case "align": await mveAlignCancel(false); mve.picks.align = []; break;
     case "rotate": await mveRotCancel(); break;
     case "trim": mveTrimReset(); break;
+    case "modify": mveMod().cancel(); mveTrimReset(); break;
     case "center": await mveOriginCancel(); mve.picks.center = []; break;
     case "scale": mve.picks.scale = []; $("mveDist").value = ""; break;
   }
@@ -2121,6 +2137,7 @@ $("mveTrim").onclick = () => {
   window.modelView.settle();
   mveRotCommit();
   mveOriginCommit(); // (Origin's Set, not Applied: kept, first)
+  mveModCommit(); // (Modify's deletes: the same)
   try {
     const undo = window.modelView.trim(mveThreeBox(mveTrimBox()));
     mve.undo.push(undo);
@@ -2312,6 +2329,7 @@ async function mveBack() {
   if (mve.rotFrom) return mveRotCancel(); // (a turn set, not kept yet: that's the step back)
   if (mve.originFrom) return mveOriginCancel(); // (Set, not Applied: that's the step back)
   if (mve.alignFrom) return mveAlignCancel(true); // (shown, not kept: the same)
+  if (mveMod().changed()) return mveMod().cancel(); // (Modify's deletes, not Applied: the same)
   const u = mve.undo.pop();
   if (typeof u === "function") u();
   else if (u) await window.modelView.setMatrix(u, true);
@@ -2319,6 +2337,7 @@ async function mveBack() {
 $("mveUndo").onclick = async () => { await mveBack(); mveTrimReset(); mveShow(); };
 // Reset Edits: the trims put back, the model moved back to where it came.
 async function mveResetAll() {
+  mveModCommit();
   mveRotCommit();
   mveOriginCommit(); // (then undone with the rest)
   mveAlignCommit();
@@ -2333,7 +2352,7 @@ $("mveResetEdit").onclick = mveResetAll;
 // ✕: the edits undone (asked first, if there are any), the points picked
 // dropped, the panel closed.
 $("mveClose").onclick = async () => {
-  const edits = mve.undo.length || mve.originFrom || mve.alignFrom || (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z));
+  const edits = mve.undo.length || mve.originFrom || mve.alignFrom || (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z)) || mveMod().changed();
   if (edits && !await confirmDanger("Cancel the edits?", "The model goes back to as it was when you opened Edit (nothing saved is changed).", "Cancel Edits")) return;
   if (edits) await mveResetAll();
   mve.picks = { level: [], align: [], scale: [], center: [] };
@@ -2341,6 +2360,85 @@ $("mveClose").onclick = async () => {
   mveOpen(false);
   mveShow();
 };
+// Modify: parts of the model selected (Island: a part and all joined to
+// it; Lasso, Box: what's seen inside; Brush: what's seen under it) and
+// deleted, each hole left filled if asked (flat or smooth). Its own Undo
+// and Redo step through the selections and deletes; Apply keeps the
+// deletes as one edit (the Save section's Undo puts them back), Cancel
+// puts the model back as it was before them. (See modelmodify.js.)
+const mveMod = () => window.modelView?.modify;
+const MV_HINT = $("mvHint").textContent;
+const MVE_HINTS = {
+  island: "Click a part: it and all joined to it · ⇧ adds · ⌥ takes away",
+  lasso: "Draw round what to select (what's seen) · ⇧ adds · ⌥ takes away",
+  box: "Drag a box round what to select (what's seen) · ⇧ adds · ⌥ takes away",
+  brush: "Paint over what to select (what's seen) · ⌥ takes away · [ ] size",
+};
+function mveTool(t) {
+  const md = mveMod();
+  if (!md || md.tool === t) return;
+  if (t) { mvePicking(null); if (mvm.on) mvMeasure(false); }
+  md.tool = t;
+}
+$("mveSel").onclick = (e) => { const t = e.target.closest("[data-v]")?.dataset.v; if (t) mveTool(mveMod().tool === t ? null : t); };
+$("mveSelOps").onclick = (e) => { const op = e.target.closest("[data-op]")?.dataset.op; if (op) mveMod().op(op); };
+function mveModShow() {
+  const md = mveMod();
+  if (!md) return;
+  segPick("mveSel", md.tool);
+  const n = md.count();
+  for (const b of $("mveSelOps").children) b.disabled = !n;
+  $("mveSelN").textContent = n ? `${n.toLocaleString()} selected` : "";
+  $("mveDelete").disabled = !n;
+  $("mveModUndo").disabled = !md.canUndo;
+  $("mveModRedo").disabled = !md.canRedo;
+  $("mveModify").disabled = !md.changed();
+  for (const b of $("mveFillType").children) b.disabled = !$("mveFill").checked;
+  $("mvHint").textContent = md.tool ? `${MVE_HINTS[md.tool]}${md.tool === "brush" ? ` (${md.brush} px)` : ""} · Drag scroll to turn · Esc: done` : MV_HINT;
+}
+// The fill: as last set.
+try { const f = JSON.parse(localStorage.getItem("modelFill") || "null"); $("mveFill").checked = !!f?.on; segPick("mveFillType", f?.type || "smooth"); } catch { segPick("mveFillType", "smooth"); }
+const mveFillSave = () => { try { localStorage.setItem("modelFill", JSON.stringify({ on: $("mveFill").checked, type: segOf("mveFillType") })); } catch {} };
+$("mveFill").onchange = () => { mveFillSave(); mveModShow(); };
+$("mveFillType").onclick = (e) => { const v = e.target.closest("[data-v]")?.dataset.v; if (v) { segPick("mveFillType", v); mveFillSave(); } };
+async function mveDelete() {
+  const md = mveMod();
+  if (!md?.count()) return;
+  const fill = $("mveFill").checked ? segOf("mveFillType") : null;
+  mveStatus(fill ? "Deleting, filling the holes…" : "Deleting…");
+  await new Promise((r) => setTimeout(r, 30)); // (said before the work holds the page)
+  let r;
+  try { r = md.del(fill); } catch (e) { mveStatus(e.message, "bad"); return; }
+  if (!r) return mveStatus("");
+  let t = `Deleted ${r.deleted.toLocaleString()} triangle${r.deleted === 1 ? "" : "s"}`;
+  if (fill) t += r.holes || !r.open ? `, filled ${r.holes} hole${r.holes === 1 ? "" : "s"}` : "";
+  if (fill && r.open) t += `; ${r.open} left open (running into the model's own open edge)`;
+  mveStatus(t);
+  mveTrimReset();
+  mveShow();
+}
+$("mveDelete").onclick = mveDelete;
+const mveModStep = (f) => { f(); mveTrimReset(); mveShow(); };
+$("mveModUndo").onclick = () => mveModStep(() => mveMod().undo());
+$("mveModRedo").onclick = () => mveModStep(() => mveMod().redo());
+// mveModCommit: Modify's deletes kept as one edit (Undo: put back).
+function mveModCommit() {
+  const u = mveMod()?.commit();
+  if (u) mve.undo.push(u);
+}
+$("mveModify").onclick = () => { mveModCommit(); mveTool(null); mveTrimReset(); mveShow(); };
+// Its keys, Edit open: Esc (the tool done with), [ ] (the brush's size),
+// ⌫ (Delete), ⌘Z, ⇧⌘Z (its Undo, Redo).
+function mveModKey(e) {
+  const md = mveMod();
+  if (!md || $("mvEdit").hidden) return false;
+  if (e.key === "Escape" && md.tool) mveTool(null);
+  else if ((e.key === "[" || e.key === "]") && md.tool === "brush") md.brushBy(e.key === "]" ? 1.25 : 0.8);
+  else if ((e.key === "Delete" || e.key === "Backspace") && md.count()) mveDelete();
+  else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && (e.shiftKey ? md.canRedo : md.canUndo)) mveModStep(() => (e.shiftKey ? md.redo() : md.undo()));
+  else return false;
+  return true;
+}
 // The view presets (top left), in Blender's and Fusion's axes (see VIEWS in modelview.js).
 function mvView(v) { segPick("mvViews", v); window.modelView.view(v, true); } // (gliding there)
 $("mvViews").onclick = (e) => { if (e.target.dataset?.v) mvView(e.target.dataset.v); };
@@ -3186,7 +3284,8 @@ $("viewerClose").onclick = closePhoto;
 document.addEventListener("keydown", (e) => {
   if (!$("modelViewer").hidden) {
     if (e.target.closest?.("input, textarea, select")) return;
-    if (e.key === "Escape") closeModel();
+    if (mveModKey(e)) e.preventDefault();
+    else if (e.key === "Escape") closeModel();
     else if (e.key === "f" || e.key === "F") window.modelView.view(null, true, true); // (filling the view, as it's seen)
     else return;
   } else if (!$("viewer").hidden) {
