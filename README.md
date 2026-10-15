@@ -137,3 +137,19 @@ go test -race ./...
 ```
 
 They run against a built-in servo emulator, no hardware needed.
+
+## License
+
+Copyright (C) 2026 Denis G
+
+gosts and its apps (`cmd/`: gosts-ctl, gosts-rig, the macOS app, apple-obj-cap) are free software under the
+[GNU Affero General Public License v3.0](LICENSE): you may use, change and share them, but anything you
+build on them or change in them, including a server others use over a network, must be published under the
+same license, with its full source. For other terms (a closed or commercial product), ask.
+
+Not covered by it:
+
+- **Third-party code** in `cmd/gosts-rig/web/vendor/`: three.js and its add-ons, three-mesh-bvh and
+  meshoptimizer, each MIT (their license files beside them). The Go modules gosts uses are MIT or BSD.
+- **Waveshare's documents and examples** in `doc-st3215/` and `doc-bus-servo-adapter-a/`: theirs, under
+  Waveshare's own terms.
