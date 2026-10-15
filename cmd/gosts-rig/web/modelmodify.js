@@ -455,6 +455,10 @@ const SEL_MAT = new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true
   polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
 const SEL_BEHIND = new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false,
   depthFunc: THREE.GreaterDepth, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+// HOVER_MAT: the part the wand's over (what a click would select), fainter
+// than the selection.
+const HOVER_MAT = new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false,
+  polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
 // DEPTH: each pixel's distance from the camera (view space; 0: nothing),
 // to tell what's seen from what's behind it.
 const DEPTH = new THREE.ShaderMaterial({
@@ -515,6 +519,14 @@ export function createModify(v) {
   // triangles selected); at: the one now. null: nothing done yet.
   let hist = null, at = 0;
   const overlays = new Map(); // mesh → its selection, shown
+  // hover: the wand's part under the pointer, shaded (o: its mesh; sel: its
+  // triangles; null o: none). Worked out again only on another part.
+  const hover = { o: null, sel: null, mesh: new THREE.Mesh(new THREE.BufferGeometry(), HOVER_MAT), at: null, queued: false };
+  hover.mesh.matrixAutoUpdate = false;
+  hover.mesh.raycast = () => {};
+  hover.mesh.renderOrder = 3;
+  hover.mesh.visible = false;
+  group.add(hover.mesh);
   const meshes = () => { const l = []; v.obj()?.traverse((o) => { if (o.isMesh) l.push(o); }); return l; };
   const cur = () => hist?.[at];
 
@@ -551,6 +563,7 @@ export function createModify(v) {
   // show: the step now on the model: its geometries, its selections.
   function show() {
     const st = cur();
+    hoverOff(); // (the model may have changed: worked out again as the pointer moves)
     let geoChanged = false;
     for (const o of meshes()) {
       const g = st?.geos.get(o);
@@ -602,6 +615,25 @@ export function createModify(v) {
   function tick() {
     group.visible = shownOn;
     for (const [o, ov] of overlays) { ov.matrix.copy(o.matrixWorld); ov.matrixWorld.copy(o.matrixWorld); }
+    if (hover.o) { hover.mesh.matrix.copy(hover.o.matrixWorld); hover.mesh.matrixWorld.copy(hover.o.matrixWorld); }
+  }
+
+  function hoverOff() { hover.o = hover.sel = null; hover.mesh.visible = false; }
+  function hoverAt(x, y) {
+    const h = hitAt(x, y);
+    if (!h) return hoverOff();
+    if (hover.o === h.o && hover.sel?.[h.t]) return; // (the same part)
+    const geo = h.o.geometry, f = info(geo), sel = new Uint8Array(f.T);
+    island(f, h.t, sel, 1);
+    const idx = [];
+    for (let t = 0; t < f.T; t++) if (sel[t]) idx.push(t * 3, t * 3 + 1, t * 3 + 2);
+    hover.mesh.geometry.dispose();
+    hover.mesh.geometry = new THREE.BufferGeometry();
+    hover.mesh.geometry.setAttribute("position", geo.getAttribute("position"));
+    hover.mesh.geometry.setIndex(idx);
+    hover.o = h.o; hover.sel = sel;
+    hover.mesh.visible = true;
+    tick();
   }
 
   // ---------------------------------------------------------- selecting
@@ -689,6 +721,10 @@ export function createModify(v) {
   });
   canvas.addEventListener("pointermove", (e) => {
     if (tool === "brush") ringAt(e);
+    if (tool === "island" && !drag && !e.buttons) { // (the part a click would take: shaded, once a frame at most)
+      hover.at = [e.clientX, e.clientY];
+      if (!hover.queued) { hover.queued = true; requestAnimationFrame(() => { hover.queued = false; if (tool === "island" && hover.at) { begin(); hoverAt(...hover.at); } }); }
+    } else if (hover.o && (tool !== "island" || e.buttons)) hoverOff();
     if (!drag) return;
     const p = local(e.clientX, e.clientY), last = drag.pts[drag.pts.length - 1];
     if (Math.hypot(p[0] - drag.pts[0][0], p[1] - drag.pts[0][1]) > 3) drag.moved = true;
@@ -714,7 +750,7 @@ export function createModify(v) {
   };
   canvas.addEventListener("pointerup", end);
   canvas.addEventListener("pointercancel", end);
-  canvas.addEventListener("pointerleave", () => { ring.style.display = "none"; });
+  canvas.addEventListener("pointerleave", () => { ring.style.display = "none"; hover.at = null; hoverOff(); });
 
   function outline() {
     const p = drag.pts;
@@ -815,6 +851,7 @@ export function createModify(v) {
     controls.mouseButtons.LEFT = tool ? -1 : THREE.MOUSE.PAN; // (a drag: the tool's, not moving the view)
     canvas.style.cursor = tool === "brush" ? "none" : tool ? "crosshair" : "";
     if (tool !== "brush") ring.style.display = "none";
+    if (tool !== "island") hoverOff();
     if (!tool && drag) { drag = null; shape.style.display = "none"; show(); }
     onChange();
   }
