@@ -1124,7 +1124,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
     <nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="mvHome" data-tip="~/Pictures/gosts-rig" aria-label="All captures"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>root</button><button class="btn small crumb-btn" id="mvBack" title="Back to the capture (Esc)">Capture</button><button class="btn small crumb-btn crumb-cur" id="mvFile" tabindex="-1"></button></span><button class="icon-btn pen-btn" id="mvRename" title="Rename this model (its folder)" aria-label="Rename this model"></button><span class="crumb-meta" id="mvCap"></span></nav>
     <span class="spacer"></span>
     <span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, gray">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span>
-    <span class="btn-join" id="mvTools"><button class="btn small" id="mvMeasureBtn" title="Click two points on the model: the distance between them (M; again: off)">Measure</button><button class="btn small" id="mvEditBtn" title="Level it, turn it onto an axis, scale it to a known size, delete parts; save it as a new model (OBJ, and STL) (E; again or Esc: closed)">Edit</button></span>
+    <span class="btn-join" id="mvTools"><button class="btn small" id="mvMeasureBtn" title="Click two points on the model: the distance between them (M; again or Esc: off)">Measure</button><button class="btn small" id="mvEditBtn" title="Level it, turn it onto an axis, scale it to a known size, delete parts; save it as a new model (OBJ, and STL) (E; again or Esc: closed)">Edit</button></span>
     <button class="btn small" id="mvReveal" title="Its folder, in the Finder">Show in Finder</button>
     <button class="icon-btn" id="mvClose" title="Close (Esc)" aria-label="Close">✕</button>
   </div>
@@ -3325,6 +3325,7 @@ document.addEventListener("keydown", (e) => {
     else if (plain && k === "e" && !$("mvTools").hidden) $("mvEditBtn").click(); // (Edit: open, or closed, its edits kept)
     else if (plain && k === "m" && !$("mvTools").hidden) $("mvMeasureBtn").click(); // (Measure: on, or off)
     else if (e.key === "Escape" && !$("mvEdit").hidden) mveOpen(false); // (Edit open: closed first)
+    else if (e.key === "Escape" && mvm.on) mvMeasure(false); // (then Measure)
     else if (e.key === "Escape") closeModel();
     else if (e.key === "f" || e.key === "F") window.modelView.view(null, true, true); // (filling the view, as it's seen)
     else return;
