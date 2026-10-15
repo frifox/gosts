@@ -328,8 +328,10 @@ var textureExts = []string{".png", ".jpg", ".jpeg", ".tif", ".tiff", ".exr", ".b
 // handleModelSave saves an edited model (POST
 // /batches/{name}/models/{model}/save, multipart): to (the new folder's
 // name), edit (its modelEdit, JSON), mtl (the model's materials' file, to
-// copy), obj (the edited OBJ) and stl (if made). The folder gets
-// <to>.obj, <to>.mtl (the model's, copied), its textures (copied),
+// copy), obj (the edited OBJ), stl (if made), and, for the holes filled,
+// mtlextra (their materials, added to the MTL) and tex (each one's
+// texture, a PNG). The folder gets <to>.obj, <to>.mtl (the model's,
+// copied, with mtlextra), its textures (copied, and the tex ones),
 // <to>.stl and edit.json. Over an edit saved here before (that one to the
 // Trash first); over the model itself only with replace (it to the Trash,
 // once its materials and textures are copied); never over another folder.
@@ -354,7 +356,7 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer os.RemoveAll(tmp)
-	var to, mtl string
+	var to, mtl, mtlExtra string
 	replace := false
 	var edit modelEdit
 	got := map[string]bool{}
@@ -369,9 +371,11 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 		}
 		field := part.FormName()
 		switch field {
-		case "to", "mtl", "edit", "replace":
-			v, _ := io.ReadAll(io.LimitReader(part, 1<<16))
+		case "to", "mtl", "edit", "replace", "mtlextra":
+			v, _ := io.ReadAll(io.LimitReader(part, 1<<20))
 			switch field {
+			case "mtlextra":
+				mtlExtra = string(v)
 			case "to":
 				to = strings.TrimSpace(string(v))
 			case "mtl":
@@ -401,6 +405,23 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			got[field] = true
+		case "tex":
+			n := part.FileName()
+			if n != filepath.Base(n) || strings.HasPrefix(n, ".") || strings.ToLower(filepath.Ext(n)) != ".png" {
+				fail(http.StatusBadRequest, "a fill texture: %q (a PNG, by its name only)", n)
+				return
+			}
+			f, err := os.Create(filepath.Join(tmp, n))
+			if err == nil {
+				_, err = io.Copy(f, io.LimitReader(part, 64<<20))
+				if cerr := f.Close(); err == nil {
+					err = cerr
+				}
+			}
+			if err != nil {
+				fail(http.StatusInternalServerError, "%v", err)
+				return
+			}
 		}
 	}
 	model := r.PathValue("model")
@@ -451,7 +472,24 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 		if as == "" {
 			continue
 		}
+		if _, err := os.Stat(filepath.Join(tmp, as)); err == nil {
+			continue // (a fill texture sent: that one)
+		}
 		if err := copyFile(filepath.Join(src, n), filepath.Join(tmp, as)); err != nil {
+			fail(http.StatusInternalServerError, "%v", err)
+			return
+		}
+	}
+	// The holes' fill materials: added to the MTL (made, if the model had none).
+	if mtlExtra != "" {
+		f, err := os.OpenFile(filepath.Join(tmp, to+".mtl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err == nil {
+			_, err = f.WriteString(mtlExtra)
+			if cerr := f.Close(); err == nil {
+				err = cerr
+			}
+		}
+		if err != nil {
 			fail(http.StatusInternalServerError, "%v", err)
 			return
 		}

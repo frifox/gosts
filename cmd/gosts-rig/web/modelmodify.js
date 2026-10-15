@@ -14,6 +14,7 @@ import { MeshBVH, INTERSECTED, NOT_INTERSECTED } from "./vendor/three-mesh-bvh.m
 // TOOLS: what a drag (or click) with the left button does.
 export const TOOLS = ["lasso", "box", "brush", "island"];
 export const FILLS = ["flat", "smooth"];
+export const TEXTURES = ["color", "extend", "patch"];
 
 // --------------------------------------------------------------- the mesh
 
@@ -153,7 +154,8 @@ function holeLoops(f, sel) {
 // most lies in: earcut); smooth, those made finer (about as fine as the
 // mesh round it: Liepa's centroid splits, edges flipped to keep them
 // shapely) and the inside eased into a smooth skin. Its points (the loop's
-// first, then any inside) and triangles (corner indices).
+// first, then any inside), triangles (corner indices) and the plane's
+// directions (u, v: across it, for its texture).
 function fillLoop(P0, mode, maxTris) {
   const n = P0.length;
   // The plane: the loop's Newell normal; u × v = N, so the loop goes round
@@ -176,7 +178,7 @@ function fillLoop(P0, mode, maxTris) {
   }
   let P = P0.map((p) => p.clone());
   if (mode === "smooth" && n > 3) ({ P, tris } = refine(P, tris, maxTris));
-  return { P, tris };
+  return { P, tris, u, v };
 }
 const ekey = (a, b) => (a < b ? a * 1048576 + b : b * 1048576 + a); // (a patch: fewer than 2²⁰ points)
 function refine(P, tris, maxTris) {
@@ -253,15 +255,17 @@ function fair(P, tris, fixed) {
 }
 
 // remove: geo less the triangles in sel (each material's kept together),
-// the holes filled if asked (fill: flat or smooth; each fill triangle has
-// the texture's spot at the hole's nearest edge point, the material of
-// the triangle next to it). The new geometry, and how it went.
+// the holes filled if asked (fill: { shape: flat or smooth, material }).
+// Each hole's triangles get texture places across it (its plane, square,
+// 0–1: uv) and a material of their own (fill.material(hole): its index in
+// the mesh's; null: the one next to the hole, the texture's spot at its
+// nearest edge point). The new geometry, and how it went.
 function remove(geo, sel, fill) {
   const f = info(geo), T = f.T;
   const names = Object.keys(geo.attributes), attrs = names.map((n) => geo.getAttribute(n));
   const groups = geo.groups.length ? geo.groups : [{ start: 0, count: T * 3, materialIndex: 0 }];
   const groupOf = (t) => Math.max(0, groups.findIndex((g) => t * 3 >= g.start && t * 3 < g.start + g.count));
-  const patches = groups.map(() => []);
+  const patches = groups.map(() => []), extra = []; // (extra: holes with their own material, after the rest)
   let holes = 0, open = 0;
   if (fill) {
     const r = holeLoops(f, sel);
@@ -269,7 +273,7 @@ function remove(geo, sel, fill) {
     const pos = geo.getAttribute("position");
     for (const loop of r.loops) {
       const P = loop.map((e) => new THREE.Vector3().fromBufferAttribute(pos, e.cf));
-      const p = fillLoop(P, fill, 20000);
+      const p = fillLoop(P, fill.shape, 20000);
       if (!p || !p.tris.length) { open++; continue; }
       // Each point's nearest loop corner (the loop's own: itself).
       const near = p.P.map((q, i) => {
@@ -278,17 +282,44 @@ function remove(geo, sel, fill) {
         for (let k = 0; k < P.length; k++) { const d = q.distanceToSquared(P[k]); if (d < bd) { bd = d; best = k; } }
         return loop[best].cf;
       });
-      patches[groupOf(loop[0].t)].push({ P: p.P, tris: p.tris, near });
+      // Across it: the plane's u, v, from its corner, the longer side 0–1.
+      const a = p.P.map((q) => q.dot(p.u)), b = p.P.map((q) => q.dot(p.v));
+      const a0 = Math.min(...a), b0 = Math.min(...b), span = Math.max(Math.max(...a) - a0, Math.max(...b) - b0, 1e-12);
+      const uvs = p.P.map((q, i) => [(a[i] - a0) / span, (b[i] - b0) / span]);
+      const patch = { P: p.P, tris: p.tris, near, uvs };
+      const mi = fill.material?.({ n: P.length, uvs, span, corners: loop.map((e) => e.cf), mis: loop.map((e) => groups[groupOf(e.t)].materialIndex ?? 0) });
+      if (mi == null) patches[groupOf(loop[0].t)].push(patch);
+      else extra.push({ patch, mi });
       holes++;
     }
   }
   let kept = 0, added = 0;
   for (let t = 0; t < T; t++) if (!sel[t]) kept++;
   for (const l of patches) for (const p of l) added += p.tris.length;
+  for (const x of extra) added += x.patch.tris.length;
   const outs = attrs.map((a) => new Float32Array((kept + added) * 3 * a.itemSize));
   const ng = [];
   let o = 0; // (corners written)
   const nrm = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  // put: a patch's triangles (own: its texture places; else the nearest
+  // edge point's, one spot a triangle).
+  const put = (p, own) => {
+    for (const tri of p.tris) {
+      e1.subVectors(p.P[tri[1]], p.P[tri[0]]); e2.subVectors(p.P[tri[2]], p.P[tri[0]]);
+      nrm.crossVectors(e1, e2).normalize();
+      for (let c = 0; c < 3; c++) {
+        const q = p.P[tri[c]], src = own ? p.near[tri[c]] : p.near[tri[0]];
+        attrs.forEach((a, k) => {
+          const s = a.itemSize, at = (o + c) * s;
+          if (names[k] === "position") { outs[k][at] = q.x; outs[k][at + 1] = q.y; outs[k][at + 2] = q.z; }
+          else if (names[k] === "normal") { outs[k][at] = nrm.x; outs[k][at + 1] = nrm.y; outs[k][at + 2] = nrm.z; }
+          else if (names[k] === "uv" && own) { outs[k][at] = p.uvs[tri[c]][0]; outs[k][at + 1] = p.uvs[tri[c]][1]; }
+          else for (let j = 0; j < s; j++) outs[k][at + j] = a.getComponent(src, j);
+        });
+      }
+      o += 3;
+    }
+  };
   groups.forEach((g, gi) => {
     const start = o;
     for (let t = g.start / 3; t < Math.min(T, (g.start + g.count) / 3); t++) {
@@ -296,29 +327,123 @@ function remove(geo, sel, fill) {
       attrs.forEach((a, k) => { const s = a.itemSize; for (let c = 0; c < 3; c++) for (let j = 0; j < s; j++) outs[k][(o + c) * s + j] = a.getComponent(t * 3 + c, j); });
       o += 3;
     }
-    for (const p of patches[gi]) {
-      for (const tri of p.tris) {
-        e1.subVectors(p.P[tri[1]], p.P[tri[0]]); e2.subVectors(p.P[tri[2]], p.P[tri[0]]);
-        nrm.crossVectors(e1, e2).normalize();
-        const src = p.near[tri[0]]; // (its texture: one spot, the whole triangle)
-        for (let c = 0; c < 3; c++) {
-          const q = p.P[tri[c]];
-          attrs.forEach((a, k) => {
-            const s = a.itemSize, at = (o + c) * s;
-            if (names[k] === "position") { outs[k][at] = q.x; outs[k][at + 1] = q.y; outs[k][at + 2] = q.z; }
-            else if (names[k] === "normal") { outs[k][at] = nrm.x; outs[k][at + 1] = nrm.y; outs[k][at + 2] = nrm.z; }
-            else for (let j = 0; j < s; j++) outs[k][at + j] = a.getComponent(src, j);
-          });
-        }
-        o += 3;
-      }
-    }
-    if (geo.groups.length) ng.push({ start, count: o - start, materialIndex: g.materialIndex });
+    for (const p of patches[gi]) put(p, false);
+    ng.push({ start, count: o - start, materialIndex: g.materialIndex ?? 0 });
   });
+  for (const x of extra) { const start = o; put(x.patch, true); ng.push({ start, count: o - start, materialIndex: x.mi }); }
   const out = new THREE.BufferGeometry();
   names.forEach((n, k) => out.setAttribute(n, new THREE.BufferAttribute(outs[k], attrs[k].itemSize, attrs[k].normalized)));
-  for (const g of ng) out.addGroup(g.start, g.count, g.materialIndex);
+  if (geo.groups.length || extra.length) for (const g of ng) out.addGroup(g.start, g.count, g.materialIndex);
   return { geo: out, deleted: T - kept, holes, open, added };
+}
+
+// ----------------------------------------------------------- the textures
+
+// sampler: a material's colors at texture places (u, v): its texture's
+// (read at most 1024 across), else its color. [r, g, b], 0–255.
+const samplers = new WeakMap();
+function sampler(mat) {
+  const map = mat?.map, img = map?.image;
+  if (!img?.width) {
+    const c = (mat?.color || new THREE.Color(0xb9bdc5)).clone().convertLinearToSRGB(), rgb = [c.r * 255, c.g * 255, c.b * 255];
+    return () => rgb;
+  }
+  let s = samplers.get(map);
+  if (s) return s;
+  const k = Math.min(1, 1024 / Math.max(img.width, img.height)), w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k));
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const cx = cv.getContext("2d", { willReadFrequently: true });
+  cx.drawImage(img, 0, 0, w, h);
+  const d = cx.getImageData(0, 0, w, h).data;
+  s = (u, v) => {
+    u -= Math.floor(u); v -= Math.floor(v);
+    const x = Math.min(w - 1, (u * w) | 0), y = Math.min(h - 1, ((map.flipY ? 1 - v : v) * h) | 0), i = (y * w + x) * 4;
+    return [d[i], d[i + 1], d[i + 2]];
+  };
+  samplers.set(map, s);
+  return s;
+}
+const rgb = ([r, g, b], a = 1) => `rgba(${r | 0},${g | 0},${b | 0},${a})`;
+// paintFill: a hole's texture (a canvas; u across, v up it, as uv): poly,
+// its edge (0–1); colors, the model's along it; mPer, meters across it.
+//   color:  one color, the edge's (its average);
+//   extend: the edge's colors drawn in, each fading into the next, a
+//           little grain over them;
+//   patch:  a sewn-on patch: canvas cloth (its weave), the hem darker,
+//           a running stitch along it.
+function paintFill(tex, poly, colors, mPer) {
+  const S = tex === "color" ? 8 : tex === "extend" ? 128 : 512;
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = S;
+  const cx = cv.getContext("2d");
+  const avg = colors.reduce((s, c) => [s[0] + c[0], s[1] + c[1], s[2] + c[2]], [0, 0, 0]).map((x) => x / Math.max(1, colors.length));
+  const px = ([u, v]) => [u * S, (1 - v) * S];
+  if (tex === "color") {
+    cx.fillStyle = rgb(avg);
+    cx.fillRect(0, 0, S, S);
+    return cv;
+  }
+  if (tex === "extend") {
+    const step = Math.max(1, Math.ceil(poly.length / 200)), pts = [];
+    for (let i = 0; i < poly.length; i += step) pts.push([...px(poly[i]), colors[i]]);
+    const img = cx.createImageData(S, S), d = img.data;
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      let r = 0, g = 0, b = 0, W = 0;
+      for (const [qx, qy, c] of pts) {
+        const dd = (qx - x - 0.5) ** 2 + (qy - y - 0.5) ** 2 + 1, w = 1 / (dd * Math.sqrt(dd));
+        r += c[0] * w; g += c[1] * w; b += c[2] * w; W += w;
+      }
+      const n = (Math.random() - 0.5) * 14, i = (y * S + x) * 4;
+      d[i] = r / W + n; d[i + 1] = g / W + n; d[i + 2] = b / W + n; d[i + 3] = 255;
+    }
+    cx.putImageData(img, 0, 0);
+    return cv;
+  }
+  // The patch: sizes on the model (mm), as pixels here.
+  const ppm = S / Math.max(mPer, 1e-6), mm = (x, lo, hi) => Math.max(lo, Math.min(hi, x * 0.001 * ppm));
+  const weave = mm(0.8, 2, 12), hem = mm(1.5, 2, 18), inset = mm(2, 3, 30), dash = mm(3, 5, 40), thread = mm(0.6, 1.5, 6);
+  cx.fillStyle = "#8c7b5a";
+  cx.fillRect(0, 0, S, S);
+  for (let i = 0; i < S; i += weave) {
+    cx.fillStyle = "rgba(0,0,0,.10)"; cx.fillRect(0, i, S, weave / 2);
+    cx.fillStyle = "rgba(255,240,210,.07)"; cx.fillRect(i, 0, weave / 2, S);
+  }
+  const img = cx.getImageData(0, 0, S, S), d = img.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 18; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+  cx.putImageData(img, 0, 0);
+  const P = poly.map(px);
+  const path = () => { cx.beginPath(); P.forEach(([x, y], i) => (i ? cx.lineTo(x, y) : cx.moveTo(x, y))); cx.closePath(); };
+  cx.save();
+  path();
+  cx.clip();
+  path();
+  cx.lineWidth = hem * 2;
+  cx.strokeStyle = "rgba(30,20,10,.35)";
+  cx.stroke();
+  cx.restore();
+  // The stitch: the edge moved in (each corner off its two edges' sides;
+  // the loop goes counterclockwise in u, v, so here, y down, (−dy, dx) is
+  // outward: taken away).
+  const n = P.length, inner = P.map(([x, y], i) => {
+    const [ax, ay] = P[(i + n - 1) % n], [bx, by] = P[(i + 1) % n];
+    let nx = 0, ny = 0;
+    for (const [dx, dy] of [[x - ax, y - ay], [bx - x, by - y]]) { const l = Math.hypot(dx, dy) || 1; nx += -dy / l; ny += dx / l; }
+    const l = Math.hypot(nx, ny) || 1;
+    return [x - nx / l * inset, y - ny / l * inset];
+  });
+  cx.beginPath();
+  inner.forEach(([x, y], i) => (i ? cx.lineTo(x, y) : cx.moveTo(x, y)));
+  cx.closePath();
+  cx.setLineDash([dash, dash * 0.7]);
+  cx.lineCap = "round";
+  cx.lineWidth = thread * 1.8;
+  cx.strokeStyle = "rgba(0,0,0,.35)";
+  cx.stroke();
+  cx.lineWidth = thread;
+  cx.strokeStyle = "#efe4c8";
+  cx.stroke();
+  return cv;
 }
 
 // ------------------------------------------------------------ the editor
@@ -349,7 +474,8 @@ void main() {
 // createModify: Modify for the viewer's model. v: what it needs of the
 // viewer: canvas, camera, renderer, scene, controls, planes (the trim's
 // clipping), obj() (the model), radius() (its size), changed() (its
-// triangles changed: the ground again). onChange: what's selected, or the
+// triangles changed: the ground again), materials(mesh) (its own, as
+// loaded), addMaterial(mesh, m) (one more: its index). onChange: what's selected, or the
 // steps, changed (the page's panel).
 export function createModify(v) {
   const { canvas, camera, renderer, scene, controls, planes } = v;
@@ -662,21 +788,51 @@ export function createModify(v) {
     }
     push({ geos: cur().geos, sels });
   }
-  // del: the selected triangles deleted (the holes filled: fill, flat or
-  // smooth; null: left open). How it went: { deleted, holes, open }.
+  // del: the selected triangles deleted, the holes filled as fill says
+  // ({ shape: flat or smooth, tex: color, extend or patch }; null: left
+  // open), each with a material of its own (see paintFill). How it went:
+  // { deleted, holes, open }.
+  let fillN = 0;
+  const stamp = Date.now().toString(36);
   function del(fill) {
     if (!hist || !count()) return null;
     const geos = new Map(cur().geos), sels = new Map(), r = { deleted: 0, holes: 0, open: 0 };
     for (const [o, s] of cur().sels) {
       const g = cur().geos.get(o);
       if (!s.some((x) => x)) { sels.set(o, s.slice()); continue; }
-      const d = remove(g, s, fill);
+      const uv = g.getAttribute("uv"), unit = o.matrixWorld.getMaxScaleOnAxis();
+      const d = remove(g, s, fill && {
+        shape: fill.shape,
+        material: uv ? (hole) => { // (no texture places: the hole's neighbor's)
+          const ms = [v.materials(o)].flat();
+          const colors = hole.corners.map((c, i) => sampler(ms[hole.mis[i]])(uv.getX(c), uv.getY(c)));
+          const cv = paintFill(fill.tex, hole.uvs.slice(0, hole.n), colors, hole.span * unit);
+          const m = (ms[hole.mis[0]] || ms[0]).clone();
+          m.name = `fill-${stamp}-${++fillN}`;
+          m.color?.set(0xffffff);
+          m.map = new THREE.CanvasTexture(cv);
+          m.map.colorSpace = THREE.SRGBColorSpace;
+          m.map.anisotropy = 4;
+          canvases.set(m, cv);
+          return v.addMaterial(o, m);
+        } : null,
+      });
       geos.set(o, d.geo);
       sels.set(o, new Uint8Array(info(d.geo).T));
       r.deleted += d.deleted; r.holes += d.holes; r.open += d.open;
     }
     push({ geos, sels });
     return r;
+  }
+  // fills: the fill materials the model has now (to save: { name, canvas }).
+  const canvases = new WeakMap();
+  function fills() {
+    const out = new Map();
+    for (const o of meshes()) {
+      const ms = [v.materials(o)].flat();
+      for (const g of o.geometry.groups) { const m = ms[g.materialIndex]; if (g.count > 0 && canvases.has(m)) out.set(m.name, { name: m.name, canvas: canvases.get(m) }); }
+    }
+    return [...out.values()];
   }
   // changed: any triangles deleted, at the step now (to Apply).
   const changed = () => !!hist && [...cur().geos].some(([o, g]) => hist[0].geos.get(o) !== g);
@@ -710,7 +866,7 @@ export function createModify(v) {
     onChange();
   }
   return {
-    tick, op, del, commit, cancel, reset, changed, count,
+    tick, op, del, commit, cancel, reset, changed, count, fills,
     get tool() { return tool; }, set tool(t) { setTool(t); },
     get brush() { return brush; },
     get xray() { return xray; },

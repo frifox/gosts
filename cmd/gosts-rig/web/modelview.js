@@ -379,6 +379,7 @@ export function createModelView(canvas) {
   // (show()). A few times the model's size, lines 1, 2 or 5 × 10ⁿ m apart.
   let showAxes = false, showGround = true; // (as a model opens: see the page's mvShown)
   function ground() {
+    whole(); // (its triangles changed: drawn, whatever their materials)
     drop(grid); drop(axes); grid = axes = null;
     if (!holder) return;
     const b = box(), r = Math.max(b.getBoundingSphere(new THREE.Sphere()).radius, 1e-3);
@@ -441,7 +442,22 @@ export function createModelView(canvas) {
   // ------------------------------------------------------------ editing
   function editing(on) { editOn = on; ground(); modify.shown(on); }
   // Delete (Modify): parts of the model picked out and deleted (see modelmodify.js).
-  const modify = createModify({ canvas, camera, renderer, scene, controls, planes, obj: () => obj, radius: () => radius, changed: () => ground() });
+  const modify = createModify({ canvas, camera, renderer, scene, controls, planes, obj: () => obj, radius: () => radius, changed: () => ground(),
+    materials: (o) => originals.get(o), addMaterial });
+  // addMaterial: one more material for mesh o (a hole's fill): its index.
+  function addMaterial(o, m) {
+    const ms = [...[originals.get(o)].flat(), m];
+    m.clippingPlanes = planes;
+    originals.set(o, ms);
+    look(mode);
+    whole();
+    return ms.length - 1;
+  }
+  // whole: a mesh with materials (a list) whose geometry has no groups (as
+  // it came, back after an Undo) is drawn by its first: so it shows.
+  function whole() {
+    obj?.traverse((o) => { if (o.isMesh && Array.isArray(originals.get(o)) && !o.geometry.groups.length) o.geometry.addGroup(0, Infinity, 0); });
+  }
   // A click (not a drag) on the model, while picking (onPick set: Edit's
   // steps, Measure): the triangle's corner nearest it, to onPick.
   const ray = new THREE.Raycaster();

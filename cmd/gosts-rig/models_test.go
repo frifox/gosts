@@ -131,6 +131,7 @@ func TestModelSave(t *testing.T) {
 	a := &app{model: &modelBuilder{out: func(any) {}}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /batches/{name}/models/{model}/save", a.handleModelSave)
+	tex := "" // (a hole's fill texture to send: its name)
 	save := func(to string, stl bool, replace ...bool) *httptest.ResponseRecorder {
 		var body bytes.Buffer
 		mw := multipart.NewWriter(&body)
@@ -145,6 +146,11 @@ func TestModelSave(t *testing.T) {
 		if stl {
 			f, _ = mw.CreateFormFile("stl", to+".stl")
 			f.Write([]byte("stl"))
+		}
+		if tex != "" {
+			mw.WriteField("mtlextra", "\nnewmtl fill-1\nmap_Kd "+tex+"\n")
+			f, _ = mw.CreateFormFile("tex", tex)
+			f.Write([]byte("fill png"))
 		}
 		mw.Close()
 		req := httptest.NewRequest("POST", "/batches/cap/models/model-full/save", &body)
@@ -195,6 +201,27 @@ func TestModelSave(t *testing.T) {
 	if ents, _ := os.ReadDir(dir); len(ents) != 3 {
 		t.Errorf("left in the capture: %v", ents)
 	}
+
+	// A hole filled: its texture saved, its material added to the MTL; a
+	// texture not a PNG, or hidden: refused (a path: the form drops it).
+	tex = "fill-1.png"
+	if w := save("filled", false); w.Code != 200 {
+		t.Fatalf("filled: %d %s", w.Code, w.Body)
+	}
+	if data, _ := os.ReadFile(filepath.Join(dir, "filled", "filled.mtl")); string(data) != "map_Kd tex.png\nnewmtl fill-1\nmap_Kd fill-1.png\n" {
+		t.Errorf("filled's materials: %q", data)
+	}
+	if data, _ := os.ReadFile(filepath.Join(dir, "filled", "fill-1.png")); string(data) != "fill png" {
+		t.Errorf("filled's texture: %q", data)
+	}
+	for _, bad := range []string{"fill.jpg", ".hidden.png"} {
+		tex = bad
+		if w := save("filled-bad", false); w.Code == 200 {
+			t.Errorf("saved a fill texture named %q", bad)
+		}
+	}
+	tex = ""
+	os.RemoveAll(filepath.Join(dir, "filled"))
 
 	// Replace: over the model itself (it to the Trash; its texture kept).
 	if w := save("mine", false, true); w.Code == 200 {
