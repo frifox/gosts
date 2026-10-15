@@ -3424,7 +3424,7 @@ const MV_KEYS = [
   { part: "Model viewer", lines: [
     { show: kb("E"), what: "Edit: open or close", k: ["e"] },
     { show: kb("M"), what: "Measure: on or off (click two points)", k: ["m"] },
-    { show: kb("Esc"), what: "Close this list, Edit, then Measure, then the viewer", k: ["escape"] },
+    { show: kb("Esc"), what: "Close this list; stop picking points; close Edit, then Measure, then the viewer", k: ["escape"] },
     { show: kb("?"), what: "This list", k: ["?"] },
   ] },
   { part: "Edit: Modify", lines: [
@@ -3456,6 +3456,7 @@ document.addEventListener("keydown", (e) => {
     if (mveModKey(e)) e.preventDefault();
     else if (plain && k === "e" && !$("mvTools").hidden) $("mvEditBtn").click(); // (Edit: open, or closed, its edits kept)
     else if (plain && k === "m" && !$("mvTools").hidden) $("mvMeasureBtn").click(); // (Measure: on, or off)
+    else if (e.key === "Escape" && !$("mvEdit").hidden && mve.picking) { mvePicking(null); mveShow(); } // (picking points: that stops, the points kept)
     else if (e.key === "Escape" && !$("mvEdit").hidden) mveOpen(false); // (Edit open: closed first)
     else if (e.key === "Escape" && mvm.on) mvMeasure(false); // (then Measure)
     else if (e.key === "Escape") closeModel();
