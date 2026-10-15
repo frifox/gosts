@@ -454,7 +454,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 #mveAxis button { font-weight: 600; }
 #mveAxis [data-v=x] { color: #e5484d; } #mveAxis [data-v=y] { color: #46a758; }
 #mveDist { width: 84px; } /* (the row's room: Cancel and Scale beside it) */
-#mveFlip.on { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); } /* (on: turned 180° more) */
+#mveFlip.on, #mveXray.on { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); } /* (on: turned 180° more) */
 #mveAxis button.active { background: color-mix(in srgb, currentColor 22%, var(--panel-2)); box-shadow: inset 0 0 0 1px currentColor; } /* (picked: its own color) */
 #mveAxis button:first-child { border-radius: 7px 0 0 7px; } #mveAxis button:last-child { border-radius: 0 7px 7px 0; } /* (the outline round the group's corners, not cut by them) */
 .mv-edit .mve-close { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 7px; font-size: 12px; }
@@ -1150,8 +1150,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mve-row"><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="trim" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveTrim" disabled title="Cut away what's outside the box">Apply</button></span></div>
       </section>
       <section data-modify>
-        <div class="mve-head"><b>Modify</b></div>
-        <div class="mve-row"><span class="views seg mve-tools" id="mveSel"><button data-v="lasso" title="Draw round what to select: what's seen (⇧ adds, ⌥ takes away)">Lasso</button><button data-v="box" title="Drag a box round what to select: what's seen (⇧ adds, ⌥ takes away)">Box</button><button data-v="brush" title="Paint over what to select: what's seen (⌥ takes away; [ and ] size it)">Brush</button><button data-v="island" title="Click a part: it and all that's joined to it (⇧ adds, ⌥ takes away)">Island</button></span></div>
+        <div class="mve-head"><b>Delete</b></div>
+        <div class="mve-row"><span class="views seg mve-tools" id="mveSel"><button data-v="lasso" title="Draw round what to select: what's seen (⇧ adds, ⌥ takes away)">Lasso</button><button data-v="box" title="Drag a box round what to select: what's seen (⇧ adds, ⌥ takes away)">Box</button><button data-v="brush" title="Paint over what to select: what's seen (⌥ takes away; [ and ] size it)">Brush</button><button data-v="island" title="Click a part: it and all that's joined to it (⇧ adds, ⌥ takes away)">Island</button></span><button class="btn small" id="mveXray" aria-pressed="false" title="Lasso, Box and Brush take everything inside them, behind or not (off: only what's seen)">X-Ray</button></div>
         <div class="mve-row"><span class="btn-join" id="mveSelOps"><button class="btn small" data-op="grow" disabled title="Add the triangles touching the selection">Grow</button><button class="btn small" data-op="shrink" disabled title="Take away the selection's edge triangles">Shrink</button><button class="btn small" data-op="invert" disabled title="Select what isn't, and not what is">Invert</button><button class="btn small" data-op="clear" disabled title="Select nothing">Clear</button></span><span class="mve-n" id="mveSelN"></span></div>
         <div class="mve-row"><label class="mp-check"><input type="checkbox" id="mveFill"> <span>Fill holes after delete</span></label><span class="views seg" id="mveFillType"><button data-v="flat" title="Across the hole: its edge's own triangles">Flat</button><button data-v="smooth" title="A smooth skin, as fine as the mesh round it">Smooth</button></span></div>
         <div class="mve-row"><span class="btn-join"><button class="btn small mve-icon" id="mveModUndo" disabled title="Undo (⌘Z): the last selection or delete" aria-label="Undo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5L2.5 6.5l3 3"/><path d="M2.5 6.5h7a4 4 0 0 1 0 8h-2"/></svg></button><button class="btn small mve-icon" id="mveModRedo" disabled title="Redo (⇧⌘Z)" aria-label="Redo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l3 3-3 3"/><path d="M13.5 6.5h-7a4 4 0 0 0 0 8h2"/></svg></button></span><button class="btn small" id="mveDelete" disabled title="Delete the selected triangles (⌫)">Delete</button><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="modify" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveModify" disabled title="Keep the deletes">Apply</button></span></div>
@@ -1246,7 +1246,8 @@ import { createModelView, modelThumb } from "./modelview.js";
 import * as modelEdit from "./modeledit.js";
 window.modelEdit = modelEdit;
 window.modelView = createModelView(document.getElementById("mvCanvas"));
-window.modelView.modify.onChange = () => mveModShow(); // (Modify's panel: as it is)
+window.modelView.modify.onChange = () => mveModShow(); // (Delete's panel: as it is)
+try { window.modelView.modify.xray = !!localStorage.getItem("modelXray"); } catch {}
 window.modelThumb = modelThumb;
 draw();
 </script>
@@ -1819,7 +1820,7 @@ function mvMeasure(on) {
   mvm.on = on;
   mvm.pts = [];
   $("mvMeasureBtn").classList.toggle("primary", on);
-  if (on) { mvePicking(null); mveTool(null); } // (an Edit step picking, Modify's tool: no longer)
+  if (on) { mvePicking(null); mveTool(null); } // (an Edit step picking, Delete's tool: no longer)
   if (on) window.modelView.hoverColor(MV_MEASURE);
   window.modelView.onPick = on ? (p) => { if (mvm.pts.length >= 2) mvm.pts = []; mvm.pts.push(p); mvMeasureShow(); } : null;
   mvMeasureShow();
@@ -1879,7 +1880,7 @@ function mvePending() {
   if (mve.picks.center.length || mve.originFrom) p.push("Origin");
   if (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z)) p.push("Rotate");
   if (!$("mveTrim").disabled) p.push("Trim");
-  if (mveMod()?.changed()) p.push("Modify");
+  if (mveMod()?.changed()) p.push("Delete");
   return p;
 }
 function mveConfirm(on) {
@@ -1971,7 +1972,7 @@ function mvMarks() {
 }
 function mvePicking(st) {
   if (st && mvm.on) mvMeasure(false); // (measuring: no longer)
-  if (st) mveTool(null); // (Modify's tool: no longer)
+  if (st) mveTool(null); // (Delete's tool: no longer)
   mve.picking = st;
   if (st) window.modelView.hoverColor(MVE_COLORS[st]);
   window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 1) mve.picks.center.shift(); if (st === "center" && mve.originFrom) { mve.centerAt = p.clone().applyMatrix4(mve.centerOff.clone().invert()); mveCenterGo(); } if (st === "align" && mve.alignFrom) { mve.alignPts.push(p.clone().applyMatrix4(mve.alignOff.clone().invert())); mveAlignGo(); } mveShow(); } : null;
@@ -2137,7 +2138,7 @@ $("mveTrim").onclick = () => {
   window.modelView.settle();
   mveRotCommit();
   mveOriginCommit(); // (Origin's Set, not Applied: kept, first)
-  mveModCommit(); // (Modify's deletes: the same)
+  mveModCommit(); // (Delete's deletes: the same)
   try {
     const undo = window.modelView.trim(mveThreeBox(mveTrimBox()));
     mve.undo.push(undo);
@@ -2329,7 +2330,7 @@ async function mveBack() {
   if (mve.rotFrom) return mveRotCancel(); // (a turn set, not kept yet: that's the step back)
   if (mve.originFrom) return mveOriginCancel(); // (Set, not Applied: that's the step back)
   if (mve.alignFrom) return mveAlignCancel(true); // (shown, not kept: the same)
-  if (mveMod().changed()) return mveMod().cancel(); // (Modify's deletes, not Applied: the same)
+  if (mveMod().changed()) return mveMod().cancel(); // (Delete's deletes, not Applied: the same)
   const u = mve.undo.pop();
   if (typeof u === "function") u();
   else if (u) await window.modelView.setMatrix(u, true);
@@ -2360,7 +2361,7 @@ $("mveClose").onclick = async () => {
   mveOpen(false);
   mveShow();
 };
-// Modify: parts of the model selected (Island: a part and all joined to
+// Delete (section): parts of the model selected (Island: a part and all joined to
 // it; Lasso, Box: what's seen inside; Brush: what's seen under it) and
 // deleted, each hole left filled if asked (flat or smooth). Its own Undo
 // and Redo step through the selections and deletes; Apply keeps the
@@ -2370,9 +2371,9 @@ const mveMod = () => window.modelView?.modify;
 const MV_HINT = $("mvHint").textContent;
 const MVE_HINTS = {
   island: "Click a part: it and all joined to it · ⇧ adds · ⌥ takes away",
-  lasso: "Draw round what to select (what's seen) · ⇧ adds · ⌥ takes away",
-  box: "Drag a box round what to select (what's seen) · ⇧ adds · ⌥ takes away",
-  brush: "Paint over what to select (what's seen) · ⌥ takes away · [ ] size",
+  lasso: "Draw round what to select (%) · ⇧ adds · ⌥ takes away",
+  box: "Drag a box round what to select (%) · ⇧ adds · ⌥ takes away",
+  brush: "Paint over what to select (%) · ⌥ takes away · [ ] size",
 };
 function mveTool(t) {
   const md = mveMod();
@@ -2381,6 +2382,8 @@ function mveTool(t) {
   md.tool = t;
 }
 $("mveSel").onclick = (e) => { const t = e.target.closest("[data-v]")?.dataset.v; if (t) mveTool(mveMod().tool === t ? null : t); };
+// X-Ray: Lasso, Box and Brush take all inside them, not only what's seen (as last set).
+$("mveXray").onclick = () => { const md = mveMod(); md.xray = !md.xray; try { localStorage.setItem("modelXray", md.xray ? "1" : ""); } catch {} };
 $("mveSelOps").onclick = (e) => { const op = e.target.closest("[data-op]")?.dataset.op; if (op) mveMod().op(op); };
 function mveModShow() {
   const md = mveMod();
@@ -2394,7 +2397,9 @@ function mveModShow() {
   $("mveModRedo").disabled = !md.canRedo;
   $("mveModify").disabled = !md.changed();
   for (const b of $("mveFillType").children) b.disabled = !$("mveFill").checked;
-  $("mvHint").textContent = md.tool ? `${MVE_HINTS[md.tool]}${md.tool === "brush" ? ` (${md.brush} px)` : ""} · Drag scroll to turn · Esc: done` : MV_HINT;
+  $("mveXray").classList.toggle("on", md.xray);
+  $("mveXray").setAttribute("aria-pressed", md.xray);
+  $("mvHint").textContent = md.tool ? `${MVE_HINTS[md.tool].replace("%", md.xray ? "all inside, X-Ray" : "what's seen")}${md.tool === "brush" ? ` (${md.brush} px)` : ""} · Drag scroll to turn · Esc: done` : MV_HINT;
 }
 // The fill: as last set.
 try { const f = JSON.parse(localStorage.getItem("modelFill") || "null"); $("mveFill").checked = !!f?.on; segPick("mveFillType", f?.type || "smooth"); } catch { segPick("mveFillType", "smooth"); }
@@ -2421,7 +2426,7 @@ $("mveDelete").onclick = mveDelete;
 const mveModStep = (f) => { f(); mveTrimReset(); mveShow(); };
 $("mveModUndo").onclick = () => mveModStep(() => mveMod().undo());
 $("mveModRedo").onclick = () => mveModStep(() => mveMod().redo());
-// mveModCommit: Modify's deletes kept as one edit (Undo: put back).
+// mveModCommit: Delete's deletes kept as one edit (Undo: put back).
 function mveModCommit() {
   const u = mveMod()?.commit();
   if (u) mve.undo.push(u);

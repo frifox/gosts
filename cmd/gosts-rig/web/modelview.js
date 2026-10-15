@@ -440,7 +440,7 @@ export function createModelView(canvas) {
 
   // ------------------------------------------------------------ editing
   function editing(on) { editOn = on; ground(); modify.shown(on); }
-  // Modify: parts of the model picked out and deleted (see modelmodify.js).
+  // Delete (Modify): parts of the model picked out and deleted (see modelmodify.js).
   const modify = createModify({ canvas, camera, renderer, scene, controls, planes, obj: () => obj, radius: () => radius, changed: () => ground() });
   // A click (not a drag) on the model, while picking (onPick set: Edit's
   // steps, Measure): the triangle's corner nearest it, to onPick.

@@ -1,4 +1,4 @@
-// Modify (the model editor's): picking out parts of the model (its
+// Modify (the model editor's Delete section): picking out parts of the model (its
 // triangles: an island, a lasso, a box, a brush) and deleting them, each
 // hole that leaves filled if asked (flat, or smooth). Steps back and on
 // (Undo, Redo) till applied; Cancel puts it as it was.
@@ -369,7 +369,9 @@ export function createModify(v) {
   canvas.parentElement.insertBefore(svg, canvas.nextSibling);
   shape.style.display = ring.style.display = "none";
 
-  let tool = null, brush = 24, onChange = () => {}, shownOn = true;
+  // xray: Lasso, Box and Brush take all inside them, behind or not (the
+  // selection shown through the model too).
+  let tool = null, brush = 24, onChange = () => {}, shownOn = true, xray = false;
   // hist: the steps, each { geos, sels } (each mesh's geometry and its
   // triangles selected); at: the one now. null: nothing done yet.
   let hist = null, at = 0;
@@ -522,7 +524,7 @@ export function createModify(v) {
     canvas.setPointerCapture(e.pointerId);
     const mode = e.altKey ? "sub" : e.shiftKey || tool === "brush" ? "add" : "set";
     drag = { mode, pts: [local(e.clientX, e.clientY)], sels: copySels(), moved: false };
-    if (tool === "brush") { drag.d = depth(); paint(e.clientX, e.clientY); }
+    if (tool === "brush") { drag.d = xray ? null : depth(); paint(e.clientX, e.clientY); }
   });
   canvas.addEventListener("pointermove", (e) => {
     if (tool === "brush") ringAt(e);
@@ -591,16 +593,26 @@ export function createModify(v) {
       const m = cx.getImageData(0, 0, W, H).data;
       inside = (x, y) => { const i = ((y | 0) * W + (x | 0)) * 4 + 3; return x >= 0 && y >= 0 && x < W && y < H && m[i] > 127; };
     }
-    const dp = depth(), on = d.mode === "sub" ? 0 : 1;
+    const dp = xray ? null : depth(), on = d.mode === "sub" ? 0 : 1;
     for (const [o, s] of d.sels) {
       if (d.mode === "set") s.fill(0);
-      centers(o, (t, x, y, z) => { if (inside(x, y) && seen(dp, x, y, z)) s[t] = on; });
+      centers(o, (t, x, y, z) => { if (inside(x, y) && (!dp || seen(dp, x, y, z))) s[t] = on; });
     }
     push({ geos: cur().geos, sels: d.sels });
   }
   // paint: the brush at client x, y: the triangles (seen) with their
-  // middles within its circle, on the surface under it.
+  // middles within its circle, on the surface under it; X-Ray: all with
+  // their middles in its circle on the screen, however deep.
   function paint(x, y) {
+    if (xray) {
+      const [px, py] = local(x, y), r2 = brush * brush, on = drag.mode === "sub" ? 0 : 1;
+      for (const o of meshes()) {
+        const s = drag.sels.get(o);
+        centers(o, (t, sx, sy) => { if ((sx - px) ** 2 + (sy - py) ** 2 <= r2) s[t] = on; });
+        overlay(o, s);
+      }
+      return;
+    }
     const h = hitAt(x, y);
     if (!h) return;
     const H = canvas.clientHeight, depthZ = h.point.clone().applyMatrix4(camera.matrixWorldInverse).z * -1;
@@ -701,6 +713,8 @@ export function createModify(v) {
     tick, op, del, commit, cancel, reset, changed, count,
     get tool() { return tool; }, set tool(t) { setTool(t); },
     get brush() { return brush; },
+    get xray() { return xray; },
+    set xray(on) { xray = !!on; SEL_MAT.depthTest = !xray; SEL_MAT.needsUpdate = true; onChange(); },
     brushBy(k) { brush = Math.max(4, Math.min(300, Math.round(brush * k))); if (ring.style.display !== "none") ring.setAttribute("r", brush); onChange(); },
     undo() { if (hist && at > 0) { at--; show(); } },
     redo() { if (hist && at < hist.length - 1) { at++; show(); } },
