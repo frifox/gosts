@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -187,5 +188,30 @@ func TestRenameCurrentBusy(t *testing.T) {
 	}
 	if got := cam.photos[2].Files[0]; got != filepath.Join(nd, "samples", "s.JPG") {
 		t.Errorf("sample's file %s, want in Benchy/samples", got)
+	}
+}
+
+// A folder with a model in it and no photos (a model brought in) is listed
+// too, its models counted; one with neither isn't.
+func TestListBatchesModelOnly(t *testing.T) {
+	old := photoDir
+	photoDir = t.TempDir()
+	defer func() { photoDir = old; newBatch() }()
+	os.MkdirAll(filepath.Join(photoDir, "carry case", "model-laser"), 0o755)
+	os.WriteFile(filepath.Join(photoDir, "carry case", "model-laser", "case.obj"), []byte("v 0 0 0\n"), 0o644)
+	os.MkdirAll(filepath.Join(photoDir, "empty"), 0o755)
+	bs, err := listBatches()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, b := range bs {
+		names = append(names, b.Name)
+		if b.Name == "carry case" && (b.Count != 0 || b.Models != 1) {
+			t.Errorf("carry case: %+v, want 0 photos, 1 model", b)
+		}
+	}
+	if !slices.Contains(names, "carry case") || slices.Contains(names, "empty") {
+		t.Errorf("listed %q, want carry case, not empty", names)
 	}
 }

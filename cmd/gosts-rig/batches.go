@@ -27,6 +27,7 @@ import (
 type batchInfo struct {
 	Name    string `json:"name"`
 	Count   int    `json:"count"`
+	Models  int    `json:"models,omitempty"` // models in it (see batchModels)
 	Mid     string `json:"mid"`
 	Current bool   `json:"current"`
 	// Interrupted: a capture that stopped short (see resume.go): taken of
@@ -108,14 +109,18 @@ func listBatches() ([]batchInfo, error) {
 			continue
 		}
 		ps, err := batchPhotos(filepath.Join(photoDir, n))
-		if err != nil || (len(ps) == 0 && n != current) { // (the current one: shown empty too)
+		if err != nil {
+			continue
+		}
+		ms, _ := batchModels(filepath.Join(photoDir, n))
+		if len(ps) == 0 && len(ms) == 0 && n != current { // (a folder of a model alone, say one brought in: shown; the current one: shown empty too)
 			continue
 		}
 		mid := ""
 		if len(ps) > 0 {
 			mid = ps[(len(ps)-1)/2].File
 		}
-		bi := batchInfo{Name: n, Count: len(ps), Mid: mid, Current: n == current}
+		bi := batchInfo{Name: n, Count: len(ps), Models: len(ms), Mid: mid, Current: n == current}
 		if s, err := readCaptureState(filepath.Join(photoDir, n)); err == nil && s.resumable() {
 			bi.Interrupted, bi.Taken, bi.Planned = true, s.taken(), len(s.Shots)
 		}

@@ -1653,9 +1653,9 @@ function folderTile(name, count, img, current, open, rename, info) {
   b.tabIndex = 0;
   b.setAttribute("role", "button");
   b.title = `Open ${name}`;
-  b.innerHTML = `<div class="fold">${img ? `<img alt="" loading="lazy" decoding="async" src="${img}">` : '<div class="empty">No photos yet</div>'}</div><div class="info"><b>${escHTML(name)}</b>` +
+  b.innerHTML = `<div class="fold">${img ? `<img alt="" loading="lazy" decoding="async" src="${img}">` : `<div class="empty">${info?.models ? "3D model" : "No photos yet"}</div>`}</div><div class="info"><b>${escHTML(name)}</b>` +
     (current ? '<span class="badge">Current</span>' : "") +
-    (info?.interrupted ? `<span class="badge interrupted" title="Stopped short: ${info.taken} of ${info.planned} photos taken. Open it to resume.">Interrupted ${info.taken}/${info.planned}</span>` : "") + `<span class="count">${count} photo${count === 1 ? "" : "s"}</span></div>` +
+    (info?.interrupted ? `<span class="badge interrupted" title="Stopped short: ${info.taken} of ${info.planned} photos taken. Open it to resume.">Interrupted ${info.taken}/${info.planned}</span>` : "") + `<span class="count">${[(count || !info?.models) && `${count} photo${count === 1 ? "" : "s"}`, info?.models && `${info.models} model${info.models === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</span></div>` +
     (info?.interrupted && !current ? `<button class="btn small primary resume" title="${info.taken} of ${info.planned} photos taken: make this the current capture, its plan back, to take the rest (Resume in the Camera card)">Resume</button>` : "") +
     (rename ? `<button class="edit" title="Rename ${escHTML(name)}" aria-label="Rename">${pencilIcon}</button>` +
       `<button class="del" title="Delete ${escHTML(name)} (to the Trash; asks first)" aria-label="Delete">${trashIcon}</button>` : "");
