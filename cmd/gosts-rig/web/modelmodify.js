@@ -524,13 +524,21 @@ export function createModify(v) {
   }
   const geosIn = (states) => { const s = new Set(); for (const st of states) for (const g of st.geos.values()) s.add(g); return s; };
   // push: a step on (the ones undone before it: gone, their geometries freed).
+  // A step that changes nothing (a click off the model, a box round
+  // nothing): not one (Undo's left as it was).
   function push(st) {
+    if (same(st, cur())) return show();
     const dropped = hist.splice(at + 1);
     const keep = geosIn(hist), was = geosIn([st]);
     for (const g of geosIn(dropped)) if (!keep.has(g) && !was.has(g)) g.dispose();
     hist.push(st);
     at = hist.length - 1;
     show();
+  }
+  function same(a, b) {
+    for (const [o, g] of a.geos) if (b.geos.get(o) !== g) return false;
+    for (const [o, s] of a.sels) { const t = b.sels.get(o); if (!t || t.length !== s.length) return false; for (let i = 0; i < s.length; i++) if (s[i] !== t[i]) return false; }
+    return true;
   }
   // show: the step now on the model: its geometries, its selections.
   function show() {
