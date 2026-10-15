@@ -1,5 +1,5 @@
 // Modify (the model editor's Delete section): picking out parts of the model (its
-// triangles: an island, a lasso, a box, a brush) and deleting them, each
+// triangles: a wand (a part, all joined), a lasso, a rectangle, a brush) and deleting them, each
 // hole that leaves filled if asked (flat, or smooth). Steps back and on
 // (Undo, Redo) till applied; Cancel puts it as it was.
 //
@@ -507,7 +507,7 @@ export function createModify(v) {
   canvas.parentElement.insertBefore(svg, canvas.nextSibling);
   shape.style.display = ring.style.display = "none";
 
-  // xray: Lasso, Box and Brush take all inside them, behind or not (the
+  // xray: Lasso, Rectangle and Brush take all inside them, behind or not (the
   // selection shown through the model too).
   let tool = null, brush = 24, onChange = () => {}, shownOn = true, xray = false;
   tint();
