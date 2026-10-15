@@ -757,6 +757,16 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .views button.active { background: var(--accent); color: #fff; }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
 .modal { width: min(520px, 100%); max-height: 100%; overflow-y: auto; }
+/* The model viewer's keys (?): its parts side by side, a key and what it does a line. */
+.keys-modal { width: min(820px, 100%); }
+.keys-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px 28px; }
+.keys-sec h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.keys-sec dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; align-items: baseline; }
+.keys-sec dt { white-space: nowrap; color: var(--muted); font-size: 12px; }
+.keys-sec dd { margin: 0; font-size: 13px; }
+kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px;
+  background: var(--panel-2); color: var(--text); font: 600 11px var(--mono); text-align: center; }
+kbd + kbd { margin-left: 3px; }
 /* The app's settings (the header's gear). */
 #appSettingsBtn svg { width: 15px; height: 15px; }
 #appSettingsModal h2 { display: flex; align-items: center; }
@@ -1247,6 +1257,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 </div>
 <div class="backend-gone" id="backendGone" hidden><div class="card"><h2 style="justify-content:center">gosts-rig has quit</h2>
   <p class="hint" style="margin:8px 0 0">Start it again (or GoSTS Rig) and this page comes back by itself.</p></div></div>
+<div class="modal-backdrop" id="keysModal" style="z-index:75" hidden>
+  <div class="modal card keys-modal" role="dialog" aria-modal="true" aria-labelledby="keysTitle">
+    <h2 id="keysTitle">Keyboard and mouse<span class="spacer"></span><button class="icon-btn" id="keysClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
+    <div class="card-body keys-grid" id="keysGrid"></div>
+  </div>
+</div>
 <div class="modal-backdrop" id="confirmModal" style="z-index:70" hidden>
   <div class="modal card" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" style="width:min(420px,100%)">
     <h2 id="confirmTitle">Are you sure?</h2>
@@ -1820,6 +1836,7 @@ function openModel(name, m) {
   }, (e) => { if (state.mv?.m === m) msg(`Couldn't show it: ${e.message}`, "bad"); });
 }
 function closeModel() {
+  keysShow(false);
   $("modelViewer").hidden = true;
   $("mvEdit").hidden = true;
   state.mv = null;
@@ -3388,9 +3405,52 @@ $("vnavMap").addEventListener("pointerdown", (e) => {
 });
 // ✕ on the photo closes the photo (the gallery stays: its ✕ closes it).
 $("viewerClose").onclick = closePhoto;
+// ? in the model viewer: its keys, from MV_KEYS (Esc, ✕ or a click
+// outside: closed). MV_KEYS is the list: each line what's shown (show; <kbd>
+// for keys) and the e.key values it covers (k: the handlers' keys, lower
+// case). A key added to, changed or taken from the model viewer's handlers
+// below (or mveModKey's, MVE_KEYS') goes in it too: TestModelViewerKeys
+// fails otherwise. (Mouse lines: k empty, not checked.)
+const kb = (...ks) => ks.map((k) => `<kbd>${k}</kbd>`).join("");
+const MV_KEYS = [
+  { part: "View", lines: [
+    { show: "Drag", what: "Move the view", k: [] },
+    { show: "Wheel drag · right drag", what: "Turn it", k: [] },
+    { show: `Scroll · ${kb("⇧")} scroll`, what: "Zoom (toward the pointer)", k: [] },
+    { show: `${kb("⇧")} / ${kb("⌃")} / ${kb("⌘")} wheel drag`, what: "Move the view", k: [] },
+    { show: `${kb("F")} · wheel double-click`, what: "Fill the view with the model", k: ["f"] },
+  ] },
+  { part: "Model viewer", lines: [
+    { show: kb("E"), what: "Edit: open or close", k: ["e"] },
+    { show: kb("M"), what: "Measure: on or off (click two points)", k: ["m"] },
+    { show: kb("Esc"), what: "Close this list, Edit, then Measure, then the viewer", k: ["escape"] },
+    { show: kb("?"), what: "This list", k: ["?"] },
+  ] },
+  { part: "Edit: Delete", lines: [
+    { show: `${kb("L")} ${kb("R")} ${kb("B")} ${kb("W")}`, what: "Lasso, Rectangle, Brush, Magic Wand", k: ["l", "r", "b", "w"] },
+    { show: `Drag · ${kb("⇧")} drag · ${kb("⌥")} drag`, what: "Select · add to it · take from it", k: [] },
+    { show: `${kb("[")} ${kb("]")}`, what: "Brush smaller, larger", k: ["[", "]"] },
+    { show: kb("X"), what: "X-Ray: select through the model", k: ["x"] },
+    { show: kb("⇧") + kb("X"), what: "Invert the selection", k: ["x"] },
+    { show: `${kb("⌫")} · ${kb("Delete")}`, what: "Delete what's selected", k: ["backspace", "delete"] },
+    { show: `${kb("⌘")}${kb("Z")} · ${kb("⇧")}${kb("⌘")}${kb("Z")}`, what: "Undo, redo (Delete's)", k: ["z"] },
+    { show: kb("Esc"), what: "Put the tool down", k: ["escape"] },
+  ] },
+  { part: "Edit: values", lines: [
+    { show: "Click a number", what: "Type one (Rotate, Crop, Move)", k: [] },
+    { show: `${kb("Enter")} · ${kb("Esc")}`, what: "Set it · leave it as it was", k: [] },
+  ] },
+];
+$("keysGrid").innerHTML = MV_KEYS.map((p) => `<div class="keys-sec"><h3>${p.part}</h3><dl>` +
+  p.lines.map((l) => `<dt>${l.show}</dt><dd>${l.what}</dd>`).join("") + "</dl></div>").join("");
+function keysShow(on) { $("keysModal").hidden = !on; }
+$("keysClose").onclick = () => keysShow(false);
+$("keysModal").addEventListener("click", (e) => { if (e.target === $("keysModal")) keysShow(false); });
 document.addEventListener("keydown", (e) => {
   if (!$("modelViewer").hidden) {
     if (e.target.closest?.("input, textarea, select")) return;
+    if (!$("keysModal").hidden && (e.key === "Escape" || e.key === "?")) { e.preventDefault(); keysShow(false); return; } // (the list first)
+    if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); keysShow(true); return; }
     const plain = !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey, k = e.key.toLowerCase();
     if (mveModKey(e)) e.preventDefault();
     else if (plain && k === "e" && !$("mvTools").hidden) $("mvEditBtn").click(); // (Edit: open, or closed, its edits kept)
