@@ -21,8 +21,7 @@ as JPEGs, just like a real one.
 - **[go.bug.st/serial](https://github.com/bugst/go-serial)**: the serial port to the servos
 - **[gosts](../../README.md)**: drives the servos
 - **[gphoto2](http://gphoto.org)**: drives the camera over USB (settings, live view, shooting, downloading)
-- **[Apple Object Capture](https://developer.apple.com/documentation/realitykit/photogrammetrysession)**
-  (RealityKit, via [apple-obj-cap](../apple-obj-cap)): turns captured photos into a 3D model
+- **[Apple Object Capture](https://developer.apple.com/documentation/realitykit/photogrammetrysession)**: turns captured photos into a 3D model
 - **[three.js](https://threejs.org)**: page's 3D engine: rig view, camera's view,
   3D model viewer and editor
 - **[three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh)**: fast selector for editing a model
