@@ -670,7 +670,8 @@ export function createModify(v) {
 
   // A drag (or click) with the left button, a tool picked: what it does.
   // mode: "set" (the selection: this), "add" (⇧), "sub" (⌥); the brush
-  // adds unless ⌥.
+  // adds unless ⌥; the wand with ⇧: "others" (all but the part clicked: its
+  // island, the selection inverted).
   let drag = null;
   // ⌘ with a drag turns the model, a tool picked or not (the selection
   // left as it is): the controls' own pan, which ⌘ makes a turn. (Seen
@@ -682,7 +683,7 @@ export function createModify(v) {
     if (!tool || e.button !== 0 || e.metaKey || !v.obj()) return;
     begin();
     canvas.setPointerCapture(e.pointerId);
-    const mode = e.altKey ? "sub" : e.shiftKey || tool === "brush" ? "add" : "set";
+    const mode = e.altKey ? "sub" : e.shiftKey && tool === "island" ? "others" : e.shiftKey || tool === "brush" ? "add" : "set";
     drag = { mode, pts: [local(e.clientX, e.clientY)], sels: copySels(), moved: false };
     if (tool === "brush") { drag.d = xray ? null : depth(); paint(e.clientX, e.clientY); }
   });
@@ -728,6 +729,12 @@ export function createModify(v) {
   }
   function islandAt(x, y, d) {
     const h = hitAt(x, y);
+    if (d.mode === "others") { // (everything else: all of it, the part clicked taken out)
+      if (!h) return;
+      for (const s of d.sels.values()) s.fill(1);
+      island(info(h.o.geometry), h.t, d.sels.get(h.o), 0);
+      return push({ geos: cur().geos, sels: d.sels });
+    }
     if (d.mode === "set") for (const s of d.sels.values()) s.fill(0);
     if (h) island(info(h.o.geometry), h.t, d.sels.get(h.o), d.mode === "sub" ? 0 : 1);
     if (!h && d.mode !== "set") return;
