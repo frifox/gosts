@@ -495,10 +495,10 @@ export function createModify(v) {
   const shape = document.createElementNS(NS, "path"), ring = document.createElementNS(NS, "circle");
   for (const e of [shape, ring]) { e.setAttribute("stroke-width", "1.5"); e.setAttribute("vector-effect", "non-scaling-stroke"); }
   shape.setAttribute("stroke-dasharray", "5 4");
-  // tint: their color, as the mode is: orange (what's seen), the X-Ray
-  // button's blue (X-Ray: all inside).
+  // tint: their color, as the mode is: orange (what's seen), red (X-Ray:
+  // all inside).
   function tint() {
-    const [r, g, b] = xray ? [91, 140, 255] : [255, 122, 26];
+    const [r, g, b] = xray ? [229, 72, 77] : [255, 122, 26];
     for (const e of [shape, ring]) e.setAttribute("stroke", `rgb(${r},${g},${b})`);
     shape.setAttribute("fill", `rgba(${r},${g},${b},.12)`);
     ring.setAttribute("fill", `rgba(${r},${g},${b},.08)`);
