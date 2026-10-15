@@ -2607,6 +2607,7 @@ function mveFresh(m) {
   mveTyped = "";
   mveReplace(false);
   $("mveName").value = base + "-aligned" === m.name ? base + "-aligned-2" : base + "-aligned";
+  mveReplace(true); // (Overwrite, at first: this model saved over; off, the name above to save as)
   mveStatus("");
   mveOpen(false);
 }
