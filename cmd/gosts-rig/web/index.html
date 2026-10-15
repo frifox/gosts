@@ -477,11 +477,11 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-rot .btn { padding: 2px 6px; font-size: 11px; }
 .mve-rot .mve-deg { font: 11px var(--mono); color: var(--text); min-width: 34px; text-align: right; }
 .mve-rot b { font: 600 12px var(--mono); width: 16px; }
-/* Center's first row: Pick Point and the axis buttons, on one line (its point count: the point shows on the model). */
+/* Move's Center on axis row: Pick Point and the axis buttons, on one line (its point count: the point shows on the model). */
 #mvEdit section[data-step=center] .mve-n { display: none; }
-#mvEdit section[data-step=center] .mve-head + .mve-row { flex-wrap: nowrap; }
+#mvEdit section[data-step=center] .mve-center-row { flex-wrap: nowrap; margin-top: 8px; }
 /* Center's moves: an axis a row, its slider (0 in the middle), the move typed or shown. */
-.mve-move { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 8px; align-items: center; margin-top: 8px; }
+.mve-move { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 8px; align-items: center; }
 .mve-move b { font: 600 12px var(--mono); }
 .mve-move .x { color: #e5484d; } .mve-move .y { color: #46a758; } .mve-move .z { color: #3e7bfa; }
 .mve-move .mve-val { font: 11px var(--mono); color: var(--text); min-width: 52px; text-align: right; cursor: text; border-radius: 4px; }
@@ -1180,9 +1180,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mve-row"><span class="btn-join"><button class="btn small mve-icon" id="mveModUndo" disabled title="Undo (⌘Z): the last selection or delete" aria-label="Undo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5L2.5 6.5l3 3"/><path d="M2.5 6.5h7a4 4 0 0 1 0 8h-2"/></svg></button><button class="btn small mve-icon" id="mveModRedo" disabled title="Redo (⇧⌘Z)" aria-label="Redo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l3 3-3 3"/><path d="M13.5 6.5h-7a4 4 0 0 0 0 8h2"/></svg></button></span><button class="btn small" id="mveDelete" disabled title="Delete the selected triangles (⌫)">Delete</button><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="modify" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveModify" disabled title="Keep the deletes">Apply</button></span></div>
       </section>
       <section data-step="center">
-        <div class="mve-head"><b>Center</b></div>
-        <div class="mve-row"><button class="btn small" data-pick="center">Pick Point</button><span class="mve-n"></span><span class="spacer"></span><span class="mve-label">Axis to center</span><span class="btn-join mve-axes-go" id="mveAxesGo"><button class="btn small" data-axis="x" disabled title="Slide the model along X so the point is at 0 on it">X</button><button class="btn small" data-axis="y" disabled title="Slide the model along Y so the point is at 0 on it">Y</button><button class="btn small" data-axis="z" disabled title="Slide the model along Z so the point is at 0 on it">Z</button></span></div>
+        <div class="mve-head"><b>Move</b></div>
         <div class="mve-move" id="mveMove" title="Move the model along X, Y, Z (click a number to type one, further than the slider goes too)"><b class="x">X</b><span class="mve-dual"><span class="mve-fill"></span><input type="range" min="-10000" max="10000" step="1" value="0" data-ax="x" aria-label="Move along X"></span><span class="mve-val" data-mv="x"></span><b class="y">Y</b><span class="mve-dual"><span class="mve-fill"></span><input type="range" min="-10000" max="10000" step="1" value="0" data-ax="y" aria-label="Move along Y"></span><span class="mve-val" data-mv="y"></span><b class="z">Z</b><span class="mve-dual"><span class="mve-fill"></span><input type="range" min="-10000" max="10000" step="1" value="0" data-ax="z" aria-label="Move along Z"></span><span class="mve-val" data-mv="z"></span></div>
+        <div class="mve-row mve-center-row"><span class="mve-label">Center on axis</span><button class="btn small" data-pick="center">Pick Point</button><span class="mve-n"></span><span class="btn-join mve-axes-go" id="mveAxesGo"><button class="btn small" data-axis="x" disabled title="Slide the model along X so the point is at 0 on it">X</button><button class="btn small" data-axis="y" disabled title="Slide the model along Y so the point is at 0 on it">Y</button><button class="btn small" data-axis="z" disabled title="Slide the model along Z so the point is at 0 on it">Z</button></span></div>
         <div class="mve-row"><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="center" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveCenter" disabled title="Keep it where it's been moved">Apply</button></span></div>
       </section>
       <section data-step="scale">
@@ -1901,7 +1901,7 @@ function mvePending() {
   if (mve.picks.level.length) p.push("Level");
   if (mve.picks.align.length || mve.alignFrom) p.push("Align");
   if (mve.picks.scale.length) p.push("Scale");
-  if (mve.picks.center.length || mve.originFrom) p.push("Origin");
+  if (mve.picks.center.length || mve.originFrom) p.push("Move");
   if (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z)) p.push("Rotate");
   if (!$("mveTrim").disabled) p.push("Crop");
   if (mveMod()?.changed()) p.push("Delete");

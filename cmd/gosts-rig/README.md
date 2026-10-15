@@ -103,7 +103,7 @@ file.
 - **Align**: turn an edge to run along X or Y
 - **Rotate**: turn it about X, Y or Z
 - **Crop**: cut away what's outside a box (the platform, say)
-- **Center**: move a point to the origin, or slide the model along X, Y, Z (or type how far)
+- **Move**: slide the model along X, Y, Z (or type how far), or center a picked point on an axis
 - **Scale**: set the real distance between two points
 
 **Save** writes it as a new model (or overwrites this one) in mm, inches or meters, optionally as an STL too, and
