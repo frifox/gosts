@@ -519,14 +519,11 @@ export function createModify(v) {
   // triangles selected); at: the one now. null: nothing done yet.
   let hist = null, at = 0;
   const overlays = new Map(); // mesh → its selection, shown
-  // hover: the wand's part under the pointer, shaded (o: its mesh; sel: its
-  // triangles; null o: none). Worked out again only on another part.
-  const hover = { o: null, sel: null, mesh: new THREE.Mesh(new THREE.BufferGeometry(), HOVER_MAT), at: null, queued: false };
-  hover.mesh.matrixAutoUpdate = false;
-  hover.mesh.raycast = () => {};
-  hover.mesh.renderOrder = 3;
-  hover.mesh.visible = false;
-  group.add(hover.mesh);
+  // hover: what a wand click would take, shaded: the part under the pointer
+  // (o: its mesh; sel: its triangles; null o: none), or with ⇧ (inv) all but
+  // it. Worked out again only on another part, or ⇧ pressed or let go.
+  // meshes: each model mesh's shading.
+  const hover = { o: null, sel: null, inv: false, meshes: new Map(), at: null, shift: false, queued: false };
   const meshes = () => { const l = []; v.obj()?.traverse((o) => { if (o.isMesh) l.push(o); }); return l; };
   const cur = () => hist?.[at];
 
@@ -615,26 +612,52 @@ export function createModify(v) {
   function tick() {
     group.visible = shownOn;
     for (const [o, ov] of overlays) { ov.matrix.copy(o.matrixWorld); ov.matrixWorld.copy(o.matrixWorld); }
-    if (hover.o) { hover.mesh.matrix.copy(hover.o.matrixWorld); hover.mesh.matrixWorld.copy(hover.o.matrixWorld); }
+    for (const [o, hm] of hover.meshes) { hm.matrix.copy(o.matrixWorld); hm.matrixWorld.copy(o.matrixWorld); }
   }
 
-  function hoverOff() { hover.o = hover.sel = null; hover.mesh.visible = false; }
-  function hoverAt(x, y) {
+  function hoverOff() { hover.o = hover.sel = null; for (const hm of hover.meshes.values()) hm.visible = false; }
+  function hoverAt(x, y, inv) {
     const h = hitAt(x, y);
     if (!h) return hoverOff();
-    if (hover.o === h.o && hover.sel?.[h.t]) return; // (the same part)
-    const geo = h.o.geometry, f = info(geo), sel = new Uint8Array(f.T);
-    island(f, h.t, sel, 1);
-    const idx = [];
-    for (let t = 0; t < f.T; t++) if (sel[t]) idx.push(t * 3, t * 3 + 1, t * 3 + 2);
-    hover.mesh.geometry.dispose();
-    hover.mesh.geometry = new THREE.BufferGeometry();
-    hover.mesh.geometry.setAttribute("position", geo.getAttribute("position"));
-    hover.mesh.geometry.setIndex(idx);
-    hover.o = h.o; hover.sel = sel;
-    hover.mesh.visible = true;
+    if (hover.o === h.o && hover.sel?.[h.t] && hover.inv === inv) return; // (the same part, the same way)
+    if (!(hover.o === h.o && hover.sel?.[h.t])) {
+      const f = info(h.o.geometry), sel = new Uint8Array(f.T);
+      island(f, h.t, sel, 1);
+      hover.o = h.o; hover.sel = sel;
+    }
+    hover.inv = inv;
+    for (const o of meshes()) {
+      const f = info(o.geometry), idx = [];
+      for (let t = 0; t < f.T; t++) if ((o === hover.o && hover.sel[t] ? 1 : 0) !== (inv ? 1 : 0)) idx.push(t * 3, t * 3 + 1, t * 3 + 2);
+      let hm = hover.meshes.get(o);
+      if (!hm) {
+        hm = new THREE.Mesh(new THREE.BufferGeometry(), HOVER_MAT);
+        hm.matrixAutoUpdate = false;
+        hm.raycast = () => {};
+        hm.renderOrder = 3;
+        group.add(hm);
+        hover.meshes.set(o, hm);
+      }
+      hm.geometry.dispose();
+      hm.geometry = new THREE.BufferGeometry();
+      hm.geometry.setAttribute("position", o.geometry.getAttribute("position"));
+      hm.geometry.setIndex(idx);
+      hm.visible = idx.length > 0;
+    }
     tick();
   }
+  // hoverSoon: the shading worked out at the next frame (at most once one).
+  function hoverSoon() {
+    if (hover.queued) return;
+    hover.queued = true;
+    requestAnimationFrame(() => { hover.queued = false; if (tool === "island" && hover.at) { begin(); hoverAt(...hover.at, hover.shift); } });
+  }
+  // ⇧ pressed or let go over the model: the shading flips at once (no move needed).
+  for (const type of ["keydown", "keyup"]) addEventListener(type, (e) => {
+    if (e.key !== "Shift" || tool !== "island" || !hover.at || drag) return;
+    hover.shift = e.shiftKey;
+    hoverSoon();
+  });
 
   // ---------------------------------------------------------- selecting
 
@@ -721,9 +744,10 @@ export function createModify(v) {
   });
   canvas.addEventListener("pointermove", (e) => {
     if (tool === "brush") ringAt(e);
-    if (tool === "island" && !drag && !e.buttons) { // (the part a click would take: shaded, once a frame at most)
+    if (tool === "island" && !drag && !e.buttons) { // (what a click would take: shaded, once a frame at most)
       hover.at = [e.clientX, e.clientY];
-      if (!hover.queued) { hover.queued = true; requestAnimationFrame(() => { hover.queued = false; if (tool === "island" && hover.at) { begin(); hoverAt(...hover.at); } }); }
+      hover.shift = e.shiftKey;
+      hoverSoon();
     } else if (hover.o && (tool !== "island" || e.buttons)) hoverOff();
     if (!drag) return;
     const p = local(e.clientX, e.clientY), last = drag.pts[drag.pts.length - 1];
