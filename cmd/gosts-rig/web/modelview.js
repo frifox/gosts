@@ -185,13 +185,11 @@ export function createModelView(canvas) {
   controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
   controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
-  // ⇧ with the wheel pressed and dragged moves the model (as a plain drag);
+  // ⇧, ⌃ or ⌘ with the wheel pressed and dragged moves the model (as a
+  // plain drag): the controls' own (a turn with any of them held pans).
   // ⇧ with the wheel turned zooms — macOS makes a ⇧ scroll a sideways one,
   // which the controls don't zoom by, so that's sent on as an up-and-down
   // one. (Seen before the controls: on the canvas, as it's captured.)
-  canvas.addEventListener("pointerdown", (e) => {
-    controls.mouseButtons.MIDDLE = e.button === 1 && e.shiftKey ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
-  }, { capture: true });
   canvas.addEventListener("wheel", (e) => {
     if (!e.shiftKey || e.deltaY || !e.deltaX) return;
     e.stopImmediatePropagation();
