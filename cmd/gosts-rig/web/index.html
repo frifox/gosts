@@ -1192,7 +1192,7 @@ kbd + kbd { margin-left: 3px; }
       <section data-step="center">
         <div class="mve-head"><b>Move</b></div>
         <div class="mve-move" id="mveMove" title="Move the model along X, Y, Z (click a number to type one, further than the slider goes too)"><b class="x">X</b><span class="mve-dual"><span class="mve-fill"></span><input type="range" min="-10000" max="10000" step="1" value="0" data-ax="x" aria-label="Move along X"></span><span class="mve-val" data-mv="x"></span><b class="y">Y</b><span class="mve-dual"><span class="mve-fill"></span><input type="range" min="-10000" max="10000" step="1" value="0" data-ax="y" aria-label="Move along Y"></span><span class="mve-val" data-mv="y"></span><b class="z">Z</b><span class="mve-dual"><span class="mve-fill"></span><input type="range" min="-10000" max="10000" step="1" value="0" data-ax="z" aria-label="Move along Z"></span><span class="mve-val" data-mv="z"></span></div>
-        <div class="mve-row mve-center-row"><span class="mve-label">Center on axis</span><button class="btn small" data-pick="center">Pick Point</button><span class="mve-n"></span><span class="btn-join mve-axes-go" id="mveAxesGo"><button class="btn small" data-axis="x" disabled title="Slide the model along X so the point is at 0 on it">X</button><button class="btn small" data-axis="y" disabled title="Slide the model along Y so the point is at 0 on it">Y</button><button class="btn small" data-axis="z" disabled title="Slide the model along Z so the point is at 0 on it">Z</button></span></div>
+        <div class="mve-row mve-center-row"><span class="mve-label">Center on axis</span><button class="btn small" data-pick="center" title="A point to center, or two: the point midway between them (a third: in place of the first)">Pick Points</button><span class="mve-n"></span><span class="btn-join mve-axes-go" id="mveAxesGo"><button class="btn small" data-axis="x" disabled title="Slide the model along X so the point (two: their midpoint) is at 0 on it">X</button><button class="btn small" data-axis="y" disabled title="Slide the model along Y so the point (two: their midpoint) is at 0 on it">Y</button><button class="btn small" data-axis="z" disabled title="Slide the model along Z so the point (two: their midpoint) is at 0 on it">Z</button></span></div>
         <div class="mve-row"><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="center" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveCenter" disabled title="Keep it where it's been moved">Apply</button></span></div>
       </section>
       <section data-step="scale">
@@ -1893,7 +1893,7 @@ $("mvReveal").onclick = async () => {
 // distance); save it as a new model: the OBJ (its materials and textures
 // copied), an STL too if asked, simplified if asked. The edit's in the
 // viewer (modelView) till saved; Undo steps back.
-const mve = { picks: { level: [], align: [], scale: [], center: [] }, picking: null, undo: [], centerAxes: new Set(), centerMove: { x: 0, y: 0, z: 0 } };
+const mve = { picks: { level: [], align: [], scale: [], center: [] }, picking: null, undo: [], centerAxes: new Set(), centerMove: { x: 0, y: 0, z: 0 }, centerPts: [] };
 const MVE_COLORS = { level: 0xffb020, align: 0x46a758, scale: 0x3e7bfa, center: 0xe05ad8 };
 const segPick = (id, v) => { for (const b of $(id).children) b.classList.toggle("active", b.dataset.v === v); };
 const segOf = (id) => $(id).querySelector(".active")?.dataset.v;
@@ -1945,14 +1945,14 @@ function mveShow() {
     const st = sec.dataset.step, n = mve.picks[st].length;
     sec.querySelector(".mve-n").textContent = `${n} point${n === 1 ? "" : "s"}`;
     sec.querySelector("[data-pick]").classList.toggle("picking", mve.picking === st);
-    sec.querySelector("[data-pick]").textContent = mve.picking === st ? "Picking…" : st === "center" ? "Pick Point" : "Pick Points";
+    sec.querySelector("[data-pick]").textContent = mve.picking === st ? "Picking…" : "Pick Points";
   }
   $("mveLevel").disabled = mve.picks.level.length < 3;
   $("mveAlign").disabled = !(mve.alignFrom && segOf("mveAxis"));
   $("mveFlip").disabled = !mve.alignFrom || !segOf("mveAxis");
   $("mveFlip").classList.toggle("on", mve.alignFlip);
   for (const b of $("mveAxesGo").children) {
-    b.disabled = mve.picks.center.length !== 1;
+    b.disabled = !mve.picks.center.length; // (a point, or two: their midpoint)
     b.classList.toggle("on", mve.centerAxes.has(b.dataset.axis));
   }
   $("mveCenter").disabled = !mve.originFrom; // (Apply: once Set)
@@ -2017,7 +2017,7 @@ function mvePicking(st) {
   if (st) mveTool(null); // (Delete's tool: no longer)
   mve.picking = st;
   if (st) window.modelView.hoverColor(MVE_COLORS[st]);
-  window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 1) mve.picks.center.shift(); if (st === "center" && mve.originFrom) { mve.centerAt = p.clone().applyMatrix4(mveMoveMatrix().invert()); mveCenterAxes(); mveCenterGo(); } if (st === "align" && mve.alignFrom) { mve.alignPts.push(p.clone().applyMatrix4(mve.alignOff.clone().invert())); mveAlignGo(); } mveShow(); } : null;
+  window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 2) mve.picks.center.shift(); if (st === "center" && mve.originFrom) { mve.centerPts.push(p.clone().applyMatrix4(mveMoveMatrix().invert())); if (mve.centerPts.length > 2) mve.centerPts.shift(); mveCenterAxes(); mveCenterGo(); } if (st === "align" && mve.alignFrom) { mve.alignPts.push(p.clone().applyMatrix4(mve.alignOff.clone().invert())); mveAlignGo(); } mveShow(); } : null;
   mveShow();
 }
 $("mvEdit").addEventListener("click", (e) => {
@@ -2194,10 +2194,12 @@ $("mveLevel").onclick = () => mveDo((box) => window.modelEdit.level(mve.picks.le
 // Center: the model moved along X, Y, Z (Blender's axes, meters:
 // centerMove), from where it was as the step began (originFrom): by the
 // sliders (each about the model's length its way, either side; a value
-// typed can go further), or an axis button, the point picked (centerAt:
-// where it was then) to 0 on it (lit; clicked again: 0 on that axis again;
-// a slider moved: unlit). Shown as it goes, the point with it; Apply keeps
-// it, as one step; Cancel or Undo puts it back.
+// typed can go further), or an axis button, the point picked to 0 on it,
+// or with two picked the point midway between them (centerPts: where they
+// were as it began; a third picked: in place of the first) (lit; clicked
+// again: 0 on that axis again; a slider moved: unlit). Shown as it goes,
+// the points with it; Apply keeps it, as one step; Cancel or Undo puts it
+// back.
 const MOVE_N = 10000; // (a slider's steps either side)
 function mveMoveMatrix() { // (Blender's x, y, z: x, −z, y here)
   const m = mve.centerMove;
@@ -2208,20 +2210,26 @@ function mveCenterStart() {
   mveRotCommit(); // (a turn going on: not ended, taken over from where it is)
   mve.originFrom = window.modelView.matrix();
   mve.centerMove = { x: 0, y: 0, z: 0 };
-  mve.centerAt = mve.picks.center[0]?.clone() || null;
+  mve.centerPts = mve.picks.center.map((p) => p.clone());
 }
-// mveCenterAxes: the lit axes' moves, the point at 0 on each.
+// mveCenterTarget: what's centered: the point picked, or the two's midpoint
+// (as they were as the step began); null if none.
+function mveCenterTarget() {
+  const [a, b] = mve.centerPts || [];
+  return !a ? null : b ? a.clone().add(b).multiplyScalar(0.5) : a.clone();
+}
+// mveCenterAxes: the lit axes' moves, the target at 0 on each.
 function mveCenterAxes() {
-  const p = mve.centerAt;
+  const p = mveCenterTarget();
   if (!p) return;
   const at = { x: p.x, y: -p.z, z: p.y }; // (Blender's)
   for (const ax of mve.centerAxes) mve.centerMove[ax] = -at[ax];
 }
 $("mveAxesGo").onclick = async (e) => {
   const axis = e.target.closest("[data-axis]")?.dataset.axis;
-  if (!axis || !mve.picks.center[0]) return;
+  if (!axis || !mve.picks.center.length) return;
   mveCenterStart();
-  if (!mve.centerAt) mve.centerAt = mve.picks.center[0].clone().applyMatrix4(mveMoveMatrix().invert());
+  if (!mve.centerPts.length) { const back = mveMoveMatrix().invert(); mve.centerPts = mve.picks.center.map((p) => p.clone().applyMatrix4(back)); }
   if (mve.centerAxes.has(axis)) { mve.centerAxes.delete(axis); mve.centerMove[axis] = 0; }
   else mve.centerAxes.add(axis);
   mveCenterAxes();
@@ -2231,7 +2239,7 @@ $("mveAxesGo").onclick = async (e) => {
 // gliding there; a slider dragged: at once).
 async function mveCenterGo(animate = true) {
   const mv = window.modelView, m = mveMoveMatrix();
-  if (mve.centerAt) mve.picks.center = [mve.centerAt.clone().applyMatrix4(m)];
+  if (mve.centerPts.length) mve.picks.center = mve.centerPts.map((p) => p.clone().applyMatrix4(m));
   const go = mv.setMatrix(m.clone().multiply(mve.originFrom), animate); // (headed there first: the point shown going along with it)
   mveMoveShow();
   mveShow();
@@ -2278,7 +2286,7 @@ function mveOriginCommit() {
   if (!mve.originFrom) return false;
   const c = mve.centerMove;
   if (c.x || c.y || c.z) mve.undo.push(mve.originFrom); // (not moved: nothing to undo)
-  mve.originFrom = mve.centerAt = null;
+  mve.originFrom = null; mve.centerPts = [];
   mve.centerMove = { x: 0, y: 0, z: 0 };
   mve.centerAxes.clear();
   mve.picks.center = [];
@@ -2288,7 +2296,7 @@ function mveOriginCommit() {
 $("mveCenter").onclick = () => { mveOriginCommit(); mvePicking(null); }; // (done: no longer picking either)
 async function mveOriginCancel() {
   const from = mve.originFrom;
-  mve.originFrom = mve.centerAt = null;
+  mve.originFrom = null; mve.centerPts = [];
   mve.centerMove = { x: 0, y: 0, z: 0 };
   mveMoveShow();
   mve.centerAxes.clear();
@@ -2594,7 +2602,7 @@ $("mveReplace").onclick = () => mveReplace(!$("mveReplace").classList.contains("
 function mveFresh(m) {
   mve.picks = { level: [], align: [], scale: [], center: [] };
   mve.undo = [];
-  mve.originFrom = mve.centerAt = null;
+  mve.originFrom = null; mve.centerPts = [];
   mve.centerMove = { x: 0, y: 0, z: 0 };
   mve.alignFrom = mve.alignPts = mve.alignOff = null;
   mve.alignFlip = false;
