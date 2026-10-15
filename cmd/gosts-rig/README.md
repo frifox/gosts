@@ -102,7 +102,7 @@ file.
 - **Level**: put a surface flat on the ground
 - **Align**: turn an edge to run along X or Y
 - **Rotate**: turn it about X, Y or Z
-- **Trim**: cut away what's outside a box (the platform, say)
+- **Crop**: cut away what's outside a box (the platform, say)
 - **Center**: move a point to the origin
 - **Scale**: set the real distance between two points
 

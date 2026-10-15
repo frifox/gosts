@@ -1158,7 +1158,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
         <div class="mve-row"><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="rotate" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveRot" disabled title="Keep it turned as it is">Apply</button></span></div>
       </section>
       <section data-trim>
-        <div class="mve-head"><b>Trim</b></div>
+        <div class="mve-head"><b>Crop</b></div>
         <div class="mve-trim"><b class="x">X</b><span class="mve-val" data-val="x0"></span><span class="mve-dual" data-ax="x"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" data-ax="x" data-end="0" aria-label="X min"><input type="range" min="0" max="10000" step="1" data-ax="x" data-end="1" aria-label="X max"></span><span class="mve-val" data-val="x1"></span><b class="y">Y</b><span class="mve-val" data-val="y0"></span><span class="mve-dual" data-ax="y"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" data-ax="y" data-end="0" aria-label="Y min"><input type="range" min="0" max="10000" step="1" data-ax="y" data-end="1" aria-label="Y max"></span><span class="mve-val" data-val="y1"></span><b class="z">Z</b><span class="mve-val" data-val="z0"></span><span class="mve-dual" data-ax="z"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" data-ax="z" data-end="0" aria-label="Z min"><input type="range" min="0" max="10000" step="1" data-ax="z" data-end="1" aria-label="Z max"></span><span class="mve-val" data-val="z1"></span></div>
         <div class="mve-row"><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="trim" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveTrim" disabled title="Cut away what's outside the box">Apply</button></span></div>
       </section>
@@ -1893,7 +1893,7 @@ function mvePending() {
   if (mve.picks.scale.length) p.push("Scale");
   if (mve.picks.center.length || mve.originFrom) p.push("Origin");
   if (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z)) p.push("Rotate");
-  if (!$("mveTrim").disabled) p.push("Trim");
+  if (!$("mveTrim").disabled) p.push("Crop");
   if (mveMod()?.changed()) p.push("Delete");
   return p;
 }
