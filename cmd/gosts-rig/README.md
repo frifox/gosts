@@ -102,9 +102,9 @@ file.
 - **Modify**: select parts of the mesh (lasso, box, brush or magic wand) and delete them, filling the holes left
 - **Level**: put a surface flat on the ground
 - **Align**: turn an edge to run along X or Y
+- **Move**: slide the model along X, Y, Z (or type how far), or center a picked point (or the midpoint of two) on an axis
 - **Rotate**: turn it about X, Y or Z
 - **Crop**: cut away what's outside a box (the platform, say)
-- **Move**: slide the model along X, Y, Z (or type how far), or center a picked point (or the midpoint of two) on an axis
 - **Scale**: set the real distance between two points
 
 **Save** writes it as a new model (or overwrites this one) in mm, inches or meters, optionally as an STL too, and
