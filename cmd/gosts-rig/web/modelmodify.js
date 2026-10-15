@@ -12,7 +12,7 @@ import * as THREE from "three";
 import { MeshBVH, INTERSECTED, NOT_INTERSECTED } from "./vendor/three-mesh-bvh.module.js";
 
 // TOOLS: what a drag (or click) with the left button does.
-export const TOOLS = ["island", "lasso", "box", "brush"];
+export const TOOLS = ["lasso", "box", "brush", "island"];
 export const FILLS = ["flat", "smooth"];
 
 // --------------------------------------------------------------- the mesh
