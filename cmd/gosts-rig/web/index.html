@@ -3415,10 +3415,10 @@ const kb = (...ks) => ks.map((k) => `<kbd>${k}</kbd>`).join("");
 const MV_KEYS = [
   { part: "View", lines: [
     { show: "Drag", what: "Move the view", k: [] },
-    { show: "Wheel drag · right drag", what: "Turn it", k: [] },
-    { show: `Scroll · ${kb("⇧")} scroll`, what: "Zoom (toward the pointer)", k: [] },
+    { show: "Wheel drag / right drag", what: "Turn it", k: [] },
+    { show: `Scroll / ${kb("⇧")} scroll`, what: "Zoom (toward the pointer)", k: [] },
     { show: `${kb("⇧")} / ${kb("⌃")} / ${kb("⌘")} wheel drag`, what: "Move the view", k: [] },
-    { show: `${kb("F")} · wheel double-click`, what: "Fill the view with the model", k: ["f"] },
+    { show: `${kb("F")} / wheel double-click`, what: "Fill the view with the model", k: ["f"] },
   ] },
   { part: "Model viewer", lines: [
     { show: kb("E"), what: "Edit: open or close", k: ["e"] },
@@ -3427,18 +3427,18 @@ const MV_KEYS = [
     { show: kb("?"), what: "This list", k: ["?"] },
   ] },
   { part: "Edit: Delete", lines: [
-    { show: `${kb("L")} ${kb("R")} ${kb("B")} ${kb("W")}`, what: "Lasso, Rectangle, Brush, Magic Wand", k: ["l", "r", "b", "w"] },
-    { show: `Drag · ${kb("⇧")} drag · ${kb("⌥")} drag`, what: "Select · add to it · take from it", k: [] },
-    { show: `${kb("[")} ${kb("]")}`, what: "Brush smaller, larger", k: ["[", "]"] },
+    { show: `${kb("L")} / ${kb("R")} / ${kb("B")} / ${kb("W")}`, what: "Lasso / Rectangle / Brush / Magic Wand", k: ["l", "r", "b", "w"] },
+    { show: `Drag / ${kb("⇧")} drag / ${kb("⌥")} drag`, what: "Select / add to it / take from it", k: [] },
+    { show: `${kb("[")} / ${kb("]")}`, what: "Brush smaller / larger", k: ["[", "]"] },
     { show: kb("X"), what: "X-Ray: select through the model", k: ["x"] },
     { show: kb("⇧") + kb("X"), what: "Invert the selection", k: ["x"] },
-    { show: `${kb("⌫")} · ${kb("Delete")}`, what: "Delete what's selected", k: ["backspace", "delete"] },
-    { show: `${kb("⌘")}${kb("Z")} · ${kb("⇧")}${kb("⌘")}${kb("Z")}`, what: "Undo, redo (Delete's)", k: ["z"] },
+    { show: `${kb("⌫")} / ${kb("Delete")}`, what: "Delete what's selected", k: ["backspace", "delete"] },
+    { show: `${kb("⌘")}${kb("Z")} / ${kb("⇧")}${kb("⌘")}${kb("Z")}`, what: "Undo / redo (Delete's)", k: ["z"] },
     { show: kb("Esc"), what: "Put the tool down", k: ["escape"] },
   ] },
   { part: "Edit: values", lines: [
     { show: "Click a number", what: "Type one (Rotate, Crop, Move)", k: [] },
-    { show: `${kb("Enter")} · ${kb("Esc")}`, what: "Set it · leave it as it was", k: [] },
+    { show: `${kb("Enter")} / ${kb("Esc")}`, what: "Set it / leave it as it was", k: [] },
   ] },
 ];
 $("keysGrid").innerHTML = MV_KEYS.map((p) => `<div class="keys-sec"><h3>${p.part}</h3><dl>` +
