@@ -2550,8 +2550,9 @@ $("mveSave").onclick = async () => {
     const saved = await r.json();
     log(`${v.name}: ${v.m.name} ${replace ? "replaced" : "saved as " + to}`);
     galleryAgain();
-    // Replaced: the model shown is the saved one now (its edit done with).
-    if (replace && state.mv === v) { openModel(v.name, saved); mveOpen(true); }
+    // The model shown is the saved one now (replaced, or a new one: its
+    // name in the header; its edits done with, in it), Edit still open.
+    if (state.mv === v) { openModel(v.name, saved); mveOpen(true); }
     mveStatus(`${replace ? "Replaced" : "Saved as " + to}: ${res.triangles.toLocaleString()} triangles, ${units}${res.stl ? ", with an STL" : ""}${replace ? " (the one before is in the Trash)" : ""}`, "ok");
   } catch (e) { mveStatus(`Couldn't save it: ${e.message}`, "bad"); }
   $("mveSave").disabled = false;
