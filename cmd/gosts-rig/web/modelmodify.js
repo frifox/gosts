@@ -493,9 +493,16 @@ export function createModify(v) {
   const svg = document.createElementNS(NS, "svg");
   svg.setAttribute("style", "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible");
   const shape = document.createElementNS(NS, "path"), ring = document.createElementNS(NS, "circle");
-  for (const e of [shape, ring]) { e.setAttribute("fill", "rgba(255,122,26,.12)"); e.setAttribute("stroke", "#ff7a1a"); e.setAttribute("stroke-width", "1.5"); e.setAttribute("vector-effect", "non-scaling-stroke"); }
+  for (const e of [shape, ring]) { e.setAttribute("stroke-width", "1.5"); e.setAttribute("vector-effect", "non-scaling-stroke"); }
   shape.setAttribute("stroke-dasharray", "5 4");
-  ring.setAttribute("fill", "rgba(255,122,26,.08)");
+  // tint: their color, as the mode is: orange (what's seen), the X-Ray
+  // button's blue (X-Ray: all inside).
+  function tint() {
+    const [r, g, b] = xray ? [91, 140, 255] : [255, 122, 26];
+    for (const e of [shape, ring]) e.setAttribute("stroke", `rgb(${r},${g},${b})`);
+    shape.setAttribute("fill", `rgba(${r},${g},${b},.12)`);
+    ring.setAttribute("fill", `rgba(${r},${g},${b},.08)`);
+  }
   svg.append(shape, ring);
   canvas.parentElement.insertBefore(svg, canvas.nextSibling);
   shape.style.display = ring.style.display = "none";
@@ -503,6 +510,7 @@ export function createModify(v) {
   // xray: Lasso, Box and Brush take all inside them, behind or not (the
   // selection shown through the model too).
   let tool = null, brush = 24, onChange = () => {}, shownOn = true, xray = false;
+  tint();
   // hist: the steps, each { geos, sels } (each mesh's geometry and its
   // triangles selected); at: the one now. null: nothing done yet.
   let hist = null, at = 0;
@@ -896,7 +904,7 @@ export function createModify(v) {
     get tool() { return tool; }, set tool(t) { setTool(t); },
     get brush() { return brush; },
     get xray() { return xray; },
-    set xray(on) { xray = !!on; for (const ov of overlays.values()) ov.children[0].visible = xray; onChange(); },
+    set xray(on) { xray = !!on; tint(); for (const ov of overlays.values()) ov.children[0].visible = xray; onChange(); },
     brushBy(k) { brush = Math.max(4, Math.min(300, Math.round(brush * k))); if (ring.style.display !== "none") ring.setAttribute("r", brush); onChange(); },
     undo() { if (hist && at > 0) { at--; show(); } },
     redo() { if (hist && at < hist.length - 1) { at++; show(); } },
