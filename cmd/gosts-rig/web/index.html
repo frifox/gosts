@@ -548,8 +548,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .btn-join > .btn.primary, .btn-join > .btn.danger, .btn-join > .btn.on { z-index: 1; } .btn-join > .btn:hover { z-index: 2; }
 .mve-size { display: flex; flex-direction: column; gap: 4px; } /* (the box's dimensions; the triangles) */
 /* The icon as wide as "X " (2 characters, the font fixed-width): the count under the X value. */
-.mve-size .mve-ic { display: inline-flex; width: 2ch; vertical-align: -2px; color: var(--muted); cursor: default; }
-.mve-size .mve-ic svg { width: 12px; height: 12px; }
+.mve-size .mve-ic, #mveSelN .mve-ic { display: inline-flex; width: 2ch; vertical-align: -2px; color: var(--muted); cursor: default; }
+.mve-size .mve-ic svg, #mveSelN .mve-ic svg { width: 12px; height: 12px; }
 .mve-size > span:not(.mve-sub) { white-space: pre; }
 .mve-size .mve-sub { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); }
 .mve-size b { font-weight: 600; } .mve-size .x { color: #e5484d; } .mve-size .y { color: #46a758; } .mve-size .z { color: #3e7bfa; }
@@ -2405,7 +2405,7 @@ function mveModShow() {
   segPick("mveSel", md.tool);
   const n = md.count();
   for (const b of $("mveSelOps").children) b.disabled = !n;
-  $("mveSelN").textContent = n ? `${n.toLocaleString()} selected` : "";
+  $("mveSelN").innerHTML = n ? `<span class="mve-ic" role="img" aria-label="Triangles selected" title="Triangles selected">${MVE_TRIANGLE}</span>${n.toLocaleString()}` : ""; // (as the size's triangles, above)
   $("mveDelete").disabled = !n;
   $("mveModUndo").disabled = !md.canUndo;
   $("mveModRedo").disabled = !md.canRedo;
