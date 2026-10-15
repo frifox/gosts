@@ -644,8 +644,14 @@ export function createModify(v) {
   // mode: "set" (the selection: this), "add" (⇧), "sub" (⌥); the brush
   // adds unless ⌥.
   let drag = null;
+  // ⌘ with a drag turns the model, a tool picked or not (the selection
+  // left as it is): the controls' own pan, which ⌘ makes a turn. (Seen
+  // before the controls: on the canvas, as it's captured.)
   canvas.addEventListener("pointerdown", (e) => {
-    if (!tool || e.button !== 0 || !v.obj()) return;
+    if (tool) controls.mouseButtons.LEFT = e.metaKey ? THREE.MOUSE.PAN : -1;
+  }, { capture: true });
+  canvas.addEventListener("pointerdown", (e) => {
+    if (!tool || e.button !== 0 || e.metaKey || !v.obj()) return;
     begin();
     canvas.setPointerCapture(e.pointerId);
     const mode = e.altKey ? "sub" : e.shiftKey || tool === "brush" ? "add" : "set";
