@@ -3639,7 +3639,7 @@ async function cvAddModel(b, m) {
   $("cvAdd").disabled = false;
 }
 for (const btn of document.querySelectorAll("#cvSide [data-shape]")) btn.onclick = () => cvs.cv.addShape(btn.dataset.shape);
-$("cvAddFill").onclick = () => cvs.cv.addFill();
+$("cvAddFill").onclick = () => { cvs.cv.addFill(); $("cvFCont").click(); }; // (its container picked next, at once)
 const cvNum = (n, d = 1) => String(Math.round(n * 10 ** d) / 10 ** d);
 // cvShow: the panel as the space is.
 function cvShow() {
