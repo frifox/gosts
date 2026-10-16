@@ -516,7 +516,7 @@ export function createCombine(canvas) {
   const hitAt = (e, only) => {
     const b = canvas.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1), camera);
-    const list = (only ? [only] : objects).filter((o) => o.visible).map((o) => o.holder);
+    const list = (typeof only === "function" ? objects.filter(only) : only ? [only] : objects).filter((o) => o.visible).map((o) => o.holder);
     const h = ray.intersectObjects(list, true)[0];
     if (!h) return null;
     const o = objects.find((x) => x.holder === h.object || x.holder.getObjectById(h.object.id));
@@ -529,8 +529,9 @@ export function createCombine(canvas) {
     const p = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), new THREE.Vector3());
     return p && { o: null, point: p };
   };
-  // pick: the next click on an object (only: that one) gives the point; with
-  // plane (y, m), the point clicked on that level instead.
+  // pick: the next click on an object (only: that one, or those it says yes
+  // to) gives the point and the object; with plane (y, m), the point clicked
+  // on that level instead.
   api.pick = (only, done, plane = null) => { picking = { only, done, plane }; canvas.style.cursor = "crosshair"; };
   api.unpick = () => { picking = null; canvas.style.cursor = ""; };
   api.picking = () => !!picking;
@@ -539,7 +540,7 @@ export function createCombine(canvas) {
     if (e.button !== 0) return;
     const h = picking?.plane != null ? planeAt(e, picking.plane) : hitAt(e, picking?.only);
     if (picking) {
-      if (h) { e.stopImmediatePropagation(); controls.enabled = false; const p = picking; api.unpick(); p.done(h.point); setTimeout(() => (controls.enabled = true)); }
+      if (h) { e.stopImmediatePropagation(); controls.enabled = false; const p = picking; api.unpick(); p.done(h.point, h.o); setTimeout(() => (controls.enabled = true)); }
       return;
     }
     // Only the selected one, grabbed, is dragged (⌘ or Ctrl held: the view

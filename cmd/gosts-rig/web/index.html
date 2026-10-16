@@ -482,7 +482,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-cuts .cv-obj .caret svg { width: 12px; height: 12px; transition: transform .15s; }
 .cv-cuts .cv-obj .caret.open svg { transform: rotate(180deg); }
 .cv-cuts .cv-obj .caret:hover { color: var(--text); }
-.cv-select { flex: 1; min-width: 0; }
+.cv-cont-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .cv-cuts .cv-obj input[type=checkbox] { margin: 0 2px; }
 .cv-cuts .cv-obj .kd.miss { color: var(--warn, #d9a400); }
 .cv-cutopts { display: flex; flex-direction: column; gap: 6px; padding: 6px 6px 8px 28px; }
@@ -1330,7 +1330,7 @@ kbd + kbd { margin-left: 3px; }
       </section>
       <section id="cvFillSec" hidden>
         <div class="mve-head"><b>Container Fill</b>The inside of its container (a case, a bowl), up to a fill line, kept off its walls: an insert.</div>
-        <div class="mve-row"><span class="mve-label">Container</span><select id="cvFCont" class="cv-select"></select></div>
+        <div class="mve-row"><span class="mve-label">Container</span><button class="btn small" id="cvFCont" title="Click the container (a case, a bowl) in the view">Pick Object</button><span class="mve-label cv-cont-name" id="cvFContName"></span></div>
         <div class="mve-row"><button class="btn small" id="cvPickTop" title="Click on the container where the fill should come up to: its level (the Offset moves it from there)">Pick Fill Line</button><span class="mve-label">Offset</span><input type="number" id="cvBelow" value="0" step="1" title="The fill line moved down (+) or up (−) from the point picked, mm"><span class="mve-label">mm</span></div>
         <div class="mve-row"><span class="mve-label">Inside</span><button class="btn small" id="cvPickIn" title="Click on the fill line, over the container's inside: the fill grows from there (down to the floor, out to the walls)">Pick Point</button><span class="mve-label" id="cvInText"></span></div>
         <div class="mve-row"><span class="mve-label">Off the walls</span><input type="number" id="cvTol" value="1" step="0.5" min="0"><span class="mve-label">mm</span></div>
@@ -3684,14 +3684,10 @@ function cvShow() {
 // cvFillShow: fill f's settings, and how it is (made, not, changed since).
 function cvFillShow(f, busy) {
   const cv = cvs.cv, st = f.fill.set, state = cv.fillState(f);
-  const conts = cv.objects().filter((o) => o.kind !== "fill"), sel = $("cvFCont");
-  const key = JSON.stringify(conts.map((o) => [o.id, o.name]));
-  if (sel.dataset.key !== key) {
-    sel.dataset.key = key;
-    sel.innerHTML = '<option value="">Pick one…</option>';
-    for (const o of conts) { const op = document.createElement("option"); op.value = o.id; op.textContent = o.name; sel.appendChild(op); }
-  }
-  sel.value = st.container && conts.includes(st.container) ? st.container.id : "";
+  const has = st.container && cv.objects().includes(st.container);
+  $("cvFContName").textContent = has ? st.container.name : st.container ? `${st.container.name} (not in the space)` : "";
+  $("cvFContName").title = $("cvFContName").textContent;
+  $("cvFCont").classList.toggle("on", !!has);
   const put = (id, m) => { if (document.activeElement !== $(id)) $(id).value = cvNum(m * 1000); };
   put("cvBelow", st.offset); put("cvTol", st.tol); put("cvRes", st.res);
   $("cvPickTop").disabled = !st.container;
@@ -3717,7 +3713,12 @@ $("cvBelow").addEventListener("input", cvMarks);
 $("cvBelow").addEventListener("change", () => cvSetFill({ offset: (Number($("cvBelow").value) || 0) / 1000 }, "Set the offset"));
 $("cvTol").addEventListener("change", () => cvSetFill({ tol: Math.max(0, Number($("cvTol").value) || 0) / 1000 }, "Set off the walls"));
 $("cvRes").addEventListener("change", () => cvSetFill({ res: Math.max(0.2, Number($("cvRes").value) || 1) / 1000 }, "Set the resolution"));
-$("cvFCont").addEventListener("change", () => cvSetFill({ container: cvs.cv.objects().find((o) => String(o.id) === $("cvFCont").value) ?? null }, "Set the container"));
+$("cvFCont").onclick = () => {
+  const f = cvs.cv.selected();
+  if (f?.kind !== "fill") return;
+  cvStatus("Click the container in the view");
+  cvs.cv.pick((o) => o.kind !== "fill", (p, o) => { cvStatus(""); cvs.cv.setFill(f, { container: o }, `Set the container of ${f.name}`); });
+};
 $("cvName").addEventListener("change", () => { const s = cvs.cv.selected(); if (s && $("cvName").value.trim()) cvs.cv.rename(s, $("cvName").value.trim()); });
 $("cvRemove").onclick = () => { const s = cvs.cv.selected(); if (s) cvs.cv.remove(s); };
 $("cvPos").addEventListener("change", (e) => {
