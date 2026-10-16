@@ -3789,7 +3789,11 @@ $("cvFCont").onclick = () => {
   const f = cvs.cv.selected();
   if (f?.kind !== "fill") return;
   cvStatus("Click the container in the view");
-  cvs.cv.pick((o) => o.kind !== "fill", (p, o) => { cvStatus(""); cvs.cv.setFill(f, { container: o }, `Set the container of ${f.name}`); }, null, "container");
+  cvs.cv.pick((o) => o.kind !== "fill", (p, o) => {
+    cvStatus("");
+    cvs.cv.setFill(f, { container: o }, `Set the container of ${f.name}`);
+    if (cvs.cv.selected() === f) $("cvPickTop").onclick(); // (the next step at once: its fill line)
+  }, null, "container");
 };
 $("cvName").addEventListener("change", () => { const s = cvs.cv.selected(); if (s && $("cvName").value.trim()) cvs.cv.rename(s, $("cvName").value.trim()); });
 $("cvPos").addEventListener("change", (e) => {
