@@ -114,7 +114,7 @@ file.
 
 **Edit 3D** in the header opens a model (picked from your captures, as Objects' Add: Model picks one) with its editor open.
 
-**Combine 3D** in the header puts models (picked from your captures) and simple shapes (box, cylinder, sphere) in one
+**Combine 3D** in the header (pick a saved work, Continue what's open, or **Create New**) puts models (picked from your captures) and simple shapes (box, cylinder, sphere) in one
 space. Select one from the list or by clicking it, then drag it along the floor
 (hold Shift to lift or lower it instead) or type where it goes. Only the selected one drags: a drag anywhere else
 moves the view (with ⌘ or Ctrl held, turns it). Turn it with the X, Y, Z sliders (or ±90°, or type the

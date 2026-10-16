@@ -468,6 +468,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-caret svg { width: 12px; height: 12px; transition: transform .15s; }
 .cv-caret.open svg { transform: rotate(180deg); }
 .cv-caret:hover { color: var(--text); }
+.cv-pick-title { font-size: 14px; }
+#cvPickNav[hidden], #cvPickNew[hidden] { display: none; }
 .cv-layers.cv-cuts-box { overflow: visible; } /* (a cut's options over the rows below, and past the box) */
 .cv-layers .cv-list.cv-cuts { min-height: 120px; max-height: none; overflow: visible; }
 .cv-layers-bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--border); background: var(--panel-2); }
@@ -1391,7 +1393,7 @@ kbd + kbd { margin-left: 3px; }
 <!-- Combine Models' Add Model: a small Browse, its captures with models, then a capture's models. -->
 <div class="modal-backdrop" id="cvPickModal" style="z-index:75" hidden>
   <div class="modal card cv-pick" role="dialog" aria-modal="true" aria-label="Add a model">
-    <h2><nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="cvPickHome" aria-label="All captures"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>root</button><button class="btn small crumb-btn crumb-cur" id="cvPickWhere" tabindex="-1" hidden></button></span></nav><span class="spacer"></span><button class="icon-btn" id="cvPickClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
+    <h2><b class="cv-pick-title" id="cvPickTitle" hidden>Combine 3D</b><nav class="crumbs" id="cvPickNav"><span class="btn-join"><button class="btn small crumb-home" id="cvPickHome" aria-label="All captures"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>root</button><button class="btn small crumb-btn crumb-cur" id="cvPickWhere" tabindex="-1" hidden></button></span></nav><span class="spacer"></span><button class="btn small primary" id="cvPickNew" hidden title="Combine 3D with nothing in it">Create New</button><button class="icon-btn" id="cvPickClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
     <div class="card-body"><div class="cv-pick-grid" id="cvPickGrid"></div></div>
   </div>
 </div>
@@ -3676,18 +3678,53 @@ async function cvPickShow(where) {
     }
   } catch (e) { grid.innerHTML = ""; const d = document.createElement("div"); d.className = "mve-label"; d.textContent = e.message; grid.appendChild(d); }
 }
-function cvPickOpen(on, then = null, label = "Add a model") {
+function cvPickOpen(on, then = null, label = "Add a model", works = false) {
   $("cvPickModal").hidden = !on;
   if (!on) return;
   cvPick.then = then;
+  cvPick.where = null;
   $("cvPickModal").querySelector("[role=dialog]").setAttribute("aria-label", label);
-  cvPickShow(null); // (from the top each time)
+  $("cvPickNav").hidden = works;
+  $("cvPickTitle").hidden = $("cvPickNew").hidden = !works;
+  if (works) cvWorksShow(); else cvPickShow(null); // (from the top each time)
 }
+// The header's Combine 3D: its work files (as Browse shows them), what's in
+// it now if anything (Continue), or Create New.
+async function cvWorksShow() {
+  const grid = $("cvPickGrid");
+  grid.innerHTML = '<div class="mve-label">Loading…</div>';
+  let works = [];
+  try { works = await getJSON("/combine/works"); } catch (e) { grid.innerHTML = ""; const d = document.createElement("div"); d.className = "mve-label"; d.textContent = e.message; grid.appendChild(d); return; }
+  grid.innerHTML = "";
+  const tile = (name, sub, img, open) => {
+    const t = document.createElement("button");
+    t.className = "tile";
+    t.innerHTML = `<span class="pic">${img ? `<img alt="" loading="lazy" src="${img}">` : "Combine 3D"}</span><span class="nm"></span><span class="sub"></span>`;
+    t.querySelector(".nm").textContent = name;
+    t.querySelector(".sub").textContent = sub;
+    t.onclick = open;
+    grid.appendChild(t);
+  };
+  const n = cvs.cv?.objects().length || 0;
+  if (n) tile(cvs.work ? `${cvs.work} (open)` : "What's open now", `Continue · ${n} object${n === 1 ? "" : "s"}`, "", () => { cvPickOpen(false); openCombine(); });
+  for (const w of works) tile(w.name, `${w.objects} object${w.objects === 1 ? "" : "s"}`, w.thumb ? `/combine/works/${encodeURIComponent(w.name)}/thumb?at=${w.at}` : "", () => { cvPickOpen(false); cvOpenWork(w.name); });
+  if (!grid.children.length) grid.innerHTML = '<div class="mve-label">No saved work yet: Create New starts one.</div>';
+}
+$("cvPickNew").onclick = async () => {
+  cvPickOpen(false);
+  await openCombine();
+  const cv = cvs.cv;
+  if (cv.objects().length && !await confirmDanger("Start new?", "What's in Combine 3D now is put away (Save it first to keep it).", "Create New")) return;
+  cv.clear();
+  cvs.work = null;
+  $("cvSaveName").value = "insert";
+  cvStatus("");
+};
 $("cvAdd").onclick = () => cvPickOpen(true);
 // The header's Edit 3D: a model picked (as Add Model picks one), opened with
 // its editor; Combine 3D: Combine 3D Models.
 $("hdrEdit3D").onclick = () => cvPickOpen(true, (b, m) => { cvPickOpen(false); openModel(b, m); mveOpen(true); }, "Edit a model");
-$("hdrCombine3D").onclick = openCombine;
+$("hdrCombine3D").onclick = () => cvPickOpen(true, null, "Combine 3D: open a work, or Create New", true);
 document.addEventListener("keydown", (e) => { // (the picker up from the header, Combine not open: its keys)
   if ($("cvPickModal").hidden || !$("combineView").hidden || !$("confirmModal").hidden) return;
   if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cvPickOpen(false); }
