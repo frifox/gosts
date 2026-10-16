@@ -463,9 +463,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-xyz input[type=number] { width: 100% !important; min-width: 0; }
 .cv-xyz b { font: 600 12px var(--mono); } .cv-xyz .x { color: #e5484d; } .cv-xyz .y { color: #46a758; } .cv-xyz .z { color: #3e7bfa; }
 /* Add Model's small Browse: tiles, a capture's or a model's. */
-.cv-pick { width: min(760px, 100%); }
+.modal.cv-pick { width: min(900px, 100%); } /* (over .modal's own) */
 .cv-pick h2 { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; }
-.cv-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; max-height: min(60vh, 520px); overflow-y: auto; }
+.cv-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(130px, calc((100% - 4 * 12px) / 5)), 1fr)); /* (5 a row at most; fewer if it's narrow) */ gap: 12px; max-height: min(60vh, 520px); overflow-y: auto; }
 .cv-pick-grid .tile { display: flex; flex-direction: column; gap: 6px; padding: 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); cursor: pointer; text-align: left; color: var(--text); font: inherit; }
 .cv-pick-grid .tile:hover { border-color: var(--accent); }
 .cv-pick-grid .pic { aspect-ratio: 3 / 2; border-radius: 5px; background: #12151c; display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--muted); font-size: 12px; }
