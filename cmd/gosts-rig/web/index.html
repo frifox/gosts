@@ -656,6 +656,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-load-bar span { display: block; height: 100%; width: 0; background: var(--ok, #46a758); transition: width .2s; }
 .cv-load-list { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
 .cv-load-list li { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--muted); }
+.cv-load-list li.sub { padding-left: 19px; font-size: 11px; }
+.cv-load-list li.sub .ic { width: 10px; height: 10px; }
 .cv-load-list li .tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-load-list li.now, .cv-load-list li.done { color: var(--text); }
 .cv-load-list li.warn { color: var(--warn, #ffb020); }
@@ -3639,22 +3641,47 @@ function cvStatus(text, cls = "", check = false) {
 // a bar for how far along.
 const cvLoad = { steps: [] };
 function cvLoadShow() {
-  const list = $("cvLoadList"), n = cvLoad.steps.length;
-  const done = cvLoad.steps.filter((x) => x.state === "done" || x.state === "warn").length;
+  const list = $("cvLoadList"), n = cvLoad.steps.length, over = (x) => x.state === "done" || x.state === "warn";
+  // (how far: the steps over, and of the one going, its sub-steps over)
+  let done = 0;
+  for (const x of cvLoad.steps) done += over(x) ? 1 : x.state === "now" && x.subs?.length ? x.subs.filter(over).length / x.subs.length : 0;
   $("cvLoadBar").style.width = `${n ? (100 * done) / n : 0}%`;
   list.innerHTML = "";
-  for (const x of cvLoad.steps) {
+  let going = null;
+  const item = (x, into, sub) => {
     const li = document.createElement("li");
-    li.className = x.state;
+    li.className = x.state + (sub ? " sub" : "");
     li.innerHTML = '<span class="ic"></span><span class="tx"></span>';
     li.querySelector(".tx").textContent = x.label + (x.note ? `: ${x.note}` : "");
     li.title = li.querySelector(".tx").textContent;
-    list.appendChild(li);
-    if (x.state === "now") requestAnimationFrame(() => { const t = li.offsetTop - list.offsetTop; if (t < list.scrollTop || t + li.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = t - list.clientHeight / 2; });
+    into.appendChild(li);
+    if (x.state === "now") going = li; // (the deepest going: kept in view)
+  };
+  for (const x of cvLoad.steps) {
+    item(x, list, false);
+    for (const y of x.subs || []) item(y, list, true);
   }
+  if (going) requestAnimationFrame(() => { const t = going.offsetTop - list.offsetTop; if (t < list.scrollTop || t + going.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = t - list.clientHeight / 2; });
 }
-// cvStep: step i going (its note: how it goes), then done or warn.
-function cvStep(i, state, note) { const x = cvLoad.steps[i]; if (!x) return; x.state = state; if (note !== undefined) x.note = note; cvLoadShow(); }
+// cvStep: step i going (its note: how it goes), then done or warn (its
+// sub-steps not over yet: done with it).
+function cvStep(i, state, note) {
+  const x = cvLoad.steps[i];
+  if (!x) return;
+  x.state = state;
+  if (note !== undefined) x.note = note;
+  if (state === "done" || state === "warn") for (const y of x.subs || []) if (y.state === "pending" || y.state === "now") { y.state = state === "done" ? "done" : y.state === "now" ? "warn" : "pending"; y.note = ""; }
+  cvLoadShow();
+}
+// cvSub: step i's sub-step k going (note: how), the ones before it over.
+function cvSub(i, k, note = "") {
+  const subs = cvLoad.steps[i]?.subs;
+  if (!subs?.[k]) return;
+  subs.forEach((y, j) => { if (j < k && (y.state === "pending" || y.state === "now")) { y.state = "done"; y.note = ""; } });
+  subs[k].state = "now";
+  subs[k].note = note;
+  cvLoadShow();
+}
 async function openCombine() {
   $("combineView").hidden = false;
   if (!cvs.cv) {
@@ -4167,6 +4194,25 @@ async function cvFindModel(ref, seen) {
   if (!seen.has(ref.folder)) seen.set(ref.folder, await getJSON(`/batches/${encodeURIComponent(ref.folder)}/models`).catch(() => []));
   return seen.get(ref.folder).find((m) => m.name === ref.model && m.format === "obj") ?? null;
 }
+// cvFillSubs: a fill's sub-steps as it's made (s: as saved): its three
+// stages, each object cut out of it, then kept in one piece and its mesh.
+function cvFillSubs(s, objs) {
+  const named = new Map(objs.map((o) => [o.id, o.name]));
+  return [{ label: "Place the container's walls", state: "pending" }, { label: "Keep it off the walls", state: "pending" }, { label: "Fill the inside", state: "pending" },
+    ...(s.fill.cuts || []).filter((c) => named.has(c.id)).map((c) => ({ label: `Cut ${named.get(c.id)}`, state: "pending", cut: named.get(c.id) })),
+    { label: "Keep it in one piece", state: "pending" }, { label: "Make its mesh", state: "pending" }];
+}
+// cvFillSub: what making a fill says (its status) as its sub-step going.
+function cvFillSub(i, t) {
+  const subs = cvLoad.steps[i]?.subs;
+  if (!subs || !t) return;
+  const k = t.startsWith("Fill: placing") ? 0 : t.startsWith("Fill: keeping") ? 1 : t.startsWith("Fill: filling") ? 2
+    : t === "Cut: keeping it in one piece" ? subs.length - 2 : t === "Cut: making its mesh" ? subs.length - 1
+    : subs.findIndex((y) => y.cut && (t.startsWith(`Cut: ${y.cut} `) || t.startsWith(`Cut: ${y.cut}'s`)));
+  if (k < 0) return;
+  const how = subs[k].cut ? t.slice(`Cut: ${subs[k].cut}`.length).replace(/^'s /, "").trim() : "";
+  cvSub(i, k, how);
+}
 async function cvOpenWork(name) {
   let w;
   try { w = await getJSON(`/combine/works/${encodeURIComponent(name)}`); } catch (e) { return log(`opening ${name}: ${e.message}`, "error"); }
@@ -4180,7 +4226,7 @@ async function cvOpenWork(name) {
   cvLoad.steps = [{ label: `Read ${name}`, state: "done" },
     ...objs.map((s) => ({ label: `${s.kind === "model" ? "Load" : "Add"} ${s.name}`, state: "pending" })),
     ...(objs.some((s) => s.fill) ? [{ label: "Set the fills and their cuts", state: "pending" }] : []),
-    ...made.map((s) => ({ label: `Make ${s.name}`, state: "pending" })),
+    ...made.map((s) => ({ label: `Make ${s.name}`, state: "pending", subs: cvFillSubs(s, objs) })),
     { label: "Finish", state: "pending" }];
   let at = 1;
   cvs.loading = true;
@@ -4207,6 +4253,7 @@ async function cvOpenWork(name) {
     if (o.missing) cvStep(i, "warn", "missing (renamed, moved or deleted): Re-link it in Objects");
     else cvStep(i, "done", "");
   }
+  for (const st of cvLoad.steps) for (const y of st.subs || []) if (y.cut && missing.includes(y.cut)) { y.state = "warn"; y.note = "missing: not cut till it's linked"; }
   const fills = [];
   if (objs.some((s) => s.fill)) {
     const i = at++;
@@ -4228,7 +4275,7 @@ async function cvOpenWork(name) {
   for (const f of fills) {
     const i = at++;
     cvStep(i, "now");
-    try { await cv.makeFill(f, (t) => cvStep(i, "now", t)); cvStep(i, "done", ""); }
+    try { await cv.makeFill(f, (t) => cvFillSub(i, t)); cvStep(i, "done", ""); }
     catch (e) { bad = `${f.name}: ${e.message}`; cvStep(i, "warn", e.message); }
   }
   const fin = at++;
