@@ -457,6 +457,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-obj.on { border-color: var(--accent); background: var(--accent-weak); }
 .cv-obj .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-obj .kd { color: var(--muted); font-size: 11px; }
+.cv-obj .rm { width: 20px; height: 20px; padding: 0; margin-left: -2px; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; border-radius: 4px; color: var(--muted); font-size: 11px; cursor: pointer; visibility: hidden; }
+.cv-obj:hover .rm { visibility: visible; }
+.cv-obj .rm:hover { color: var(--danger, #e5484d); background: var(--panel-2); }
 .cv-obj.hid .nm { opacity: .45; }
 .cv-obj .eye { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; color: var(--muted); cursor: pointer; }
 .cv-obj .eye svg { width: 15px; height: 15px; }
@@ -1318,7 +1321,7 @@ kbd + kbd { margin-left: 3px; }
       </section>
       <section id="cvSel" hidden>
         <div class="mve-head"><b>Selected</b></div>
-        <div class="mve-row"><input type="text" id="cvName" spellcheck="false" autocomplete="off" title="Its name"><button class="btn small danger" id="cvRemove" title="Take it out of the space">Remove</button></div>
+        <div class="mve-row"><input type="text" id="cvName" spellcheck="false" autocomplete="off" title="Its name"></div>
         <div class="cv-xyz" id="cvPos"><span class="mve-label">Move (mm)</span><b class="x">X</b><input type="number" step="1" data-k="x"><b class="y">Y</b><input type="number" step="1" data-k="y"><b class="z">Z</b><input type="number" step="1" data-k="z"></div>
         <div class="mve-row"><span class="mve-label">Turn (°)</span><span class="spacer"></span><button class="btn small" id="cvDrop" title="Down (or up) so its lowest point is on the floor">Drop to Floor</button></div>
         <div class="mve-rot cv-rot" id="cvRot" title="Hover one to see the circle it turns the object along (the arrow: the way it would go)">
@@ -3646,9 +3649,13 @@ function cvShow() {
   for (const o of objs) {
     const row = document.createElement("div");
     row.className = "cv-obj" + (o === s ? " on" : "") + (o.visible ? "" : " hid");
-    row.innerHTML = `<button class="eye" title="${o.visible ? "Hide it (left out of Save)" : "Show it"}">${o.visible ? eyeOn : eyeOff}</button><span class="nm"></span><span class="kd">${o.kind}</span>`;
+    row.innerHTML = `<button class="eye" title="${o.visible ? "Hide it (left out of Save)" : "Show it"}">${o.visible ? eyeOn : eyeOff}</button><span class="nm"></span><span class="kd">${o.kind}</span><button class="rm" title="Take it out of the space" aria-label="Remove">✕</button>`;
     row.querySelector(".nm").textContent = row.querySelector(".nm").title = o.name;
-    row.onclick = (e) => { if (e.target.closest(".eye")) cv.setVisible(o, !o.visible); else cv.select(o === cv.selected() ? null : o); }; // (the selected one again: none)
+    row.onclick = (e) => {
+      if (e.target.closest(".eye")) cv.setVisible(o, !o.visible);
+      else if (e.target.closest(".rm")) cv.remove(o); // (an undo brings it back)
+      else cv.select(o === cv.selected() ? null : o); // (the selected one again: none)
+    };
     list.appendChild(row);
   }
   $("cvSel").hidden = !s;
@@ -3720,7 +3727,6 @@ $("cvFCont").onclick = () => {
   cvs.cv.pick((o) => o.kind !== "fill", (p, o) => { cvStatus(""); cvs.cv.setFill(f, { container: o }, `Set the container of ${f.name}`); });
 };
 $("cvName").addEventListener("change", () => { const s = cvs.cv.selected(); if (s && $("cvName").value.trim()) cvs.cv.rename(s, $("cvName").value.trim()); });
-$("cvRemove").onclick = () => { const s = cvs.cv.selected(); if (s) cvs.cv.remove(s); };
 $("cvPos").addEventListener("change", (e) => {
   const s = cvs.cv.selected(), k = e.target.dataset.k;
   if (!s || !k) return;
