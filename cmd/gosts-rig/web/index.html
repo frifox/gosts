@@ -3542,8 +3542,12 @@ async function openCombine() {
     cvs.cv.setOnChange(cvShow);
   }
   cvs.cv.start();
+  cvInset();
   cvShow();
 }
+// cvInset: the sidebar over the stage's right: the view centered in the rest.
+function cvInset() { cvs.cv?.setInset($("cvSide").hidden ? 0 : $("cvSide").offsetWidth + 12); }
+new ResizeObserver(cvInset).observe($("cvSide"));
 function closeCombine() {
   cvs.cv?.unpick();
   cvs.cv?.stop();

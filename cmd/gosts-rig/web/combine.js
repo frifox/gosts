@@ -285,25 +285,44 @@ export function createCombine(canvas) {
   const changed = () => { outline(); onChange(); };
   api.setOnChange = (f) => { onChange = f; }; // (the page's panel: as it is)
 
+  // inset: the stage's right side covered (the sidebar), px; the picture
+  // shifted left by half of it (eased there), so what's in the middle is in
+  // the middle of what's seen (as the model editor does). shift: now.
+  let inset = 0, shift = 0, last = 0;
+  api.setInset = (px) => { inset = Math.max(0, px); };
+  function offset() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (shift > 0.5 && w && h) camera.setViewOffset(w, h, shift, 0, w, h);
+    else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+  }
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
     if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) {
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
-      camera.updateProjectionMatrix();
+      offset();
     }
   }
+  function shiftTick(dt) {
+    const want = inset / 2;
+    if (Math.abs(want - shift) < 0.5) { if (shift !== want) { shift = want; offset(); } return; }
+    shift += (want - shift) * Math.min(1, dt * 12);
+    offset();
+  }
   let running = false;
-  function loop() {
+  function loop(now) {
     if (!running) return;
     resize();
+    shiftTick(last ? Math.min(0.1, (now - last) / 1000) : 1);
+    last = now;
     controls.update();
     if (selected?.visible) sel.update();
     renderer.render(scene, camera);
     requestAnimationFrame(loop);
   }
-  api.start = () => { if (!running) { running = true; requestAnimationFrame(loop); } };
+  api.start = () => { if (!running) { running = true; last = 0; requestAnimationFrame(loop); } };
   api.stop = () => { running = false; };
 
   function outline() {
@@ -399,7 +418,9 @@ export function createCombine(canvas) {
     for (const o of vis) box.expandByObject(o.holder);
     if (box.isEmpty()) box.set(new THREE.Vector3(-0.1, 0, -0.1), new THREE.Vector3(0.1, 0.1, 0.1));
     const c = box.getCenter(new THREE.Vector3()), r = Math.max(box.getBoundingSphere(new THREE.Sphere()).radius, 0.02);
-    const dist = r / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.1;
+    // (fitted to the part not under the sidebar: the narrower way, across or up)
+    const seen = Math.max(0.2, (canvas.clientWidth - inset) / Math.max(1, canvas.clientHeight)), half = THREE.MathUtils.degToRad(camera.fov / 2);
+    const dist = r / Math.sin(Math.min(half, Math.atan(Math.tan(half) * seen))) * 1.1;
     camera.position.copy(c).addScaledVector(VIEWS["3d"], dist);
     camera.near = dist / 1000; camera.far = dist * 50;
     camera.updateProjectionMatrix();
