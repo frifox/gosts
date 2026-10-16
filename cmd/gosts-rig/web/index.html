@@ -474,7 +474,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-pick-grid .nm { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-pick-grid .sub { font-size: 11px; color: var(--muted); }
 #cvName { flex: 1; min-width: 0; }
-.cv-side input#cvBelow, .cv-side input#cvTol, .cv-side input#cvRes, .cv-side input#cvOffset, .cv-side input#cvSmooth { width: 64px; }
+.cv-side input#cvBelow, .cv-side input#cvTol, .cv-side input#cvFTol, .cv-side input#cvFRes, .cv-side input#cvRes, .cv-side input#cvOffset, .cv-side input#cvSmooth { width: 64px; }
 .mv-edit { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; overflow-y: auto; cursor: default; background: rgba(18,21,28,.94); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px; color: var(--text); font-size: 13px; }
 #mveAxesGo [data-axis] { font-weight: 600; }
@@ -1311,7 +1311,11 @@ kbd + kbd { margin-left: 3px; }
         <div class="cv-xyz" id="cvRot"><span class="mve-label">Turn (°)</span><b class="x">X</b><input type="number" step="5" data-k="x"><b class="y">Y</b><input type="number" step="5" data-k="y"><b class="z">Z</b><input type="number" step="5" data-k="z"></div>
         <div class="mve-row"><span class="mve-label">Turn 90°</span><span class="btn-join" id="cvTurn"><button class="btn small" data-t="x">X</button><button class="btn small" data-t="y">Y</button><button class="btn small" data-t="z">Z</button></span><span class="spacer"></span><button class="btn small" id="cvDrop" title="Down (or up) so its lowest point is on the floor">Drop to Floor</button></div>
         <div class="cv-xyz" id="cvSize" hidden><span class="mve-label">Size (mm)</span></div>
-        <div class="mve-row" id="cvFillInfo" hidden><span class="mve-label" id="cvFillText"></span></div>
+        <div id="cvFillInfo" hidden>
+          <div class="mve-row"><span class="mve-label" id="cvFillText"></span></div>
+          <div class="mve-row"><span class="mve-label">Off the walls</span><input type="number" id="cvFTol" step="0.5" min="0"><span class="mve-label">mm</span></div>
+          <div class="mve-row"><span class="mve-label">Resolution</span><input type="number" id="cvFRes" step="0.5" min="0.2"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small primary" id="cvRemake" title="Made again with these (from its container as it's placed now), its cuts made again in it">Make Again</button></div>
+        </div>
       </section>
       <section id="cvFillSec" hidden>
         <div class="mve-head"><b>Container Fill</b>The inside of the selected object (a case, a bowl), up to a fill line, kept off its walls: an insert.</div>
@@ -3655,7 +3659,12 @@ function cvShow() {
     $("cvFillInfo").hidden = !isFill;
     if (isFill) {
       const f = s.fill;
-      $("cvFillText").textContent = `${f.from}: ${cvNum(f.res * 1000)} mm voxels, ${cvNum(f.tol * 1000)} mm off its walls`;
+      $("cvFillText").textContent = `From ${f.from}`;
+      if ($("cvFillInfo").dataset.of !== `${s.id}/${f.gen}`) { // (its own values, when it's selected or made again)
+        $("cvFillInfo").dataset.of = `${s.id}/${f.gen}`;
+        $("cvFTol").value = cvNum(f.tol * 1000); $("cvFRes").value = cvNum(f.res * 1000);
+      }
+      $("cvRemake").disabled = busy;
     }
   }
   // Container Fill: the selected (not a fill) the container.
@@ -3740,6 +3749,16 @@ $("cvMakeFill").onclick = async () => {
 };
 segPick("cvMode", "above");
 $("cvMode").onclick = (e) => { if (e.target.dataset?.v) segPick("cvMode", e.target.dataset.v); };
+$("cvRemake").onclick = async () => {
+  const s = cvs.cv.selected();
+  if (s?.kind !== "fill" || cvs.busy) return;
+  cvs.busy = true; cvShow();
+  try {
+    const { removed } = await cvs.cv.remakeFill(s, Math.max(0, Number($("cvFTol").value) || 0) / 1000, Math.max(0.2, Number($("cvFRes").value) || 1) / 1000, (t) => cvStatus(t ? t + "…" : ""));
+    cvStatus(removed ? `Made again (pieces left loose taken out: ${removed} voxels)` : "Made again", "ok");
+  } catch (e) { cvStatus(e.message, "bad"); }
+  cvs.busy = false; cvShow();
+};
 $("cvUncut").onclick = () => { const s = cvs.cv.selected(), f = cvFill(); if (s && f && !cvs.busy) cvs.cv.uncut(f, s); };
 $("cvCut").onclick = async () => {
   const s = cvs.cv.selected(), f = cvFill();

@@ -612,6 +612,40 @@ export function createCombine(canvas) {
   // inside (x, z: a point in it, seen from above the level), kept tol (m) off its surfaces;
   // voxels res (m) apart. status(text) as it goes.
   api.makeFill = async (container, level, inside, tol, res, status = () => {}) => {
+    const { g, removed } = await fillVoxels(container, level, inside, tol, res, status);
+    status("Fill: making its mesh");
+    await tick();
+    const mesh = new THREE.Mesh(surfaceMesh(g), FILL_MAT()), inner = new THREE.Group();
+    inner.add(mesh);
+    const holder = new THREE.Group();
+    holder.add(inner);
+    scene.add(holder);
+    const f = { id: ++seq, kind: "fill", name: `Fill (${container.name})`, holder, inner, visible: true, pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 },
+      fill: { g, from: container.name, container, level, inside: { x: inside.x, z: inside.z }, tol, res, base: g.v.slice(), gen: 0, cuts: new Map() } };
+    f.fill.made = fillKey(f);
+    objects.push(f);
+    selected = f;
+    const i = objects.length - 1;
+    record(`Make ${f.name}`, () => detach(f), () => attach(f, i));
+    changed();
+    status("");
+    return { fill: f, removed };
+  };
+  // remakeFill: f made again from its container (as placed now), level and
+  // inside point, tol (m) off its walls, voxels res (m) apart; its cuts made
+  // again in it. How many voxels the islands left took.
+  api.remakeFill = (f, tol, res, status = () => {}) => serial(async () => {
+    const F = f.fill;
+    if (!objects.includes(F.container)) throw new Error(`its container (${F.container.name}) isn't in the space: put it back (Undo) to make it again`);
+    const { g } = await fillVoxels(F.container, F.level, F.inside, tol, res, status);
+    const b = { g: F.g, base: F.base, tol: F.tol, res: F.res }, a = { g, base: g.v.slice(), tol, res };
+    const set = (st) => { Object.assign(F, st); F.g = st.g; F.gen++; }; // (gen: its cuts worked out again, for this grid)
+    set(a);
+    record(`Remake ${f.name}`, () => set(b), () => set(a));
+    return { removed: await recut(f, status) };
+  });
+  // fillVoxels: makeFill's voxels (g), and how many the islands left took.
+  async function fillVoxels(container, level, inside, tol, res, status) {
     status("Fill: placing the container's walls");
     await tick();
     container.holder.updateMatrixWorld(true);
@@ -636,30 +670,14 @@ export function createCombine(canvas) {
     const open = flood(g, seedAt(sy), (i) => d[i] > r2, fill);
     if (open) throw new Error("the fill runs out of the container (a gap in its walls under the level?): try a bigger tolerance or another point");
     g.v = fill;
-    const removed = keepLargest(g);
-    status("Fill: making its mesh");
-    await tick();
-    const mesh = new THREE.Mesh(surfaceMesh(g), FILL_MAT()), inner = new THREE.Group();
-    inner.add(mesh);
-    const holder = new THREE.Group();
-    holder.add(inner);
-    scene.add(holder);
-    const f = { id: ++seq, kind: "fill", name: `Fill (${container.name})`, holder, inner, visible: true, pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 },
-      fill: { g, from: container.name, tol, res, level, base: g.v.slice(), cuts: new Map(), made: "[]" } };
-    objects.push(f);
-    selected = f;
-    const i = objects.length - 1;
-    record(`Make ${f.name}`, () => detach(f), () => attach(f, i));
-    changed();
-    status("");
-    return { fill: f, removed };
-  };
+    return { g, removed: keepLargest(g) };
+  }
   // Cuts stay live: a fill keeps its voxels as made (base) and its cuts (obj
   // → opts: { offset, keepAbove, smooth }; idx: the voxels it takes, worked
   // out with obj at key). Moved, turned, resized, taken out or put back: the
   // fill's cut again from its base (in the background, one at a time).
   const cutKey = (o) => JSON.stringify([objects.includes(o), o.pos, o.rot, o.size ?? null]);
-  const fillKey = (f) => JSON.stringify([...f.fill.cuts].map(([o, c]) => [o.id, cutKey(o), c.opts]));
+  const fillKey = (f) => JSON.stringify([f.fill.gen, ...[...f.fill.cuts].map(([o, c]) => [o.id, cutKey(o), c.opts])]);
   // cutVoxels: the voxels of F obj takes (as placed): it grown by offset (m),
   // smoothed by smooth (m: its hollows filled in, never cutting less), and
   // with keepAbove everything over it too (so it can go in from above).
@@ -698,7 +716,7 @@ export function createCombine(canvas) {
     const F = f.fill.g, v = f.fill.base.slice();
     for (const [o, c] of f.fill.cuts) {
       if (!objects.includes(o)) continue;
-      const key = cutKey(o);
+      const key = cutKey(o) + f.fill.gen;
       if (c.key !== key) { c.idx = await cutVoxels(F, o, c.opts, status); c.key = key; }
       for (const i of c.idx) v[i] = 0;
     }
@@ -739,7 +757,7 @@ export function createCombine(canvas) {
   // smooth (m) }), and kept cut as it moves; cut again: with these opts.
   // How many voxels the islands left took.
   api.cut = (f, obj, opts, status = () => {}) => serial(async () => {
-    const F = f.fill.g, c = { opts: { ...opts }, key: cutKey(obj) };
+    const F = f.fill.g, c = { opts: { ...opts }, key: cutKey(obj) + f.fill.gen };
     c.idx = await cutVoxels(F, obj, c.opts, status);
     if (!c.idx.some((i) => f.fill.base[i])) { status(""); throw new Error(`${obj.name} doesn't reach into the fill`); }
     const b = f.fill.cuts.get(obj), cuts = f.fill.cuts;
