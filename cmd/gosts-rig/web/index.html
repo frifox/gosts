@@ -844,7 +844,7 @@ kbd + kbd { margin-left: 3px; }
   <h1>GoSTS</h1><span class="sub">Photogrammetry Rig</span>
   <span class="spacer"></span>
   <button class="btn small primary" id="hdrBuilding" hidden>Building…</button><span class="spacer"></span>
-  <span class="btn-join hdr-3d"><button class="btn small" id="hdrEdit3D" title="Open a model (picked from your captures) in the model editor">Edit 3D</button><button class="btn small" id="hdrCombine3D" title="Combine 3D Models: put models and shapes together, make a Container Fill (an insert)">Combine 3D</button></span>
+  <span class="btn-join hdr-3d"><button class="btn small" id="hdrEdit3D" title="Open a model (picked from your captures) in the model editor">Edit 3D</button><button class="btn small" id="hdrCombine3D" title="Put models and simple shapes together, each placed on its own; make a Container Fill (an insert) and cut the objects out of it; save it as a model">Combine 3D</button></span>
   <span class="pill-group">
     <span class="pill" title="This page's link to the app (gosts-rig)"><svg class="pill-ic" id="wsDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v3M10 2v3M4.5 5h7v2a3.5 3.5 0 0 1-7 0zM8 10.5V14"/></svg><span id="wsText">ws: connecting…</span></span>
     <span class="pill" title="The servo controller board (the rig's servos)"><svg class="pill-ic" id="busDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.2"/><path d="M6.5 2v2M9.5 2v2M6.5 12v2M9.5 12v2M2 6.5h2M2 9.5h2M12 6.5h2M12 9.5h2"/></svg><span id="busText">rig: none</span></span>
@@ -1113,7 +1113,6 @@ kbd + kbd { margin-left: 3px; }
   <div class="gallery-bar"><nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="galleryUp" data-tip="~/Pictures/gosts-rig" aria-label="All captures (Backspace)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>root</button><button class="btn small crumb-btn crumb-cur" id="galleryTitle" tabindex="-1" hidden></button></span></nav><button class="icon-btn pen-btn" id="galleryRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button><span class="spacer"></span>
     <button class="btn small primary" id="resumeCapBtn" hidden>Resume</button>
     <button class="btn small" id="buildModelBtn" title="Build a 3D model from these photos, with Apple's Object Capture" hidden>Build Model</button><span class="spacer"></span>
-    <button class="btn small" id="combineBtn" title="Put models and simple shapes together, each placed on its own; make a Container Fill (an insert) and cut the objects out of it; save it as a model">Combine 3D Models</button>
     <span class="views seg" id="galleryViewSeg"><button data-v="grid">Thumbnails</button><button data-v="list">List</button></span>
     <button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
   <!-- Build Model: Object Capture's options (apple-obj-cap's), Process, and how the build goes; the photos marked below. -->
@@ -3552,7 +3551,7 @@ $("vnavMap").addEventListener("pointerdown", (e) => {
 // ✕ on the photo closes the photo (the gallery stays: its ✕ closes it).
 $("viewerClose").onclick = closePhoto;
 // ---------------------------------------------------------------- combine
-// Combine Models (Browse's button): models and shapes in one space, a
+// Combine Models (the header's Combine 3D): models and shapes in one space, a
 // Container Fill made from one and cut by the others, saved as a model (see
 // combine.js). Made when first opened; kept, as it is, when closed.
 const cvs = { cv: null, busy: false };
@@ -3579,11 +3578,10 @@ function closeCombine() {
   cvs.cv?.stop();
   $("combineView").hidden = true;
 }
-$("combineBtn").onclick = openCombine;
 // cvCloseAsk: Esc: closed, asked first if anything's in it (an Esc by mistake).
 async function cvCloseAsk() {
   if (cvs.cv?.objects().length && !await confirmDanger("Close Combine Models?",
-    "What's in it stays till the page is reloaded or gosts-rig restarts (Combine Models again brings it back); Save is how to keep it for good.",
+    "What's in it stays till the page is reloaded or gosts-rig restarts (Combine 3D again brings it back); Save is how to keep it for good.",
     "Close")) return;
   closeCombine();
 }
