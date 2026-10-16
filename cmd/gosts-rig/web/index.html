@@ -545,6 +545,13 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mv-edit .mve-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 /* Combine 3D's Save (and what's said under it): at the bottom of the sidebar, always: pushed down when there's room, kept in view as it scrolls. */
 .cv-foot { margin-top: auto; position: sticky; bottom: -12px; z-index: 4; display: flex; flex-direction: column; gap: 12px; margin-bottom: -12px; padding-bottom: 12px; background: rgb(18,21,28); }
+/* Save's Capture Name / Model Name: side by side, one joined field, a slash between (a folder in a folder). */
+.cv-path { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); row-gap: 4px; font-size: 12px; color: var(--muted); }
+.cv-path input[type=text] { width: 100%; min-width: 0; }
+.cv-path #cvSaveFolder { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.cv-path #cvSaveName { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.cv-path-sep { display: flex; align-items: center; padding: 0 7px; border: 1px solid var(--border); border-left: 0; border-right: 0; background: var(--panel); color: var(--muted); font: 13px var(--mono); }
+.cv-path input:focus { position: relative; z-index: 1; }
 .cv-ic-label { display: inline-flex; align-items: center; gap: 5px; }
 .cv-ic-label svg { width: 13px; height: 13px; flex: none; }
 .mv-edit .mve-field input { width: 100%; box-sizing: border-box; }
@@ -1413,8 +1420,7 @@ kbd + kbd { margin-left: 3px; }
       <div class="cv-foot">
       <section>
         <div class="mve-head"><b>Save</b></div>
-        <div class="mve-field"><label for="cvSaveFolder" class="cv-ic-label"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg>Capture Name</label><input type="text" id="cvSaveFolder" value="inserts" spellcheck="false" autocomplete="off"></div>
-        <div class="mve-field"><label for="cvSaveName" class="cv-ic-label"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.75l5.5 3.1v6.3L8 14.25l-5.5-3.1v-6.3z"/><path d="M2.5 4.85L8 8l5.5-3.15M8 8v6.25"/></svg>Model Name</label><input type="text" id="cvSaveName" value="insert" spellcheck="false" autocomplete="off"></div>
+        <div class="cv-path" title="Where Export puts it: the capture (a folder in your captures) / the model (a folder in it)"><label for="cvSaveFolder" class="cv-ic-label"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg>Capture Name</label><span></span><label for="cvSaveName" class="cv-ic-label"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.75l5.5 3.1v6.3L8 14.25l-5.5-3.1v-6.3z"/><path d="M2.5 4.85L8 8l5.5-3.15M8 8v6.25"/></svg>Model Name</label><input type="text" id="cvSaveFolder" value="inserts" spellcheck="false" autocomplete="off"><span class="cv-path-sep">/</span><input type="text" id="cvSaveName" value="insert" spellcheck="false" autocomplete="off"></div>
         <label class="mp-check"><input type="checkbox" id="cvSTL"> <span>Also an STL (z up)</span></label>
         <div class="mve-row"><span class="spacer"></span><button class="btn small" id="cvSave" title="Keep this work as a file (Name.combine.json) in the captures' folder: Browse opens it again">Save</button><button class="btn small primary" id="cvExport" title="The objects shown as one model (OBJ, mm), in the capture folder named">Export</button></div>
       </section>
