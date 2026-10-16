@@ -768,10 +768,9 @@ export function createCombine(canvas) {
   // cutVoxels: the voxels of F obj takes (as placed): it grown by offset (m),
   // smoothed by smooth (m: its hollows filled in, never cutting less), and
   // with keepAbove everything over it too (so it can go in from above); and
-  // with colMax (m), the fill's columns standing inside it (its footprint's
-  // holes, seen from above: in a prop guard, say) cut down to colMax over
-  // the lowest of it round them.
-  async function cutVoxels(F, obj, { offset, keepAbove, smooth, colMax = null }, status) {
+  // with colMax (m), the fill's columns standing inside it cut down to colMax
+  // over the cut round them (see domes). base: the fill's voxels as made.
+  async function cutVoxels(F, base, obj, { offset, keepAbove, smooth, colMax = null }, status) {
     const h = F.h, gr = Math.ceil(offset / h), sm = Math.ceil(smooth / h);
     status(`Cut: ${obj.name} as voxels`);
     await tick();
@@ -785,7 +784,7 @@ export function createCombine(canvas) {
       grow(s, smooth / h); // (closing: grown, then shrunk back as much: hollows filled, never less than it was)
       shrink(s, smooth / h);
     }
-    const [ox, oy, oz] = s.off, out = [];
+    const [ox, oy, oz] = s.off, out = [], lows = new Int32Array(s.nx * s.nz).fill(-1);
     for (let z = 0; z < s.nz; z++) for (let x = 0; x < s.nx; x++) {
       const fx = x + ox, fz = z + oz;
       if (fx < 0 || fz < 0 || fx >= F.nx || fz >= F.nz) continue;
@@ -796,55 +795,59 @@ export function createCombine(canvas) {
         const fy = y + oy;
         if (!keepAbove && fy >= 0 && fy < F.ny) out.push(at(F, fx, fy, fz));
       }
+      lows[z * s.nx + x] = low;
       if (keepAbove && low >= 0) for (let fy = Math.max(0, low + oy); fy < F.ny; fy++) out.push(at(F, fx, fy, fz));
     }
     if (keepAbove && colMax != null) {
       status(`Cut: ${obj.name}'s inside columns`);
       await tick();
       const ch = Math.round(colMax / h);
-      for (const { cells, base } of footHoles(s)) for (const c of cells) {
+      for (const { c, to } of domes(F, base, s, lows)) {
         const fx = (c % s.nx) + ox, fz = Math.floor(c / s.nx) + oz;
-        if (fx < 0 || fz < 0 || fx >= F.nx || fz >= F.nz) continue;
-        for (let fy = Math.max(0, base + oy + ch); fy < F.ny; fy++) out.push(at(F, fx, fy, fz));
+        for (let fy = Math.max(0, to + ch); fy < F.ny; fy++) out.push(at(F, fx, fy, fz));
       }
     }
     return Int32Array.from(out);
   }
-  // footHoles: the holes in s's footprint (seen from above: columns with
-  // none of it, walled in by it all round), each: cells (z * nx + x) and
-  // base (the lowest of it next to them, y).
-  function footHoles(s) {
-    const { nx, ny, nz } = s, N = nx * nz, low = new Int32Array(N).fill(-1);
-    for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) for (let y = 0; y < ny; y++) if (s.v[(z * ny + y) * nx + x]) { low[z * nx + x] = y; break; }
-    const seen = new Uint8Array(N), q = new Int32Array(N), nb = (c) => {
-      const x = c % nx, z = (c - x) / nx, r = [];
-      if (x > 0) r.push(c - 1); if (x < nx - 1) r.push(c + 1); if (z > 0) r.push(c - nx); if (z < nz - 1) r.push(c + nx);
-      return r;
-    };
-    // (outside: the empty columns reached from the edges)
-    let head = 0, tail = 0;
+  // domes: the fill's columns standing inside an Open Above cut: seen from
+  // above, the fill's top once cut (t: under the object where it's over the
+  // fill, as made elsewhere), then how high a way out from each column to
+  // the fill round the cut can stay (r: the highest such way's lowest point,
+  // spread from s's edges, all outside it). A column standing over its way
+  // out (t > r: a pillar in the object's hollows, the fill in a prop guard's
+  // ring) is one: each, c (z * s.nx + x) and to (r, F's y): cut down to
+  // there (and colMax over it).
+  function domes(F, base, s, lows) {
+    const { nx, nz } = s, [ox, oy, oz] = s.off, N = nx * nz, t = new Int32Array(N).fill(-1), r = new Int32Array(N).fill(-2);
+    for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) {
+      const fx = x + ox, fz = z + oz;
+      if (fx < 0 || fz < 0 || fx >= F.nx || fz >= F.nz) continue;
+      let top = -1;
+      for (let fy = F.ny - 1; fy >= 0; fy--) if (base[at(F, fx, fy, fz)]) { top = fy; break; }
+      const c = z * nx + x;
+      t[c] = lows[c] >= 0 ? Math.min(top, lows[c] + oy - 1) : top;
+    }
+    // (highest way out first: a queue per height, -1 … F.ny)
+    const H = F.ny + 2, buckets = Array.from({ length: H }, () => []);
+    let hi = -1;
+    const push = (c, v) => { r[c] = v; buckets[v + 1].push(c); if (v + 1 > hi) hi = v + 1; };
     for (let c = 0; c < N; c++) {
       const x = c % nx, z = (c - x) / nx;
-      if ((x === 0 || z === 0 || x === nx - 1 || z === nz - 1) && low[c] < 0) { seen[c] = 1; q[tail++] = c; }
+      if (x === 0 || z === 0 || x === nx - 1 || z === nz - 1) push(c, t[c]);
     }
-    while (head < tail) for (const n of nb(q[head++])) if (!seen[n] && low[n] < 0) { seen[n] = 1; q[tail++] = n; }
-    const holes = [];
-    for (let c0 = 0; c0 < N; c0++) {
-      if (seen[c0] || low[c0] >= 0) continue;
-      const cells = [];
-      let base = Infinity;
-      head = tail = 0; seen[c0] = 1; q[tail++] = c0;
-      while (head < tail) {
-        const c = q[head++];
-        cells.push(c);
-        for (const n of nb(c)) {
-          if (low[n] >= 0) base = Math.min(base, low[n]);
-          else if (!seen[n]) { seen[n] = 1; q[tail++] = n; }
-        }
+    while (hi >= 0) {
+      const b = buckets[hi];
+      if (!b.length) { hi--; continue; }
+      const c = b.pop(), x = c % nx, z = (c - x) / nx, v = r[c];
+      if (v + 1 !== hi) continue; // (seen at a higher way already)
+      for (const n of [x > 0 ? c - 1 : -1, x < nx - 1 ? c + 1 : -1, z > 0 ? c - nx : -1, z < nz - 1 ? c + nx : -1]) {
+        if (n < 0 || r[n] !== -2) continue;
+        push(n, Math.min(v, t[n]));
       }
-      holes.push({ cells, base });
     }
-    return holes;
+    const out = [];
+    for (let c = 0; c < N; c++) if (t[c] > r[c] && r[c] >= 0) out.push({ c, to: r[c] + 1 });
+    return out;
   }
   // recut: f from its base, each cut (of things in the space) taken out, then
   // kept in one piece. How many voxels the islands left took.
@@ -854,7 +857,7 @@ export function createCombine(canvas) {
     for (const [o, c] of f.fill.cuts) {
       if (!objects.includes(o)) continue;
       const key = cutKey(o) + f.fill.gen;
-      if (c.key !== key) { c.idx = await cutVoxels(F, o, c.opts, status); c.key = key; c.hits = c.idx.reduce((n, i) => n + f.fill.base[i], 0); }
+      if (c.key !== key) { c.idx = await cutVoxels(F, f.fill.base, o, c.opts, status); c.key = key; c.hits = c.idx.reduce((n, i) => n + f.fill.base[i], 0); }
       for (const i of c.idx) v[i] = 0;
     }
     status("Cut: keeping it in one piece");
