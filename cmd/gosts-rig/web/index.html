@@ -609,6 +609,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 /* Top left: the view presets, then Axis and Ground (icon toggles: lit when shown). */
 .mv-corner { position: absolute; top: 12px; left: 12px; z-index: 2; display: flex; align-items: center; gap: 10px; }
 .mv-corner .views.seg { margin: 0; }
+/* The look (Textured, Clay, Wireframe): the view's top right, left of a sidebar when there's one. */
+.mv-corner.mv-corner-r { left: auto; right: 12px; }
+.mv-edit:not([hidden]) ~ .mv-corner-r { right: calc(12px + 330px + 12px); }
 .mv-show { display: flex; } /* (one group: joined) */
 .mv-show button { position: relative; }
 .mv-show button + button { margin-left: -1px; border-top-left-radius: 0 !important; border-bottom-left-radius: 0 !important; }
@@ -1246,7 +1249,6 @@ kbd + kbd { margin-left: 3px; }
   <div class="viewer-bar">
     <nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="mvHome" data-tip="~/Pictures/gosts-rig" aria-label="All captures"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>root</button><button class="btn small crumb-btn" id="mvBack" title="Back to the capture (Esc)">Capture</button><button class="btn small crumb-btn crumb-cur" id="mvFile" tabindex="-1"></button></span><button class="icon-btn pen-btn" id="mvRename" title="Rename this model (its folder)" aria-label="Rename this model"></button><span class="crumb-meta" id="mvCap"></span></nav>
     <span class="spacer"></span>
-    <span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, gray">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span>
     <span class="btn-join" id="mvTools"><button class="btn small" id="mvMeasureBtn" title="Click two points on the model: the distance between them (M; again or Esc: off)">Measure</button><button class="btn small" id="mvEditBtn" title="Level it, turn it onto an axis, scale it to a known size, delete parts; save it as a new model (OBJ, and STL) (E; again or Esc: closed)">Edit</button></span>
     <button class="btn small" id="mvReveal" title="Its folder, in the Finder">Show in Finder</button>
     <button class="icon-btn" id="mvClose" title="Close (Esc)" aria-label="Close">✕</button>
@@ -1317,7 +1319,8 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-row mve-saverow"><button class="btn small" id="mveUndo" disabled>Undo</button><button class="btn small" id="mveResetEdit" disabled>Reset Edits</button><span class="spacer"></span><span class="mve-warn" id="mveWarn"></span><button class="btn small primary" id="mveSave">Save</button></div>
         <div class="mve-status" id="mveStatus"></div>
       </section>
-    </aside></div>
+    </aside>
+    <div class="mv-corner mv-corner-r"><span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, gray">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span></div></div>
 </div>
 <div class="modal-backdrop" id="renameModal" style="z-index:60" hidden>
   <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="renameTitle" style="width:min(420px,100%)">
@@ -1367,7 +1370,6 @@ kbd + kbd { margin-left: 3px; }
 <!-- Combine Models: models and shapes in one space, a Container Fill made and cut (see combine.js). -->
 <div class="viewer" id="combineView" hidden>
   <div class="viewer-bar"><b class="cv-title">Combine Models</b><span class="spacer"></span>
-    <span class="views seg" id="cvLook"><button data-v="textured" title="As built: the models' textures">Textured</button><button data-v="clay" title="The models' shape only, gray">Clay</button><button data-v="wire" title="Everything as its triangles">Wireframe</button></span>
     <button class="btn small" id="cvFit" title="All of it in view (F)">Fit</button>
     <button class="icon-btn" id="cvClose" title="Close (Esc): kept as it is till it's opened again" aria-label="Close">✕</button></div>
   <div class="stage model-stage" id="cvStage"><canvas id="cvCanvas"></canvas>
@@ -1420,6 +1422,7 @@ kbd + kbd { margin-left: 3px; }
       <div class="mve-status" id="cvStatus"></div>
       </div>
     </aside>
+    <div class="mv-corner mv-corner-r"><span class="views seg" id="cvLook"><button data-v="textured" title="As built: the models' textures">Textured</button><button data-v="clay" title="The models' shape only, gray">Clay</button><button data-v="wire" title="Everything as its triangles">Wireframe</button></span></div>
   </div>
 </div>
 <!-- Combine Models' Add Model: a small Browse, its captures with models, then a capture's models. -->

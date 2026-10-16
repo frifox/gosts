@@ -118,7 +118,7 @@ file.
 space. Select one from the list or by clicking it, then drag it along the floor
 (hold Shift to lift or lower it instead) or type where it goes. Only the selected one drags: a drag anywhere else
 moves the view (with ⌘ or Ctrl held, turns it). As in the model viewer: the view's presets (3D, Front, Side, Top) and the Axis and Ground toggles
-at the top left, and Textured, Clay or Wireframe by Fit. Turn it with the X, Y, Z sliders (or ±90°, or type the
+at the top left, and Textured, Clay or Wireframe at the top right (left of the sidebar). Turn it with the X, Y, Z sliders (or ±90°, or type the
 degrees); hovering one shows the circle it turns the object along, an arrow on it the way it'd go: −90° or left of
 the slider's handle one way, +90° or right of it the other.
 
