@@ -3863,8 +3863,18 @@ function cvCutList(f) {
     wrap.appendChild(row);
     list.appendChild(wrap);
     const caret = row.querySelector(".caret");
-    caret.onclick = () => { cvs.cutOpen = open ? null : o.id; cvShow(); };
-    caret.onpointerenter = () => { clearTimeout(cvs.cutClose); if (cvs.cutOpen !== o.id) { cvs.cutOpen = o.id; cvShow(); } };
+    // (clicked while open: closed, edits not applied dropped, and not opened
+    // again by hovering till the pointer's left the caret and come back)
+    caret.onclick = () => {
+      if (open) { cvs.cutOpen = null; cvs.cutDraft = null; cvs.cutNoHover = o.id; } else cvs.cutOpen = o.id;
+      cvShow();
+    };
+    caret.onpointerenter = () => {
+      if (cvs.cutNoHover === o.id) return;
+      clearTimeout(cvs.cutClose);
+      if (cvs.cutOpen !== o.id) { cvs.cutOpen = o.id; cvShow(); }
+    };
+    caret.onpointerleave = () => { if (cvs.cutNoHover === o.id) cvs.cutNoHover = null; };
     wrap.onpointerenter = () => { clearTimeout(cvs.cutClose); cvs.cutHover = o.id; };
     wrap.onpointerleave = () => { if (cvs.cutHover === o.id) cvs.cutHover = null; clearTimeout(cvs.cutClose); cvs.cutClose = setTimeout(cvCutClose, 250); };
     if (open) cvs.cutHover = o.id; // (made again under the pointer: it's on it)
