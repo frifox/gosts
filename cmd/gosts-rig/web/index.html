@@ -649,7 +649,24 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .mve-warn:not(:empty) { flex-basis: 100%; order: -1; text-align: right; }
 .mv-edit #mveSave.confirm { background: var(--warn); border-color: var(--warn); color: #111; }
 .mve-status { font-size: 12px; color: var(--muted); min-height: 1em; }
+/* A work file opening: a bar, then its steps (pending ○, going: a spinner, done ✓, warn ⚠), at most 300px tall. */
+.cv-load { display: flex; flex-direction: column; gap: 6px; }
+.cv-load[hidden] { display: none; }
+.cv-load-bar { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.cv-load-bar span { display: block; height: 100%; width: 0; background: var(--ok, #46a758); transition: width .2s; }
+.cv-load-list { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.cv-load-list li { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--muted); }
+.cv-load-list li .tx { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-load-list li.now, .cv-load-list li.done { color: var(--text); }
+.cv-load-list li.warn { color: var(--warn, #ffb020); }
+.cv-load-list .ic { flex: none; width: 12px; height: 12px; border-radius: 50%; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; line-height: 1; }
+.cv-load-list li.pending .ic { border: 1.5px solid var(--border); }
+.cv-load-list li.now .ic { border: 2px solid var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.cv-load-list li.done .ic { background: var(--ok, #46a758); }
+.cv-load-list li.done .ic::after { content: ""; width: 5px; height: 3px; border: solid #fff; border-width: 0 0 1.5px 1.5px; transform: translateY(-1px) rotate(-45deg); }
+.cv-load-list li.warn .ic::after { content: "⚠"; }
 .mve-status.bad { color: var(--bad); } .mve-status.ok { color: var(--ok); }
+.mve-status.with-check { display: flex; align-items: center; gap: 5px; }
 .thumb.model .mbadge { position: absolute; top: 7px; left: 7px; padding: 2px 6px; border-radius: 6px; background: var(--accent); color: #fff; font: 600 11px var(--mono); letter-spacing: .03em; }
 .thumb.model .mph { aspect-ratio: 3 / 2; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; }
 .thumb.model .mph.busy::before { content: ""; width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255,255,255,.15); border-top-color: var(--accent); animation: spin .8s linear infinite; }
@@ -1386,6 +1403,7 @@ kbd + kbd { margin-left: 3px; }
         <label class="mp-check"><input type="checkbox" id="cvSTL" checked> <span>Also an STL (z up)</span></label>
         <div class="mve-row"><span class="spacer"></span><button class="btn small" id="cvSave" title="Keep this work as a file (Name.combine.json) in the captures' folder: Browse opens it again">Save</button><button class="btn small primary" id="cvExport" title="The objects shown as one model (OBJ, mm), in the capture folder named">Export</button></div>
       </section>
+      <div class="cv-load" id="cvLoad" hidden><div class="cv-load-bar"><span id="cvLoadBar"></span></div><ol class="cv-load-list" id="cvLoadList"></ol></div>
       <div class="mve-status" id="cvStatus"></div>
     </aside>
   </div>
@@ -3610,7 +3628,33 @@ $("viewerClose").onclick = closePhoto;
 const cvs = { cv: null, busy: false };
 const eyeOn = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>';
 const eyeOff = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><path d="M2.5 13.5l11-11"/></svg>';
-function cvStatus(text, cls = "") { $("cvStatus").textContent = text; $("cvStatus").className = "mve-status " + cls; }
+function cvStatus(text, cls = "", check = false) {
+  if (!cvs.loading) $("cvLoad").hidden = true; // (a work opened: its steps shown till the next word here)
+  $("cvStatus").textContent = text;
+  if (check) $("cvStatus").insertAdjacentHTML("afterbegin", '<svg class="cv-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5"/></svg>');
+  $("cvStatus").className = "mve-status " + cls + (check ? " with-check" : "");
+}
+// cvLoad: a work file opening, step by step: each pending, going (now),
+// done, or not as it should be (warn: a model missing, a fill not made);
+// a bar for how far along.
+const cvLoad = { steps: [] };
+function cvLoadShow() {
+  const list = $("cvLoadList"), n = cvLoad.steps.length;
+  const done = cvLoad.steps.filter((x) => x.state === "done" || x.state === "warn").length;
+  $("cvLoadBar").style.width = `${n ? (100 * done) / n : 0}%`;
+  list.innerHTML = "";
+  for (const x of cvLoad.steps) {
+    const li = document.createElement("li");
+    li.className = x.state;
+    li.innerHTML = '<span class="ic"></span><span class="tx"></span>';
+    li.querySelector(".tx").textContent = x.label + (x.note ? `: ${x.note}` : "");
+    li.title = li.querySelector(".tx").textContent;
+    list.appendChild(li);
+    if (x.state === "now") requestAnimationFrame(() => { const t = li.offsetTop - list.offsetTop; if (t < list.scrollTop || t + li.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = t - list.clientHeight / 2; });
+  }
+}
+// cvStep: step i going (its note: how it goes), then done or warn.
+function cvStep(i, state, note) { const x = cvLoad.steps[i]; if (!x) return; x.state = state; if (note !== undefined) x.note = note; cvLoadShow(); }
 async function openCombine() {
   $("combineView").hidden = false;
   if (!cvs.cv) {
@@ -4112,7 +4156,7 @@ $("cvSave").onclick = async () => {
     const r = await fetch(`/combine/works/${encodeURIComponent(name)}${replace ? "?trash=1" : ""}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cvWork()) });
     if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
     cvs.work = name;
-    cvStatus(`Saved: ${name} (Browse opens it again)`, "ok");
+    cvStatus("Saved", "ok", true);
     if (!$("gallery").hidden && state.gal.where === null) galleryAgain();
   } catch (e) { cvStatus(e.message, "bad"); }
   cvs.busy = false; cvShow();
@@ -4129,31 +4173,52 @@ async function cvOpenWork(name) {
   await openCombine();
   const cv = cvs.cv;
   if (cv.objects().length && !await confirmDanger(`Open ${name}?`, "What's in Combine 3D now is put away for it (Save it first to keep it).", "Open")) return;
+  // Its steps: read, each object, the fills set (and their cuts), each fill
+  // made, then done (its cuts all made).
+  const objs = (w.objects || []).filter((s) => s.kind === "model" || s.kind === "fill" || ["box", "cylinder", "sphere"].includes(s.kind));
+  const made = objs.filter((s) => s.fill?.made);
+  cvLoad.steps = [{ label: `Read ${name}`, state: "done" },
+    ...objs.map((s) => ({ label: `${s.kind === "model" ? "Load" : "Add"} ${s.name}`, state: "pending" })),
+    ...(objs.some((s) => s.fill) ? [{ label: "Set the fills and their cuts", state: "pending" }] : []),
+    ...made.map((s) => ({ label: `Make ${s.name}`, state: "pending" })),
+    { label: "Finish", state: "pending" }];
+  let at = 1;
+  cvs.loading = true;
+  $("cvLoad").hidden = false;
+  $("cvStatus").textContent = "";
+  cvLoadShow();
   cvs.busy = true; cvShow();
-  const status = (t) => cvStatus(t ? t + "…" : "");
   cv.clear();
   const byId = new Map(), seen = new Map(), missing = [];
-  for (const s of w.objects || []) {
+  for (const s of objs) {
+    const i = at++;
+    cvStep(i, "now");
     let o = null;
     if (s.kind === "model") {
       const m = await cvFindModel(s.ref, seen);
-      if (m) try { o = await cv.addModel(s.name, modelBase(s.ref.folder, m), m.file, window.modelEdit.UNITS[m.edit?.units] || 1, status, { ref: s.ref }); } catch {}
+      if (m) try { o = await cv.addModel(s.name, modelBase(s.ref.folder, m), m.file, window.modelEdit.UNITS[m.edit?.units] || 1, (t) => cvStep(i, "now", t), { ref: s.ref }); } catch {}
       if (!o) { o = cv.addMissing(s.name, s.dims?.length === 3 ? s.dims : [0.05, 0.05, 0.05], { ref: s.ref }); missing.push(s.name); }
     } else if (s.kind === "fill") o = cv.addFill();
-    else if (["box", "cylinder", "sphere"].includes(s.kind)) { o = cv.addShape(s.kind); if (s.size) cv.setSize(o, s.size); }
-    if (!o) continue;
+    else { o = cv.addShape(s.kind); if (s.size) cv.setSize(o, s.size); }
     if (s.name && o.name !== s.name) cv.rename(o, s.name);
     if (o.kind !== "fill") cv.setPose(o, s.pos, s.rot);
     if (s.visible === false) cv.setVisible(o, false);
     byId.set(s.id, { o, s });
+    if (o.missing) cvStep(i, "warn", "missing (renamed, moved or deleted): Re-link it in Objects");
+    else cvStep(i, "done", "");
   }
   const fills = [];
-  for (const { o, s } of byId.values()) {
-    if (!s.fill) continue;
-    const F = s.fill;
-    cv.setFill(o, { container: byId.get(F.container)?.o ?? null, top: F.top ?? null, offset: F.offset ?? 0, inside: F.inside ?? null, tol: F.tol ?? 0.001, res: F.res ?? 0.001 });
-    for (const c of F.cuts || []) { const t = byId.get(c.id)?.o; if (t) cv.setCut(o, t, c.opts); }
-    if (F.made) fills.push(o);
+  if (objs.some((s) => s.fill)) {
+    const i = at++;
+    cvStep(i, "now");
+    for (const { o, s } of byId.values()) {
+      if (!s.fill) continue;
+      const F = s.fill;
+      cv.setFill(o, { container: byId.get(F.container)?.o ?? null, top: F.top ?? null, offset: F.offset ?? 0, inside: F.inside ?? null, tol: F.tol ?? 0.001, res: F.res ?? 0.001 });
+      for (const c of F.cuts || []) { const t = byId.get(c.id)?.o; if (t) cv.setCut(o, t, c.opts); }
+      if (F.made) fills.push(o);
+    }
+    cvStep(i, "done");
   }
   cv.select(null);
   cv.fit();
@@ -4161,13 +4226,20 @@ async function cvOpenWork(name) {
   $("cvSaveName").value = name;
   let bad = "";
   for (const f of fills) {
-    try { await cv.makeFill(f, status); } catch (e) { bad = `${f.name}: ${e.message}`; }
+    const i = at++;
+    cvStep(i, "now");
+    try { await cv.makeFill(f, (t) => cvStep(i, "now", t)); cvStep(i, "done", ""); }
+    catch (e) { bad = `${f.name}: ${e.message}`; cvStep(i, "warn", e.message); }
   }
+  const fin = at++;
+  cvStep(fin, "now");
   await new Promise((r) => setTimeout(r, 300));
   while (cv.recutting()) await new Promise((r) => setTimeout(r, 100)); // (its cuts, as they're made in the background: done first)
   cv.clearHistory(); // (opened: nothing to undo)
+  cvStep(fin, "done");
   cvs.busy = false; cvShow();
   cvStatus(missing.length ? `Opened ${name}: ${missing.length} missing (${missing.join(", ")}): Re-link ${missing.length === 1 ? "it" : "them"} in Objects, or remove ${missing.length === 1 ? "it" : "them"}` : bad ? `Opened ${name}; ${bad}` : `Opened ${name}`, missing.length || bad ? "bad" : "ok");
+  cvs.loading = false;
 }
 // cvRelink: a missing model (or any) found again: the model it is now picked.
 function cvRelink(o) {
