@@ -282,7 +282,7 @@ export function createCombine(canvas) {
   const objects = [];
   let seq = 0, selected = null, onChange = () => {}, picking = null, dragging = null;
   const api = {};
-  const changed = () => { outline(); onChange(); };
+  const changed = () => { outline(); onChange(); if (!dragging) queueRecut(); }; // (a cut thing moved: its fill cut again, once let go)
   api.setOnChange = (f) => { onChange = f; }; // (the page's panel: as it is)
 
   // History: each step done (what: its name; undo, redo: back and on), the
@@ -645,7 +645,7 @@ export function createCombine(canvas) {
     holder.add(inner);
     scene.add(holder);
     const f = { id: ++seq, kind: "fill", name: `Fill (${container.name})`, holder, inner, visible: true, pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 },
-      fill: { g, from: container.name, tol, res, level } };
+      fill: { g, from: container.name, tol, res, level, base: g.v.slice(), cuts: new Map(), made: "[]" } };
     objects.push(f);
     selected = f;
     const i = objects.length - 1;
@@ -654,12 +654,17 @@ export function createCombine(canvas) {
     status("");
     return { fill: f, removed };
   };
-  // cut: obj (as placed) cut out of fill f: grown by offset (m), smoothed by
-  // smooth (m: its hollows filled in, never cutting less), and with keepAbove
-  // everything over it too (so it can go in from above); then f kept in one
-  // piece. How many voxels the islands left took.
-  api.cut = async (f, obj, { offset, keepAbove, smooth }, status = () => {}) => {
-    const F = f.fill.g, h = F.h, gr = Math.ceil(offset / h), sm = Math.ceil(smooth / h);
+  // Cuts stay live: a fill keeps its voxels as made (base) and its cuts (obj
+  // → opts: { offset, keepAbove, smooth }; idx: the voxels it takes, worked
+  // out with obj at key). Moved, turned, resized, taken out or put back: the
+  // fill's cut again from its base (in the background, one at a time).
+  const cutKey = (o) => JSON.stringify([objects.includes(o), o.pos, o.rot, o.size ?? null]);
+  const fillKey = (f) => JSON.stringify([...f.fill.cuts].map(([o, c]) => [o.id, cutKey(o), c.opts]));
+  // cutVoxels: the voxels of F obj takes (as placed): it grown by offset (m),
+  // smoothed by smooth (m: its hollows filled in, never cutting less), and
+  // with keepAbove everything over it too (so it can go in from above).
+  async function cutVoxels(F, obj, { offset, keepAbove, smooth }, status) {
+    const h = F.h, gr = Math.ceil(offset / h), sm = Math.ceil(smooth / h);
     status(`Cut: ${obj.name} as voxels`);
     await tick();
     const s = solid(F, obj.holder, gr + 2 * sm + 3);
@@ -672,9 +677,7 @@ export function createCombine(canvas) {
       grow(s, smooth / h); // (closing: grown, then shrunk back as much: hollows filled, never less than it was)
       shrink(s, smooth / h);
     }
-    const before = F.v.slice();
-    const [ox, oy, oz] = s.off;
-    let cut = 0;
+    const [ox, oy, oz] = s.off, out = [];
     for (let z = 0; z < s.nz; z++) for (let x = 0; x < s.nx; x++) {
       const fx = x + ox, fz = z + oz;
       if (fx < 0 || fz < 0 || fx >= F.nx || fz >= F.nz) continue;
@@ -683,22 +686,75 @@ export function createCombine(canvas) {
         if (!s.v[(z * s.ny + y) * s.nx + x]) continue;
         if (low < 0) low = y;
         const fy = y + oy;
-        if (!keepAbove && fy >= 0 && fy < F.ny) { const i = at(F, fx, fy, fz); if (F.v[i]) { F.v[i] = 0; cut++; } }
+        if (!keepAbove && fy >= 0 && fy < F.ny) out.push(at(F, fx, fy, fz));
       }
-      if (keepAbove && low >= 0) for (let fy = Math.max(0, low + oy); fy < F.ny; fy++) { const i = at(F, fx, fy, fz); if (F.v[i]) { F.v[i] = 0; cut++; } }
+      if (keepAbove && low >= 0) for (let fy = Math.max(0, low + oy); fy < F.ny; fy++) out.push(at(F, fx, fy, fz));
     }
-    if (!cut) { status(""); throw new Error(`${obj.name} doesn't reach into the fill`); }
+    return Int32Array.from(out);
+  }
+  // recut: f from its base, each cut (of things in the space) taken out, then
+  // kept in one piece. How many voxels the islands left took.
+  async function recut(f, status) {
+    const F = f.fill.g, v = f.fill.base.slice();
+    for (const [o, c] of f.fill.cuts) {
+      if (!objects.includes(o)) continue;
+      const key = cutKey(o);
+      if (c.key !== key) { c.idx = await cutVoxels(F, o, c.opts, status); c.key = key; }
+      for (const i of c.idx) v[i] = 0;
+    }
     status("Cut: keeping it in one piece");
     await tick();
-    const removed = keepLargest(F), after = F.v.slice();
-    // (each way: a copy of its voxels in, so the next cut, done in place,
-    // doesn't touch the one kept)
-    record(`Cut ${obj.name}`, () => { F.v = before.slice(); remesh(f); }, () => { F.v = after.slice(); remesh(f); });
+    F.v = v;
+    const removed = keepLargest(F);
     status("Cut: making its mesh");
     await tick();
+    f.fill.made = fillKey(f);
     remesh(f);
     status("");
-    return { removed };
+    return removed;
+  }
+  // serial: jobs on the fills, one after another.
+  let chain = Promise.resolve(), queued = false, recutting = 0, onStatus = () => {};
+  const serial = (job) => (chain = chain.then(job, job));
+  api.setOnStatus = (f) => { onStatus = f; };
+  api.recutting = () => recutting > 0;
+  function queueRecut() {
+    if (queued || !objects.some((o) => o.kind === "fill" && o.fill.made !== fillKey(o))) return;
+    queued = true;
+    setTimeout(() => serial(async () => {
+      queued = false;
+      recutting++;
+      changed();
+      onStatus("Cut again…", "");
+      let removed = 0;
+      try {
+        for (const f of objects.filter((o) => o.kind === "fill" && o.fill.made !== fillKey(o))) removed += await recut(f, (t) => onStatus(t ? t + "…" : "", ""));
+        onStatus(removed ? `Cut again (pieces left loose taken out: ${removed} voxels)` : "Cut again", "ok");
+      } catch (e) { onStatus(e.message, "bad"); }
+      recutting--;
+      changed();
+    }), 150);
+  }
+  // cut: obj (as placed) cut out of fill f (opts: { offset (m), keepAbove,
+  // smooth (m) }), and kept cut as it moves; cut again: with these opts.
+  // How many voxels the islands left took.
+  api.cut = (f, obj, opts, status = () => {}) => serial(async () => {
+    const F = f.fill.g, c = { opts: { ...opts }, key: cutKey(obj) };
+    c.idx = await cutVoxels(F, obj, c.opts, status);
+    if (!c.idx.some((i) => f.fill.base[i])) { status(""); throw new Error(`${obj.name} doesn't reach into the fill`); }
+    const b = f.fill.cuts.get(obj), cuts = f.fill.cuts;
+    cuts.set(obj, c);
+    record(`Cut ${obj.name}`, () => { if (b) cuts.set(obj, b); else cuts.delete(obj); }, () => cuts.set(obj, c));
+    return { removed: await recut(f, status) };
+  });
+  // cutOf: obj's cut in f (its opts), if it's cut; uncut: that cut taken back.
+  api.cutOf = (f, obj) => f?.fill.cuts.get(obj)?.opts ?? null;
+  api.uncut = (f, obj) => {
+    const c = f.fill.cuts.get(obj), cuts = f.fill.cuts;
+    if (!c) return;
+    cuts.delete(obj);
+    record(`Uncut ${obj.name}`, () => cuts.set(obj, c), () => cuts.delete(obj));
+    changed();
   };
   function remesh(f) {
     const m = f.inner.children[0];

@@ -1321,10 +1321,10 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-row"><span class="mve-label">Resolution</span><input type="number" id="cvRes" value="1" step="0.5" min="0.2"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small primary" id="cvMakeFill" disabled>Make Fill</button></div>
       </section>
       <section id="cvCutSec" hidden>
-        <div class="mve-head"><b>Cut from Fill</b>The selected object cut out of the fill (as it's placed now); the fill kept in one piece.</div>
+        <div class="mve-head"><b>Cut from Fill</b>The selected object cut out of the fill; the fill kept in one piece. It stays cut as it's moved or turned: the fill's cut again where it's let go.</div>
         <div class="mve-row"><span class="mve-label">Margin</span><input type="number" id="cvOffset" value="1" step="0.5" min="0"><span class="mve-label">mm round it</span></div>
         <div class="mve-row"><span class="mve-label">Cut</span><span class="views seg" id="cvMode"><button data-v="above" title="It and all above it: it goes in from the top">Open Above</button><button data-v="around" title="Just round it">Around</button></span></div>
-        <div class="mve-row"><span class="mve-label">Smooth</span><input type="number" id="cvSmooth" value="0" step="1" min="0" title="0: following its shape exactly; more: its nooks filled in, the cut rounder (never less than the margin)"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small primary" id="cvCut" disabled>Cut</button></div>
+        <div class="mve-row"><span class="mve-label">Smooth</span><input type="number" id="cvSmooth" value="0" step="1" min="0" title="0: following its shape exactly; more: its nooks filled in, the cut rounder (never less than the margin)"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small" id="cvUncut" hidden title="Its cut taken back out of the fill">Uncut</button><button class="btn small primary" id="cvCut" disabled>Cut</button></div>
       </section>
       <section>
         <div class="mve-head"><b>Save</b>The objects shown (hide the others with their eye) as one model.</div>
@@ -3541,6 +3541,7 @@ async function openCombine() {
     const { createCombine } = await import("./combine.js");
     cvs.cv = createCombine($("cvCanvas"));
     cvs.cv.setOnChange(cvShow);
+    cvs.cv.setOnStatus(cvStatus); // (the fill cut again, as a cut thing moves)
   }
   cvs.cv.start();
   cvInset();
@@ -3623,7 +3624,7 @@ const cvNum = (n, d = 1) => String(Math.round(n * 10 ** d) / 10 ** d);
 function cvShow() {
   const cv = cvs.cv;
   if (!cv) return;
-  const objs = cv.objects(), s = cv.selected();
+  const objs = cv.objects(), s = cv.selected(), busy = cvs.busy || cv.recutting(); // (busy: a fill being cut again, too)
   const list = $("cvList");
   list.innerHTML = objs.length ? "" : '<div class="mve-label">None yet: add a model or a shape.</div>';
   for (const o of objs) {
@@ -3664,16 +3665,24 @@ function cvShow() {
   $("cvInText").textContent = cvs.inside ? "picked" : "";
   $("cvPickTop").classList.toggle("on", cvs.top != null);
   $("cvPickIn").disabled = cvs.top == null;
-  $("cvMakeFill").disabled = cvs.busy || !(canFill && cvs.top != null && cvs.inside);
+  $("cvMakeFill").disabled = busy || !(canFill && cvs.top != null && cvs.inside);
   cvMarks();
   // Cut: a fill there, and the selected not one.
   const fill = cvFill();
   $("cvCutSec").hidden = !fill || !canFill || s === cvs.containerOf?.get(fill);
-  $("cvCut").disabled = cvs.busy;
-  $("cvSave").disabled = cvs.busy || !objs.some((o) => o.visible);
+  const cutOf = fill && s ? cv.cutOf(fill, s) : null;
+  if (s !== cvs.cutSel) { // (one already cut, selected: its options shown)
+    cvs.cutSel = s;
+    if (cutOf) { $("cvOffset").value = +(cutOf.offset * 1000).toFixed(2); $("cvSmooth").value = +(cutOf.smooth * 1000).toFixed(2); segPick("cvMode", cutOf.keepAbove ? "above" : "around"); }
+  }
+  $("cvCut").textContent = cutOf ? "Cut Again" : "Cut";
+  $("cvCut").title = cutOf ? "Its cut made again with these options" : "";
+  $("cvUncut").hidden = !cutOf;
+  $("cvCut").disabled = $("cvUncut").disabled = busy;
+  $("cvSave").disabled = busy || !objs.some((o) => o.visible);
   const un = cv.undoName(), re = cv.redoName();
-  $("cvUndo").disabled = cvs.busy || !un; $("cvUndo").title = un ? `Undo ${un} (⌘Z)` : "Undo (⌘Z)";
-  $("cvRedo").disabled = cvs.busy || !re; $("cvRedo").title = re ? `Redo ${re} (⇧⌘Z)` : "Redo (⇧⌘Z)";
+  $("cvUndo").disabled = busy || !un; $("cvUndo").title = un ? `Undo ${un} (⌘Z)` : "Undo (⌘Z)";
+  $("cvRedo").disabled = busy || !re; $("cvRedo").title = re ? `Redo ${re} (⇧⌘Z)` : "Redo (⇧⌘Z)";
 }
 // cvFill: the fill to cut (the last made, shown or not).
 function cvFill() { return [...cvs.cv.objects()].reverse().find((o) => o.kind === "fill"); }
@@ -3731,6 +3740,7 @@ $("cvMakeFill").onclick = async () => {
 };
 segPick("cvMode", "above");
 $("cvMode").onclick = (e) => { if (e.target.dataset?.v) segPick("cvMode", e.target.dataset.v); };
+$("cvUncut").onclick = () => { const s = cvs.cv.selected(), f = cvFill(); if (s && f && !cvs.busy) cvs.cv.uncut(f, s); };
 $("cvCut").onclick = async () => {
   const s = cvs.cv.selected(), f = cvFill();
   if (!s || !f) return;
@@ -3753,6 +3763,7 @@ $("cvRedo").onclick = () => cvUndo(true);
 $("cvSave").onclick = async () => {
   const to = $("cvSaveName").value.trim(), folder = $("cvSaveFolder").value.trim();
   if (!to || !folder) return cvStatus("A name and a folder, first", "bad");
+  if (cvs.cv.recutting()) return;
   cvs.busy = true; cvShow();
   try {
     const res = await window.modelEdit.write(cvs.cv.parts(), { units: "mm", stl: $("cvSTL").checked, name: to, progress: (t) => cvStatus(t + "…") });

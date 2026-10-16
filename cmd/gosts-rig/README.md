@@ -124,7 +124,9 @@ It can make a custom case insert, to print in foaming TPU, say:
 - **Cut from Fill**: select each object that goes in (a drone, goggles, a controller), placed where it'll sit, and cut
   it out with a margin round it. **Open Above** leaves room to drop it in from the top; **Around** only takes its shape.
   **Smooth** rounds the pocket off without ever cutting into the margin. Pieces a cut leaves loose are taken out, so
-  the insert stays in one piece.
+  the insert stays in one piece. Cuts stay live: move or turn a cut object and the fill is cut again where it's let
+  go, so several can be arranged after cutting. Selected again, a cut object shows its options: **Cut Again** with
+  new ones, or **Uncut**.
 - **Save** writes the objects shown (hide the rest with their eye) as one model, in mm, with an STL too.
 
 **Undo** and **Redo** (⌘Z, ⇧⌘Z) step back and on through everything done: moves and turns, sizes, objects added or
