@@ -112,7 +112,7 @@ file.
 
 ## Combining models
 
-**Edit 3D** in the header opens a model (picked from your captures, as Objects' Add: Model… picks one) with its editor open.
+**Edit 3D** in the header opens a model (picked from your captures, as Objects' Add: Model picks one) with its editor open.
 
 **Combine 3D** in the header puts models (picked from your captures) and simple shapes (box, cylinder, sphere) in one
 space. Select one from the list or by clicking it, then drag it along the floor

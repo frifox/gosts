@@ -456,9 +456,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-layers { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; background: var(--bg, rgba(0,0,0,.15)); overflow: hidden; }
 .cv-layers .cv-list { min-height: 200px; max-height: 320px; padding: 4px; }
 .cv-layers .cv-list > .mve-label { padding: 6px; white-space: normal; }
-.cv-layers-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-top: 1px solid var(--border); background: var(--panel-2); }
+.cv-layers-bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--border); background: var(--panel-2); }
+.cv-layers-bar .btn { padding-left: 6px; padding-right: 6px; }
 .cv-layers-bar .btn-join { flex: 1; display: flex; }
-.cv-layers-bar .btn-join .btn { flex: 1; padding-left: 4px; padding-right: 4px; }
+.cv-layers-bar .btn-join .btn { flex: 1; }
 .cv-obj { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
 .cv-obj:hover { background: var(--panel-2); }
 .cv-obj.on { border-color: var(--accent); background: var(--accent-weak); }
@@ -1332,7 +1333,7 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-row"><b class="cv-head">Objects</b><span class="spacer"></span><span class="btn-join"><button class="btn small mve-icon" id="cvUndo" disabled aria-label="Undo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5L2.5 6.5l3 3"/><path d="M2.5 6.5h7a4 4 0 0 1 0 8h-2"/></svg></button><button class="btn small mve-icon" id="cvRedo" disabled aria-label="Redo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l3 3-3 3"/><path d="M13.5 6.5h-7a4 4 0 0 0 0 8h2"/></svg></button></span></div>
         <div class="cv-layers">
           <div class="cv-list" id="cvList"><div class="mve-label">None yet: add a model or a shape.</div></div>
-          <div class="cv-layers-bar"><span class="mve-label">Add</span><span class="btn-join"><button class="btn small" id="cvAdd" title="A model, picked from your captures">Model…</button><button class="btn small" data-shape="box" title="A box">Box</button><button class="btn small" data-shape="cylinder" title="A cylinder">Cylinder</button><button class="btn small" data-shape="sphere" title="A sphere">Sphere</button><button class="btn small" id="cvAddFill" title="A container fill (an insert): click its container next, then its fill line, and Make Fill">Fill</button></span></div>
+          <div class="cv-layers-bar"><span class="mve-label">Add</span><button class="btn small" id="cvAdd" title="A model, picked from your captures">Model</button><span class="btn-join"><button class="btn small" data-shape="box" title="A box">Box</button><button class="btn small" data-shape="cylinder" title="A cylinder">Cylinder</button><button class="btn small" data-shape="sphere" title="A sphere">Sphere</button></span><button class="btn small" id="cvAddFill" title="A container fill (an insert): click its container next, then its fill line, and Make Fill">Fill</button></div>
         </div>
       </section>
       <section id="cvSel" hidden>
