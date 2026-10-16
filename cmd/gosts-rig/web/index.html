@@ -1321,7 +1321,7 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-row"><input type="text" id="cvName" spellcheck="false" autocomplete="off" title="Its name"><button class="btn small danger" id="cvRemove" title="Take it out of the space">Remove</button></div>
         <div class="cv-xyz" id="cvPos"><span class="mve-label">Move (mm)</span><b class="x">X</b><input type="number" step="1" data-k="x"><b class="y">Y</b><input type="number" step="1" data-k="y"><b class="z">Z</b><input type="number" step="1" data-k="z"></div>
         <div class="mve-row"><span class="mve-label">Turn (°)</span><span class="spacer"></span><button class="btn small" id="cvDrop" title="Down (or up) so its lowest point is on the floor">Drop to Floor</button></div>
-        <div class="mve-rot cv-rot" id="cvRot" title="Hover one to see the circle it turns the object along (the arrow: the way + goes)">
+        <div class="mve-rot cv-rot" id="cvRot" title="Hover one to see the circle it turns the object along (the arrow: the way it would go)">
           <b class="x">X</b><button class="btn small" data-rot="x" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="x"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="x" aria-label="Turn about X"></span><button class="btn small" data-rot="x" data-deg="90">+90°</button><input type="number" class="cv-deg" step="1" data-k="x" title="Degrees (type one)">
           <b class="y">Y</b><button class="btn small" data-rot="y" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="y"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="y" aria-label="Turn about Y"></span><button class="btn small" data-rot="y" data-deg="90">+90°</button><input type="number" class="cv-deg" step="1" data-k="y" title="Degrees (type one)">
           <b class="z">Z</b><button class="btn small" data-rot="z" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="z"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="z" aria-label="Turn about Z"></span><button class="btn small" data-rot="z" data-deg="90">+90°</button><input type="number" class="cv-deg" step="1" data-k="z" title="Degrees (type one)">
@@ -3754,12 +3754,24 @@ $("cvRot").addEventListener("change", (e) => {
 });
 $("cvRot").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-rot]"), s = cvs.cv.selected();
-  if (b && s) { const ax = b.dataset.rot; cvs.cv.setPose(s, null, { ...s.rot, [ax]: rotWrap(s.rot[ax] + Number(b.dataset.deg)) }); cvs.cv.turnRing(s, ax); }
+  if (b && s) { const ax = b.dataset.rot; cvs.cv.setPose(s, null, { ...s.rot, [ax]: rotWrap(s.rot[ax] + Number(b.dataset.deg)) }); cvs.cv.turnRing(s, ax, Math.sign(Number(b.dataset.deg))); }
 });
-$("cvRot").addEventListener("pointerover", (e) => {
-  const ax = e.target.closest("[data-rax], [data-rot], input[data-k]");
-  const k = ax?.dataset.rax || ax?.dataset.rot || ax?.dataset.k, s = cvs.cv.selected();
-  if (k && s && s.kind !== "fill") cvs.cv.turnRing(s, k);
+// The ring's arrow: the way it'd turn: −90° or left of a slider's handle,
+// down; +90° or right of it, up (a few px round the handle: as it was); the
+// degrees field: no arrow.
+$("cvRot").addEventListener("pointermove", (e) => {
+  const el = e.target.closest("[data-rax], [data-rot], input[data-k]"), s = cvs.cv.selected();
+  const k = el?.dataset.rax || el?.dataset.rot || el?.dataset.k;
+  if (!k || !s || s.kind === "fill") return;
+  let sign = 0;
+  if (el.dataset.rot) sign = Math.sign(Number(el.dataset.deg));
+  else if (el.dataset.rax) {
+    const d = el.closest(".mve-dual"), b = d.getBoundingClientRect(), v = Number(d.querySelector("input").value);
+    const dx = e.clientX - (b.left + 7 + (b.width - 14) * (v + 180) / 360);
+    sign = Math.abs(dx) <= 4 && cvs.ringSign?.[0] === k ? cvs.ringSign[1] : dx < 0 ? -1 : 1;
+  }
+  cvs.ringSign = [k, sign];
+  cvs.cv.turnRing(s, k, sign);
 });
 $("cvRot").addEventListener("pointerleave", () => cvs.cv.turnRing(null));
 $("cvDrop").onclick = () => { const s = cvs.cv.selected(); if (s) cvs.cv.drop(s); };

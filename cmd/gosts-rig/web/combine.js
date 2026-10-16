@@ -284,7 +284,7 @@ export function createCombine(canvas) {
   const api = {};
   const changed = () => {
     outline();
-    if (ring.visible) api.turnRing(ring.userData.o === selected ? selected : null, ring.userData.ax); // (where it is now; none once it's not selected)
+    if (ring.visible) api.turnRing(ring.userData.o === selected ? selected : null, ring.userData.ax, ring.userData.sign); // (where it is now; none once it's not selected)
     onChange();
     if (!dragging) queueRecut();
   }; // (a cut thing moved: its fill cut again, once let go)
@@ -451,7 +451,7 @@ export function createCombine(canvas) {
     if (rot) o.rot = rot;
     place(o);
     outline();
-    if (ring.visible && ring.userData.o === o) api.turnRing(o, ring.userData.ax);
+    if (ring.visible && ring.userData.o === o) api.turnRing(o, ring.userData.ax, ring.userData.sign);
   };
   api.setPose = (o, pos, rot) => {
     if (o.kind === "fill") return;
@@ -610,17 +610,20 @@ export function createCombine(canvas) {
   // ------------------------------------------------------------ turn ring
   // turnRing: a circle round o along which its ax slider (Blender's X, Y or
   // Z, as its rot applies them: X first, then Y, then Z) turns it, an
-  // arrowhead on it the way + goes; none (ax null).
+  // arrowhead on it the way it'd turn (sign: 1, up; −1, down; 0: no arrow);
+  // none (ax null).
   const ring = new THREE.Group();
   ring.visible = false;
   ring.renderOrder = 10;
   scene.add(ring);
   const RING_COLOR = { x: 0xe5484d, y: 0x46a758, z: 0x3e7bfa };
-  api.turnRing = (o, ax) => {
+  api.turnRing = (o, ax, sign = 1) => {
+    const key = o && JSON.stringify([o.id, ax, sign, o.pos, o.rot, o.size ?? null]);
+    if (ring.visible && key && ring.userData.key === key) return; // (as it is: not made again)
     for (const c of [...ring.children]) { ring.remove(c); c.geometry.dispose(); c.material.dispose(); }
     ring.visible = !!(o && ax && objects.includes(o));
     if (!ring.visible) return;
-    ring.userData = { o, ax };
+    ring.userData = { o, ax, sign, key };
     const d = Math.PI / 180, r = o.rot;
     const qz = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), r.z * d);
     const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, -1), r.y * d);
@@ -634,9 +637,14 @@ export function createCombine(canvas) {
     R *= 1.08;
     const mat = () => new THREE.MeshBasicMaterial({ color: RING_COLOR[ax], depthTest: false, transparent: true, opacity: 0.9 });
     const torus = new THREE.Mesh(new THREE.TorusGeometry(R, R * 0.012, 8, 128), mat());
-    const head = new THREE.Mesh(new THREE.ConeGeometry(R * 0.05, R * 0.14, 16), mat()); // (at +X of the circle, pointing +Y: the way + turns about +Z)
-    head.position.set(R, 0, 0);
-    for (const m of [torus, head]) { m.renderOrder = 10; ring.add(m); }
+    const parts = [torus];
+    if (sign) {
+      const head = new THREE.Mesh(new THREE.ConeGeometry(R * 0.05, R * 0.14, 16), mat()); // (at +X of the circle, pointing +Y: the way + turns about +Z; −Y: −)
+      head.position.set(R, 0, 0);
+      if (sign < 0) head.rotation.z = Math.PI;
+      parts.push(head);
+    }
+    for (const m of parts) { m.renderOrder = 10; ring.add(m); }
     ring.position.copy(at);
     ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
   };

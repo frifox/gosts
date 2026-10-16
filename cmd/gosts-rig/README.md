@@ -116,7 +116,8 @@ file.
 space. Select one from the list or by clicking it, then drag it along the floor
 (hold Shift to lift or lower it instead) or type where it goes. Only the selected one drags: a drag anywhere else
 moves the view (with ⌘ or Ctrl held, turns it). Turn it with the X, Y, Z sliders (or ±90°, or type the
-degrees); hovering one shows the circle it turns the object along, an arrow on it the way + goes.
+degrees); hovering one shows the circle it turns the object along, an arrow on it the way it'd go: −90° or left of
+the slider's handle one way, +90° or right of it the other.
 
 It can make a custom case insert, to print in foaming TPU, say:
 
