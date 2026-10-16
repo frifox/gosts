@@ -1320,7 +1320,7 @@ kbd + kbd { margin-left: 3px; }
       <section id="cvFillSec" hidden>
         <div class="mve-head"><b>Container Fill</b>The inside of its container (a case, a bowl), up to a fill line, kept off its walls: an insert.</div>
         <div class="mve-row"><span class="mve-label">Container</span><select id="cvFCont" class="cv-select"></select></div>
-        <div class="mve-row"><button class="btn small" id="cvPickTop" title="Click on the container where the fill should come up to: its level (the Offset moves it from there)">Pick Fill Line</button><span class="mve-label">Offset</span><input type="number" id="cvBelow" value="0" step="1" title="The fill line moved up (+) or down (−) from the point picked, mm"><span class="mve-label">mm</span></div>
+        <div class="mve-row"><button class="btn small" id="cvPickTop" title="Click on the container where the fill should come up to: its level (the Offset moves it from there)">Pick Fill Line</button><span class="mve-label">Offset</span><input type="number" id="cvBelow" value="0" step="1" title="The fill line moved down (+) or up (−) from the point picked, mm"><span class="mve-label">mm</span></div>
         <div class="mve-row"><span class="mve-label">Inside</span><button class="btn small" id="cvPickIn" title="Click on the fill line, over the container's inside: the fill grows from there (down to the floor, out to the walls)">Pick Point</button><span class="mve-label" id="cvInText"></span></div>
         <div class="mve-row"><span class="mve-label">Off the walls</span><input type="number" id="cvTol" value="1" step="0.5" min="0"><span class="mve-label">mm</span></div>
         <div class="mve-row"><span class="mve-label">Resolution</span><input type="number" id="cvRes" value="1" step="0.5" min="0.2"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small primary" id="cvMakeFill" disabled>Make Fill</button></div>
@@ -3695,7 +3695,7 @@ function cvFillShow(f, busy) {
 // point (the Offset as it's typed).
 function cvMarks() {
   const f = cvs.cv.selected(), st = f?.kind === "fill" ? f.fill.set : null;
-  const level = st && st.top != null ? st.top + (Number($("cvBelow").value) || 0) / 1000 : null;
+  const level = st && st.top != null ? st.top - (Number($("cvBelow").value) || 0) / 1000 : null;
   const box = st?.container && cvs.cv.objects().includes(st.container) ? cvs.cv.boxOf(st.container) : null;
   const p = st?.inside && level != null ? { x: st.inside.x, y: level, z: st.inside.z } : null; // (on the line, as it moves)
   cvs.cv.marks(box ? level : null, box, box ? p : null);

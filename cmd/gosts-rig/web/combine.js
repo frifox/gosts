@@ -609,11 +609,11 @@ export function createCombine(canvas) {
 
   // ------------------------------------------------------------ fill
   // A fill: an object of its own, set (set: its container, top: the fill
-  // line picked (y, m), offset: it moved from there (m, + up), inside: a
+  // line picked (y, m), offset: it moved from there (m, + down), inside: a
   // point over the inside (x, z), tol (m) off the walls, res (m) voxels),
-  // then made (g: its voxels, base: before its cuts). Its level: top + offset.
+  // then made (g: its voxels, base: before its cuts). Its level: top − offset.
   const FILL_SET = { container: null, top: null, offset: 0, inside: null, tol: 0.001, res: 0.001 };
-  api.fillLevel = (f) => (f.fill.set.top == null ? null : f.fill.set.top + f.fill.set.offset);
+  api.fillLevel = (f) => (f.fill.set.top == null ? null : f.fill.set.top - f.fill.set.offset);
   // addFill: a fill, not set yet.
   api.addFill = () => {
     const mesh = new THREE.Mesh(new THREE.BufferGeometry(), FILL_MAT()), inner = new THREE.Group(), holder = new THREE.Group();
@@ -655,7 +655,7 @@ export function createCombine(canvas) {
     const F = f.fill, st = { ...F.set };
     if (!st.container || st.top == null || !st.inside) throw new Error("pick its container, fill line and inside point first");
     if (!objects.includes(st.container)) throw new Error(`its container (${st.container.name}) isn't in the space`);
-    const { g } = await fillVoxels(st.container, st.top + st.offset, st.inside, st.tol, st.res, status);
+    const { g } = await fillVoxels(st.container, st.top - st.offset, st.inside, st.tol, st.res, status);
     const b = { g: F.g, base: F.base, madeWith: F.madeWith }, a = { g, base: g.v.slice(), madeWith: setKey(st) };
     const put = (x) => { Object.assign(F, x); F.gen++; if (!F.g) clearMesh(f); }; // (gen: its cuts worked out again, for this grid)
     put(a);
