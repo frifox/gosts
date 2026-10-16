@@ -490,7 +490,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-check { flex: none; width: 14px; height: 14px; color: #46a758; }
 .cv-cuts .cv-obj input[type=checkbox] { margin: 0 2px; }
 .cv-cuts .cv-obj .kd.miss { color: var(--warn, #d9a400); }
-.cv-cutopts { display: flex; flex-direction: column; gap: 6px; padding: 6px 6px 8px 28px; }
+.cv-cuts { overflow: visible; }
+.cv-cutrow { position: relative; }
+.cv-cutopts { position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 5; display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 8px 28px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
 .mv-edit { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; overflow-y: auto; cursor: default; background: rgba(18,21,28,.94); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px; color: var(--text); font-size: 13px; }
 #mveAxesGo [data-axis] { font-weight: 600; }
@@ -1343,7 +1346,7 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-row"><span class="mve-label" id="cvFillText"></span></div>
       </section>
       <section id="cvCutsSec" hidden>
-        <div class="mve-head"><b>Objects to Cut</b>Each one checked is cut out of the fill where it's placed (and again wherever it's moved); its caret for how. The fill's kept in one piece.</div>
+        <div class="mve-head"><b>Objects to Cut</b>Each one checked is cut out of the fill where it's placed (and again wherever it's moved); hover its caret for how. The fill's kept in one piece.</div>
         <div class="cv-list cv-cuts" id="cvCutList"></div>
       </section>
       <section>
@@ -3819,6 +3822,20 @@ $("cvMakeFill").onclick = async () => {
 // cvCutList: the fill f's Objects to Cut: each one checked or not (cut or
 // not), the one clicked (cvs.cutOpen) with its options under it. Made again
 // only when something in it changed (not under a field being typed in).
+// cvCutClose: the cut options up closed, unless the pointer's on them, a
+// field in them is in use, or there are edits not applied.
+function cvCutClose() {
+  const pop = document.querySelector("#cvCutList .cv-cutopts");
+  if (cvs.cutOpen == null || cvs.cutHover === cvs.cutOpen || cvs.cutDraft || pop?.contains(document.activeElement)) return;
+  cvs.cutOpen = null;
+  cvShow();
+}
+document.addEventListener("pointerdown", (e) => { // (a click elsewhere: closed, edits not applied dropped)
+  if (cvs.cutOpen == null || e.target.closest?.("#cvCutList .cv-cutrow")?.querySelector(".cv-cutopts")) return;
+  cvs.cutOpen = null;
+  cvs.cutDraft = null;
+  if (cvs.cv) cvShow();
+});
 const CUT_DEFAULT = { offset: 0.001, keepAbove: true, smooth: 0, colMax: null };
 function cvCutList(f) {
   const cv = cvs.cv, objs = cv.objects().filter((o) => o.kind !== "fill" && o !== f.fill.set.container);
@@ -3838,8 +3855,19 @@ function cvCutList(f) {
     row.innerHTML = `<input type="checkbox" title="Cut it out of the fill"${c ? " checked" : ""}><span class="nm"></span>${c?.missed ? '<span class="kd miss">not in the fill</span>' : ""}<button class="caret${open ? " open" : ""}" title="${open ? "Hide" : "Show"} how it's cut"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 4.5l3 3 3-3"/></svg></button>`;
     row.querySelector(".nm").textContent = row.querySelector(".nm").title = o.name;
     row.querySelector("input").onchange = (e) => { if (open) cvs.cutDraft = null; cv.setCut(f, o, e.target.checked ? { ...CUT_DEFAULT } : null); };
-    row.querySelector(".caret").onclick = () => { cvs.cutOpen = open ? null : o.id; cvShow(); };
-    list.appendChild(row);
+    // Its options: over what's below, while the caret's hovered (or it's
+    // clicked), kept up while the pointer's on them, a field's in use or
+    // there are edits not applied (then: a click elsewhere closes them).
+    const wrap = document.createElement("div");
+    wrap.className = "cv-cutrow";
+    wrap.appendChild(row);
+    list.appendChild(wrap);
+    const caret = row.querySelector(".caret");
+    caret.onclick = () => { cvs.cutOpen = open ? null : o.id; cvShow(); };
+    caret.onpointerenter = () => { clearTimeout(cvs.cutClose); if (cvs.cutOpen !== o.id) { cvs.cutOpen = o.id; cvShow(); } };
+    wrap.onpointerenter = () => { clearTimeout(cvs.cutClose); cvs.cutHover = o.id; };
+    wrap.onpointerleave = () => { if (cvs.cutHover === o.id) cvs.cutHover = null; clearTimeout(cvs.cutClose); cvs.cutClose = setTimeout(cvCutClose, 250); };
+    if (open) cvs.cutHover = o.id; // (made again under the pointer: it's on it)
     if (!open) continue;
     // Its options: edited here (a draft), cut with them on Apply.
     const { missed, ...was } = c || CUT_DEFAULT, v = draft?.opts || was, dis = c ? "" : " disabled";
@@ -3856,7 +3884,8 @@ function cvCutList(f) {
     opts.querySelector(".seg").onclick = (e) => { const k = e.target.dataset?.v; if (k && c) { edit({ keepAbove: k === "above" }); cvShow(); } };
     for (const inp of opts.querySelectorAll("input")) inp.oninput = () => edit({ [inp.dataset.k]: inp.dataset.k === "colMax" && inp.value.trim() === "" ? null : Math.max(0, Number(inp.value) || 0) / 1000 });
     apply.onclick = () => { const d = cvs.cutDraft; cvs.cutDraft = null; if (d && c) cv.setCut(f, o, d.opts); };
-    list.appendChild(opts);
+    opts.addEventListener("focusout", () => setTimeout(cvCutClose, 0));
+    wrap.appendChild(opts);
   }
 }
 // Undo, Redo: the history's steps (moves, turns, sizes, adding, removing,
