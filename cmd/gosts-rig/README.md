@@ -124,7 +124,7 @@ It can make a custom case insert, to print in foaming TPU, say:
 - **Container Fill**: add one with **Fill** (next to the shapes) and, with it selected, **Pick
   Container** (click the case) and **Pick Fill Line** (click the case where the fill should come up to; **Offset**
   moves it down (+) or up (−) in mm). The fill grows from the middle of the case on that line; if that's not inside
-  it (a case with a divider, say), **Re-pick Point**: a point on the line, over the inside. **Make Fill** takes the
+  it (a case with a divider, say), **Pick Inside**: a point on the line, over the inside. **Make Fill** takes the
   inside up to that line, kept **Off the walls** from them, in cubes of the **Resolution**. Change any of it later
   and **Make Again**: its cuts are made again in it.
 - **Objects to Cut**: select the fill, and it lists everything but its container. Check each object that goes in (a

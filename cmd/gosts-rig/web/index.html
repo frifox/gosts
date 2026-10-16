@@ -1337,7 +1337,7 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-head"><b>Container Fill</b>The inside of its container (a case, a bowl), up to a fill line, kept off its walls: an insert.</div>
         <div class="mve-row"><button class="btn small" id="cvFCont" title="Click the container (a case, a bowl) in the view">Pick Container</button><span class="cv-cont" id="cvFContWho" hidden><span class="cv-cont-name" id="cvFContName"></span><svg class="cv-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Picked"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span></div>
         <div class="mve-row"><button class="btn small" id="cvPickTop" title="Click on the container where the fill should come up to: its level (the Offset moves it from there)">Pick Fill Line</button><span class="mve-label">Offset</span><input type="number" id="cvBelow" value="0" step="1" title="The fill line moved down (+) or up (−) from the point picked, mm"><span class="mve-label">mm</span></div>
-        <div class="mve-row"><span class="mve-label">Inside</span><button class="btn small" id="cvPickIn" title="The fill grows from a point on the fill line (down to the floor, out to the walls): the middle of the container, unless picked again here (click on the line, over its inside)">Re-pick Point</button><span class="mve-label" id="cvInText"></span></div>
+        <div class="mve-row"><button class="btn small" id="cvPickIn" title="The fill grows from a point on the fill line (down to the floor, out to the walls): the middle of the container (set with the fill line), unless picked here (click on the line, over its inside)">Pick Inside</button><span class="cv-cont" id="cvInWho" hidden><span class="cv-cont-name" id="cvInText"></span><svg class="cv-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Picked"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span></div>
         <div class="mve-row"><span class="mve-label">Off the walls</span><input type="number" id="cvTol" value="1" step="0.5" min="0"><span class="mve-label">mm</span></div>
         <div class="mve-row"><span class="mve-label">Resolution</span><input type="number" id="cvRes" value="1" step="0.5" min="0.2"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small primary" id="cvMakeFill" disabled>Make Fill</button></div>
         <div class="mve-row"><span class="mve-label" id="cvFillText"></span></div>
@@ -3701,6 +3701,7 @@ function cvFillShow(f, busy) {
   $("cvPickTop").disabled = !st.container;
   $("cvPickTop").classList.toggle("on", st.top != null);
   $("cvPickIn").disabled = st.top == null;
+  $("cvInWho").hidden = !st.inside; // (how it was picked, a check after it)
   $("cvInText").textContent = !st.inside ? "" : st.inside.auto ? "the middle" : "picked";
   $("cvMakeFill").textContent = f.fill.g ? "Make Again" : "Make Fill";
   $("cvMakeFill").disabled = busy || state === "unset";
