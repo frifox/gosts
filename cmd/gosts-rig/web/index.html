@@ -3776,10 +3776,11 @@ function cvCutList(f) {
     opts.className = "cv-cutopts";
     opts.innerHTML = `<div class="mve-row"><span class="mve-label">Cut</span><span class="views seg"><button data-v="above"${dis} class="${v.keepAbove ? "active" : ""}" title="It and all above it: it goes in from the top">Open Above</button><button data-v="around"${dis} class="${v.keepAbove ? "" : "active"}" title="Just round it">Around</button></span></div>
       <div class="mve-row"><span class="mve-label">Margin</span><input type="number" data-k="offset" value="${mm(v.offset)}" step="0.5" min="0"${dis}><span class="mve-label">mm round it</span></div>
-      <div class="mve-row"><span class="mve-label">Smooth</span><input type="number" data-k="smooth" value="${mm(v.smooth)}" step="1" min="0"${dis} title="0: following its shape exactly; more: its nooks filled in, the cut rounder (never less than the margin)"><span class="mve-label">mm</span></div>`;
-    const set = (ch) => { const now = cv.cutOf(f, o); if (now) cv.setCut(f, o, { offset: now.offset, keepAbove: now.keepAbove, smooth: now.smooth, ...ch }); };
+      <div class="mve-row"><span class="mve-label">Smooth</span><input type="number" data-k="smooth" value="${mm(v.smooth)}" step="1" min="0"${dis} title="0: following its shape exactly; more: its nooks filled in, the cut rounder (never less than the margin)"><span class="mve-label">mm</span></div>${v.keepAbove ? `
+      <div class="mve-row"><span class="mve-label">Column max</span><input type="number" data-k="colMax" value="${v.colMax == null ? "" : mm(v.colMax)}" placeholder="any" step="1" min="0"${dis} title="How tall the fill's columns inside it (walled in by it, seen from above: in a prop guard, say) can stand over the bottom of the cut round them, mm. 0: none sticking up through it; empty: any height"><span class="mve-label">mm</span></div>` : ""}`;
+    const set = (ch) => { const now = cv.cutOf(f, o); if (now) { const { missed, ...was } = now; cv.setCut(f, o, { ...was, ...ch }); } };
     opts.querySelector(".seg").onclick = (e) => { const k = e.target.dataset?.v; if (k) set({ keepAbove: k === "above" }); };
-    for (const inp of opts.querySelectorAll("input")) inp.onchange = () => set({ [inp.dataset.k]: Math.max(0, Number(inp.value) || 0) / 1000 });
+    for (const inp of opts.querySelectorAll("input")) inp.onchange = () => set({ [inp.dataset.k]: inp.dataset.k === "colMax" && inp.value.trim() === "" ? null : Math.max(0, Number(inp.value) || 0) / 1000 });
     list.appendChild(opts);
   }
 }

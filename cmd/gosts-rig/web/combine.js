@@ -703,8 +703,11 @@ export function createCombine(canvas) {
   const fillKey = (f) => JSON.stringify([f.fill.gen, ...[...f.fill.cuts].map(([o, c]) => [o.id, cutKey(o), c.opts])]);
   // cutVoxels: the voxels of F obj takes (as placed): it grown by offset (m),
   // smoothed by smooth (m: its hollows filled in, never cutting less), and
-  // with keepAbove everything over it too (so it can go in from above).
-  async function cutVoxels(F, obj, { offset, keepAbove, smooth }, status) {
+  // with keepAbove everything over it too (so it can go in from above); and
+  // with colMax (m), the fill's columns standing inside it (its footprint's
+  // holes, seen from above: in a prop guard, say) cut down to colMax over
+  // the lowest of it round them.
+  async function cutVoxels(F, obj, { offset, keepAbove, smooth, colMax = null }, status) {
     const h = F.h, gr = Math.ceil(offset / h), sm = Math.ceil(smooth / h);
     status(`Cut: ${obj.name} as voxels`);
     await tick();
@@ -731,7 +734,53 @@ export function createCombine(canvas) {
       }
       if (keepAbove && low >= 0) for (let fy = Math.max(0, low + oy); fy < F.ny; fy++) out.push(at(F, fx, fy, fz));
     }
+    if (keepAbove && colMax != null) {
+      status(`Cut: ${obj.name}'s inside columns`);
+      await tick();
+      const ch = Math.round(colMax / h);
+      for (const { cells, base } of footHoles(s)) for (const c of cells) {
+        const fx = (c % s.nx) + ox, fz = Math.floor(c / s.nx) + oz;
+        if (fx < 0 || fz < 0 || fx >= F.nx || fz >= F.nz) continue;
+        for (let fy = Math.max(0, base + oy + ch); fy < F.ny; fy++) out.push(at(F, fx, fy, fz));
+      }
+    }
     return Int32Array.from(out);
+  }
+  // footHoles: the holes in s's footprint (seen from above: columns with
+  // none of it, walled in by it all round), each: cells (z * nx + x) and
+  // base (the lowest of it next to them, y).
+  function footHoles(s) {
+    const { nx, ny, nz } = s, N = nx * nz, low = new Int32Array(N).fill(-1);
+    for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) for (let y = 0; y < ny; y++) if (s.v[(z * ny + y) * nx + x]) { low[z * nx + x] = y; break; }
+    const seen = new Uint8Array(N), q = new Int32Array(N), nb = (c) => {
+      const x = c % nx, z = (c - x) / nx, r = [];
+      if (x > 0) r.push(c - 1); if (x < nx - 1) r.push(c + 1); if (z > 0) r.push(c - nx); if (z < nz - 1) r.push(c + nx);
+      return r;
+    };
+    // (outside: the empty columns reached from the edges)
+    let head = 0, tail = 0;
+    for (let c = 0; c < N; c++) {
+      const x = c % nx, z = (c - x) / nx;
+      if ((x === 0 || z === 0 || x === nx - 1 || z === nz - 1) && low[c] < 0) { seen[c] = 1; q[tail++] = c; }
+    }
+    while (head < tail) for (const n of nb(q[head++])) if (!seen[n] && low[n] < 0) { seen[n] = 1; q[tail++] = n; }
+    const holes = [];
+    for (let c0 = 0; c0 < N; c0++) {
+      if (seen[c0] || low[c0] >= 0) continue;
+      const cells = [];
+      let base = Infinity;
+      head = tail = 0; seen[c0] = 1; q[tail++] = c0;
+      while (head < tail) {
+        const c = q[head++];
+        cells.push(c);
+        for (const n of nb(c)) {
+          if (low[n] >= 0) base = Math.min(base, low[n]);
+          else if (!seen[n]) { seen[n] = 1; q[tail++] = n; }
+        }
+      }
+      holes.push({ cells, base });
+    }
+    return holes;
   }
   // recut: f from its base, each cut (of things in the space) taken out, then
   // kept in one piece. How many voxels the islands left took.
