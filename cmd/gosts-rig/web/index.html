@@ -1307,7 +1307,7 @@ kbd + kbd { margin-left: 3px; }
     <button class="btn small" id="cvFit" title="All of it in view (F)">Fit</button>
     <button class="icon-btn" id="cvClose" title="Close (Esc): kept as it is till it's opened again" aria-label="Close">✕</button></div>
   <div class="stage model-stage" id="cvStage"><canvas id="cvCanvas"></canvas>
-    <div class="mv-hint">Click an object to select it · drag the selected one to slide it along the floor (⇧: up and down) · drag elsewhere to move the view (⌘: turn it) · drag scroll to turn · scroll to zoom · F to fit</div>
+    <div class="mv-hint">Click an object to select it · drag the selected one to slide it along the floor (⇧: up and down) · drag elsewhere to move the view (⌘: turn it) · drag scroll to turn · scroll to zoom · F to fit · Esc to deselect, then to close</div>
     <aside class="mv-edit cv-side" id="cvSide">
       <section class="cv-first">
         <div class="mve-row"><b class="cv-head">Objects</b><span class="spacer"></span><span class="btn-join"><button class="btn small mve-icon" id="cvUndo" disabled aria-label="Undo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5L2.5 6.5l3 3"/><path d="M2.5 6.5h7a4 4 0 0 1 0 8h-2"/></svg></button><button class="btn small mve-icon" id="cvRedo" disabled aria-label="Redo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l3 3-3 3"/><path d="M13.5 6.5h-7a4 4 0 0 0 0 8h2"/></svg></button></span></div>
@@ -3869,7 +3869,12 @@ document.addEventListener("keydown", (e) => {
     else if (e.key === "Backspace" && cvPick.where != null) { e.preventDefault(); cvPickShow(null); }
     return;
   }
-  if (e.key === "Escape") { e.preventDefault(); if (cvs.cv?.picking()) { cvs.cv.unpick(); cvStatus(""); } else cvCloseAsk(); }
+  if (e.key === "Escape") { // (a pick going: cancelled; else one selected: none; else closing)
+    e.preventDefault();
+    if (cvs.cv?.picking()) { cvs.cv.unpick(); cvStatus(""); }
+    else if (cvs.cv?.selected()) cvs.cv.select(null);
+    else cvCloseAsk();
+  }
   else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); cvUndo(e.shiftKey); }
   else if ((e.key === "f" || e.key === "F") && !e.metaKey && !e.ctrlKey) cvs.cv?.fit();
 });
