@@ -608,42 +608,65 @@ export function createCombine(canvas) {
   };
 
   // ------------------------------------------------------------ fill
-  // makeFill: the inside of container (as placed) up to level (y, m), from
-  // inside (x, z: a point in it, seen from above the level), kept tol (m) off its surfaces;
-  // voxels res (m) apart. status(text) as it goes.
-  api.makeFill = async (container, level, inside, tol, res, status = () => {}) => {
-    const { g, removed } = await fillVoxels(container, level, inside, tol, res, status);
-    status("Fill: making its mesh");
-    await tick();
-    const mesh = new THREE.Mesh(surfaceMesh(g), FILL_MAT()), inner = new THREE.Group();
+  // A fill: an object of its own, set (set: its container, top: the fill
+  // line picked (y, m), offset: it moved from there (m, + up), inside: a
+  // point over the inside (x, z), tol (m) off the walls, res (m) voxels),
+  // then made (g: its voxels, base: before its cuts). Its level: top + offset.
+  const FILL_SET = { container: null, top: null, offset: 0, inside: null, tol: 0.001, res: 0.001 };
+  api.fillLevel = (f) => (f.fill.set.top == null ? null : f.fill.set.top + f.fill.set.offset);
+  // addFill: a fill, not set yet.
+  api.addFill = () => {
+    const mesh = new THREE.Mesh(new THREE.BufferGeometry(), FILL_MAT()), inner = new THREE.Group(), holder = new THREE.Group();
     inner.add(mesh);
-    const holder = new THREE.Group();
     holder.add(inner);
     scene.add(holder);
-    const f = { id: ++seq, kind: "fill", name: `Fill (${container.name})`, holder, inner, visible: true, pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 },
-      fill: { g, from: container.name, container, level, inside: { x: inside.x, z: inside.z }, tol, res, base: g.v.slice(), gen: 0, cuts: new Map() } };
+    const n = objects.filter((o) => o.kind === "fill").length + 1;
+    const f = { id: ++seq, kind: "fill", name: `Fill ${n}`, holder, inner, visible: true, pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 },
+      fill: { set: { ...FILL_SET }, g: null, base: null, madeWith: null, gen: 0, cuts: new Map() } };
     f.fill.made = fillKey(f);
     objects.push(f);
     selected = f;
     const i = objects.length - 1;
-    record(`Make ${f.name}`, () => detach(f), () => attach(f, i));
+    record(`Add ${f.name}`, () => detach(f), () => attach(f, i));
     changed();
-    status("");
-    return { fill: f, removed };
+    return f;
   };
-  // remakeFill: f made again from its container (as placed now), level and
-  // inside point, tol (m) off its walls, voxels res (m) apart; its cuts made
-  // again in it. How many voxels the islands left took.
-  api.remakeFill = (f, tol, res, status = () => {}) => serial(async () => {
-    const F = f.fill;
-    if (!objects.includes(F.container)) throw new Error(`its container (${F.container.name}) isn't in the space: put it back (Undo) to make it again`);
-    const { g } = await fillVoxels(F.container, F.level, F.inside, tol, res, status);
-    const b = { g: F.g, base: F.base, tol: F.tol, res: F.res }, a = { g, base: g.v.slice(), tol, res };
-    const set = (st) => { Object.assign(F, st); F.g = st.g; F.gen++; }; // (gen: its cuts worked out again, for this grid)
-    set(a);
-    record(`Remake ${f.name}`, () => set(b), () => set(a));
+  // setFill: f's settings changed (ch: some of FILL_SET's); a step.
+  api.setFill = (f, ch, what = `Set ${f.name}`) => {
+    const b = f.fill.set, a = { ...b, ...ch };
+    if (Object.keys(ch).every((k) => a[k] === b[k] || (k === "inside" && JSON.stringify(a[k]) === JSON.stringify(b[k])))) return;
+    f.fill.set = a;
+    record(what, () => { f.fill.set = b; }, () => { f.fill.set = a; });
+    changed();
+  };
+  // fillState: what f has to show: "unset" (its settings not all there),
+  // "new" (not made), "changed" (set otherwise since made), "made".
+  const setKey = (st) => JSON.stringify({ ...st, container: st.container?.id ?? null });
+  api.fillState = (f) => {
+    const st = f.fill.set;
+    if (!st.container || st.top == null || !st.inside) return "unset";
+    return !f.fill.g ? "new" : f.fill.madeWith !== setKey(st) ? "changed" : "made";
+  };
+  // makeFill: f made (again) as it's set: the inside of its container (as
+  // placed now) up to its level, from its inside point, kept tol off the
+  // walls, voxels res apart; its cuts made in it. How many voxels the islands
+  // left took.
+  api.makeFill = (f, status = () => {}) => serial(async () => {
+    const F = f.fill, st = { ...F.set };
+    if (!st.container || st.top == null || !st.inside) throw new Error("pick its container, fill line and inside point first");
+    if (!objects.includes(st.container)) throw new Error(`its container (${st.container.name}) isn't in the space`);
+    const { g } = await fillVoxels(st.container, st.top + st.offset, st.inside, st.tol, st.res, status);
+    const b = { g: F.g, base: F.base, madeWith: F.madeWith }, a = { g, base: g.v.slice(), madeWith: setKey(st) };
+    const put = (x) => { Object.assign(F, x); F.gen++; if (!F.g) clearMesh(f); }; // (gen: its cuts worked out again, for this grid)
+    put(a);
+    record(`Make ${f.name}`, () => put(b), () => put(a));
     return { removed: await recut(f, status) };
   });
+  function clearMesh(f) {
+    const m = f.inner.children[0];
+    m.geometry.dispose();
+    m.geometry = new THREE.BufferGeometry();
+  }
   // fillVoxels: makeFill's voxels (g), and how many the islands left took.
   async function fillVoxels(container, level, inside, tol, res, status) {
     status("Fill: placing the container's walls");
@@ -713,6 +736,7 @@ export function createCombine(canvas) {
   // recut: f from its base, each cut (of things in the space) taken out, then
   // kept in one piece. How many voxels the islands left took.
   async function recut(f, status) {
+    if (!f.fill.g) { f.fill.made = fillKey(f); return 0; } // (not made: nothing to cut)
     const F = f.fill.g, v = f.fill.base.slice();
     for (const [o, c] of f.fill.cuts) {
       if (!objects.includes(o)) continue;
@@ -785,7 +809,7 @@ export function createCombine(canvas) {
       if (!o.visible) continue;
       o.holder.updateMatrixWorld(true);
       o.holder.traverse((m) => {
-        if (!m.isMesh) return;
+        if (!m.isMesh || !m.geometry.getAttribute("position")) return; // (a fill not made yet: nothing)
         const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone());
         const sub = new THREE.BufferGeometry();
         for (const n of ["position", "normal"]) if (g.getAttribute(n)) sub.setAttribute(n, g.getAttribute(n).clone());

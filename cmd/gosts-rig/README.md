@@ -118,10 +118,11 @@ space. Select one from the list or by clicking it, then drag it along the floor
 
 It can make a custom case insert, to print in foaming TPU, say:
 
-- **Container Fill**: with the case selected, **Pick Fill Line** (click where the fill should come up to; **Offset**
-  moves it up or down in mm), then **Pick Point**: a point on that line, over the inside. The fill takes the inside up
-  to that line, kept the tolerance off the walls. Select the fill later to change its **Off the walls** and
-  **Resolution** and **Make Again**: its cuts are made again in it.
+- **Container Fill**: add one with **Fill** (next to the shapes) and, with it selected, pick its **Container** (the
+  case), **Pick Fill Line** (click the case where the fill should come up to; **Offset** moves it up or down in mm),
+  then **Pick Point**: a point on that line, over the inside. **Make Fill** takes the inside up to that line, kept
+  **Off the walls** from them, in cubes of the **Resolution**. Change any of it later and **Make Again**: its cuts
+  are made again in it.
 - **Objects to Cut**: select the fill, and it lists everything but its container. Check each object that goes in (a
   drone, goggles, a controller), placed where it'll sit, and click it for how it's cut: **Open Above** leaves room to
   drop it in from the top, **Around** only takes its shape; a **Margin** round it; **Smooth** rounds the pocket off
