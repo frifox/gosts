@@ -3836,7 +3836,7 @@ document.addEventListener("pointerdown", (e) => { // (a click elsewhere: closed,
   cvs.cutDraft = null;
   if (cvs.cv) cvShow();
 });
-const CUT_DEFAULT = { offset: 0.001, keepAbove: true, smooth: 0, colMax: null };
+const CUT_DEFAULT = { offset: 0.001, keepAbove: true, smooth: 0, colMax: 0 };
 function cvCutList(f) {
   const cv = cvs.cv, objs = cv.objects().filter((o) => o.kind !== "fill" && o !== f.fill.set.container);
   if (cvs.cutDraft && cvs.cutDraft.id !== cvs.cutOpen) cvs.cutDraft = null; // (a row closed: its edits not applied, dropped)

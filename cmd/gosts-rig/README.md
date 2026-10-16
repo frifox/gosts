@@ -132,7 +132,7 @@ It can make a custom case insert, to print in foaming TPU, say:
   **Open Above** leaves room to drop it in from the top, **Around** only takes its shape; a **Margin** round it;
   **Smooth** rounds the pocket off without ever cutting into the margin. With Open Above, **Column max** caps the fill
   left standing inside the object, cut off from the rest of the fill (inside a drone's prop guards, or a pillar
-  under a part of it that hangs over): at that height over the cut round it; 0 leaves none, empty lets it stand.
+  under a part of it that hangs over): at that height over the cut round it; 0 (as it starts) leaves none, empty lets it stand.
   Pieces a cut leaves loose are taken out, so the insert stays in one piece. Cuts stay live: move or
   turn an object and the fill is cut again where it's let go, so they can be arranged after cutting.
 - **Save** writes the objects shown (hide the rest with their eye) as one model, in mm, with an STL too.
