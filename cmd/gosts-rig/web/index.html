@@ -474,7 +474,11 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-pick-grid .nm { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-pick-grid .sub { font-size: 11px; color: var(--muted); }
 #cvName { flex: 1; min-width: 0; }
-.cv-side input#cvBelow, .cv-side input#cvTol, .cv-side input#cvFTol, .cv-side input#cvFRes, .cv-side input#cvRes, .cv-side input#cvOffset, .cv-side input#cvSmooth { width: 64px; }
+.cv-side input#cvBelow, .cv-side input#cvTol, .cv-side input#cvFTol, .cv-side input#cvFRes, .cv-side input#cvRes, .cv-cutopts input[type=number] { width: 64px; }
+.cv-cuts { max-height: none; }
+.cv-cuts .cv-obj input[type=checkbox] { margin: 0 2px; }
+.cv-cuts .cv-obj .kd.miss { color: var(--warn, #d9a400); }
+.cv-cutopts { display: flex; flex-direction: column; gap: 6px; padding: 6px 6px 8px 28px; }
 .mv-edit { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; overflow-y: auto; cursor: default; background: rgba(18,21,28,.94); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px; color: var(--text); font-size: 13px; }
 #mveAxesGo [data-axis] { font-weight: 600; }
@@ -1324,11 +1328,9 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-row"><span class="mve-label">Off the walls</span><input type="number" id="cvTol" value="1" step="0.5" min="0"><span class="mve-label">mm</span></div>
         <div class="mve-row"><span class="mve-label">Resolution</span><input type="number" id="cvRes" value="1" step="0.5" min="0.2"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small primary" id="cvMakeFill" disabled>Make Fill</button></div>
       </section>
-      <section id="cvCutSec" hidden>
-        <div class="mve-head"><b>Cut from Fill</b>The selected object cut out of the fill; the fill kept in one piece. It stays cut as it's moved or turned: the fill's cut again where it's let go.</div>
-        <div class="mve-row"><span class="mve-label">Margin</span><input type="number" id="cvOffset" value="1" step="0.5" min="0"><span class="mve-label">mm round it</span></div>
-        <div class="mve-row"><span class="mve-label">Cut</span><span class="views seg" id="cvMode"><button data-v="above" title="It and all above it: it goes in from the top">Open Above</button><button data-v="around" title="Just round it">Around</button></span></div>
-        <div class="mve-row"><span class="mve-label">Smooth</span><input type="number" id="cvSmooth" value="0" step="1" min="0" title="0: following its shape exactly; more: its nooks filled in, the cut rounder (never less than the margin)"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small" id="cvUncut" hidden title="Its cut taken back out of the fill">Uncut</button><button class="btn small primary" id="cvCut" disabled>Cut</button></div>
+      <section id="cvCutsSec" hidden>
+        <div class="mve-head"><b>Objects to Cut</b>Each one checked is cut out of the fill where it's placed (and again wherever it's moved); click one for how. The fill's kept in one piece.</div>
+        <div class="cv-list cv-cuts" id="cvCutList"></div>
       </section>
       <section>
         <div class="mve-head"><b>Save</b>The objects shown (hide the others with their eye) as one model.</div>
@@ -3676,25 +3678,14 @@ function cvShow() {
   $("cvPickIn").disabled = cvs.top == null;
   $("cvMakeFill").disabled = busy || !(canFill && cvs.top != null && cvs.inside);
   cvMarks();
-  // Cut: a fill there, and the selected not one.
-  const fill = cvFill();
-  $("cvCutSec").hidden = !fill || !canFill || s === cvs.containerOf?.get(fill);
-  const cutOf = fill && s ? cv.cutOf(fill, s) : null;
-  if (s !== cvs.cutSel) { // (one already cut, selected: its options shown)
-    cvs.cutSel = s;
-    if (cutOf) { $("cvOffset").value = +(cutOf.offset * 1000).toFixed(2); $("cvSmooth").value = +(cutOf.smooth * 1000).toFixed(2); segPick("cvMode", cutOf.keepAbove ? "above" : "around"); }
-  }
-  $("cvCut").textContent = cutOf ? "Cut Again" : "Cut";
-  $("cvCut").title = cutOf ? "Its cut made again with these options" : "";
-  $("cvUncut").hidden = !cutOf;
-  $("cvCut").disabled = $("cvUncut").disabled = busy;
+  // Objects to Cut: the fill selected, everything but its container (and fills).
+  $("cvCutsSec").hidden = !isFill;
+  if (isFill) cvCutList(s);
   $("cvSave").disabled = busy || !objs.some((o) => o.visible);
   const un = cv.undoName(), re = cv.redoName();
   $("cvUndo").disabled = busy || !un; $("cvUndo").title = un ? `Undo ${un} (⌘Z)` : "Undo (⌘Z)";
   $("cvRedo").disabled = busy || !re; $("cvRedo").title = re ? `Redo ${re} (⇧⌘Z)` : "Redo (⇧⌘Z)";
 }
-// cvFill: the fill to cut (the last made, shown or not).
-function cvFill() { return [...cvs.cv.objects()].reverse().find((o) => o.kind === "fill"); }
 // cvLevel: the fill line (y, m): the point picked, moved by the Offset (mm, + up).
 function cvLevel() { return cvs.top == null ? null : cvs.top + (Number($("cvBelow").value) || 0) / 1000; }
 // cvMarks: the level picked (a sheet over the container) and the inside point.
@@ -3741,14 +3732,11 @@ $("cvMakeFill").onclick = async () => {
   cvs.busy = true; cvShow();
   try {
     const { fill, removed } = await cvs.cv.makeFill(s, level, cvs.inside, Math.max(0, Number($("cvTol").value) || 0) / 1000, Math.max(0.2, Number($("cvRes").value) || 1) / 1000, (t) => cvStatus(t ? t + "…" : ""));
-    (cvs.containerOf ||= new Map()).set(fill, s);
     cvs.top = cvs.inside = null;
     cvStatus(removed ? `Fill made (bits not joined to it left out: ${removed} voxels)` : "Fill made", "ok");
   } catch (e) { cvStatus(e.message, "bad"); }
   cvs.busy = false; cvShow();
 };
-segPick("cvMode", "above");
-$("cvMode").onclick = (e) => { if (e.target.dataset?.v) segPick("cvMode", e.target.dataset.v); };
 $("cvRemake").onclick = async () => {
   const s = cvs.cv.selected();
   if (s?.kind !== "fill" || cvs.busy) return;
@@ -3759,17 +3747,39 @@ $("cvRemake").onclick = async () => {
   } catch (e) { cvStatus(e.message, "bad"); }
   cvs.busy = false; cvShow();
 };
-$("cvUncut").onclick = () => { const s = cvs.cv.selected(), f = cvFill(); if (s && f && !cvs.busy) cvs.cv.uncut(f, s); };
-$("cvCut").onclick = async () => {
-  const s = cvs.cv.selected(), f = cvFill();
-  if (!s || !f) return;
-  cvs.busy = true; cvShow();
-  try {
-    const { removed } = await cvs.cv.cut(f, s, { offset: Math.max(0, Number($("cvOffset").value) || 0) / 1000, keepAbove: segOf("cvMode") === "above", smooth: Math.max(0, Number($("cvSmooth").value) || 0) / 1000 }, (t) => cvStatus(t ? t + "…" : ""));
-    cvStatus(removed ? `Cut (pieces it left loose taken out: ${removed} voxels)` : `${s.name} cut out`, "ok");
-  } catch (e) { cvStatus(e.message, "bad"); }
-  cvs.busy = false; cvShow();
-};
+// cvCutList: the fill f's Objects to Cut: each one checked or not (cut or
+// not), the one clicked (cvs.cutOpen) with its options under it. Made again
+// only when something in it changed (not under a field being typed in).
+const CUT_DEFAULT = { offset: 0.001, keepAbove: true, smooth: 0 };
+function cvCutList(f) {
+  const cv = cvs.cv, objs = cv.objects().filter((o) => o.kind !== "fill" && o !== f.fill.container);
+  const rows = objs.map((o) => [o.id, o.name, cv.cutOf(f, o)]), key = JSON.stringify([f.id, cvs.cutOpen, rows]);
+  const list = $("cvCutList");
+  if (list.dataset.key === key) return;
+  list.dataset.key = key;
+  list.innerHTML = objs.length ? "" : '<div class="mve-label">Nothing to cut yet: add the things that go in (a model or a shape) and place them in the fill.</div>';
+  const mm = (m) => +(m * 1000).toFixed(2);
+  for (const o of objs) {
+    const c = cv.cutOf(f, o), open = cvs.cutOpen === o.id;
+    const row = document.createElement("div");
+    row.className = "cv-obj" + (open ? " on" : "");
+    row.innerHTML = `<input type="checkbox" title="Cut it out of the fill"${c ? " checked" : ""}><span class="nm"></span><span class="kd${c?.missed ? " miss" : ""}">${!c ? "" : c.missed ? "not in the fill" : c.keepAbove ? "open above" : "around"}</span>`;
+    row.querySelector(".nm").textContent = row.querySelector(".nm").title = o.name;
+    row.querySelector("input").onchange = (e) => { cv.setCut(f, o, e.target.checked ? { ...CUT_DEFAULT } : null); };
+    row.onclick = (e) => { if (e.target.tagName !== "INPUT") { cvs.cutOpen = open ? null : o.id; cvShow(); } };
+    list.appendChild(row);
+    if (!open) continue;
+    const opts = document.createElement("div"), v = c || CUT_DEFAULT, dis = c ? "" : " disabled";
+    opts.className = "cv-cutopts";
+    opts.innerHTML = `<div class="mve-row"><span class="mve-label">Cut</span><span class="views seg"><button data-v="above"${dis} class="${v.keepAbove ? "active" : ""}" title="It and all above it: it goes in from the top">Open Above</button><button data-v="around"${dis} class="${v.keepAbove ? "" : "active"}" title="Just round it">Around</button></span></div>
+      <div class="mve-row"><span class="mve-label">Margin</span><input type="number" data-k="offset" value="${mm(v.offset)}" step="0.5" min="0"${dis}><span class="mve-label">mm round it</span></div>
+      <div class="mve-row"><span class="mve-label">Smooth</span><input type="number" data-k="smooth" value="${mm(v.smooth)}" step="1" min="0"${dis} title="0: following its shape exactly; more: its nooks filled in, the cut rounder (never less than the margin)"><span class="mve-label">mm</span></div>`;
+    const set = (ch) => { const now = cv.cutOf(f, o); if (now) cv.setCut(f, o, { offset: now.offset, keepAbove: now.keepAbove, smooth: now.smooth, ...ch }); };
+    opts.querySelector(".seg").onclick = (e) => { const k = e.target.dataset?.v; if (k) set({ keepAbove: k === "above" }); };
+    for (const inp of opts.querySelectorAll("input")) inp.onchange = () => set({ [inp.dataset.k]: Math.max(0, Number(inp.value) || 0) / 1000 });
+    list.appendChild(opts);
+  }
+}
 // Undo, Redo: the history's steps (moves, turns, sizes, adding, removing,
 // hiding, renaming, the fill and its cuts).
 function cvUndo(redo) {

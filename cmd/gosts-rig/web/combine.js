@@ -717,7 +717,7 @@ export function createCombine(canvas) {
     for (const [o, c] of f.fill.cuts) {
       if (!objects.includes(o)) continue;
       const key = cutKey(o) + f.fill.gen;
-      if (c.key !== key) { c.idx = await cutVoxels(F, o, c.opts, status); c.key = key; }
+      if (c.key !== key) { c.idx = await cutVoxels(F, o, c.opts, status); c.key = key; c.hits = c.idx.reduce((n, i) => n + f.fill.base[i], 0); }
       for (const i of c.idx) v[i] = 0;
     }
     status("Cut: keeping it in one piece");
@@ -753,26 +753,21 @@ export function createCombine(canvas) {
       changed();
     }), 150);
   }
-  // cut: obj (as placed) cut out of fill f (opts: { offset (m), keepAbove,
-  // smooth (m) }), and kept cut as it moves; cut again: with these opts.
-  // How many voxels the islands left took.
-  api.cut = (f, obj, opts, status = () => {}) => serial(async () => {
-    const F = f.fill.g, c = { opts: { ...opts }, key: cutKey(obj) + f.fill.gen };
-    c.idx = await cutVoxels(F, obj, c.opts, status);
-    if (!c.idx.some((i) => f.fill.base[i])) { status(""); throw new Error(`${obj.name} doesn't reach into the fill`); }
-    const b = f.fill.cuts.get(obj), cuts = f.fill.cuts;
-    cuts.set(obj, c);
-    record(`Cut ${obj.name}`, () => { if (b) cuts.set(obj, b); else cuts.delete(obj); }, () => cuts.set(obj, c));
-    return { removed: await recut(f, status) };
-  });
-  // cutOf: obj's cut in f (its opts), if it's cut; uncut: that cut taken back.
-  api.cutOf = (f, obj) => f?.fill.cuts.get(obj)?.opts ?? null;
-  api.uncut = (f, obj) => {
-    const c = f.fill.cuts.get(obj), cuts = f.fill.cuts;
-    if (!c) return;
-    cuts.delete(obj);
-    record(`Uncut ${obj.name}`, () => cuts.set(obj, c), () => cuts.delete(obj));
+  // setCut: obj's cut in f: opts ({ offset (m), keepAbove, smooth (m) }), or
+  // none (null); a step. The fill's cut again in the background.
+  api.setCut = (f, obj, opts) => {
+    const cuts = f.fill.cuts, b = cuts.get(obj) ?? null, a = opts ? { opts: { ...opts }, key: null } : null;
+    if (JSON.stringify(b?.opts ?? null) === JSON.stringify(a?.opts ?? null)) return;
+    const put = (c) => (c ? cuts.set(obj, c) : cuts.delete(obj));
+    put(a);
+    record(`${a ? (b ? "Change the cut of" : "Cut") : "Uncut"} ${obj.name}`, () => put(b), () => put(a));
     changed();
+  };
+  // cutOf: obj's cut in f: its opts, and missed (it's not in the fill where
+  // it is), if it's cut.
+  api.cutOf = (f, obj) => {
+    const c = f?.fill.cuts.get(obj);
+    return c ? { ...c.opts, missed: c.hits === 0 } : null;
   };
   function remesh(f) {
     const m = f.inner.children[0];
