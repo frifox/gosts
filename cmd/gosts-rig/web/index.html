@@ -3756,31 +3756,40 @@ $("cvMakeFill").onclick = async () => {
 const CUT_DEFAULT = { offset: 0.001, keepAbove: true, smooth: 0 };
 function cvCutList(f) {
   const cv = cvs.cv, objs = cv.objects().filter((o) => o.kind !== "fill" && o !== f.fill.set.container);
-  const rows = objs.map((o) => [o.id, o.name, cv.cutOf(f, o)]), key = JSON.stringify([f.id, cvs.cutOpen, rows]);
+  if (cvs.cutDraft && cvs.cutDraft.id !== cvs.cutOpen) cvs.cutDraft = null; // (a row closed: its edits not applied, dropped)
+  const draft = cvs.cutDraft;
+  const rows = objs.map((o) => [o.id, o.name, cv.cutOf(f, o)]), key = JSON.stringify([f.id, cvs.cutOpen, rows, draft?.opts.keepAbove]);
   const list = $("cvCutList");
   if (list.dataset.key === key) return;
   list.dataset.key = key;
   list.innerHTML = objs.length ? "" : '<div class="mve-label">Nothing to cut yet: add the things that go in (a model or a shape) and place them in the fill.</div>';
   const mm = (m) => +(m * 1000).toFixed(2);
+  const norm = (x) => JSON.stringify([x.offset, x.keepAbove, x.smooth, x.colMax ?? null]);
   for (const o of objs) {
     const c = cv.cutOf(f, o), open = cvs.cutOpen === o.id;
     const row = document.createElement("div");
     row.className = "cv-obj" + (open ? " on" : "");
     row.innerHTML = `<input type="checkbox" title="Cut it out of the fill"${c ? " checked" : ""}><span class="nm"></span><span class="kd${c?.missed ? " miss" : ""}">${!c ? "" : c.missed ? "not in the fill" : c.keepAbove ? "open above" : "around"}</span>`;
     row.querySelector(".nm").textContent = row.querySelector(".nm").title = o.name;
-    row.querySelector("input").onchange = (e) => { cv.setCut(f, o, e.target.checked ? { ...CUT_DEFAULT } : null); };
+    row.querySelector("input").onchange = (e) => { if (open) cvs.cutDraft = null; cv.setCut(f, o, e.target.checked ? { ...CUT_DEFAULT } : null); };
     row.onclick = (e) => { if (e.target.tagName !== "INPUT") { cvs.cutOpen = open ? null : o.id; cvShow(); } };
     list.appendChild(row);
     if (!open) continue;
-    const opts = document.createElement("div"), v = c || CUT_DEFAULT, dis = c ? "" : " disabled";
+    // Its options: edited here (a draft), cut with them on Apply.
+    const { missed, ...was } = c || CUT_DEFAULT, v = draft?.opts || was, dis = c ? "" : " disabled";
+    const opts = document.createElement("div");
     opts.className = "cv-cutopts";
     opts.innerHTML = `<div class="mve-row"><span class="mve-label">Cut</span><span class="views seg"><button data-v="above"${dis} class="${v.keepAbove ? "active" : ""}" title="It and all above it: it goes in from the top">Open Above</button><button data-v="around"${dis} class="${v.keepAbove ? "" : "active"}" title="Just round it">Around</button></span></div>
       <div class="mve-row"><span class="mve-label">Margin</span><input type="number" data-k="offset" value="${mm(v.offset)}" step="0.5" min="0"${dis}><span class="mve-label">mm round it</span></div>
       <div class="mve-row"><span class="mve-label">Smooth</span><input type="number" data-k="smooth" value="${mm(v.smooth)}" step="1" min="0"${dis} title="0: following its shape exactly; more: its nooks filled in, the cut rounder (never less than the margin)"><span class="mve-label">mm</span></div>${v.keepAbove ? `
-      <div class="mve-row"><span class="mve-label">Column max</span><input type="number" data-k="colMax" value="${v.colMax == null ? "" : mm(v.colMax)}" placeholder="any" step="1" min="0"${dis} title="How tall the fill's columns inside it (walled in by it, seen from above: in a prop guard, say) can stand over the bottom of the cut round them, mm. 0: none sticking up through it; empty: any height"><span class="mve-label">mm</span></div>` : ""}`;
-    const set = (ch) => { const now = cv.cutOf(f, o); if (now) { const { missed, ...was } = now; cv.setCut(f, o, { ...was, ...ch }); } };
-    opts.querySelector(".seg").onclick = (e) => { const k = e.target.dataset?.v; if (k) set({ keepAbove: k === "above" }); };
-    for (const inp of opts.querySelectorAll("input")) inp.onchange = () => set({ [inp.dataset.k]: inp.dataset.k === "colMax" && inp.value.trim() === "" ? null : Math.max(0, Number(inp.value) || 0) / 1000 });
+      <div class="mve-row"><span class="mve-label">Column max</span><input type="number" data-k="colMax" value="${v.colMax == null ? "" : mm(v.colMax)}" placeholder="any" step="1" min="0"${dis} title="How tall the fill's columns inside it (walled in by it, seen from above: in a prop guard, say) can stand over the bottom of the cut round them, mm. 0: none sticking up through it; empty: any height"><span class="mve-label">mm</span></div>` : ""}
+      <div class="mve-row"><span class="spacer"></span><button class="btn small primary" data-apply disabled title="Cut it again with these">Apply</button></div>`;
+    const apply = opts.querySelector("[data-apply]");
+    const edit = (ch) => { cvs.cutDraft = { id: o.id, opts: { ...(cvs.cutDraft?.opts || was), ...ch } }; apply.disabled = norm(cvs.cutDraft.opts) === norm(was); };
+    if (draft) apply.disabled = !c || norm(draft.opts) === norm(was);
+    opts.querySelector(".seg").onclick = (e) => { const k = e.target.dataset?.v; if (k && c) { edit({ keepAbove: k === "above" }); cvShow(); } };
+    for (const inp of opts.querySelectorAll("input")) inp.oninput = () => edit({ [inp.dataset.k]: inp.dataset.k === "colMax" && inp.value.trim() === "" ? null : Math.max(0, Number(inp.value) || 0) / 1000 });
+    apply.onclick = () => { const d = cvs.cutDraft; cvs.cutDraft = null; if (d && c) cv.setCut(f, o, d.opts); };
     list.appendChild(opts);
   }
 }
