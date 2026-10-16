@@ -505,14 +505,22 @@ export function createCombine(canvas) {
     const o = objects.find((x) => x.holder === h.object || x.holder.getObjectById(h.object.id));
     return { o, point: h.point };
   };
-  // pick: the next click on an object (only: that one) gives the point.
-  api.pick = (only, done) => { picking = { only, done }; canvas.style.cursor = "crosshair"; };
+  // planeAt: where the pointer is on the level y (m), if it's over it.
+  const planeAt = (e, y) => {
+    const b = canvas.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1), camera);
+    const p = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), new THREE.Vector3());
+    return p && { o: null, point: p };
+  };
+  // pick: the next click on an object (only: that one) gives the point; with
+  // plane (y, m), the point clicked on that level instead.
+  api.pick = (only, done, plane = null) => { picking = { only, done, plane }; canvas.style.cursor = "crosshair"; };
   api.unpick = () => { picking = null; canvas.style.cursor = ""; };
   api.picking = () => !!picking;
   api.boxOf = (o) => new THREE.Box3().setFromObject(o.holder);
   canvas.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
-    const h = hitAt(e, picking?.only);
+    const h = picking?.plane != null ? planeAt(e, picking.plane) : hitAt(e, picking?.only);
     if (picking) {
       if (h) { e.stopImmediatePropagation(); controls.enabled = false; const p = picking; api.unpick(); p.done(h.point); setTimeout(() => (controls.enabled = true)); }
       return;
@@ -601,7 +609,7 @@ export function createCombine(canvas) {
 
   // ------------------------------------------------------------ fill
   // makeFill: the inside of container (as placed) up to level (y, m), from
-  // inside (a point in it: under the level), kept tol (m) off its surfaces;
+  // inside (x, z: a point in it, seen from above the level), kept tol (m) off its surfaces;
   // voxels res (m) apart. status(text) as it goes.
   api.makeFill = async (container, level, inside, tol, res, status = () => {}) => {
     status("Fill: placing the container's walls");
@@ -617,9 +625,11 @@ export function createCombine(canvas) {
     await tick();
     const d = edt(g, (i) => g.v[i]), r = tol / h + 0.5, r2 = r * r;
     const seedAt = (y) => at(g, Math.floor((inside.x - o.x) / h), y, Math.floor((inside.z - o.z) / h));
-    let sy = Math.min(g.ny - 1, Math.floor((inside.y - o.y) / h));
-    while (sy < g.ny && d[seedAt(sy)] <= r2) sy++; // (the point on the floor: up out of the margin)
-    if (sy >= g.ny) throw new Error("no room there: pick a point well inside the container");
+    const ix = Math.floor((inside.x - o.x) / h), iz = Math.floor((inside.z - o.z) / h);
+    if (ix < 0 || iz < 0 || ix >= g.nx || iz >= g.nz) throw new Error("the point is off the container: pick one over its inside");
+    let sy = g.ny - 1;
+    while (sy >= 0 && d[seedAt(sy)] <= r2) sy--; // (the point on the level: down out of a wall or its margin)
+    if (sy < 0) throw new Error("no room there: pick a point well inside the container");
     status("Fill: filling the inside");
     await tick();
     const fill = new Uint8Array(g.v.length);

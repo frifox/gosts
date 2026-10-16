@@ -1316,7 +1316,7 @@ kbd + kbd { margin-left: 3px; }
       <section id="cvFillSec" hidden>
         <div class="mve-head"><b>Container Fill</b>The inside of the selected object (a case, a bowl), up to a fill line, kept off its walls: an insert.</div>
         <div class="mve-row"><button class="btn small" id="cvPickTop" title="Click on the container where the fill should come up to: its level (the Offset moves it from there)">Pick Fill Line</button><span class="mve-label">Offset</span><input type="number" id="cvBelow" value="0" step="1" title="The fill line moved up (+) or down (−) from the point picked, mm"><span class="mve-label">mm</span></div>
-        <div class="mve-row"><span class="mve-label">Inside</span><button class="btn small" id="cvPickIn" title="Click its floor inside: the fill grows from there (down to the floor, out to the walls)">Pick Point</button><span class="mve-label" id="cvInText"></span></div>
+        <div class="mve-row"><span class="mve-label">Inside</span><button class="btn small" id="cvPickIn" title="Click on the fill line, over the container's inside: the fill grows from there (down to the floor, out to the walls)">Pick Point</button><span class="mve-label" id="cvInText"></span></div>
         <div class="mve-row"><span class="mve-label">Off the walls</span><input type="number" id="cvTol" value="1" step="0.5" min="0"><span class="mve-label">mm</span></div>
         <div class="mve-row"><span class="mve-label">Resolution</span><input type="number" id="cvRes" value="1" step="0.5" min="0.2"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small primary" id="cvMakeFill" disabled>Make Fill</button></div>
       </section>
@@ -3663,6 +3663,7 @@ function cvShow() {
   if (cvs.container !== s && canFill) { cvs.container = s; cvs.top = cvs.inside = null; }
   $("cvInText").textContent = cvs.inside ? "picked" : "";
   $("cvPickTop").classList.toggle("on", cvs.top != null);
+  $("cvPickIn").disabled = cvs.top == null;
   $("cvMakeFill").disabled = cvs.busy || !(canFill && cvs.top != null && cvs.inside);
   cvMarks();
   // Cut: a fill there, and the selected not one.
@@ -3681,7 +3682,8 @@ function cvLevel() { return cvs.top == null ? null : cvs.top + (Number($("cvBelo
 // cvMarks: the level picked (a sheet over the container) and the inside point.
 function cvMarks() {
   const s = cvs.cv.selected(), show = !$("cvFillSec").hidden && s;
-  cvs.cv.marks(show ? cvLevel() : null, show ? cvs.cv.boxOf(s) : null, show ? cvs.inside : null);
+  const level = cvLevel(), p = cvs.inside && level != null ? { x: cvs.inside.x, y: level, z: cvs.inside.z } : null; // (on the line, as it moves)
+  cvs.cv.marks(show ? level : null, show ? cvs.cv.boxOf(s) : null, show ? p : null);
 }
 $("cvBelow").addEventListener("input", cvMarks);
 $("cvName").addEventListener("change", () => { const s = cvs.cv.selected(); if (s && $("cvName").value.trim()) cvs.cv.rename(s, $("cvName").value.trim()); });
@@ -3711,13 +3713,13 @@ $("cvPickTop").onclick = () => {
 };
 $("cvPickIn").onclick = () => {
   const s = cvs.cv.selected();
-  cvStatus("Click its floor, inside");
-  cvs.cv.pick(s, (p) => { cvs.inside = p; cvStatus(""); cvShow(); });
+  if (cvLevel() == null) return;
+  cvStatus("Click on the fill line, over the container's inside");
+  cvs.cv.pick(s, (p) => { cvs.inside = { x: p.x, z: p.z }; cvStatus(""); cvShow(); }, cvLevel());
 };
 $("cvMakeFill").onclick = async () => {
   const s = cvs.cv.selected(), level = cvLevel();
   if (!s || level == null || !cvs.inside) return;
-  if (cvs.inside.y >= level) return cvStatus("The inside point is above the fill line: pick its floor, or raise the line", "bad");
   cvs.busy = true; cvShow();
   try {
     const { fill, removed } = await cvs.cv.makeFill(s, level, cvs.inside, Math.max(0, Number($("cvTol").value) || 0) / 1000, Math.max(0.2, Number($("cvRes").value) || 1) / 1000, (t) => cvStatus(t ? t + "…" : ""));
