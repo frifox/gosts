@@ -361,15 +361,17 @@ export function createCombine(canvas) {
     shiftTick(last ? Math.min(0.1, (now - last) / 1000) : 1);
     last = now;
     controls.update();
-    if (selected?.visible) sel.update();
+    if (sel.visible) sel.update();
     renderer.render(scene, camera);
     requestAnimationFrame(loop);
   }
   api.start = () => { if (!running) { running = true; last = 0; requestAnimationFrame(loop); } };
   api.stop = () => { running = false; };
 
+  // outline: the selected one's box (none for one with nothing in it yet, a
+  // fill not made: the box helper would keep the last one's).
   function outline() {
-    sel.visible = !!selected?.visible;
+    sel.visible = !!selected?.visible && !new THREE.Box3().setFromObject(selected.holder).isEmpty();
     if (sel.visible) sel.setFromObject(selected.holder);
   }
   // place: o's holder where its pos and rot say.
