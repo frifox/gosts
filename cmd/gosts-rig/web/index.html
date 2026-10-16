@@ -3612,7 +3612,7 @@ async function cvAddModel(b, m) {
   $("cvAdd").disabled = true;
   try {
     const scale = window.modelEdit.UNITS[m.edit?.units] || 1; // (an edited model: in its units)
-    await cvs.cv.addModel(m.name, modelBase(b, m), m.file, scale, (t) => cvStatus(t + "…"));
+    await cvs.cv.addModel(`${b}/${m.name}`, modelBase(b, m), m.file, scale, (t) => cvStatus(t + "…"));
     cvStatus("");
   } catch (e) { cvStatus(e.message, "bad"); }
   $("cvAdd").disabled = false;
@@ -3630,7 +3630,7 @@ function cvShow() {
     const row = document.createElement("div");
     row.className = "cv-obj" + (o === s ? " on" : "") + (o.visible ? "" : " hid");
     row.innerHTML = `<button class="eye" title="${o.visible ? "Hide it (left out of Save)" : "Show it"}">${o.visible ? eyeOn : eyeOff}</button><span class="nm"></span><span class="kd">${o.kind}</span>`;
-    row.querySelector(".nm").textContent = o.name;
+    row.querySelector(".nm").textContent = row.querySelector(".nm").title = o.name;
     row.onclick = (e) => { if (e.target.closest(".eye")) cv.setVisible(o, !o.visible); else cv.select(o === cv.selected() ? null : o); }; // (the selected one again: none)
     list.appendChild(row);
   }
