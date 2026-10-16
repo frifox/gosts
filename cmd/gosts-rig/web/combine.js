@@ -282,7 +282,12 @@ export function createCombine(canvas) {
   const objects = [];
   let seq = 0, selected = null, onChange = () => {}, picking = null, dragging = null;
   const api = {};
-  const changed = () => { outline(); onChange(); if (!dragging) queueRecut(); }; // (a cut thing moved: its fill cut again, once let go)
+  const changed = () => {
+    outline();
+    if (ring.visible) api.turnRing(ring.userData.o === selected ? selected : null, ring.userData.ax); // (where it is now; none once it's not selected)
+    onChange();
+    if (!dragging) queueRecut();
+  }; // (a cut thing moved: its fill cut again, once let go)
   api.setOnChange = (f) => { onChange = f; }; // (the page's panel: as it is)
 
   // History: each step done (what: its name; undo, redo: back and on), the
@@ -437,9 +442,21 @@ export function createCombine(canvas) {
   api.objects = () => objects;
   api.selected = () => selected;
   api.select = (o) => { selected = o; changed(); };
+  // peekPose: o shown at pos, rot (either: as it is) as a slider moves, not
+  // a step yet (setPose then makes it one, from where it was before).
+  api.peekPose = (o, pos, rot) => {
+    if (o.kind === "fill") return;
+    o.peekFrom ||= pose(o);
+    if (pos) o.pos = pos;
+    if (rot) o.rot = rot;
+    place(o);
+    outline();
+    if (ring.visible && ring.userData.o === o) api.turnRing(o, ring.userData.ax);
+  };
   api.setPose = (o, pos, rot) => {
     if (o.kind === "fill") return;
-    const b = pose(o);
+    const b = o.peekFrom || pose(o);
+    delete o.peekFrom;
     if (pos) o.pos = pos;
     if (rot) o.rot = rot;
     place(o);
@@ -587,6 +604,40 @@ export function createCombine(canvas) {
   };
   canvas.addEventListener("pointerup", endDrag);
   canvas.addEventListener("pointercancel", endDrag);
+
+  // ------------------------------------------------------------ turn ring
+  // turnRing: a circle round o along which its ax slider (Blender's X, Y or
+  // Z, as its rot applies them: X first, then Y, then Z) turns it, an
+  // arrowhead on it the way + goes; none (ax null).
+  const ring = new THREE.Group();
+  ring.visible = false;
+  ring.renderOrder = 10;
+  scene.add(ring);
+  const RING_COLOR = { x: 0xe5484d, y: 0x46a758, z: 0x3e7bfa };
+  api.turnRing = (o, ax) => {
+    for (const c of [...ring.children]) { ring.remove(c); c.geometry.dispose(); c.material.dispose(); }
+    ring.visible = !!(o && ax && objects.includes(o));
+    if (!ring.visible) return;
+    ring.userData = { o, ax };
+    const d = Math.PI / 180, r = o.rot;
+    const qz = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), r.z * d);
+    const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, -1), r.y * d);
+    const axis = ax === "z" ? new THREE.Vector3(0, 1, 0)
+      : ax === "y" ? new THREE.Vector3(0, 0, -1).applyQuaternion(qz)
+      : new THREE.Vector3(1, 0, 0).applyQuaternion(qy).applyQuaternion(qz);
+    o.holder.updateMatrixWorld(true);
+    const at = o.holder.getWorldPosition(new THREE.Vector3()), box = new THREE.Box3().setFromObject(o.inner);
+    let R = 0.01;
+    for (let i = 0; i < 8; i++) R = Math.max(R, new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).distanceTo(at));
+    R *= 1.08;
+    const mat = () => new THREE.MeshBasicMaterial({ color: RING_COLOR[ax], depthTest: false, transparent: true, opacity: 0.9 });
+    const torus = new THREE.Mesh(new THREE.TorusGeometry(R, R * 0.012, 8, 128), mat());
+    const head = new THREE.Mesh(new THREE.ConeGeometry(R * 0.05, R * 0.14, 16), mat()); // (at +X of the circle, pointing +Y: the way + turns about +Z)
+    head.position.set(R, 0, 0);
+    for (const m of [torus, head]) { m.renderOrder = 10; ring.add(m); }
+    ring.position.copy(at);
+    ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
+  };
 
   // ------------------------------------------------------------ marks
   // marks: the fill's level (y, m) over box, and its inside point.

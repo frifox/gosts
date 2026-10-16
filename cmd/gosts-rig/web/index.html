@@ -476,6 +476,12 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 #cvName { flex: 1; min-width: 0; }
 .cv-side input#cvBelow, .cv-side input#cvTol, .cv-side input#cvRes, .cv-cutopts input[type=number] { width: 64px; }
 .cv-cuts { max-height: none; }
+.cv-cuts .cv-obj { cursor: default; }
+#cvRot input.cv-deg { width: 46px; min-width: 0; padding-left: 4px; padding-right: 4px; font: 11px var(--mono); }
+.cv-cuts .cv-obj .caret { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; color: var(--muted); cursor: pointer; }
+.cv-cuts .cv-obj .caret svg { width: 12px; height: 12px; transition: transform .15s; }
+.cv-cuts .cv-obj .caret.open svg { transform: rotate(180deg); }
+.cv-cuts .cv-obj .caret:hover { color: var(--text); }
 .cv-select { flex: 1; min-width: 0; }
 .cv-cuts .cv-obj input[type=checkbox] { margin: 0 2px; }
 .cv-cuts .cv-obj .kd.miss { color: var(--warn, #d9a400); }
@@ -1313,8 +1319,12 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-head"><b>Selected</b></div>
         <div class="mve-row"><input type="text" id="cvName" spellcheck="false" autocomplete="off" title="Its name"><button class="btn small danger" id="cvRemove" title="Take it out of the space">Remove</button></div>
         <div class="cv-xyz" id="cvPos"><span class="mve-label">Move (mm)</span><b class="x">X</b><input type="number" step="1" data-k="x"><b class="y">Y</b><input type="number" step="1" data-k="y"><b class="z">Z</b><input type="number" step="1" data-k="z"></div>
-        <div class="cv-xyz" id="cvRot"><span class="mve-label">Turn (°)</span><b class="x">X</b><input type="number" step="5" data-k="x"><b class="y">Y</b><input type="number" step="5" data-k="y"><b class="z">Z</b><input type="number" step="5" data-k="z"></div>
-        <div class="mve-row"><span class="mve-label">Turn 90°</span><span class="btn-join" id="cvTurn"><button class="btn small" data-t="x">X</button><button class="btn small" data-t="y">Y</button><button class="btn small" data-t="z">Z</button></span><span class="spacer"></span><button class="btn small" id="cvDrop" title="Down (or up) so its lowest point is on the floor">Drop to Floor</button></div>
+        <div class="mve-row"><span class="mve-label">Turn (°)</span><span class="spacer"></span><button class="btn small" id="cvDrop" title="Down (or up) so its lowest point is on the floor">Drop to Floor</button></div>
+        <div class="mve-rot cv-rot" id="cvRot" title="Hover one to see the circle it turns the object along (the arrow: the way + goes)">
+          <b class="x">X</b><button class="btn small" data-rot="x" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="x"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="x" aria-label="Turn about X"></span><button class="btn small" data-rot="x" data-deg="90">+90°</button><input type="number" class="cv-deg" step="1" data-k="x" title="Degrees (type one)">
+          <b class="y">Y</b><button class="btn small" data-rot="y" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="y"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="y" aria-label="Turn about Y"></span><button class="btn small" data-rot="y" data-deg="90">+90°</button><input type="number" class="cv-deg" step="1" data-k="y" title="Degrees (type one)">
+          <b class="z">Z</b><button class="btn small" data-rot="z" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="z"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="z" aria-label="Turn about Z"></span><button class="btn small" data-rot="z" data-deg="90">+90°</button><input type="number" class="cv-deg" step="1" data-k="z" title="Degrees (type one)">
+        </div>
         <div class="cv-xyz" id="cvSize" hidden><span class="mve-label">Size (mm)</span></div>
       </section>
       <section id="cvFillSec" hidden>
@@ -1327,7 +1337,7 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-row"><span class="mve-label" id="cvFillText"></span></div>
       </section>
       <section id="cvCutsSec" hidden>
-        <div class="mve-head"><b>Objects to Cut</b>Each one checked is cut out of the fill where it's placed (and again wherever it's moved); click one for how. The fill's kept in one piece.</div>
+        <div class="mve-head"><b>Objects to Cut</b>Each one checked is cut out of the fill where it's placed (and again wherever it's moved); its caret for how. The fill's kept in one piece.</div>
         <div class="cv-list cv-cuts" id="cvCutList"></div>
       </section>
       <section>
@@ -3644,11 +3654,11 @@ function cvShow() {
   const isFill = s?.kind === "fill";
   if (s) {
     if (document.activeElement !== $("cvName")) $("cvName").value = s.name;
-    for (const [id, v] of [["cvPos", s.pos], ["cvRot", s.rot]]) for (const inp of $(id).querySelectorAll("input")) {
-      if (document.activeElement !== inp) inp.value = cvNum(v[inp.dataset.k]);
+    for (const inp of $("cvPos").querySelectorAll("input")) {
+      if (document.activeElement !== inp) inp.value = cvNum(s.pos[inp.dataset.k]);
       inp.disabled = isFill;
     }
-    for (const b of $("cvTurn").children) b.disabled = isFill;
+    cvRotShow(s.rot, isFill);
     $("cvDrop").disabled = isFill;
     const size = s.size, sz = $("cvSize");
     sz.hidden = !size;
@@ -3709,19 +3719,48 @@ $("cvRes").addEventListener("change", () => cvSetFill({ res: Math.max(0.2, Numbe
 $("cvFCont").addEventListener("change", () => cvSetFill({ container: cvs.cv.objects().find((o) => String(o.id) === $("cvFCont").value) ?? null }, "Set the container"));
 $("cvName").addEventListener("change", () => { const s = cvs.cv.selected(); if (s && $("cvName").value.trim()) cvs.cv.rename(s, $("cvName").value.trim()); });
 $("cvRemove").onclick = () => { const s = cvs.cv.selected(); if (s) cvs.cv.remove(s); };
-for (const id of ["cvPos", "cvRot"]) $(id).addEventListener("change", (e) => {
+$("cvPos").addEventListener("change", (e) => {
   const s = cvs.cv.selected(), k = e.target.dataset.k;
   if (!s || !k) return;
   const v = Number(e.target.value);
-  if (!Number.isFinite(v)) return;
-  if (id === "cvPos") cvs.cv.setPose(s, { ...s.pos, [k]: v }); else cvs.cv.setPose(s, null, { ...s.rot, [k]: v });
+  if (Number.isFinite(v)) cvs.cv.setPose(s, { ...s.pos, [k]: v });
 });
-$("cvTurn").onclick = (e) => {
-  const k = e.target.closest("[data-t]")?.dataset.t, s = cvs.cv.selected();
-  if (!k || !s) return;
-  const r = (((s.rot[k] + 90) % 360) + 540) % 360 - 180;
-  cvs.cv.setPose(s, null, { ...s.rot, [k]: r });
-};
+// Turn: a slider (and ±90°, and the degrees typed) an axis; as one's dragged
+// the object turns with it, kept (a step) once let go. Hovering an axis' row
+// shows the circle it turns the object along.
+function cvRotShow(rot, off) {
+  for (const ax of "xyz") {
+    const v = rot[ax], f = (v + 180) / 360, d = $("cvRot").querySelector(`.mve-dual[data-rax="${ax}"]`), deg = $("cvRot").querySelector(`input[data-k="${ax}"]`);
+    d.querySelector("input").value = v;
+    d.style.setProperty("--a", Math.min(0.5, f)); d.style.setProperty("--b", Math.max(0.5, f)); // (filled from 0° to it)
+    if (document.activeElement !== deg) deg.value = cvNum(v);
+    for (const el of $("cvRot").querySelectorAll(`[data-rax="${ax}"] input, [data-rot="${ax}"], input[data-k="${ax}"]`)) el.disabled = off;
+  }
+}
+$("cvRot").addEventListener("input", (e) => {
+  const r = e.target.closest("input[data-rax]"), s = cvs.cv.selected();
+  if (!r || !s) return;
+  const rot = { ...s.rot, [r.dataset.rax]: Number(r.value) };
+  cvs.cv.peekPose(s, null, rot);
+  cvRotShow(rot, false);
+});
+$("cvRot").addEventListener("change", (e) => {
+  const s = cvs.cv.selected();
+  if (!s) return;
+  const r = e.target.closest("input[data-rax]"), t = e.target.closest("input[data-k]");
+  if (r) cvs.cv.setPose(s, null, { ...s.rot, [r.dataset.rax]: Number(r.value) });
+  else if (t && Number.isFinite(Number(t.value))) cvs.cv.setPose(s, null, { ...s.rot, [t.dataset.k]: rotWrap(Number(t.value)) });
+});
+$("cvRot").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-rot]"), s = cvs.cv.selected();
+  if (b && s) { const ax = b.dataset.rot; cvs.cv.setPose(s, null, { ...s.rot, [ax]: rotWrap(s.rot[ax] + Number(b.dataset.deg)) }); cvs.cv.turnRing(s, ax); }
+});
+$("cvRot").addEventListener("pointerover", (e) => {
+  const ax = e.target.closest("[data-rax], [data-rot], input[data-k]");
+  const k = ax?.dataset.rax || ax?.dataset.rot || ax?.dataset.k, s = cvs.cv.selected();
+  if (k && s && s.kind !== "fill") cvs.cv.turnRing(s, k);
+});
+$("cvRot").addEventListener("pointerleave", () => cvs.cv.turnRing(null));
 $("cvDrop").onclick = () => { const s = cvs.cv.selected(); if (s) cvs.cv.drop(s); };
 $("cvSize").addEventListener("change", (e) => {
   const s = cvs.cv.selected(), k = e.target.dataset?.k, v = Number(e.target.value);
@@ -3753,7 +3792,7 @@ $("cvMakeFill").onclick = async () => {
 // cvCutList: the fill f's Objects to Cut: each one checked or not (cut or
 // not), the one clicked (cvs.cutOpen) with its options under it. Made again
 // only when something in it changed (not under a field being typed in).
-const CUT_DEFAULT = { offset: 0.001, keepAbove: true, smooth: 0 };
+const CUT_DEFAULT = { offset: 0.001, keepAbove: true, smooth: 0, colMax: null };
 function cvCutList(f) {
   const cv = cvs.cv, objs = cv.objects().filter((o) => o.kind !== "fill" && o !== f.fill.set.container);
   if (cvs.cutDraft && cvs.cutDraft.id !== cvs.cutOpen) cvs.cutDraft = null; // (a row closed: its edits not applied, dropped)
@@ -3769,10 +3808,10 @@ function cvCutList(f) {
     const c = cv.cutOf(f, o), open = cvs.cutOpen === o.id;
     const row = document.createElement("div");
     row.className = "cv-obj" + (open ? " on" : "");
-    row.innerHTML = `<input type="checkbox" title="Cut it out of the fill"${c ? " checked" : ""}><span class="nm"></span><span class="kd${c?.missed ? " miss" : ""}">${!c ? "" : c.missed ? "not in the fill" : c.keepAbove ? "open above" : "around"}</span>`;
+    row.innerHTML = `<input type="checkbox" title="Cut it out of the fill"${c ? " checked" : ""}><span class="nm"></span>${c?.missed ? '<span class="kd miss">not in the fill</span>' : ""}<button class="caret${open ? " open" : ""}" title="${open ? "Hide" : "Show"} how it's cut"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 4.5l3 3 3-3"/></svg></button>`;
     row.querySelector(".nm").textContent = row.querySelector(".nm").title = o.name;
     row.querySelector("input").onchange = (e) => { if (open) cvs.cutDraft = null; cv.setCut(f, o, e.target.checked ? { ...CUT_DEFAULT } : null); };
-    row.onclick = (e) => { if (e.target.tagName !== "INPUT") { cvs.cutOpen = open ? null : o.id; cvShow(); } };
+    row.querySelector(".caret").onclick = () => { cvs.cutOpen = open ? null : o.id; cvShow(); };
     list.appendChild(row);
     if (!open) continue;
     // Its options: edited here (a draft), cut with them on Apply.

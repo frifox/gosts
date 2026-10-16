@@ -114,7 +114,8 @@ file.
 
 **Combine Models** in Browse puts models (picked from your captures) and simple shapes (box, cylinder, sphere) in one
 space. Select one from the list or by clicking it, then drag it along the floor
-(hold Shift to lift or lower it instead) or type where it goes and how it's turned.
+(hold Shift to lift or lower it instead) or type where it goes. Turn it with the X, Y, Z sliders (or ±90°, or type the
+degrees); hovering one shows the circle it turns the object along, an arrow on it the way + goes.
 
 It can make a custom case insert, to print in foaming TPU, say:
 
@@ -124,7 +125,7 @@ It can make a custom case insert, to print in foaming TPU, say:
   **Off the walls** from them, in cubes of the **Resolution**. Change any of it later and **Make Again**: its cuts
   are made again in it.
 - **Objects to Cut**: select the fill, and it lists everything but its container. Check each object that goes in (a
-  drone, goggles, a controller), placed where it'll sit, and click it for how it's cut (set them, then **Apply**):
+  drone, goggles, a controller), placed where it'll sit, and open its caret for how it's cut (then **Apply**):
   **Open Above** leaves room to drop it in from the top, **Around** only takes its shape; a **Margin** round it;
   **Smooth** rounds the pocket off without ever cutting into the margin. With Open Above, **Column max** caps the
   fill's columns standing inside the object (walled in by it, seen from above: inside a drone's prop guards, say) at
