@@ -241,13 +241,13 @@ td.mono { font-family: var(--mono); }
 /* Slim scrollbars in the theme's colors that stay visible (macOS otherwise hides them until
    scrolling): the timeline's, and the scrolling columns, log, photo grid, dialogs and model Edit panel's. */
 .timeline::-webkit-scrollbar { height: 8px; }
-.left::-webkit-scrollbar, #log::-webkit-scrollbar, .gallery-grid::-webkit-scrollbar, .modal::-webkit-scrollbar, .settings-card::-webkit-scrollbar, .mv-edit::-webkit-scrollbar { width: 8px; }
+.left::-webkit-scrollbar, #log::-webkit-scrollbar, .gallery-grid::-webkit-scrollbar, .modal::-webkit-scrollbar, .settings-card::-webkit-scrollbar, .mv-edit::-webkit-scrollbar, .cv-load-list::-webkit-scrollbar, .cv-list::-webkit-scrollbar { width: 8px; }
 .timeline::-webkit-scrollbar-track, .left::-webkit-scrollbar-track, #log::-webkit-scrollbar-track,
-.gallery-grid::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track, .settings-card::-webkit-scrollbar-track, .mv-edit::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
+.gallery-grid::-webkit-scrollbar-track, .modal::-webkit-scrollbar-track, .settings-card::-webkit-scrollbar-track, .mv-edit::-webkit-scrollbar-track, .cv-load-list::-webkit-scrollbar-track, .cv-list::-webkit-scrollbar-track { background: var(--panel-2); border-radius: 4px; }
 .timeline::-webkit-scrollbar-thumb, .left::-webkit-scrollbar-thumb, #log::-webkit-scrollbar-thumb,
-.gallery-grid::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb, .settings-card::-webkit-scrollbar-thumb, .mv-edit::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.gallery-grid::-webkit-scrollbar-thumb, .modal::-webkit-scrollbar-thumb, .settings-card::-webkit-scrollbar-thumb, .mv-edit::-webkit-scrollbar-thumb, .cv-load-list::-webkit-scrollbar-thumb, .cv-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 .timeline::-webkit-scrollbar-thumb:hover, .left::-webkit-scrollbar-thumb:hover, #log::-webkit-scrollbar-thumb:hover,
-.gallery-grid::-webkit-scrollbar-thumb:hover, .modal::-webkit-scrollbar-thumb:hover, .settings-card::-webkit-scrollbar-thumb:hover, .mv-edit::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.gallery-grid::-webkit-scrollbar-thumb:hover, .modal::-webkit-scrollbar-thumb:hover, .settings-card::-webkit-scrollbar-thumb:hover, .mv-edit::-webkit-scrollbar-thumb:hover, .cv-load-list::-webkit-scrollbar-thumb:hover, .cv-list::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .timeline .thumb { flex: none; height: 120px; aspect-ratio: 3 / 2; position: relative; padding: 0; border: 1px solid var(--border); border-radius: 8px;
   overflow: hidden; background: var(--panel-2); cursor: zoom-in; }
 .timeline .thumb:hover { border-color: var(--accent); }
@@ -3646,6 +3646,7 @@ function cvLoadShow() {
   let done = 0;
   for (const x of cvLoad.steps) done += over(x) ? 1 : x.state === "now" && x.subs?.length ? x.subs.filter(over).length / x.subs.length : 0;
   $("cvLoadBar").style.width = `${n ? (100 * done) / n : 0}%`;
+  const top = list.scrollTop; // (made again: where it was scrolled, kept)
   list.innerHTML = "";
   let going = null;
   const item = (x, into, sub) => {
@@ -3661,7 +3662,11 @@ function cvLoadShow() {
     item(x, list, false);
     for (const y of x.subs || []) item(y, list, true);
   }
-  if (going) requestAnimationFrame(() => { const t = going.offsetTop - list.offsetTop; if (t < list.scrollTop || t + going.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = t - list.clientHeight / 2; });
+  list.scrollTop = top;
+  if (going) { // (the one going: always in view, scrolled to as it moves on)
+    const l = list.getBoundingClientRect(), g = going.getBoundingClientRect();
+    if (g.top < l.top || g.bottom > l.bottom) list.scrollTop += g.top - l.top - (l.height - g.height) / 2;
+  }
 }
 // cvStep: step i going (its note: how it goes), then done or warn (its
 // sub-steps not over yet: done with it).
