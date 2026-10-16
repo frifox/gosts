@@ -1332,7 +1332,7 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-head"><b>Container Fill</b>The inside of its container (a case, a bowl), up to a fill line, kept off its walls: an insert.</div>
         <div class="mve-row"><span class="mve-label">Container</span><button class="btn small" id="cvFCont" title="Click the container (a case, a bowl) in the view">Pick Object</button><span class="mve-label cv-cont-name" id="cvFContName"></span></div>
         <div class="mve-row"><button class="btn small" id="cvPickTop" title="Click on the container where the fill should come up to: its level (the Offset moves it from there)">Pick Fill Line</button><span class="mve-label">Offset</span><input type="number" id="cvBelow" value="0" step="1" title="The fill line moved down (+) or up (−) from the point picked, mm"><span class="mve-label">mm</span></div>
-        <div class="mve-row"><span class="mve-label">Inside</span><button class="btn small" id="cvPickIn" title="Click on the fill line, over the container's inside: the fill grows from there (down to the floor, out to the walls)">Pick Point</button><span class="mve-label" id="cvInText"></span></div>
+        <div class="mve-row"><span class="mve-label">Inside</span><button class="btn small" id="cvPickIn" title="The fill grows from a point on the fill line (down to the floor, out to the walls): the middle of the container, unless picked again here (click on the line, over its inside)">Re-pick Point</button><span class="mve-label" id="cvInText"></span></div>
         <div class="mve-row"><span class="mve-label">Off the walls</span><input type="number" id="cvTol" value="1" step="0.5" min="0"><span class="mve-label">mm</span></div>
         <div class="mve-row"><span class="mve-label">Resolution</span><input type="number" id="cvRes" value="1" step="0.5" min="0.2"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small primary" id="cvMakeFill" disabled>Make Fill</button></div>
         <div class="mve-row"><span class="mve-label" id="cvFillText"></span></div>
@@ -3693,10 +3693,10 @@ function cvFillShow(f, busy) {
   $("cvPickTop").disabled = !st.container;
   $("cvPickTop").classList.toggle("on", st.top != null);
   $("cvPickIn").disabled = st.top == null;
-  $("cvInText").textContent = st.inside ? "picked" : "";
+  $("cvInText").textContent = !st.inside ? "" : st.inside.auto ? "the middle" : "picked";
   $("cvMakeFill").textContent = f.fill.g ? "Make Again" : "Make Fill";
   $("cvMakeFill").disabled = busy || state === "unset";
-  $("cvFillText").textContent = { unset: "Pick its container, its fill line and a point inside, then Make Fill.", new: "Not made yet.", changed: "Changed since it was made: Make Again.", made: "Made." }[state];
+  $("cvFillText").textContent = { unset: "Pick its container and its fill line, then Make Fill.", new: "Not made yet.", changed: "Changed since it was made: Make Again.", made: "Made." }[state];
 }
 // cvMarks: the selected fill's line (a sheet over its container) and inside
 // point (the Offset as it's typed).
@@ -3784,7 +3784,12 @@ $("cvPickTop").onclick = () => {
   const f = cvs.cv.selected(), c = f?.fill?.set.container;
   if (!c) return;
   cvStatus("Click on the container where the fill should come up to");
-  cvs.cv.pick(c, (p) => { cvStatus(""); cvs.cv.setFill(f, { top: p.y }, `Pick the fill line of ${f.name}`); });
+  cvs.cv.pick(c, (p) => { // (the inside point: the middle, unless one was picked)
+    cvStatus("");
+    const ch = { top: p.y }, m = cvs.cv.boxOf(c).getCenter(p.clone());
+    if (!f.fill.set.inside || f.fill.set.inside.auto) ch.inside = { x: m.x, z: m.z, auto: true };
+    cvs.cv.setFill(f, ch, `Pick the fill line of ${f.name}`);
+  });
 };
 $("cvPickIn").onclick = () => {
   const f = cvs.cv.selected(), level = f?.kind === "fill" ? cvs.cv.fillLevel(f) : null;

@@ -122,10 +122,11 @@ the slider's handle one way, +90° or right of it the other.
 It can make a custom case insert, to print in foaming TPU, say:
 
 - **Container Fill**: add one with **Fill** (next to the shapes) and, with it selected, pick its **Container** (**Pick
-  Object**, then click the case), **Pick Fill Line** (click the case where the fill should come up to; **Offset** moves it down (+) or up
-  (−) in mm), then **Pick Point**: a point on that line, over the inside. **Make Fill** takes the inside up to that line, kept
-  **Off the walls** from them, in cubes of the **Resolution**. Change any of it later and **Make Again**: its cuts
-  are made again in it.
+  Object**, then click the case) and **Pick Fill Line** (click the case where the fill should come up to; **Offset**
+  moves it down (+) or up (−) in mm). The fill grows from the middle of the case on that line; if that's not inside
+  it (a case with a divider, say), **Re-pick Point**: a point on the line, over the inside. **Make Fill** takes the
+  inside up to that line, kept **Off the walls** from them, in cubes of the **Resolution**. Change any of it later
+  and **Make Again**: its cuts are made again in it.
 - **Objects to Cut**: select the fill, and it lists everything but its container. Check each object that goes in (a
   drone, goggles, a controller), placed where it'll sit, and open its caret for how it's cut (then **Apply**):
   **Open Above** leaves room to drop it in from the top, **Around** only takes its shape; a **Margin** round it;

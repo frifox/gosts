@@ -715,7 +715,7 @@ export function createCombine(canvas) {
   // left took.
   api.makeFill = (f, status = () => {}) => serial(async () => {
     const F = f.fill, st = { ...F.set };
-    if (!st.container || st.top == null || !st.inside) throw new Error("pick its container, fill line and inside point first");
+    if (!st.container || st.top == null || !st.inside) throw new Error("pick its container and fill line first");
     if (!objects.includes(st.container)) throw new Error(`its container (${st.container.name}) isn't in the space`);
     const { g } = await fillVoxels(st.container, st.top - st.offset, st.inside, st.tol, st.res, status);
     const b = { g: F.g, base: F.base, madeWith: F.madeWith }, a = { g, base: g.v.slice(), madeWith: setKey(st) };
