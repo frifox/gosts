@@ -844,6 +844,7 @@ kbd + kbd { margin-left: 3px; }
   <h1>GoSTS</h1><span class="sub">Photogrammetry Rig</span>
   <span class="spacer"></span>
   <button class="btn small primary" id="hdrBuilding" hidden>Building…</button><span class="spacer"></span>
+  <span class="btn-join hdr-3d"><button class="btn small" id="hdrEdit3D" title="Open a model (picked from your captures) in the model editor">Edit 3D</button><button class="btn small" id="hdrCombine3D" title="Combine 3D Models: put models and shapes together, make a Container Fill (an insert)">Combine 3D</button></span>
   <span class="pill-group">
     <span class="pill" title="This page's link to the app (gosts-rig)"><svg class="pill-ic" id="wsDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v3M10 2v3M4.5 5h7v2a3.5 3.5 0 0 1-7 0zM8 10.5V14"/></svg><span id="wsText">ws: connecting…</span></span>
     <span class="pill" title="The servo controller board (the rig's servos)"><svg class="pill-ic" id="busDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.2"/><path d="M6.5 2v2M9.5 2v2M6.5 12v2M9.5 12v2M2 6.5h2M2 9.5h2M12 6.5h2M12 9.5h2"/></svg><span id="busText">rig: none</span></span>
@@ -1987,7 +1988,7 @@ $("mvMeasureBtn").onclick = () => mvMeasure(!mvm.on);
 $("mvMeasureClose").onclick = () => mvMeasure(false);
 // The header's path, as Browse's: the home (all captures), the capture (back
 // to its photos), the model (where it is: not a button).
-$("mvBack").onclick = closeModel;
+$("mvBack").onclick = () => { const v = state.mv; closeModel(); if (v && $("gallery").hidden) openGallery(v.name); }; // (opened from the header: its capture's photos)
 $("mvHome").onclick = () => { closeModel(); openGallery(null); };
 $("mvClose").onclick = closeModel; // (the gallery stays: its ✕ closes it)
 $("mvReveal").onclick = async () => {
@@ -3591,7 +3592,7 @@ $("cvFit").onclick = () => cvs.cv?.fit();
 // Add Model: a small Browse: the captures that have models, then one's
 // models (by name); a model clicked: added. Esc, ✕ or a click outside:
 // closed.
-const cvPick = { where: null };
+const cvPick = { where: null, then: null }; // (then(capture, model): what a model picked does)
 async function cvPickShow(where) {
   cvPick.where = where;
   const grid = $("cvPickGrid");
@@ -3621,13 +3622,28 @@ async function cvPickShow(where) {
       t.innerHTML = `<span class="pic"><img alt="" loading="lazy" src="${modelBase(where, m)}thumb?at=${m.at}"></span><span class="nm"></span><span class="sub">3D · OBJ</span>`;
       t.querySelector(".nm").textContent = m.name;
       t.querySelector("img").onerror = (e) => { e.target.replaceWith("3D"); }; // (no picture made of it yet)
-      t.onclick = () => cvAddModel(where, m);
+      t.onclick = () => (cvPick.then || cvAddModel)(where, m);
       grid.appendChild(t);
     }
-  } catch (e) { grid.innerHTML = ""; cvStatus(e.message, "bad"); }
+  } catch (e) { grid.innerHTML = ""; const d = document.createElement("div"); d.className = "mve-label"; d.textContent = e.message; grid.appendChild(d); }
 }
-function cvPickOpen(on) { $("cvPickModal").hidden = !on; if (on) cvPickShow(null); } // (from the top each time)
+function cvPickOpen(on, then = null, label = "Add a model") {
+  $("cvPickModal").hidden = !on;
+  if (!on) return;
+  cvPick.then = then;
+  $("cvPickModal").querySelector("[role=dialog]").setAttribute("aria-label", label);
+  cvPickShow(null); // (from the top each time)
+}
 $("cvAdd").onclick = () => cvPickOpen(true);
+// The header's Edit 3D: a model picked (as Add Model picks one), opened with
+// its editor; Combine 3D: Combine 3D Models.
+$("hdrEdit3D").onclick = () => cvPickOpen(true, (b, m) => { cvPickOpen(false); openModel(b, m); mveOpen(true); }, "Edit a model");
+$("hdrCombine3D").onclick = openCombine;
+document.addEventListener("keydown", (e) => { // (the picker up from the header, Combine not open: its keys)
+  if ($("cvPickModal").hidden || !$("combineView").hidden || !$("confirmModal").hidden) return;
+  if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cvPickOpen(false); }
+  else if (e.key === "Backspace" && cvPick.where != null && !e.target.closest?.("input, textarea")) { e.preventDefault(); cvPickShow(null); }
+}, true);
 $("cvPickClose").onclick = () => cvPickOpen(false);
 $("cvPickHome").onclick = () => cvPickShow(null);
 $("cvPickModal").addEventListener("click", (e) => { if (e.target === $("cvPickModal")) cvPickOpen(false); });
