@@ -3555,6 +3555,13 @@ function closeCombine() {
   $("combineView").hidden = true;
 }
 $("combineBtn").onclick = openCombine;
+// cvCloseAsk: Esc: closed, asked first if anything's in it (an Esc by mistake).
+async function cvCloseAsk() {
+  if (cvs.cv?.objects().length && !await confirmDanger("Close Combine Models?",
+    "What's in it stays till the page is reloaded or gosts-rig restarts (Combine Models again brings it back); Save is how to keep it for good.",
+    "Close")) return;
+  closeCombine();
+}
 $("cvClose").onclick = closeCombine;
 $("cvFit").onclick = () => cvs.cv?.fit();
 // Add Model: a small Browse: the captures that have models, then one's
@@ -3761,13 +3768,13 @@ $("cvSave").onclick = async () => {
   cvs.busy = false; cvShow();
 };
 document.addEventListener("keydown", (e) => {
-  if ($("combineView").hidden || e.target.closest?.("input, textarea, select")) return;
+  if ($("combineView").hidden || !$("confirmModal").hidden || e.target.closest?.("input, textarea, select")) return; // (a dialog up: its keys)
   if (!$("cvPickModal").hidden) { // (Add Model's: Esc closes it, Backspace up a level)
     if (e.key === "Escape") { e.preventDefault(); cvPickOpen(false); }
     else if (e.key === "Backspace" && cvPick.where != null) { e.preventDefault(); cvPickShow(null); }
     return;
   }
-  if (e.key === "Escape") { e.preventDefault(); if (cvs.cv?.picking()) { cvs.cv.unpick(); cvStatus(""); } else closeCombine(); }
+  if (e.key === "Escape") { e.preventDefault(); if (cvs.cv?.picking()) { cvs.cv.unpick(); cvStatus(""); } else cvCloseAsk(); }
   else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); cvUndo(e.shiftKey); }
   else if ((e.key === "f" || e.key === "F") && !e.metaKey && !e.ctrlKey) cvs.cv?.fit();
 });
