@@ -15,6 +15,8 @@ import { loadOBJ, VIEWS } from "./modelview.js";
 
 const SHAPE_MAT = () => new THREE.MeshStandardMaterial({ color: 0xb9bdc5, roughness: 0.85, metalness: 0, side: THREE.DoubleSide });
 const MISSING_MAT = () => new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide });
+const CLAY_MAT = new THREE.MeshStandardMaterial({ color: 0xb9bdc5, roughness: 0.85, metalness: 0, side: THREE.DoubleSide }); // (as the model viewer's)
+const WIRE_MAT = new THREE.MeshBasicMaterial({ color: 0x7ea6ff, wireframe: true });
 const FILL_MAT = () => new THREE.MeshStandardMaterial({ color: 0x2bb5a0, roughness: 0.7, metalness: 0, side: THREE.DoubleSide });
 const MAX_VOXELS = 80e6; // (a fill's grid at most: memory)
 
@@ -265,6 +267,15 @@ export function createCombine(canvas) {
   grid10.material.transparent = true;
   grid10.material.opacity = 0.6;
   scene.add(grid10);
+  // Axes: X, Y, Z (Blender's) from the origin, red, green, blue; off at first.
+  const axes = new THREE.Group();
+  for (const [dir, color] of [[[1, 0, 0], 0xe5484d], [[0, 0, -1], 0x46a758], [[0, 1, 0], 0x3e7bfa]]) {
+    const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(...dir).multiplyScalar(0.5)]);
+    axes.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true })));
+  }
+  axes.renderOrder = 5;
+  axes.visible = false;
+  scene.add(axes);
   const sel = new THREE.BoxHelper(undefined, 0xffb020);
   sel.visible = false;
   scene.add(sel);
@@ -284,6 +295,7 @@ export function createCombine(canvas) {
   let seq = 0, selected = null, onChange = () => {}, picking = null, dragging = null;
   const api = {};
   const changed = () => {
+    applyLook();
     outline();
     if (ring.visible) api.turnRing(ring.userData.o === selected ? selected : null, ring.userData.ax, ring.userData.sign); // (where it is now; none once it's not selected)
     onChange();
@@ -359,7 +371,9 @@ export function createCombine(canvas) {
   function loop(now) {
     if (!running) return;
     resize();
-    shiftTick(last ? Math.min(0.1, (now - last) / 1000) : 1);
+    const dt = last ? Math.min(0.1, (now - last) / 1000) : 1;
+    shiftTick(dt);
+    glideTick(last ? dt : 0);
     last = now;
     controls.update();
     if (sel.visible) sel.update();
@@ -573,7 +587,49 @@ export function createCombine(canvas) {
     record(`Rename ${b}`, () => { o.name = b; }, () => { o.name = name; });
     changed();
   };
+  // The view: a preset's direction (VIEWS: 3d, front, side, top), all in
+  // sight; view() glides there (about 0.6s; the view turned by hand stops it).
+  let viewName = "3d", glide = null;
+  api.view = (name) => {
+    if (!VIEWS[name]) return;
+    viewName = name;
+    const from = camera.position.clone(), fromT = controls.target.clone();
+    api.fit();
+    glide = { from, fromT, to: camera.position.clone(), toT: controls.target.clone(), age: 0 };
+    camera.position.copy(from); controls.target.copy(fromT);
+  };
+  controls.addEventListener("start", () => (glide = null));
+  function glideTick(dt) {
+    if (!glide) return;
+    glide.age += dt;
+    const f = Math.min(1, glide.age / 0.6), e = f < 0.5 ? 2 * f * f : 1 - (-2 * f + 2) ** 2 / 2;
+    // (swung round the middle, not straight across: the distance eased too)
+    const a = glide.from.clone().sub(glide.fromT), b = glide.to.clone().sub(glide.toT);
+    const la = a.length(), lb = b.length(), q = new THREE.Quaternion().setFromUnitVectors(a.clone().normalize(), b.clone().normalize());
+    const dir = a.clone().normalize().applyQuaternion(new THREE.Quaternion().slerp(q, e));
+    controls.target.lerpVectors(glide.fromT, glide.toT, e);
+    camera.position.copy(controls.target).addScaledVector(dir, la + (lb - la) * e);
+    if (f >= 1) glide = null;
+  }
+  // look: textured (as built), clay (the models gray: the shapes are, the
+  // fill keeps its color) or wire (all as their triangles).
+  let lookMode = "textured";
+  const originals = new WeakMap();
+  function applyLook() {
+    for (const o of objects) {
+      if (o.missing) continue;
+      o.inner.traverse((m) => {
+        if (!m.isMesh) return;
+        if (!originals.has(m)) originals.set(m, m.material);
+        m.material = lookMode === "wire" ? WIRE_MAT : lookMode === "clay" && o.kind === "model" ? CLAY_MAT : originals.get(m);
+      });
+    }
+  }
+  api.look = (m) => { lookMode = m; applyLook(); };
+  // shown: the axes and the ground (the floor's grid), each on or off.
+  api.shown = ({ axes: a = axes.visible, ground: g = grid10.visible } = {}) => { axes.visible = a; grid10.visible = g; };
   api.fit = () => {
+    glide = null;
     const vis = objects.filter((o) => o.visible);
     const box = new THREE.Box3();
     for (const o of vis) box.expandByObject(o.holder);
@@ -582,13 +638,14 @@ export function createCombine(canvas) {
     // (fitted to the part not under the sidebar: the narrower way, across or up)
     const seen = Math.max(0.2, (canvas.clientWidth - inset) / Math.max(1, canvas.clientHeight)), half = THREE.MathUtils.degToRad(camera.fov / 2);
     const dist = r / Math.sin(Math.min(half, Math.atan(Math.tan(half) * seen))) * 1.1;
-    camera.position.copy(c).addScaledVector(VIEWS["3d"], dist);
+    camera.position.copy(c).addScaledVector(VIEWS[viewName], dist);
     camera.near = dist / 1000; camera.far = dist * 50;
     camera.updateProjectionMatrix();
     controls.target.copy(c);
     controls.update();
     const s = Math.max(1, Math.ceil(r * 4 * 10) / 10); // (the floor's grid: a few times its size)
     grid10.scale.setScalar(s);
+    axes.scale.setScalar(s);
   };
 
   // ------------------------------------------------------------ pointer
