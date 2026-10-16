@@ -517,7 +517,7 @@ export function createCombine(canvas) {
       if (h) { e.stopImmediatePropagation(); controls.enabled = false; const p = picking; api.unpick(); p.done(h.point); setTimeout(() => (controls.enabled = true)); }
       return;
     }
-    if (!h) return;
+    if (!h) { emptyDown = [e.clientX, e.clientY]; return; } // (a click on nothing, not a drag of the view: nothing selected)
     if (h.o !== selected) { selected = h.o; changed(); }
     if (h.o.kind === "fill") return;
     // Dragging the selected one: along the floor, at the height it was
@@ -562,6 +562,12 @@ export function createCombine(canvas) {
       : { x: dragging.pos.x + d.x * 1000, y: dragging.pos.y - d.z * 1000, z: dragging.pos.z };
     place(dragging.o);
     changed();
+  });
+  let emptyDown = null;
+  canvas.addEventListener("pointerup", (e) => {
+    const d = emptyDown;
+    emptyDown = null;
+    if (d && Math.hypot(e.clientX - d[0], e.clientY - d[1]) <= 4 && selected) { selected = null; changed(); }
   });
   const endDrag = () => {
     if (!dragging) return;

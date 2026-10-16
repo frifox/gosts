@@ -3624,7 +3624,7 @@ function cvShow() {
     row.className = "cv-obj" + (o === s ? " on" : "") + (o.visible ? "" : " hid");
     row.innerHTML = `<button class="eye" title="${o.visible ? "Hide it (left out of Save)" : "Show it"}">${o.visible ? eyeOn : eyeOff}</button><span class="nm"></span><span class="kd">${o.kind}</span>`;
     row.querySelector(".nm").textContent = o.name;
-    row.onclick = (e) => { if (e.target.closest(".eye")) cv.setVisible(o, !o.visible); else cv.select(o); };
+    row.onclick = (e) => { if (e.target.closest(".eye")) cv.setVisible(o, !o.visible); else cv.select(o === cv.selected() ? null : o); }; // (the selected one again: none)
     list.appendChild(row);
   }
   $("cvSel").hidden = !s;
