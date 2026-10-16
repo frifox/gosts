@@ -462,7 +462,16 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-xyz { display: grid; grid-template-columns: auto auto 1fr auto 1fr auto 1fr; gap: 6px; align-items: center; }
 .cv-xyz input[type=number] { width: 100% !important; min-width: 0; }
 .cv-xyz b { font: 600 12px var(--mono); } .cv-xyz .x { color: #e5484d; } .cv-xyz .y { color: #46a758; } .cv-xyz .z { color: #3e7bfa; }
-#cvModel { flex: 1; min-width: 0; width: 0; }
+/* Add Model's small Browse: tiles, a capture's or a model's. */
+.cv-pick { width: min(760px, 100%); }
+.cv-pick h2 { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; }
+.cv-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; max-height: min(60vh, 520px); overflow-y: auto; }
+.cv-pick-grid .tile { display: flex; flex-direction: column; gap: 6px; padding: 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); cursor: pointer; text-align: left; color: var(--text); font: inherit; }
+.cv-pick-grid .tile:hover { border-color: var(--accent); }
+.cv-pick-grid .pic { aspect-ratio: 3 / 2; border-radius: 5px; background: #12151c; display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--muted); font-size: 12px; }
+.cv-pick-grid .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cv-pick-grid .nm { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-pick-grid .sub { font-size: 11px; color: var(--muted); }
 #cvName { flex: 1; min-width: 0; }
 .cv-side input#cvBelow, .cv-side input#cvTol, .cv-side input#cvRes, .cv-side input#cvOffset, .cv-side input#cvSmooth { width: 64px; }
 .mv-edit { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; overflow-y: auto; cursor: default; background: rgba(18,21,28,.94); border: 1px solid var(--border);
@@ -1082,7 +1091,7 @@ kbd + kbd { margin-left: 3px; }
 <div class="gallery" id="gallery" hidden>
   <div class="gallery-bar"><nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="galleryUp" data-tip="~/Pictures/gosts-rig" aria-label="All captures (Backspace)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>root</button><button class="btn small crumb-btn crumb-cur" id="galleryTitle" tabindex="-1" hidden></button></span></nav><button class="icon-btn pen-btn" id="galleryRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button><span class="spacer"></span>
     <button class="btn small primary" id="resumeCapBtn" hidden>Resume</button>
-    <button class="btn small" id="buildModelBtn" title="Build a 3D model from these photos, with Apple's Object Capture" hidden>Build Model</button><button class="btn small" id="combineBtn" title="Put models (made ready in the model editor) and simple shapes together, each placed on its own; make a Container Fill (an insert) and cut the objects out of it; save it as a model">Combine Models</button><span class="spacer"></span>
+    <button class="btn small" id="buildModelBtn" title="Build a 3D model from these photos, with Apple's Object Capture" hidden>Build Model</button><button class="btn small" id="combineBtn" title="Put models and simple shapes together, each placed on its own; make a Container Fill (an insert) and cut the objects out of it; save it as a model">Combine Models</button><span class="spacer"></span>
     <span class="views seg" id="galleryViewSeg"><button data-v="grid">Thumbnails</button><button data-v="list">List</button></span>
     <button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
   <!-- Build Model: Object Capture's options (apple-obj-cap's), Process, and how the build goes; the photos marked below. -->
@@ -1291,7 +1300,7 @@ kbd + kbd { margin-left: 3px; }
       <section class="cv-first">
         <div class="mve-head"><b>Objects</b></div>
         <div class="cv-list" id="cvList"><div class="mve-label">None yet: add a model or a shape.</div></div>
-        <div class="mve-row"><select id="cvModel" title="The models in your captures (the ones made ready in the model editor, -aligned, first)"><option value="">Loading models…</option></select><button class="btn small" id="cvAdd" disabled>Add</button></div>
+        <div class="mve-row"><button class="btn small" id="cvAdd" title="Pick a model from your captures">Add Model…</button></div>
         <div class="mve-row"><span class="mve-label">Shape</span><span class="btn-join"><button class="btn small" data-shape="box">Box</button><button class="btn small" data-shape="cylinder">Cylinder</button><button class="btn small" data-shape="sphere">Sphere</button></span></div>
       </section>
       <section id="cvSel" hidden>
@@ -1325,6 +1334,13 @@ kbd + kbd { margin-left: 3px; }
       </section>
       <div class="mve-status" id="cvStatus"></div>
     </aside>
+  </div>
+</div>
+<!-- Combine Models' Add Model: a small Browse, its captures with models, then a capture's models. -->
+<div class="modal-backdrop" id="cvPickModal" style="z-index:75" hidden>
+  <div class="modal card cv-pick" role="dialog" aria-modal="true" aria-label="Add a model">
+    <h2><nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="cvPickHome" aria-label="All captures"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>root</button><button class="btn small crumb-btn crumb-cur" id="cvPickWhere" tabindex="-1" hidden></button></span></nav><span class="spacer"></span><button class="icon-btn" id="cvPickClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
+    <div class="card-body"><div class="cv-pick-grid" id="cvPickGrid"></div></div>
   </div>
 </div>
 <div class="modal-backdrop" id="keysModal" style="z-index:75" hidden>
@@ -3526,7 +3542,6 @@ async function openCombine() {
     cvs.cv.setOnChange(cvShow);
   }
   cvs.cv.start();
-  cvModels();
   cvShow();
 }
 function closeCombine() {
@@ -3537,37 +3552,59 @@ function closeCombine() {
 $("combineBtn").onclick = openCombine;
 $("cvClose").onclick = closeCombine;
 $("cvFit").onclick = () => cvs.cv?.fit();
-// cvModels: the Add list: every capture's models, the ones made ready in the
-// model editor (-aligned) first.
-async function cvModels() {
-  const sel = $("cvModel"), ready = [], other = [];
+// Add Model: a small Browse: the captures that have models, then one's
+// models (by name); a model clicked: added. Esc, ✕ or a click outside:
+// closed.
+const cvPick = { where: null };
+async function cvPickShow(where) {
+  cvPick.where = where;
+  const grid = $("cvPickGrid");
+  $("cvPickWhere").hidden = where == null;
+  $("cvPickWhere").textContent = where ?? "";
+  grid.innerHTML = '<div class="mve-label">Loading…</div>';
   try {
-    for (const b of await getJSON("/batches")) {
-      if (!b.models) continue;
-      for (const m of await getJSON(`/batches/${encodeURIComponent(b.name)}/models`)) {
-        if (m.format !== "obj") continue;
-        (/-aligned(-\d+)?$/.test(m.name) ? ready : other).push({ b: b.name, m });
+    if (where == null) {
+      const bs = (await getJSON("/batches")).filter((b) => b.models);
+      grid.innerHTML = bs.length ? "" : '<div class="mve-label">No models yet: build one (Build Model) in a capture.</div>';
+      for (const b of bs) {
+        const t = document.createElement("button");
+        t.className = "tile";
+        t.innerHTML = `<span class="pic">${b.mid ? `<img alt="" loading="lazy" src="${batchURL(b.name, b.mid)}?thumb">` : "Folder"}</span><span class="nm"></span><span class="sub">${b.models} model${b.models === 1 ? "" : "s"}</span>`;
+        t.querySelector(".nm").textContent = b.name;
+        t.onclick = () => cvPickShow(b.name);
+        grid.appendChild(t);
       }
+      return;
     }
-  } catch (e) { cvStatus(e.message, "bad"); }
-  const opt = (x) => `<option value="${escHTML(JSON.stringify([x.b, x.m.name]))}">${escHTML(x.b)} / ${escHTML(x.m.name)}</option>`;
-  sel.innerHTML = (ready.length ? `<optgroup label="Made ready (-aligned)">${ready.map(opt).join("")}</optgroup>` : "") +
-    (other.length ? `<optgroup label="Other models">${other.map(opt).join("")}</optgroup>` : "") || '<option value="">No models yet</option>';
-  cvs.list = [...ready, ...other];
-  $("cvAdd").disabled = !cvs.list.length;
+    const ms = (await getJSON(`/batches/${encodeURIComponent(where)}/models`)).filter((m) => m.format === "obj")
+      .sort((a, b) => a.name.localeCompare(b.name));
+    grid.innerHTML = ms.length ? "" : '<div class="mve-label">No OBJ models in it.</div>';
+    for (const m of ms) {
+      const t = document.createElement("button");
+      t.className = "tile";
+      t.innerHTML = `<span class="pic"><img alt="" loading="lazy" src="${modelBase(where, m)}thumb?at=${m.at}"></span><span class="nm"></span><span class="sub">3D · OBJ</span>`;
+      t.querySelector(".nm").textContent = m.name;
+      t.querySelector("img").onerror = (e) => { e.target.replaceWith("3D"); }; // (no picture made of it yet)
+      t.onclick = () => cvAddModel(where, m);
+      grid.appendChild(t);
+    }
+  } catch (e) { grid.innerHTML = ""; cvStatus(e.message, "bad"); }
 }
-$("cvAdd").onclick = async () => {
-  const v = $("cvModel").value;
-  if (!v) return;
-  const [b, name] = JSON.parse(v), x = cvs.list.find((x) => x.b === b && x.m.name === name);
+function cvPickOpen(on) { $("cvPickModal").hidden = !on; if (on) cvPickShow(cvPick.where); }
+$("cvAdd").onclick = () => cvPickOpen(true);
+$("cvPickClose").onclick = () => cvPickOpen(false);
+$("cvPickHome").onclick = () => cvPickShow(null);
+$("cvPickModal").addEventListener("click", (e) => { if (e.target === $("cvPickModal")) cvPickOpen(false); });
+async function cvAddModel(b, m) {
+  cvPickOpen(false);
   $("cvAdd").disabled = true;
   try {
-    const scale = window.modelEdit.UNITS[x.m.edit?.units] || 1; // (an edited model: in its units)
-    await cvs.cv.addModel(name, modelBase(b, x.m), x.m.file, scale, (t) => cvStatus(t + "…"));
+    const scale = window.modelEdit.UNITS[m.edit?.units] || 1; // (an edited model: in its units)
+    await cvs.cv.addModel(m.name, modelBase(b, m), m.file, scale, (t) => cvStatus(t + "…"));
     cvStatus("");
   } catch (e) { cvStatus(e.message, "bad"); }
   $("cvAdd").disabled = false;
-};
+}
 for (const btn of document.querySelectorAll("#cvSide [data-shape]")) btn.onclick = () => cvs.cv.addShape(btn.dataset.shape);
 const cvNum = (n, d = 1) => String(Math.round(n * 10 ** d) / 10 ** d);
 // cvShow: the panel as the space is.
@@ -3705,12 +3742,16 @@ $("cvSave").onclick = async () => {
     if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
     cvStatus(`Saved: ${folder} / ${to} (${res.triangles.toLocaleString()} triangles, mm)`, "ok");
     log(`Combine Models: ${folder} / ${to} saved`);
-    cvModels();
   } catch (e) { cvStatus(e.message, "bad"); }
   cvs.busy = false; cvShow();
 };
 document.addEventListener("keydown", (e) => {
   if ($("combineView").hidden || e.target.closest?.("input, textarea, select")) return;
+  if (!$("cvPickModal").hidden) { // (Add Model's: Esc closes it, Backspace up a level)
+    if (e.key === "Escape") { e.preventDefault(); cvPickOpen(false); }
+    else if (e.key === "Backspace" && cvPick.where != null) { e.preventDefault(); cvPickShow(null); }
+    return;
+  }
   if (e.key === "Escape") { e.preventDefault(); if (cvs.cv?.picking()) { cvs.cv.unpick(); cvStatus(""); } else closeCombine(); }
   else if ((e.key === "f" || e.key === "F") && !e.metaKey && !e.ctrlKey) cvs.cv?.fit();
 });

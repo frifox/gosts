@@ -112,8 +112,8 @@ file.
 
 ## Combining models
 
-**Combine Models** in Browse puts models (the ones made ready in the editor, `-aligned`, listed first) and simple
-shapes (box, cylinder, sphere) in one space. Select one from the list or by clicking it, then drag it along the floor
+**Combine Models** in Browse puts models (picked from your captures) and simple shapes (box, cylinder, sphere) in one
+space. Select one from the list or by clicking it, then drag it along the floor
 or type where it goes and how it's turned.
 
 It can make a custom case insert, to print in foaming TPU, say:
