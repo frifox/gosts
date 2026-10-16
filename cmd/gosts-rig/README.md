@@ -143,7 +143,7 @@ It can make a custom case insert, to print in foaming TPU, say:
   since comes back as a box its size in its place, marked ⚠ in Objects, with **Re-link** (pick the model it is now)
   or ✕ to take it out; it isn't cut out of a fill till it's linked again.
 - **Export** writes the objects shown (hide the rest with their eye) as one model (*Model Name*, in the capture
-  *Capture Name*), in mm, with an STL too.
+  *Capture Name*), in mm (an STL too, with **Also an STL** checked).
 
 **Undo** and **Redo** (⌘Z, ⇧⌘Z) step back and on through everything done: moves and turns, sizes, objects added or
 removed, hidden or renamed, the fill and each cut.
