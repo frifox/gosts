@@ -587,8 +587,11 @@ export function createCombine(canvas) {
   // pick: the next click on an object (only: that one, or those it says yes
   // to) gives the point and the object; with plane (y, m), the point clicked
   // on that level instead.
-  api.pick = (only, done, plane = null) => { picking = { only, done, plane }; canvas.style.cursor = "crosshair"; };
-  api.unpick = () => { picking = null; canvas.style.cursor = ""; };
+  // (what: what's being picked, for the page to show; picking starting or
+  // ending: the page told)
+  api.pick = (only, done, plane = null, what = null) => { picking = { only, done, plane, what }; canvas.style.cursor = "crosshair"; onChange(); };
+  api.unpick = () => { const was = picking; picking = null; canvas.style.cursor = ""; if (was) onChange(); };
+  api.pickWhat = () => picking?.what ?? null;
   api.picking = () => !!picking;
   api.boxOf = (o) => new THREE.Box3().setFromObject(o.holder);
   canvas.addEventListener("pointerdown", (e) => {

@@ -3752,6 +3752,10 @@ function cvFillShow(f, busy) {
   const cv = cvs.cv, st = f.fill.set, state = cv.fillState(f);
   const has = st.container && cv.objects().includes(st.container);
   $("cvFContWho").hidden = !has; // (its name, a check after it)
+  const what = cv.pickWhat(); // (the one being picked: lit)
+  $("cvFCont").classList.toggle("primary", what === "container");
+  $("cvPickTop").classList.toggle("primary", what === "line");
+  $("cvPickIn").classList.toggle("primary", what === "inside");
   $("cvFContName").textContent = $("cvFContName").title = has ? st.container.name : "";
   const put = (id, m) => { if (document.activeElement !== $(id)) $(id).value = cvNum(m * 1000); };
   put("cvBelow", st.offset); put("cvTol", st.tol); put("cvRes", st.res);
@@ -3783,7 +3787,7 @@ $("cvFCont").onclick = () => {
   const f = cvs.cv.selected();
   if (f?.kind !== "fill") return;
   cvStatus("Click the container in the view");
-  cvs.cv.pick((o) => o.kind !== "fill", (p, o) => { cvStatus(""); cvs.cv.setFill(f, { container: o }, `Set the container of ${f.name}`); });
+  cvs.cv.pick((o) => o.kind !== "fill", (p, o) => { cvStatus(""); cvs.cv.setFill(f, { container: o }, `Set the container of ${f.name}`); }, null, "container");
 };
 $("cvName").addEventListener("change", () => { const s = cvs.cv.selected(); if (s && $("cvName").value.trim()) cvs.cv.rename(s, $("cvName").value.trim()); });
 $("cvPos").addEventListener("change", (e) => {
@@ -3854,13 +3858,13 @@ $("cvPickTop").onclick = () => {
     const ch = { top: p.y }, m = cvs.cv.boxOf(c).getCenter(p.clone());
     if (!f.fill.set.inside || f.fill.set.inside.auto) ch.inside = { x: m.x, z: m.z, auto: true };
     cvs.cv.setFill(f, ch, `Pick the fill line of ${f.name}`);
-  });
+  }, null, "line");
 };
 $("cvPickIn").onclick = () => {
   const f = cvs.cv.selected(), level = f?.kind === "fill" ? cvs.cv.fillLevel(f) : null;
   if (level == null) return;
   cvStatus("Click on the fill line, over the container's inside");
-  cvs.cv.pick(null, (p) => { cvStatus(""); cvs.cv.setFill(f, { inside: { x: p.x, z: p.z } }, `Pick the inside point of ${f.name}`); }, level);
+  cvs.cv.pick(null, (p) => { cvStatus(""); cvs.cv.setFill(f, { inside: { x: p.x, z: p.z } }, `Pick the inside point of ${f.name}`); }, level, "inside");
 };
 $("cvMakeFill").onclick = async () => {
   const f = cvs.cv.selected();
