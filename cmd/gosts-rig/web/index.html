@@ -671,6 +671,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-load-list li.warn .ic::after { content: "⚠"; }
 .mve-status.bad { color: var(--bad); } .mve-status.ok { color: var(--ok); }
 .mve-status.with-check { display: flex; align-items: center; gap: 5px; }
+/* A countdown: a ring running out over 3s (a work's steps, gone then). */
+.cv-count { width: 13px; height: 13px; transform: rotate(-90deg); }
+.cv-count circle { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 31.42; stroke-dashoffset: 0; animation: cvCount 3s linear forwards; }
+@keyframes cvCount { to { stroke-dashoffset: 31.42; } }
 .thumb.model .mbadge { position: absolute; top: 7px; left: 7px; padding: 2px 6px; border-radius: 6px; background: var(--accent); color: #fff; font: 600 11px var(--mono); letter-spacing: .03em; }
 .thumb.model .mph { aspect-ratio: 3 / 2; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; }
 .thumb.model .mph.busy::before { content: ""; width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255,255,255,.15); border-top-color: var(--accent); animation: spin .8s linear infinite; }
@@ -4292,7 +4296,16 @@ async function cvOpenWork(name) {
   cv.clearHistory(); // (opened: nothing to undo)
   cvStep(fin, "done");
   cvs.busy = false; cvShow();
-  cvStatus(missing.length ? `Opened ${name}: ${missing.length} missing (${missing.join(", ")}): Re-link ${missing.length === 1 ? "it" : "them"} in Objects, or remove ${missing.length === 1 ? "it" : "them"}` : bad ? `Opened ${name}; ${bad}` : `Opened ${name}`, missing.length || bad ? "bad" : "ok");
+  clearTimeout(cvs.loadHide);
+  if (missing.length || bad) // (something to see to: its steps stay, till the next word here)
+    cvStatus(missing.length ? `Opened ${name}: ${missing.length} missing (${missing.join(", ")}): Re-link ${missing.length === 1 ? "it" : "them"} in Objects, or remove ${missing.length === 1 ? "it" : "them"}` : `Opened ${name}; ${bad}`, "bad");
+  else { // (all well: Opened ✓, its steps gone in 3s, a ring running down till then)
+    cvStatus("Opened", "ok", true);
+    const st = $("cvStatus"), check = st.querySelector("svg");
+    st.append(check); // (the check after the word)
+    st.insertAdjacentHTML("beforeend", '<svg class="cv-count" viewBox="0 0 14 14" aria-label="Hidden in 3 seconds"><circle cx="7" cy="7" r="5"/></svg>');
+    cvs.loadHide = setTimeout(() => { if (!cvs.loading) { $("cvLoad").hidden = true; st.querySelector(".cv-count")?.remove(); } }, 3000);
+  }
   cvs.loading = false;
 }
 // cvRelink: a missing model (or any) found again: the model it is now picked.
