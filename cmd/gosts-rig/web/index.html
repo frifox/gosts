@@ -1295,7 +1295,7 @@ kbd + kbd { margin-left: 3px; }
     <button class="btn small" id="cvFit" title="All of it in view (F)">Fit</button>
     <button class="icon-btn" id="cvClose" title="Close (Esc): kept as it is till it's opened again" aria-label="Close">✕</button></div>
   <div class="stage model-stage" id="cvStage"><canvas id="cvCanvas"></canvas>
-    <div class="mv-hint">Click an object to select it · drag it to slide it along the floor · drag elsewhere to move the view · drag scroll to turn · scroll to zoom · F to fit</div>
+    <div class="mv-hint">Click an object to select it · drag it to slide it along the floor (⇧: up and down) · drag elsewhere to move the view · drag scroll to turn · scroll to zoom · F to fit</div>
     <aside class="mv-edit cv-side" id="cvSide">
       <section class="cv-first">
         <div class="mve-head"><b>Objects</b></div>
@@ -3594,7 +3594,7 @@ async function cvPickShow(where) {
     }
   } catch (e) { grid.innerHTML = ""; cvStatus(e.message, "bad"); }
 }
-function cvPickOpen(on) { $("cvPickModal").hidden = !on; if (on) cvPickShow(cvPick.where); }
+function cvPickOpen(on) { $("cvPickModal").hidden = !on; if (on) cvPickShow(null); } // (from the top each time)
 $("cvAdd").onclick = () => cvPickOpen(true);
 $("cvPickClose").onclick = () => cvPickOpen(false);
 $("cvPickHome").onclick = () => cvPickShow(null);

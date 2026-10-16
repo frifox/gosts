@@ -456,19 +456,46 @@ export function createCombine(canvas) {
     if (!h) return;
     if (h.o !== selected) { selected = h.o; changed(); }
     if (h.o.kind === "fill") return;
-    // Dragging the selected one: along the floor, at the height it was grabbed.
+    // Dragging the selected one: along the floor, at the height it was
+    // grabbed; with ⇧ held, up and down (Z) instead.
     controls.enabled = false;
-    canvas.setPointerCapture(e.pointerId);
-    dragging = { o: h.o, plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -h.point.y), from: h.point.clone(), pos: { ...h.o.pos } };
+    try { canvas.setPointerCapture(e.pointerId); } catch {} // (a pointer it can't hold: dragged all the same)
+    dragging = { o: h.o };
+    anchor(h.point, e.shiftKey);
   }, { capture: true });
-  canvas.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
+  // anchor: the drag from point p on, as it is now: along the floor, or up
+  // (an upright sheet through p, facing the camera). (⇧ pressed or let go
+  // mid-drag: anchored again where it is, so it doesn't jump.)
+  function anchor(p, up) {
+    const d = dragging;
+    d.up = up;
+    d.from = p.clone();
+    d.pos = { ...d.o.pos };
+    if (!up) d.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -p.y);
+    else {
+      const n = camera.getWorldDirection(new THREE.Vector3()).setY(0);
+      if (n.lengthSq() < 1e-9) n.set(0, 0, 1); // (looking straight down: any upright sheet)
+      d.plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n.normalize(), p);
+    }
+  }
+  const rayAt = (e) => {
     const b = canvas.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1), camera);
-    const p = ray.ray.intersectPlane(dragging.plane, new THREE.Vector3());
+    return ray.ray;
+  };
+  canvas.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    let p = rayAt(e).intersectPlane(dragging.plane, new THREE.Vector3());
     if (!p) return;
+    if (e.shiftKey !== dragging.up) { // (⇧ changed: from here on, the other way)
+      anchor(p, e.shiftKey);
+      p = rayAt(e).intersectPlane(dragging.plane, new THREE.Vector3());
+      if (!p) return;
+    }
     const d = p.sub(dragging.from);
-    dragging.o.pos = { x: dragging.pos.x + d.x * 1000, y: dragging.pos.y - d.z * 1000, z: dragging.pos.z };
+    dragging.o.pos = dragging.up
+      ? { ...dragging.pos, z: dragging.pos.z + d.y * 1000 }
+      : { x: dragging.pos.x + d.x * 1000, y: dragging.pos.y - d.z * 1000, z: dragging.pos.z };
     place(dragging.o);
     changed();
   });
