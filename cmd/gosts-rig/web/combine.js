@@ -14,6 +14,7 @@ import { OrbitControls } from "./vendor/OrbitControls.js";
 import { loadOBJ, VIEWS } from "./modelview.js";
 
 const SHAPE_MAT = () => new THREE.MeshStandardMaterial({ color: 0xb9bdc5, roughness: 0.85, metalness: 0, side: THREE.DoubleSide });
+const MISSING_MAT = () => new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide });
 const FILL_MAT = () => new THREE.MeshStandardMaterial({ color: 0x2bb5a0, roughness: 0.7, metalness: 0, side: THREE.DoubleSide });
 const MAX_VOXELS = 80e6; // (a fill's grid at most: memory)
 
@@ -389,7 +390,8 @@ export function createCombine(canvas) {
     inner.position.sub(new THREE.Vector3(c.x, box.min.y, c.z));
     holder.add(inner);
     scene.add(holder);
-    const o = { id: ++seq, kind, name, holder, inner, visible: true, pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 }, ...extra };
+    const dims = box.getSize(new THREE.Vector3()).toArray(); // (its size as it is, not turned: m; a missing model's box, from a work file)
+    const o = { id: ++seq, kind, name, holder, inner, visible: true, pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 }, dims, geo: 0, ...extra };
     if (kind !== "fill") { // (beside the rest: along X, 2 cm apart)
       let right = -Infinity;
       for (const p of objects) if (p.visible && p.kind !== "fill") right = Math.max(right, new THREE.Box3().setFromObject(p.holder).max.x);
@@ -405,12 +407,63 @@ export function createCombine(canvas) {
     changed();
     return o;
   }
-  api.addModel = async (name, base, file, scale, status) => {
+  // addModel: a model (extra: kept on it: ref, the capture and model it's from).
+  api.addModel = async (name, base, file, scale, status, extra = {}) => {
     const obj = await loadOBJ(base, file, status);
     obj.scale.setScalar(scale);
     const inner = new THREE.Group();
     inner.add(obj);
-    return add("model", name, inner);
+    return add("model", name, inner, extra);
+  };
+  // addMissing: a model a work file names that isn't there any more (renamed,
+  // moved, deleted): a see-through box its size (dims, m) in its place,
+  // marked missing (not cut out of a fill), till it's linked again.
+  api.addMissing = (name, dims, extra = {}) => {
+    const geo = new THREE.BoxGeometry(...dims), inner = new THREE.Group();
+    inner.add(new THREE.Mesh(geo, MISSING_MAT()));
+    inner.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0xffb020 })));
+    return add("model", name, inner, { ...extra, missing: true });
+  };
+  // relink: o's model another one (name, base, file, scale; extra: its ref),
+  // where o is, as it's turned; a missing one found again. A step.
+  api.relink = async (o, name, base, file, scale, extra = {}, status = () => {}) => {
+    const obj = await loadOBJ(base, file, status);
+    obj.scale.setScalar(scale);
+    const inner = new THREE.Group();
+    inner.add(obj);
+    const box = new THREE.Box3().setFromObject(inner), c = box.getCenter(new THREE.Vector3());
+    inner.position.sub(new THREE.Vector3(c.x, box.min.y, c.z)); // (centered on its place, standing on it: as add puts one)
+    const was = { inner: o.inner, name: o.name, missing: !!o.missing, ref: o.ref, dims: o.dims };
+    const now = { inner, name, missing: false, ref: extra.ref, dims: box.getSize(new THREE.Vector3()).toArray() };
+    const put = (x) => {
+      o.holder.remove(o.inner);
+      Object.assign(o, x);
+      o.holder.add(o.inner);
+      o.geo++; // (its cuts worked out again)
+      place(o);
+    };
+    put(now);
+    record(`Re-link ${name}`, () => put(was), () => put(now));
+    changed();
+  };
+  // clear: nothing in the space, no steps to undo (a work file opened next).
+  api.clear = () => {
+    for (const o of [...objects]) detach(o);
+    hist.length = hat = 0;
+    selected = null;
+    changed();
+  };
+  api.clearHistory = () => { hist.length = hat = 0; changed(); };
+  // picture: the view as it is, as a JPEG data URL w px across (a work file's).
+  api.picture = (w = 480) => {
+    renderer.render(scene, camera);
+    const c = document.createElement("canvas"), r = canvas.width / canvas.height;
+    c.width = w; c.height = Math.round(w / r);
+    const g = c.getContext("2d");
+    g.fillStyle = "#14171d";
+    g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(canvas, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.8);
   };
   // A shape: size in mm (box: w, d, h; cylinder: d, h; sphere: d).
   function shapeGeo(kind, s) {
@@ -721,6 +774,7 @@ export function createCombine(canvas) {
     const F = f.fill, st = { ...F.set };
     if (!st.container || st.top == null || !st.inside) throw new Error("pick its container and fill line first");
     if (!objects.includes(st.container)) throw new Error(`its container (${st.container.name}) isn't in the space`);
+    if (st.container.missing) throw new Error(`its container (${st.container.name}) is missing: Re-link it (in Objects) first`);
     const { g } = await fillVoxels(st.container, st.top - st.offset, st.inside, st.tol, st.res, status);
     const b = { g: F.g, base: F.base, madeWith: F.madeWith }, a = { g, base: g.v.slice(), madeWith: setKey(st) };
     const put = (x) => { Object.assign(F, x); F.gen++; if (!F.g) clearMesh(f); }; // (gen: its cuts worked out again, for this grid)
@@ -765,7 +819,7 @@ export function createCombine(canvas) {
   // → opts: { offset, keepAbove, smooth }; idx: the voxels it takes, worked
   // out with obj at key). Moved, turned, resized, taken out or put back: the
   // fill's cut again from its base (in the background, one at a time).
-  const cutKey = (o) => JSON.stringify([objects.includes(o), o.pos, o.rot, o.size ?? null]);
+  const cutKey = (o) => JSON.stringify([objects.includes(o) && !o.missing, o.pos, o.rot, o.size ?? null, o.geo]);
   const fillKey = (f) => JSON.stringify([f.fill.gen, ...[...f.fill.cuts].map(([o, c]) => [o.id, cutKey(o), c.opts])]);
   // cutVoxels: the voxels of F obj takes (as placed): it grown by offset (m),
   // smoothed by smooth (m: its hollows filled in, never cutting less), and
@@ -857,7 +911,7 @@ export function createCombine(canvas) {
     if (!f.fill.g) { f.fill.made = fillKey(f); return 0; } // (not made: nothing to cut)
     const F = f.fill.g, v = f.fill.base.slice();
     for (const [o, c] of f.fill.cuts) {
-      if (!objects.includes(o)) continue;
+      if (!objects.includes(o) || o.missing) continue; // (a missing model: no cut till it's linked again)
       const key = cutKey(o) + f.fill.gen;
       if (c.key !== key) { c.idx = await cutVoxels(F, f.fill.base, o, c.opts, status); c.key = key; c.hits = c.idx.reduce((n, i) => n + f.fill.base[i], 0); }
       for (const i of c.idx) v[i] = 0;

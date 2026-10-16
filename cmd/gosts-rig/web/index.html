@@ -459,6 +459,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-obj .kd { color: var(--muted); font-size: 11px; }
 .cv-obj .rm { width: 20px; height: 20px; padding: 0; margin-left: -2px; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; border-radius: 4px; color: var(--muted); font-size: 11px; cursor: pointer; visibility: hidden; }
 .cv-obj:hover .rm { visibility: visible; }
+.cv-obj.missing .nm { color: var(--warn, #ffb020); }
+.cv-obj.missing .nm::before { content: "⚠ "; }
+.cv-obj .relink { padding: 1px 7px; font-size: 11px; }
 .cv-obj .rm:hover { color: var(--danger, #e5484d); background: var(--panel-2); }
 .cv-obj.hid .nm { opacity: .45; }
 .cv-obj .eye { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; color: var(--muted); cursor: pointer; }
@@ -1350,11 +1353,11 @@ kbd + kbd { margin-left: 3px; }
         <div class="cv-list cv-cuts" id="cvCutList"></div>
       </section>
       <section>
-        <div class="mve-head"><b>Save</b>The objects shown (hide the others with their eye) as one model.</div>
+        <div class="mve-head"><b>Save</b>Save: this work as it is (its objects, where they are, the fills and their cuts), in the captures' folder, to open again from Browse. Export: the objects shown (hide the others with their eye) as one model.</div>
         <div class="mve-field"><label for="cvSaveName">Name</label><input type="text" id="cvSaveName" value="insert" spellcheck="false" autocomplete="off"></div>
-        <div class="mve-field"><label for="cvSaveFolder">In capture folder</label><input type="text" id="cvSaveFolder" value="inserts" spellcheck="false" autocomplete="off"></div>
+        <div class="mve-field"><label for="cvSaveFolder">Export to capture folder</label><input type="text" id="cvSaveFolder" value="inserts" spellcheck="false" autocomplete="off"></div>
         <label class="mp-check"><input type="checkbox" id="cvSTL" checked> <span>Also an STL (z up)</span></label>
-        <div class="mve-row"><span class="spacer"></span><button class="btn small primary" id="cvSave">Save</button></div>
+        <div class="mve-row"><span class="spacer"></span><button class="btn small" id="cvSave" title="Keep this work as a file (Name.combine.json) in the captures' folder: Browse opens it again">Save</button><button class="btn small primary" id="cvExport" title="The objects shown as one model (OBJ, mm), in the capture folder named">Export</button></div>
       </section>
       <div class="mve-status" id="cvStatus"></div>
     </aside>
@@ -1777,6 +1780,26 @@ function folderTile(name, count, img, current, open, rename, info) {
     b.querySelector(".edit").onclick = () => renameCapture(name);
     b.querySelector(".del").onclick = () => deleteCapture(name, count);
   }
+  return b;
+}
+// workTile: a Combine 3D work file, in Captures: a click opens it there.
+function workTile(w) {
+  const b = document.createElement("div");
+  b.className = "thumb folder work";
+  b.tabIndex = 0;
+  b.setAttribute("role", "button");
+  b.title = `Open ${w.name} in Combine 3D`;
+  b.innerHTML = `<div class="fold">${w.thumb ? `<img alt="" loading="lazy" decoding="async" src="/combine/works/${encodeURIComponent(w.name)}/thumb?at=${w.at}">` : '<div class="empty">Combine 3D</div>'}</div>` +
+    `<div class="info"><b>${escHTML(w.name)}</b><span class="badge">Combine 3D</span><span class="count">${w.objects} object${w.objects === 1 ? "" : "s"}</span></div>` +
+    `<button class="del" title="Delete ${escHTML(w.name)} (to the Trash; asks first)" aria-label="Delete">${trashIcon}</button>`;
+  b.onclick = (e) => { if (!e.target.closest(".del")) cvOpenWork(w.name); };
+  b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) cvOpenWork(w.name); };
+  b.querySelector(".del").onclick = async () => {
+    if (!await confirmDanger(`Delete ${w.name}?`, "This Combine 3D work file goes to the Trash, where you can still get it back in the Finder. The models in it stay where they are.", "Delete")) return;
+    try { await postBatch(`/combine/works/${encodeURIComponent(w.name)}/delete`); log(`${w.name} moved to the Trash`); }
+    catch (e) { log(`deleting ${w.name}: ${e.message}`, "error"); }
+    galleryAgain();
+  };
   return b;
 }
 // openFolder opens a capture from Captures, to look at. (An interrupted
@@ -2824,6 +2847,9 @@ async function renderGallery() {
       // its photos in memory only).
       if (state.photos.length && !bs.some((b) => b.current))
         g.appendChild(folderTile("Current Batch", state.photos.length, photoURL(state.photos[Math.floor((state.photos.length - 1) / 2)]) + "&thumb", true, () => galleryGo("current")));
+      const works = await getJSON("/combine/works").catch(() => []);
+      if (seq !== state.gal.seq) return;
+      for (const w of works) g.appendChild(workTile(w)); // (Combine 3D's work files first)
       for (const b of bs) g.appendChild(folderTile(b.name, b.count, b.mid ? batchURL(b.name, b.mid) + "?thumb" : "", b.current, () => openFolder(b), true, b));
       if (!g.children.length) g.innerHTML = `<span class="hint">No captures yet: they are saved in ${escHTML(state.photoDir || "~/Pictures/gosts-rig")}.</span>`;
     } else {
@@ -3650,7 +3676,7 @@ async function cvAddModel(b, m) {
   $("cvAdd").disabled = true;
   try {
     const scale = window.modelEdit.UNITS[m.edit?.units] || 1; // (an edited model: in its units)
-    await cvs.cv.addModel(`${b}/${m.name}`, modelBase(b, m), m.file, scale, (t) => cvStatus(t + "…"));
+    await cvs.cv.addModel(`${b}/${m.name}`, modelBase(b, m), m.file, scale, (t) => cvStatus(t + "…"), { ref: { folder: b, model: m.name } });
     cvStatus("");
   } catch (e) { cvStatus(e.message, "bad"); }
   $("cvAdd").disabled = false;
@@ -3667,11 +3693,15 @@ function cvShow() {
   list.innerHTML = objs.length ? "" : '<div class="mve-label">None yet: add a model or a shape.</div>';
   for (const o of objs) {
     const row = document.createElement("div");
-    row.className = "cv-obj" + (o === s ? " on" : "") + (o.visible ? "" : " hid");
-    row.innerHTML = `<button class="eye" title="${o.visible ? "Hide it (left out of Save)" : "Show it"}">${o.visible ? eyeOn : eyeOff}</button><span class="nm"></span><span class="kd">${o.kind}</span><button class="rm" title="Take it out of the space" aria-label="Remove">✕</button>`;
-    row.querySelector(".nm").textContent = row.querySelector(".nm").title = o.name;
+    row.className = "cv-obj" + (o === s ? " on" : "") + (o.visible ? "" : " hid") + (o.missing ? " missing" : "");
+    row.innerHTML = `<button class="eye" title="${o.visible ? "Hide it (left out of Export)" : "Show it"}">${o.visible ? eyeOn : eyeOff}</button><span class="nm"></span>` +
+      (o.missing ? `<button class="btn small relink" title="Not found (renamed, moved or deleted since): pick the model it is now">Re-link</button>` : `<span class="kd">${o.kind}</span>`) +
+      `<button class="rm" title="Take it out of the space" aria-label="Remove">✕</button>`;
+    row.querySelector(".nm").textContent = o.name;
+    row.querySelector(".nm").title = o.missing ? `${o.name}: missing (a box its size in its place)` : o.name;
     row.onclick = (e) => {
       if (e.target.closest(".eye")) cv.setVisible(o, !o.visible);
+      else if (e.target.closest(".relink")) cvRelink(o);
       else if (e.target.closest(".rm")) cv.remove(o); // (an undo brings it back)
       else cv.select(o === cv.selected() ? null : o); // (the selected one again: none)
     };
@@ -3702,7 +3732,8 @@ function cvShow() {
   // Objects to Cut: the fill selected, everything but its container (and fills).
   $("cvCutsSec").hidden = !isFill;
   if (isFill) cvCutList(s);
-  $("cvSave").disabled = busy || !objs.some((o) => o.visible);
+  $("cvExport").disabled = busy || !objs.some((o) => o.visible);
+  $("cvSave").disabled = busy || !objs.length;
   const un = cv.undoName(), re = cv.redoName();
   $("cvUndo").disabled = busy || !un; $("cvUndo").title = un ? `Undo ${un} (⌘Z)` : "Undo (⌘Z)";
   $("cvRedo").disabled = busy || !re; $("cvRedo").title = re ? `Redo ${re} (⇧⌘Z)` : "Redo (⇧⌘Z)";
@@ -3921,7 +3952,7 @@ function cvUndo(redo) {
 }
 $("cvUndo").onclick = () => cvUndo(false);
 $("cvRedo").onclick = () => cvUndo(true);
-$("cvSave").onclick = async () => {
+$("cvExport").onclick = async () => {
   const to = $("cvSaveName").value.trim(), folder = $("cvSaveFolder").value.trim();
   if (!to || !folder) return cvStatus("A name and a folder, first", "bad");
   if (cvs.cv.recutting()) return;
@@ -3937,11 +3968,110 @@ $("cvSave").onclick = async () => {
     if (res.stl) fd.append("stl", res.stl, to + ".stl");
     const r = await fetch("/combine/save", { method: "POST", body: fd });
     if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
-    cvStatus(`Saved: ${folder} / ${to} (${res.triangles.toLocaleString()} triangles, mm)`, "ok");
-    log(`Combine Models: ${folder} / ${to} saved`);
+    cvStatus(`Exported: ${folder} / ${to} (${res.triangles.toLocaleString()} triangles, mm)`, "ok");
+    log(`Combine Models: ${folder} / ${to} exported`);
   } catch (e) { cvStatus(e.message, "bad"); }
   cvs.busy = false; cvShow();
 };
+// Work files: Save keeps what's in it (cvWork: its JSON) as Name.combine.json
+// in the captures' folder; Browse lists them, and cvOpenWork puts one back:
+// shapes as they were, models found again by capture and model name (one
+// not found: missing, a box its size in its place, till Re-link), fills set
+// as they were and made again, their cuts.
+function cvWork() {
+  const objs = cvs.cv.objects().map((o) => {
+    const s = { id: o.id, kind: o.kind, name: o.name, visible: o.visible, pos: o.pos, rot: o.rot };
+    if (o.size) s.size = o.size;
+    if (o.kind === "model") { s.ref = o.ref ?? null; s.dims = o.dims; }
+    if (o.kind === "fill") {
+      const st = o.fill.set;
+      s.fill = { container: st.container?.id ?? null, top: st.top, offset: st.offset, inside: st.inside, tol: st.tol, res: st.res, made: !!o.fill.g,
+        cuts: [...o.fill.cuts].map(([t, c]) => ({ id: t.id, opts: c.opts })) };
+    }
+    return s;
+  });
+  return { version: 1, app: "gosts-rig combine", objects: objs, thumb: cvs.cv.picture() };
+}
+$("cvSave").onclick = async () => {
+  const name = $("cvSaveName").value.trim();
+  if (!name) return cvStatus("A name first", "bad");
+  if (cvs.cv.recutting()) return;
+  let replace = false;
+  try { replace = cvs.work !== name && (await getJSON("/combine/works")).some((w) => w.name === name); } catch {}
+  if (replace && !await confirmDanger(`Replace ${name}?`, `A work file named ${name} is there already: it goes to the Trash, and this one takes its place.`, "Replace")) return;
+  cvs.busy = true; cvShow();
+  try {
+    const r = await fetch(`/combine/works/${encodeURIComponent(name)}${replace ? "?trash=1" : ""}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cvWork()) });
+    if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+    cvs.work = name;
+    cvStatus(`Saved: ${name} (Browse opens it again)`, "ok");
+    if (!$("gallery").hidden && state.gal.where === null) galleryAgain();
+  } catch (e) { cvStatus(e.message, "bad"); }
+  cvs.busy = false; cvShow();
+};
+// cvFindModel: the model ref names (capture folder, model), if it's there.
+async function cvFindModel(ref, seen) {
+  if (!ref?.folder || !ref?.model) return null;
+  if (!seen.has(ref.folder)) seen.set(ref.folder, await getJSON(`/batches/${encodeURIComponent(ref.folder)}/models`).catch(() => []));
+  return seen.get(ref.folder).find((m) => m.name === ref.model && m.format === "obj") ?? null;
+}
+async function cvOpenWork(name) {
+  let w;
+  try { w = await getJSON(`/combine/works/${encodeURIComponent(name)}`); } catch (e) { return log(`opening ${name}: ${e.message}`, "error"); }
+  await openCombine();
+  const cv = cvs.cv;
+  if (cv.objects().length && !await confirmDanger(`Open ${name}?`, "What's in Combine 3D now is put away for it (Save it first to keep it).", "Open")) return;
+  cvs.busy = true; cvShow();
+  const status = (t) => cvStatus(t ? t + "…" : "");
+  cv.clear();
+  const byId = new Map(), seen = new Map(), missing = [];
+  for (const s of w.objects || []) {
+    let o = null;
+    if (s.kind === "model") {
+      const m = await cvFindModel(s.ref, seen);
+      if (m) try { o = await cv.addModel(s.name, modelBase(s.ref.folder, m), m.file, window.modelEdit.UNITS[m.edit?.units] || 1, status, { ref: s.ref }); } catch {}
+      if (!o) { o = cv.addMissing(s.name, s.dims?.length === 3 ? s.dims : [0.05, 0.05, 0.05], { ref: s.ref }); missing.push(s.name); }
+    } else if (s.kind === "fill") o = cv.addFill();
+    else if (["box", "cylinder", "sphere"].includes(s.kind)) { o = cv.addShape(s.kind); if (s.size) cv.setSize(o, s.size); }
+    if (!o) continue;
+    if (s.name && o.name !== s.name) cv.rename(o, s.name);
+    if (o.kind !== "fill") cv.setPose(o, s.pos, s.rot);
+    if (s.visible === false) cv.setVisible(o, false);
+    byId.set(s.id, { o, s });
+  }
+  const fills = [];
+  for (const { o, s } of byId.values()) {
+    if (!s.fill) continue;
+    const F = s.fill;
+    cv.setFill(o, { container: byId.get(F.container)?.o ?? null, top: F.top ?? null, offset: F.offset ?? 0, inside: F.inside ?? null, tol: F.tol ?? 0.001, res: F.res ?? 0.001 });
+    for (const c of F.cuts || []) { const t = byId.get(c.id)?.o; if (t) cv.setCut(o, t, c.opts); }
+    if (F.made) fills.push(o);
+  }
+  cv.select(null);
+  cv.fit();
+  cvs.work = name;
+  $("cvSaveName").value = name;
+  let bad = "";
+  for (const f of fills) {
+    try { await cv.makeFill(f, status); } catch (e) { bad = `${f.name}: ${e.message}`; }
+  }
+  await new Promise((r) => setTimeout(r, 300));
+  while (cv.recutting()) await new Promise((r) => setTimeout(r, 100)); // (its cuts, as they're made in the background: done first)
+  cv.clearHistory(); // (opened: nothing to undo)
+  cvs.busy = false; cvShow();
+  cvStatus(missing.length ? `Opened ${name}: ${missing.length} missing (${missing.join(", ")}): Re-link ${missing.length === 1 ? "it" : "them"} in Objects, or remove ${missing.length === 1 ? "it" : "them"}` : bad ? `Opened ${name}; ${bad}` : `Opened ${name}`, missing.length || bad ? "bad" : "ok");
+}
+// cvRelink: a missing model (or any) found again: the model it is now picked.
+function cvRelink(o) {
+  cvPickOpen(true, async (b, m) => {
+    cvPickOpen(false);
+    const was = o.ref ? `${o.ref.folder}/${o.ref.model}` : null, name = !was || o.name === was ? `${b}/${m.name}` : o.name; // (its own name kept, if it had one)
+    try {
+      await cvs.cv.relink(o, name, modelBase(b, m), m.file, window.modelEdit.UNITS[m.edit?.units] || 1, { ref: { folder: b, model: m.name } }, (t) => cvStatus(t + "…"));
+      cvStatus(`${name}: linked`, "ok");
+    } catch (e) { cvStatus(e.message, "bad"); }
+  }, `Re-link ${o.name}`);
+}
 document.addEventListener("keydown", (e) => {
   if ($("combineView").hidden || !$("confirmModal").hidden || e.target.closest?.("input, textarea, select")) return; // (a dialog up: its keys)
   if (!$("cvPickModal").hidden) { // (Add Model's: Esc closes it, Backspace up a level)

@@ -2,11 +2,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/json"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -69,6 +72,68 @@ func TestCombineSave(t *testing.T) {
 		t.Errorf("a bad folder: %d, want 400", w.Code)
 	}
 	if left, _ := filepath.Glob(filepath.Join(photoDir, "inserts", ".save-*")); len(left) != 0 {
+		t.Errorf("left behind: %v", left)
+	}
+}
+
+// Combine Models' work files: saved (again: replaced), listed with how many
+// objects and its picture, sent back, the picture as an image, to the
+// Trash; a bad name or body: refused.
+func TestCombineWorks(t *testing.T) {
+	old := photoDir
+	photoDir = t.TempDir()
+	defer func() { photoDir = old }()
+	t.Setenv("HOME", t.TempDir())
+	os.MkdirAll(filepath.Join(os.Getenv("HOME"), ".Trash"), 0o755)
+	a := &app{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /combine/works", a.handleWorks)
+	mux.HandleFunc("GET /combine/works/{name}", a.handleWork)
+	mux.HandleFunc("GET /combine/works/{name}/thumb", a.handleWorkThumb)
+	mux.HandleFunc("POST /combine/works/{name}", a.handleWorkSave)
+	mux.HandleFunc("POST /combine/works/{name}/delete", a.handleWorkDelete)
+	do := func(method, path, body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest(method, path, strings.NewReader(body)))
+		return w
+	}
+	png := "data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte("\x89PNG fake"))
+	if w := do("POST", "/combine/works/case%20insert", `{"version":1,"objects":[{"id":1},{"id":2}],"thumb":"`+png+`"}`); w.Code != http.StatusNoContent {
+		t.Fatalf("save: %d %s", w.Code, w.Body)
+	}
+	if w := do("POST", "/combine/works/case%20insert", `{"version":1,"objects":[{"id":1}],"thumb":"`+png+`"}`); w.Code != http.StatusNoContent {
+		t.Fatalf("saved again: %d %s", w.Code, w.Body)
+	}
+	if w := do("POST", "/combine/works/case%20insert?trash=1", `{"version":1,"objects":[{"id":1},{"id":2},{"id":3}],"thumb":"`+png+`"}`); w.Code != http.StatusNoContent {
+		t.Fatalf("another in its place: %d %s", w.Code, w.Body)
+	}
+	var list []workInfo
+	json.Unmarshal(do("GET", "/combine/works", "").Body.Bytes(), &list)
+	if len(list) != 1 || list[0].Name != "case insert" || list[0].Objects != 3 || !list[0].Thumb {
+		t.Errorf("list: %+v", list)
+	}
+	if w := do("GET", "/combine/works/case%20insert", ""); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"id":3`) {
+		t.Errorf("read: %d %s", w.Code, w.Body)
+	}
+	if w := do("GET", "/combine/works/case%20insert/thumb", ""); w.Code != http.StatusOK || w.Header().Get("Content-Type") != "image/png" || w.Body.String() != "\x89PNG fake" {
+		t.Errorf("thumb: %d %q %q", w.Code, w.Header().Get("Content-Type"), w.Body)
+	}
+	if w := do("POST", "/combine/works/x", "not json"); w.Code != http.StatusBadRequest {
+		t.Errorf("not JSON: %d", w.Code)
+	}
+	if w := do("POST", "/combine/works/.hidden", "{}"); w.Code != http.StatusBadRequest {
+		t.Errorf("a bad name: %d", w.Code)
+	}
+	if w := do("POST", "/combine/works/case%20insert/delete", ""); w.Code != http.StatusNoContent {
+		t.Errorf("delete: %d %s", w.Code, w.Body)
+	}
+	if fileExists(filepath.Join(photoDir, "case insert"+workExt)) {
+		t.Error("still there after delete")
+	}
+	if ents, _ := os.ReadDir(filepath.Join(os.Getenv("HOME"), ".Trash")); len(ents) != 2 {
+		t.Errorf("the Trash: %d, want 2 (the one replaced, the one deleted)", len(ents))
+	}
+	if left, _ := filepath.Glob(filepath.Join(photoDir, ".work-*")); len(left) != 0 {
 		t.Errorf("left behind: %v", left)
 	}
 }
