@@ -448,6 +448,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .gallery-grid .thumb.model { cursor: pointer; }
 /* Combine Models: the model editor's look; its objects a list, each with an eye. */
 .cv-title { font-size: 14px; }
+.cv-head { font-size: 13px; font-weight: 600; }
 #combineView .viewer-bar .btn { flex: none; }
 .cv-side section.cv-first { border-top: 0; padding-top: 0; }
 .cv-list { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
@@ -1298,7 +1299,7 @@ kbd + kbd { margin-left: 3px; }
     <div class="mv-hint">Click an object to select it · drag it to slide it along the floor (⇧: up and down) · drag elsewhere to move the view · drag scroll to turn · scroll to zoom · F to fit</div>
     <aside class="mv-edit cv-side" id="cvSide">
       <section class="cv-first">
-        <div class="mve-head"><b>Objects</b></div>
+        <div class="mve-row"><b class="cv-head">Objects</b><span class="spacer"></span><span class="btn-join"><button class="btn small mve-icon" id="cvUndo" disabled aria-label="Undo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5L2.5 6.5l3 3"/><path d="M2.5 6.5h7a4 4 0 0 1 0 8h-2"/></svg></button><button class="btn small mve-icon" id="cvRedo" disabled aria-label="Redo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l3 3-3 3"/><path d="M13.5 6.5h-7a4 4 0 0 0 0 8h2"/></svg></button></span></div>
         <div class="cv-list" id="cvList"><div class="mve-label">None yet: add a model or a shape.</div></div>
         <div class="mve-row"><button class="btn small" id="cvAdd" title="Pick a model from your captures">Add Model…</button></div>
         <div class="mve-row"><span class="mve-label">Shape</span><span class="btn-join"><button class="btn small" data-shape="box">Box</button><button class="btn small" data-shape="cylinder">Cylinder</button><button class="btn small" data-shape="sphere">Sphere</button></span></div>
@@ -1310,7 +1311,7 @@ kbd + kbd { margin-left: 3px; }
         <div class="cv-xyz" id="cvRot"><span class="mve-label">Turn (°)</span><b class="x">X</b><input type="number" step="5" data-k="x"><b class="y">Y</b><input type="number" step="5" data-k="y"><b class="z">Z</b><input type="number" step="5" data-k="z"></div>
         <div class="mve-row"><span class="mve-label">Turn 90°</span><span class="btn-join" id="cvTurn"><button class="btn small" data-t="x">X</button><button class="btn small" data-t="y">Y</button><button class="btn small" data-t="z">Z</button></span><span class="spacer"></span><button class="btn small" id="cvDrop" title="Down (or up) so its lowest point is on the floor">Drop to Floor</button></div>
         <div class="cv-xyz" id="cvSize" hidden><span class="mve-label">Size (mm)</span></div>
-        <div class="mve-row" id="cvFillInfo" hidden><span class="mve-label" id="cvFillText"></span><span class="spacer"></span><button class="btn small" id="cvUndoCut" title="The last cut put back">Undo Cut</button></div>
+        <div class="mve-row" id="cvFillInfo" hidden><span class="mve-label" id="cvFillText"></span></div>
       </section>
       <section id="cvFillSec" hidden>
         <div class="mve-head"><b>Container Fill</b>The inside of the selected object (a case, a bowl), up to a level, kept off its walls: an insert.</div>
@@ -3647,7 +3648,6 @@ function cvShow() {
     if (isFill) {
       const f = s.fill;
       $("cvFillText").textContent = `${f.from}: ${cvNum(f.res * 1000)} mm voxels, ${cvNum(f.tol * 1000)} mm off its walls`;
-      $("cvUndoCut").disabled = !f.undo.length || cvs.busy;
     }
   }
   // Container Fill: the selected (not a fill) the container.
@@ -3663,6 +3663,9 @@ function cvShow() {
   $("cvCutSec").hidden = !fill || !canFill || s === cvs.containerOf?.get(fill);
   $("cvCut").disabled = cvs.busy;
   $("cvSave").disabled = cvs.busy || !objs.some((o) => o.visible);
+  const un = cv.undoName(), re = cv.redoName();
+  $("cvUndo").disabled = cvs.busy || !un; $("cvUndo").title = un ? `Undo ${un} (⌘Z)` : "Undo (⌘Z)";
+  $("cvRedo").disabled = cvs.busy || !re; $("cvRedo").title = re ? `Redo ${re} (⇧⌘Z)` : "Redo (⇧⌘Z)";
 }
 // cvFill: the fill to cut (the last made, shown or not).
 function cvFill() { return [...cvs.cv.objects()].reverse().find((o) => o.kind === "fill"); }
@@ -3728,7 +3731,15 @@ $("cvCut").onclick = async () => {
   } catch (e) { cvStatus(e.message, "bad"); }
   cvs.busy = false; cvShow();
 };
-$("cvUndoCut").onclick = () => { const s = cvs.cv.selected(); if (s?.kind === "fill" && cvs.cv.undoCut(s)) cvStatus("Cut undone"); cvShow(); };
+// Undo, Redo: the history's steps (moves, turns, sizes, adding, removing,
+// hiding, renaming, the fill and its cuts).
+function cvUndo(redo) {
+  if (cvs.busy || !cvs.cv) return;
+  const what = redo ? cvs.cv.redo() : cvs.cv.undo();
+  if (what) cvStatus(`${redo ? "Redone" : "Undone"}: ${what}`);
+}
+$("cvUndo").onclick = () => cvUndo(false);
+$("cvRedo").onclick = () => cvUndo(true);
 $("cvSave").onclick = async () => {
   const to = $("cvSaveName").value.trim(), folder = $("cvSaveFolder").value.trim();
   if (!to || !folder) return cvStatus("A name and a folder, first", "bad");
@@ -3757,6 +3768,7 @@ document.addEventListener("keydown", (e) => {
     return;
   }
   if (e.key === "Escape") { e.preventDefault(); if (cvs.cv?.picking()) { cvs.cv.unpick(); cvStatus(""); } else closeCombine(); }
+  else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); cvUndo(e.shiftKey); }
   else if ((e.key === "f" || e.key === "F") && !e.metaKey && !e.ctrlKey) cvs.cv?.fit();
 });
 // ? in the model viewer: its keys, from MV_KEYS (Esc, ✕ or a click

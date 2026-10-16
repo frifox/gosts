@@ -285,6 +285,44 @@ export function createCombine(canvas) {
   const changed = () => { outline(); onChange(); };
   api.setOnChange = (f) => { onChange = f; }; // (the page's panel: as it is)
 
+  // History: each step done (what: its name; undo, redo: back and on), the
+  // last HIST kept; at: how many are done (the rest: undone, redone in turn;
+  // a new step drops them).
+  const HIST = 100, hist = [];
+  let hat = 0;
+  function record(what, undo, redo) {
+    hist.length = hat;
+    hist.push({ what, undo, redo });
+    if (hist.length > HIST) hist.shift();
+    hat = hist.length;
+  }
+  api.undo = () => { if (!hat) return null; const h = hist[--hat]; h.undo(); changed(); return h.what; };
+  api.redo = () => { if (hat >= hist.length) return null; const h = hist[hat++]; h.redo(); changed(); return h.what; };
+  api.undoName = () => (hat ? hist[hat - 1].what : "");
+  api.redoName = () => (hat < hist.length ? hist[hat].what : "");
+  // pose: o's place and turn (a copy); posed: o put so.
+  const pose = (o) => ({ pos: { ...o.pos }, rot: { ...o.rot } });
+  const posed = (o, p) => { o.pos = { ...p.pos }; o.rot = { ...p.rot }; place(o); };
+  // moved: o went from pose b to where it is now: a step (none if it didn't).
+  function moved(o, b, what = `Move ${o.name}`) {
+    const a = pose(o);
+    if (JSON.stringify(a) === JSON.stringify(b)) return;
+    record(what, () => posed(o, b), () => posed(o, a));
+  }
+  // detach / attach: o out of the space (kept, to come back) and in again, at i.
+  function detach(o) {
+    const i = objects.indexOf(o);
+    if (i >= 0) objects.splice(i, 1);
+    scene.remove(o.holder);
+    if (selected === o) selected = null;
+    return i;
+  }
+  function attach(o, i) {
+    objects.splice(Math.max(0, Math.min(i, objects.length)), 0, o);
+    scene.add(o.holder);
+    selected = o;
+  }
+
   // inset: the stage's right side covered (the sidebar), px; the picture
   // shifted left by half of it (eased there), so what's in the middle is in
   // the middle of what's seen (as the model editor does). shift: now.
@@ -355,6 +393,8 @@ export function createCombine(canvas) {
     place(o);
     selected = o;
     if (objects.length === 1) api.fit();
+    const i = objects.length - 1;
+    record(`Add ${name}`, () => detach(o), () => attach(o, i));
     changed();
     return o;
   }
@@ -379,39 +419,63 @@ export function createCombine(canvas) {
     const n = objects.filter((o) => o.kind === kind).length + 1;
     return add(kind, `${kind[0].toUpperCase() + kind.slice(1)} ${n}`, inner, { size });
   };
-  api.setSize = (o, size) => {
+  function sized(o, size) {
     const mesh = o.inner.children[0];
     mesh.geometry.dispose();
     mesh.geometry = shapeGeo(o.kind, size);
-    o.size = size;
+    o.size = { ...size };
     mesh.geometry.computeBoundingBox(); // (its own: not where it's placed)
     o.inner.position.set(0, -mesh.geometry.boundingBox.min.y, 0); // (still standing on its pos)
     place(o);
+  }
+  api.setSize = (o, size) => {
+    const b = { ...o.size };
+    sized(o, size);
+    record(`Resize ${o.name}`, () => sized(o, b), () => sized(o, size));
     changed();
   };
   api.objects = () => objects;
   api.selected = () => selected;
   api.select = (o) => { selected = o; changed(); };
-  api.setPose = (o, pos, rot) => { if (o.kind === "fill") return; if (pos) o.pos = pos; if (rot) o.rot = rot; place(o); changed(); };
+  api.setPose = (o, pos, rot) => {
+    if (o.kind === "fill") return;
+    const b = pose(o);
+    if (pos) o.pos = pos;
+    if (rot) o.rot = rot;
+    place(o);
+    moved(o, b, rot && !pos ? `Turn ${o.name}` : `Move ${o.name}`);
+    changed();
+  };
   // drop: o down (or up) so its lowest point is on the floor.
   api.drop = (o) => {
     if (o.kind === "fill") return;
-    const box = new THREE.Box3().setFromObject(o.holder);
+    const b = pose(o), box = new THREE.Box3().setFromObject(o.holder);
     o.pos = { ...o.pos, z: o.pos.z - box.min.y * 1000 };
     place(o);
+    moved(o, b, `Drop ${o.name}`);
     changed();
   };
-  api.setVisible = (o, on) => { o.visible = on; o.holder.visible = on; changed(); };
+  const shown = (o, on) => { o.visible = on; o.holder.visible = on; };
+  api.setVisible = (o, on) => {
+    if (o.visible === on) return;
+    shown(o, on);
+    record(`${on ? "Show" : "Hide"} ${o.name}`, () => shown(o, !on), () => shown(o, on));
+    changed();
+  };
+  // remove: o out of the space (kept: an undo brings it back).
   api.remove = (o) => {
-    const i = objects.indexOf(o);
+    const i = detach(o);
     if (i < 0) return;
-    objects.splice(i, 1);
-    scene.remove(o.holder);
-    o.holder.traverse((m) => { if (m.isMesh) { m.geometry.dispose(); for (const mt of [m.material].flat()) { for (const v of Object.values(mt)) if (v?.isTexture) v.dispose(); mt.dispose(); } } });
-    if (selected === o) selected = null;
+    record(`Remove ${o.name}`, () => attach(o, i), () => detach(o));
     changed();
   };
-  api.rename = (o, name) => { o.name = name; changed(); };
+  api.rename = (o, name) => {
+    const b = o.name;
+    if (b === name) return;
+    o.name = name;
+    record(`Rename ${b}`, () => { o.name = b; }, () => { o.name = name; });
+    changed();
+  };
   api.fit = () => {
     const vis = objects.filter((o) => o.visible);
     const box = new THREE.Box3();
@@ -460,7 +524,7 @@ export function createCombine(canvas) {
     // grabbed; with ⇧ held, up and down (Z) instead.
     controls.enabled = false;
     try { canvas.setPointerCapture(e.pointerId); } catch {} // (a pointer it can't hold: dragged all the same)
-    dragging = { o: h.o };
+    dragging = { o: h.o, start: pose(h.o) };
     anchor(h.point, e.shiftKey);
   }, { capture: true });
   // anchor: the drag from point p on, as it is now: along the floor, or up
@@ -499,7 +563,14 @@ export function createCombine(canvas) {
     place(dragging.o);
     changed();
   });
-  const endDrag = () => { if (dragging) { dragging = null; controls.enabled = true; } };
+  const endDrag = () => {
+    if (!dragging) return;
+    const d = dragging;
+    dragging = null;
+    controls.enabled = true;
+    moved(d.o, d.start); // (the whole drag: one step)
+    changed();
+  };
   canvas.addEventListener("pointerup", endDrag);
   canvas.addEventListener("pointercancel", endDrag);
 
@@ -558,9 +629,11 @@ export function createCombine(canvas) {
     holder.add(inner);
     scene.add(holder);
     const f = { id: ++seq, kind: "fill", name: `Fill (${container.name})`, holder, inner, visible: true, pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0 },
-      fill: { g, from: container.name, tol, res, level, undo: [] } };
+      fill: { g, from: container.name, tol, res, level } };
     objects.push(f);
     selected = f;
+    const i = objects.length - 1;
+    record(`Make ${f.name}`, () => detach(f), () => attach(f, i));
     changed();
     status("");
     return { fill: f, removed };
@@ -601,21 +674,15 @@ export function createCombine(canvas) {
     if (!cut) { status(""); throw new Error(`${obj.name} doesn't reach into the fill`); }
     status("Cut: keeping it in one piece");
     await tick();
-    const removed = keepLargest(F);
-    f.fill.undo.push(before);
-    if (f.fill.undo.length > 5) f.fill.undo.shift();
+    const removed = keepLargest(F), after = F.v.slice();
+    // (each way: a copy of its voxels in, so the next cut, done in place,
+    // doesn't touch the one kept)
+    record(`Cut ${obj.name}`, () => { F.v = before.slice(); remesh(f); }, () => { F.v = after.slice(); remesh(f); });
     status("Cut: making its mesh");
     await tick();
     remesh(f);
     status("");
     return { removed };
-  };
-  api.undoCut = (f) => {
-    const u = f.fill.undo.pop();
-    if (!u) return false;
-    f.fill.g.v = u;
-    remesh(f);
-    return true;
   };
   function remesh(f) {
     const m = f.inner.children[0];
