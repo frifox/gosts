@@ -542,9 +542,10 @@ export function createCombine(canvas) {
       if (h) { e.stopImmediatePropagation(); controls.enabled = false; const p = picking; api.unpick(); p.done(h.point); setTimeout(() => (controls.enabled = true)); }
       return;
     }
-    if (!h) { emptyDown = [e.clientX, e.clientY]; return; } // (a click on nothing, not a drag of the view: nothing selected)
-    if (h.o !== selected) { selected = h.o; changed(); }
-    if (h.o.kind === "fill") return;
+    // Only the selected one, grabbed, is dragged (⌘ or Ctrl held: the view
+    // turned instead); otherwise the view moves (or turns, ⌘/Ctrl/⇧ held),
+    // and a click (not a drag) selects what it's on (on nothing: none).
+    if (!h || h.o !== selected || h.o.kind === "fill" || e.ctrlKey || e.metaKey) { clickDown = { x: e.clientX, y: e.clientY, o: h?.o ?? null }; return; }
     // Dragging the selected one: along the floor, at the height it was
     // grabbed; with ⇧ held, up and down (Z) instead.
     controls.enabled = false;
@@ -588,11 +589,12 @@ export function createCombine(canvas) {
     place(dragging.o);
     changed();
   });
-  let emptyDown = null;
+  let clickDown = null;
   canvas.addEventListener("pointerup", (e) => {
-    const d = emptyDown;
-    emptyDown = null;
-    if (d && Math.hypot(e.clientX - d[0], e.clientY - d[1]) <= 4 && selected) { selected = null; changed(); }
+    const d = clickDown;
+    clickDown = null;
+    if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return; // (a drag of the view)
+    if (d.o !== selected) { selected = d.o; changed(); }
   });
   const endDrag = () => {
     if (!dragging) return;
