@@ -127,8 +127,8 @@ It can make a custom case insert, to print in foaming TPU, say:
   Container** (click the case: picking starts as it's added) and **Pick Fill Line** (next at once) (click the case where the fill should come up to; **Offset**
   moves it down (+) or up (−) in mm). The fill grows from the middle of the case on that line; if that's not inside
   it (a case with a divider, say), **Pick Inside**: a point on the line, over the inside. **Make Fill** takes the
-  inside up to that line, kept **Off the walls** from them, in cubes of the **Resolution**. Change any of it later
-  and **Make Again**: its cuts are made again in it.
+  inside up to that line, kept **Off the walls** from them, in cubes of the **Resolution**. Once made, the section folds to its title (a green check) and a caret: hover it for
+  the settings, change any of them and **Make Again**: its cuts are made again in it.
 - **Objects to Cut**: select the fill, and it lists everything but its container. Check each object that goes in (a
   drone, goggles, a controller), placed where it'll sit, and hover its caret for how it's cut (then **Apply**):
   **Open Above** leaves room to drop it in from the top, **Around** only takes its shape; a **Margin** round it;

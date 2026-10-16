@@ -456,6 +456,18 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-layers { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; background: var(--bg, rgba(0,0,0,.15)); overflow: hidden; }
 .cv-layers .cv-list { min-height: 200px; max-height: 320px; padding: 4px; }
 .cv-layers .cv-list > .mve-label { padding: 6px; white-space: normal; }
+/* Container Fill, once made: collapsed to its head, its settings over what's below while its caret's hovered (as a cut's). */
+#cvFillSec { position: relative; }
+.cv-fill-head { display: flex; align-items: center; gap: 6px; }
+.cv-fill-made { display: inline-flex; }
+.cv-fill-made[hidden] { display: none; }
+.cv-fill-body { display: flex; flex-direction: column; gap: 8px; }
+#cvFillSec.collapsed .cv-fill-body { display: none; position: absolute; top: 34px; left: 0; right: 0; z-index: 6; padding: 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+#cvFillSec.collapsed .cv-fill-body.open { display: flex; }
+.cv-caret { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; color: var(--muted); cursor: pointer; }
+.cv-caret svg { width: 12px; height: 12px; transition: transform .15s; }
+.cv-caret.open svg { transform: rotate(180deg); }
+.cv-caret:hover { color: var(--text); }
 .cv-layers.cv-cuts-box { overflow: visible; } /* (a cut's options over the rows below, and past the box) */
 .cv-layers .cv-list.cv-cuts { min-height: 120px; max-height: none; overflow: visible; }
 .cv-layers-bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--border); background: var(--panel-2); }
@@ -1351,13 +1363,15 @@ kbd + kbd { margin-left: 3px; }
         <div class="cv-xyz" id="cvSize" hidden><span class="mve-label">Size (mm)</span></div>
       </section>
       <section id="cvFillSec" hidden>
-        <div class="mve-head"><b>Container Fill</b></div>
+        <div class="mve-head cv-fill-head"><b>Container Fill</b><span class="cv-fill-made" id="cvFillMade" title="Made" hidden><svg class="cv-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Made"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span><span class="spacer"></span><button class="cv-caret" id="cvFillCaret" hidden title="Its settings: change them and Make Again"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 4.5l3 3 3-3"/></svg></button></div>
+        <div class="cv-fill-body" id="cvFillBody">
         <div class="mve-row"><button class="btn small" id="cvFCont" title="Click the container (a case, a bowl) in the view">Pick Container</button><span class="cv-cont" id="cvFContWho" hidden><span class="cv-cont-name" id="cvFContName"></span><svg class="cv-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Picked"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span></div>
         <div class="mve-row"><button class="btn small" id="cvPickTop" title="Click on the container where the fill should come up to: its level (the Offset moves it from there)">Pick Fill Line</button><span class="mve-label">Offset</span><input type="number" id="cvBelow" value="0" step="1" title="The fill line moved down (+) or up (−) from the point picked, mm"><span class="mve-label">mm</span></div>
         <div class="mve-row"><button class="btn small" id="cvPickIn" title="The fill grows from a point on the fill line (down to the floor, out to the walls): the middle of the container (set with the fill line), unless picked here (click on the line, over its inside)">Pick Inside</button><span class="cv-cont" id="cvInWho" hidden><span class="cv-cont-name" id="cvInText"></span><svg class="cv-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Picked"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span></div>
         <div class="mve-row"><span class="mve-label">Off the walls</span><input type="number" id="cvTol" value="1" step="0.5" min="0"><span class="mve-label">mm</span></div>
         <div class="mve-row"><span class="mve-label">Resolution</span><input type="number" id="cvRes" value="1" step="0.5" min="0.2"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small primary" id="cvMakeFill" disabled>Make Fill</button></div>
         <div class="mve-row"><span class="mve-label" id="cvFillText"></span></div>
+        </div>
       </section>
       <section id="cvCutsSec" hidden>
         <div class="mve-head"><b>Objects to Cut</b></div>
@@ -3752,6 +3766,13 @@ function cvShow() {
 // cvFillShow: fill f's settings, and how it is (made, not, changed since).
 function cvFillShow(f, busy) {
   const cv = cvs.cv, st = f.fill.set, state = cv.fillState(f);
+  // (made: collapsed to its head, the settings up while its caret's hovered)
+  const made = !!f.fill.g;
+  if (cvs.fillOpen != null && cvs.fillOpen !== f.id) cvs.fillOpen = null;
+  $("cvFillSec").classList.toggle("collapsed", made);
+  $("cvFillCaret").hidden = $("cvFillMade").hidden = !made;
+  $("cvFillCaret").classList.toggle("open", made && cvs.fillOpen === f.id);
+  $("cvFillBody").classList.toggle("open", made && cvs.fillOpen === f.id);
   const has = st.container && cv.objects().includes(st.container);
   $("cvFContWho").hidden = !has; // (its name, a check after it)
   const what = cv.pickWhat(); // (the one being picked: lit)
@@ -3770,6 +3791,36 @@ function cvFillShow(f, busy) {
   $("cvMakeFill").disabled = busy || state === "unset";
   $("cvFillText").textContent = { unset: "Pick its container and its fill line, then Make Fill.", new: "Not made yet.", changed: "Changed since it was made: Make Again.", made: "Made." }[state];
 }
+// The made fill's settings, as a cut's options: hovering the caret opens
+// them; clicked while open: closed, and not opened by hover again till the
+// pointer's left the caret. Kept up while the pointer's on them, a field in
+// them is in use, a pick is going, or they're changed since it was made
+// (Make Again, or a click elsewhere, then).
+function cvFillOpen(on) {
+  const f = cvs.cv?.selected();
+  cvs.fillOpen = on && f?.kind === "fill" ? f.id : null;
+  cvShow();
+}
+function cvFillClose() {
+  const f = cvs.cv?.selected();
+  if (cvs.fillOpen == null || cvs.fillHover || $("cvFillBody").contains(document.activeElement) || cvs.cv.pickWhat()) return;
+  if (f?.kind === "fill" && cvs.cv.fillState(f) === "changed") return;
+  cvFillOpen(false);
+}
+$("cvFillCaret").onclick = () => {
+  if (cvs.fillOpen != null) { cvs.fillNoHover = true; cvFillOpen(false); } else cvFillOpen(true);
+};
+$("cvFillCaret").addEventListener("pointerenter", () => { if (!cvs.fillNoHover && cvs.fillOpen == null) cvFillOpen(true); });
+$("cvFillCaret").addEventListener("pointerleave", () => { cvs.fillNoHover = false; });
+for (const el of [$("cvFillCaret"), $("cvFillBody")]) {
+  el.addEventListener("pointerenter", () => { clearTimeout(cvs.fillClose); cvs.fillHover = true; });
+  el.addEventListener("pointerleave", () => { cvs.fillHover = false; clearTimeout(cvs.fillClose); cvs.fillClose = setTimeout(cvFillClose, 250); });
+}
+$("cvFillBody").addEventListener("focusout", () => setTimeout(cvFillClose, 0));
+document.addEventListener("pointerdown", (e) => { // (a click elsewhere, not in the view: closed)
+  if (cvs.fillOpen == null || e.target.closest?.("#cvFillSec, #cvCanvas")) return;
+  cvFillOpen(false);
+});
 // cvMarks: the selected fill's line (a sheet over its container) and inside
 // point (the Offset as it's typed).
 function cvMarks() {
@@ -3880,6 +3931,7 @@ $("cvMakeFill").onclick = async () => {
   try {
     const { removed } = await cvs.cv.makeFill(f, (t) => cvStatus(t ? t + "…" : ""));
     cvStatus(`${again ? "Made again" : "Fill made"}${removed ? ` (pieces left loose taken out: ${removed} voxels)` : ""}`, "ok");
+    setTimeout(cvFillClose, 0); // (made: collapsed again, unless the pointer's on it)
   } catch (e) { cvStatus(e.message, "bad"); }
   cvs.busy = false; cvShow();
 };
@@ -3909,7 +3961,7 @@ function cvCutList(f) {
   const list = $("cvCutList");
   if (list.dataset.key === key) return;
   list.dataset.key = key;
-  list.innerHTML = "";
+  list.innerHTML = objs.length ? "" : '<div class="mve-label">No objects to add</div>'; // (as Objects' box, empty)
   const mm = (m) => +(m * 1000).toFixed(2);
   const norm = (x) => JSON.stringify([x.offset, x.keepAbove, x.smooth, x.colMax ?? null]);
   for (const o of objs) {
