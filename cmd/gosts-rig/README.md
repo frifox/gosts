@@ -110,6 +110,25 @@ file.
 
 **Save** writes it as a new model (or overwrites this one) in mm, inches or meters, optionally as an STL too.
 
+## Combining models
+
+**Combine Models** in Browse puts models (the ones made ready in the editor, `-aligned`, listed first) and simple
+shapes (box, cylinder, sphere) in one space. Select one from the list or by clicking it, then drag it along the floor
+or type where it goes and how it's turned.
+
+It can make a custom case insert, to print in foaming TPU, say:
+
+- **Container Fill**: with the case selected, pick its top (the level is some mm below it) and a point on its floor
+  inside. The fill takes the inside up to that level, kept the tolerance off the walls.
+- **Cut from Fill**: select each object that goes in (a drone, goggles, a controller), placed where it'll sit, and cut
+  it out with a margin round it. **Open Above** leaves room to drop it in from the top; **Around** only takes its shape.
+  **Smooth** rounds the pocket off without ever cutting into the margin. Pieces a cut leaves loose are taken out, so
+  the insert stays in one piece. **Undo Cut** steps back.
+- **Save** writes the objects shown (hide the rest with their eye) as one model, in mm, with an STL too.
+
+The fill is worked out on a grid of small cubes (Resolution, 1 mm by default), so sizes are within about a cube: a
+finer resolution is more exact but slower.
+
 ## Tips
 
 - *"Another program has the camera"* (macOS): quit Photos and Image Capture, then run

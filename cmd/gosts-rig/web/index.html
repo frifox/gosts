@@ -446,6 +446,25 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 #modelViewer .viewer-bar .btn, #modelViewer .viewer-bar .views { white-space: nowrap; flex: none; }
 #modelViewer .viewer-bar .cap { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gallery-grid .thumb.model { cursor: pointer; }
+/* Combine Models: the model editor's look; its objects a list, each with an eye. */
+.cv-title { font-size: 14px; }
+#combineView .viewer-bar .btn { flex: none; }
+.cv-side section.cv-first { border-top: 0; padding-top: 0; }
+.cv-list { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
+.cv-obj { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+.cv-obj:hover { background: var(--panel-2); }
+.cv-obj.on { border-color: var(--accent); background: var(--accent-weak); }
+.cv-obj .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-obj .kd { color: var(--muted); font-size: 11px; }
+.cv-obj.hid .nm { opacity: .45; }
+.cv-obj .eye { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; color: var(--muted); cursor: pointer; }
+.cv-obj .eye svg { width: 15px; height: 15px; }
+.cv-xyz { display: grid; grid-template-columns: auto auto 1fr auto 1fr auto 1fr; gap: 6px; align-items: center; }
+.cv-xyz input[type=number] { width: 100% !important; min-width: 0; }
+.cv-xyz b { font: 600 12px var(--mono); } .cv-xyz .x { color: #e5484d; } .cv-xyz .y { color: #46a758; } .cv-xyz .z { color: #3e7bfa; }
+#cvModel { flex: 1; min-width: 0; width: 0; }
+#cvName { flex: 1; min-width: 0; }
+.cv-side input#cvBelow, .cv-side input#cvTol, .cv-side input#cvRes, .cv-side input#cvOffset, .cv-side input#cvSmooth { width: 64px; }
 .mv-edit { position: absolute; top: 12px; right: 12px; bottom: 12px; width: 330px; overflow-y: auto; cursor: default; background: rgba(18,21,28,.94); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 12px; color: var(--text); font-size: 13px; }
 #mveAxesGo [data-axis] { font-weight: 600; }
@@ -1063,7 +1082,7 @@ kbd + kbd { margin-left: 3px; }
 <div class="gallery" id="gallery" hidden>
   <div class="gallery-bar"><nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="galleryUp" data-tip="~/Pictures/gosts-rig" aria-label="All captures (Backspace)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>root</button><button class="btn small crumb-btn crumb-cur" id="galleryTitle" tabindex="-1" hidden></button></span></nav><button class="icon-btn pen-btn" id="galleryRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button><span class="spacer"></span>
     <button class="btn small primary" id="resumeCapBtn" hidden>Resume</button>
-    <button class="btn small" id="buildModelBtn" title="Build a 3D model from these photos, with Apple's Object Capture" hidden>Build Model</button><span class="spacer"></span>
+    <button class="btn small" id="buildModelBtn" title="Build a 3D model from these photos, with Apple's Object Capture" hidden>Build Model</button><button class="btn small" id="combineBtn" title="Put models (made ready in the model editor) and simple shapes together, each placed on its own; make a Container Fill (an insert) and cut the objects out of it; save it as a model">Combine Models</button><span class="spacer"></span>
     <span class="views seg" id="galleryViewSeg"><button data-v="grid">Thumbnails</button><button data-v="list">List</button></span>
     <button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
   <!-- Build Model: Object Capture's options (apple-obj-cap's), Process, and how the build goes; the photos marked below. -->
@@ -1261,6 +1280,53 @@ kbd + kbd { margin-left: 3px; }
 </div>
 <div class="backend-gone" id="backendGone" hidden><div class="card"><h2 style="justify-content:center">gosts-rig has quit</h2>
   <p class="hint" style="margin:8px 0 0">Start it again (or GoSTS Rig) and this page comes back by itself.</p></div></div>
+<!-- Combine Models: models and shapes in one space, a Container Fill made and cut (see combine.js). -->
+<div class="viewer" id="combineView" hidden>
+  <div class="viewer-bar"><b class="cv-title">Combine Models</b><span class="spacer"></span>
+    <button class="btn small" id="cvFit" title="All of it in view (F)">Fit</button>
+    <button class="icon-btn" id="cvClose" title="Close (Esc): kept as it is till it's opened again" aria-label="Close">✕</button></div>
+  <div class="stage model-stage" id="cvStage"><canvas id="cvCanvas"></canvas>
+    <div class="mv-hint">Click an object to select it · drag it to slide it along the floor · drag elsewhere to move the view · drag scroll to turn · scroll to zoom · F to fit</div>
+    <aside class="mv-edit cv-side" id="cvSide">
+      <section class="cv-first">
+        <div class="mve-head"><b>Objects</b></div>
+        <div class="cv-list" id="cvList"><div class="mve-label">None yet: add a model or a shape.</div></div>
+        <div class="mve-row"><select id="cvModel" title="The models in your captures (the ones made ready in the model editor, -aligned, first)"><option value="">Loading models…</option></select><button class="btn small" id="cvAdd" disabled>Add</button></div>
+        <div class="mve-row"><span class="mve-label">Shape</span><span class="btn-join"><button class="btn small" data-shape="box">Box</button><button class="btn small" data-shape="cylinder">Cylinder</button><button class="btn small" data-shape="sphere">Sphere</button></span></div>
+      </section>
+      <section id="cvSel" hidden>
+        <div class="mve-head"><b>Selected</b></div>
+        <div class="mve-row"><input type="text" id="cvName" spellcheck="false" autocomplete="off" title="Its name"><button class="btn small danger" id="cvRemove" title="Take it out of the space">Remove</button></div>
+        <div class="cv-xyz" id="cvPos"><span class="mve-label">Move (mm)</span><b class="x">X</b><input type="number" step="1" data-k="x"><b class="y">Y</b><input type="number" step="1" data-k="y"><b class="z">Z</b><input type="number" step="1" data-k="z"></div>
+        <div class="cv-xyz" id="cvRot"><span class="mve-label">Turn (°)</span><b class="x">X</b><input type="number" step="5" data-k="x"><b class="y">Y</b><input type="number" step="5" data-k="y"><b class="z">Z</b><input type="number" step="5" data-k="z"></div>
+        <div class="mve-row"><span class="mve-label">Turn 90°</span><span class="btn-join" id="cvTurn"><button class="btn small" data-t="x">X</button><button class="btn small" data-t="y">Y</button><button class="btn small" data-t="z">Z</button></span><span class="spacer"></span><button class="btn small" id="cvDrop" title="Down (or up) so its lowest point is on the floor">Drop to Floor</button></div>
+        <div class="cv-xyz" id="cvSize" hidden><span class="mve-label">Size (mm)</span></div>
+        <div class="mve-row" id="cvFillInfo" hidden><span class="mve-label" id="cvFillText"></span><span class="spacer"></span><button class="btn small" id="cvUndoCut" title="The last cut put back">Undo Cut</button></div>
+      </section>
+      <section id="cvFillSec" hidden>
+        <div class="mve-head"><b>Container Fill</b>The inside of the selected object (a case, a bowl), up to a level, kept off its walls: an insert.</div>
+        <div class="mve-row"><span class="mve-label">Level</span><button class="btn small" id="cvPickTop" title="Click the container's top (its rim): the level is that, less how far below">Pick Top</button><input type="number" id="cvBelow" value="10" step="1" min="0" title="How far under the top (mm)"><span class="mve-label">mm below</span></div>
+        <div class="mve-row"><span class="mve-label">Inside</span><button class="btn small" id="cvPickIn" title="Click its floor inside: the fill grows from there (down to the floor, out to the walls)">Pick Point</button><span class="mve-label" id="cvInText"></span></div>
+        <div class="mve-row"><span class="mve-label">Off the walls</span><input type="number" id="cvTol" value="1" step="0.5" min="0"><span class="mve-label">mm</span></div>
+        <div class="mve-row"><span class="mve-label">Resolution</span><input type="number" id="cvRes" value="1" step="0.5" min="0.2"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small primary" id="cvMakeFill" disabled>Make Fill</button></div>
+      </section>
+      <section id="cvCutSec" hidden>
+        <div class="mve-head"><b>Cut from Fill</b>The selected object cut out of the fill (as it's placed now); the fill kept in one piece.</div>
+        <div class="mve-row"><span class="mve-label">Margin</span><input type="number" id="cvOffset" value="1" step="0.5" min="0"><span class="mve-label">mm round it</span></div>
+        <div class="mve-row"><span class="mve-label">Cut</span><span class="views seg" id="cvMode"><button data-v="above" title="It and all above it: it goes in from the top">Open Above</button><button data-v="around" title="Just round it">Around</button></span></div>
+        <div class="mve-row"><span class="mve-label">Smooth</span><input type="number" id="cvSmooth" value="0" step="1" min="0" title="0: following its shape exactly; more: its nooks filled in, the cut rounder (never less than the margin)"><span class="mve-label">mm</span><span class="spacer"></span><button class="btn small primary" id="cvCut" disabled>Cut</button></div>
+      </section>
+      <section>
+        <div class="mve-head"><b>Save</b>The objects shown (hide the others with their eye) as one model.</div>
+        <div class="mve-field"><label for="cvSaveName">Name</label><input type="text" id="cvSaveName" value="insert" spellcheck="false" autocomplete="off"></div>
+        <div class="mve-field"><label for="cvSaveFolder">In capture folder</label><input type="text" id="cvSaveFolder" value="inserts" spellcheck="false" autocomplete="off"></div>
+        <label class="mp-check"><input type="checkbox" id="cvSTL" checked> <span>Also an STL (z up)</span></label>
+        <div class="mve-row"><span class="spacer"></span><button class="btn small primary" id="cvSave">Save</button></div>
+      </section>
+      <div class="mve-status" id="cvStatus"></div>
+    </aside>
+  </div>
+</div>
 <div class="modal-backdrop" id="keysModal" style="z-index:75" hidden>
   <div class="modal card keys-modal" role="dialog" aria-modal="true" aria-labelledby="keysTitle">
     <h2 id="keysTitle">Keyboard and mouse<span class="spacer"></span><button class="icon-btn" id="keysClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
@@ -3444,6 +3510,210 @@ $("vnavMap").addEventListener("pointerdown", (e) => {
 });
 // ✕ on the photo closes the photo (the gallery stays: its ✕ closes it).
 $("viewerClose").onclick = closePhoto;
+// ---------------------------------------------------------------- combine
+// Combine Models (Browse's button): models and shapes in one space, a
+// Container Fill made from one and cut by the others, saved as a model (see
+// combine.js). Made when first opened; kept, as it is, when closed.
+const cvs = { cv: null, top: null, inside: null, container: null, busy: false };
+const eyeOn = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>';
+const eyeOff = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><path d="M2.5 13.5l11-11"/></svg>';
+function cvStatus(text, cls = "") { $("cvStatus").textContent = text; $("cvStatus").className = "mve-status " + cls; }
+async function openCombine() {
+  $("combineView").hidden = false;
+  if (!cvs.cv) {
+    const { createCombine } = await import("./combine.js");
+    cvs.cv = createCombine($("cvCanvas"));
+    cvs.cv.setOnChange(cvShow);
+  }
+  cvs.cv.start();
+  cvModels();
+  cvShow();
+}
+function closeCombine() {
+  cvs.cv?.unpick();
+  cvs.cv?.stop();
+  $("combineView").hidden = true;
+}
+$("combineBtn").onclick = openCombine;
+$("cvClose").onclick = closeCombine;
+$("cvFit").onclick = () => cvs.cv?.fit();
+// cvModels: the Add list: every capture's models, the ones made ready in the
+// model editor (-aligned) first.
+async function cvModels() {
+  const sel = $("cvModel"), ready = [], other = [];
+  try {
+    for (const b of await getJSON("/batches")) {
+      if (!b.models) continue;
+      for (const m of await getJSON(`/batches/${encodeURIComponent(b.name)}/models`)) {
+        if (m.format !== "obj") continue;
+        (/-aligned(-\d+)?$/.test(m.name) ? ready : other).push({ b: b.name, m });
+      }
+    }
+  } catch (e) { cvStatus(e.message, "bad"); }
+  const opt = (x) => `<option value="${escHTML(JSON.stringify([x.b, x.m.name]))}">${escHTML(x.b)} / ${escHTML(x.m.name)}</option>`;
+  sel.innerHTML = (ready.length ? `<optgroup label="Made ready (-aligned)">${ready.map(opt).join("")}</optgroup>` : "") +
+    (other.length ? `<optgroup label="Other models">${other.map(opt).join("")}</optgroup>` : "") || '<option value="">No models yet</option>';
+  cvs.list = [...ready, ...other];
+  $("cvAdd").disabled = !cvs.list.length;
+}
+$("cvAdd").onclick = async () => {
+  const v = $("cvModel").value;
+  if (!v) return;
+  const [b, name] = JSON.parse(v), x = cvs.list.find((x) => x.b === b && x.m.name === name);
+  $("cvAdd").disabled = true;
+  try {
+    const scale = window.modelEdit.UNITS[x.m.edit?.units] || 1; // (an edited model: in its units)
+    await cvs.cv.addModel(name, modelBase(b, x.m), x.m.file, scale, (t) => cvStatus(t + "…"));
+    cvStatus("");
+  } catch (e) { cvStatus(e.message, "bad"); }
+  $("cvAdd").disabled = false;
+};
+for (const btn of document.querySelectorAll("#cvSide [data-shape]")) btn.onclick = () => cvs.cv.addShape(btn.dataset.shape);
+const cvNum = (n, d = 1) => String(Math.round(n * 10 ** d) / 10 ** d);
+// cvShow: the panel as the space is.
+function cvShow() {
+  const cv = cvs.cv;
+  if (!cv) return;
+  const objs = cv.objects(), s = cv.selected();
+  const list = $("cvList");
+  list.innerHTML = objs.length ? "" : '<div class="mve-label">None yet: add a model or a shape.</div>';
+  for (const o of objs) {
+    const row = document.createElement("div");
+    row.className = "cv-obj" + (o === s ? " on" : "") + (o.visible ? "" : " hid");
+    row.innerHTML = `<button class="eye" title="${o.visible ? "Hide it (left out of Save)" : "Show it"}">${o.visible ? eyeOn : eyeOff}</button><span class="nm"></span><span class="kd">${o.kind}</span>`;
+    row.querySelector(".nm").textContent = o.name;
+    row.onclick = (e) => { if (e.target.closest(".eye")) cv.setVisible(o, !o.visible); else cv.select(o); };
+    list.appendChild(row);
+  }
+  $("cvSel").hidden = !s;
+  const isFill = s?.kind === "fill";
+  if (s) {
+    if (document.activeElement !== $("cvName")) $("cvName").value = s.name;
+    for (const [id, v] of [["cvPos", s.pos], ["cvRot", s.rot]]) for (const inp of $(id).querySelectorAll("input")) {
+      if (document.activeElement !== inp) inp.value = cvNum(v[inp.dataset.k]);
+      inp.disabled = isFill;
+    }
+    for (const b of $("cvTurn").children) b.disabled = isFill;
+    $("cvDrop").disabled = isFill;
+    const size = s.size, sz = $("cvSize");
+    sz.hidden = !size;
+    if (size && sz.dataset.of !== String(s.id)) {
+      sz.dataset.of = s.id;
+      sz.innerHTML = '<span class="mve-label">Size (mm)</span>' + Object.keys(size).map((k) => `<b>${{ w: "W", d: s.kind === "box" ? "D" : "⌀", h: "H" }[k]}</b><input type="number" step="1" min="1" data-k="${k}">`).join("");
+    }
+    if (size) for (const inp of sz.querySelectorAll("input")) if (document.activeElement !== inp) inp.value = cvNum(size[inp.dataset.k]);
+    $("cvFillInfo").hidden = !isFill;
+    if (isFill) {
+      const f = s.fill;
+      $("cvFillText").textContent = `${f.from}: ${cvNum(f.res * 1000)} mm voxels, ${cvNum(f.tol * 1000)} mm off its walls`;
+      $("cvUndoCut").disabled = !f.undo.length || cvs.busy;
+    }
+  }
+  // Container Fill: the selected (not a fill) the container.
+  const canFill = !!s && !isFill;
+  $("cvFillSec").hidden = !canFill;
+  if (cvs.container !== s && canFill) { cvs.container = s; cvs.top = cvs.inside = null; }
+  $("cvInText").textContent = cvs.inside ? "picked" : "";
+  $("cvPickTop").classList.toggle("on", cvs.top != null);
+  $("cvMakeFill").disabled = cvs.busy || !(canFill && cvs.top != null && cvs.inside);
+  cvMarks();
+  // Cut: a fill there, and the selected not one.
+  const fill = cvFill();
+  $("cvCutSec").hidden = !fill || !canFill || s === cvs.containerOf?.get(fill);
+  $("cvCut").disabled = cvs.busy;
+  $("cvSave").disabled = cvs.busy || !objs.some((o) => o.visible);
+}
+// cvFill: the fill to cut (the last made, shown or not).
+function cvFill() { return [...cvs.cv.objects()].reverse().find((o) => o.kind === "fill"); }
+function cvLevel() { return cvs.top == null ? null : cvs.top - Math.max(0, Number($("cvBelow").value) || 0) / 1000; }
+// cvMarks: the level picked (a sheet over the container) and the inside point.
+function cvMarks() {
+  const s = cvs.cv.selected(), show = !$("cvFillSec").hidden && s;
+  cvs.cv.marks(show ? cvLevel() : null, show ? cvs.cv.boxOf(s) : null, show ? cvs.inside : null);
+}
+$("cvBelow").addEventListener("input", cvMarks);
+$("cvName").addEventListener("change", () => { const s = cvs.cv.selected(); if (s && $("cvName").value.trim()) cvs.cv.rename(s, $("cvName").value.trim()); });
+$("cvRemove").onclick = () => { const s = cvs.cv.selected(); if (s) cvs.cv.remove(s); };
+for (const id of ["cvPos", "cvRot"]) $(id).addEventListener("change", (e) => {
+  const s = cvs.cv.selected(), k = e.target.dataset.k;
+  if (!s || !k) return;
+  const v = Number(e.target.value);
+  if (!Number.isFinite(v)) return;
+  if (id === "cvPos") cvs.cv.setPose(s, { ...s.pos, [k]: v }); else cvs.cv.setPose(s, null, { ...s.rot, [k]: v });
+});
+$("cvTurn").onclick = (e) => {
+  const k = e.target.closest("[data-t]")?.dataset.t, s = cvs.cv.selected();
+  if (!k || !s) return;
+  const r = (((s.rot[k] + 90) % 360) + 540) % 360 - 180;
+  cvs.cv.setPose(s, null, { ...s.rot, [k]: r });
+};
+$("cvDrop").onclick = () => { const s = cvs.cv.selected(); if (s) cvs.cv.drop(s); };
+$("cvSize").addEventListener("change", (e) => {
+  const s = cvs.cv.selected(), k = e.target.dataset?.k, v = Number(e.target.value);
+  if (s?.size && k && v > 0) cvs.cv.setSize(s, { ...s.size, [k]: v });
+});
+$("cvPickTop").onclick = () => {
+  const s = cvs.cv.selected();
+  cvStatus("Click the container's top (its rim)");
+  cvs.cv.pick(s, (p) => { cvs.top = p.y; cvStatus(""); cvShow(); });
+};
+$("cvPickIn").onclick = () => {
+  const s = cvs.cv.selected();
+  cvStatus("Click its floor, inside");
+  cvs.cv.pick(s, (p) => { cvs.inside = p; cvStatus(""); cvShow(); });
+};
+$("cvMakeFill").onclick = async () => {
+  const s = cvs.cv.selected(), level = cvLevel();
+  if (!s || level == null || !cvs.inside) return;
+  if (cvs.inside.y >= level) return cvStatus("The inside point is above the level: pick its floor", "bad");
+  cvs.busy = true; cvShow();
+  try {
+    const { fill, removed } = await cvs.cv.makeFill(s, level, cvs.inside, Math.max(0, Number($("cvTol").value) || 0) / 1000, Math.max(0.2, Number($("cvRes").value) || 1) / 1000, (t) => cvStatus(t ? t + "…" : ""));
+    (cvs.containerOf ||= new Map()).set(fill, s);
+    cvs.top = cvs.inside = null;
+    cvStatus(removed ? `Fill made (bits not joined to it left out: ${removed} voxels)` : "Fill made", "ok");
+  } catch (e) { cvStatus(e.message, "bad"); }
+  cvs.busy = false; cvShow();
+};
+segPick("cvMode", "above");
+$("cvMode").onclick = (e) => { if (e.target.dataset?.v) segPick("cvMode", e.target.dataset.v); };
+$("cvCut").onclick = async () => {
+  const s = cvs.cv.selected(), f = cvFill();
+  if (!s || !f) return;
+  cvs.busy = true; cvShow();
+  try {
+    const { removed } = await cvs.cv.cut(f, s, { offset: Math.max(0, Number($("cvOffset").value) || 0) / 1000, keepAbove: segOf("cvMode") === "above", smooth: Math.max(0, Number($("cvSmooth").value) || 0) / 1000 }, (t) => cvStatus(t ? t + "…" : ""));
+    cvStatus(removed ? `Cut (pieces it left loose taken out: ${removed} voxels)` : `${s.name} cut out`, "ok");
+  } catch (e) { cvStatus(e.message, "bad"); }
+  cvs.busy = false; cvShow();
+};
+$("cvUndoCut").onclick = () => { const s = cvs.cv.selected(); if (s?.kind === "fill" && cvs.cv.undoCut(s)) cvStatus("Cut undone"); cvShow(); };
+$("cvSave").onclick = async () => {
+  const to = $("cvSaveName").value.trim(), folder = $("cvSaveFolder").value.trim();
+  if (!to || !folder) return cvStatus("A name and a folder, first", "bad");
+  cvs.busy = true; cvShow();
+  try {
+    const res = await window.modelEdit.write(cvs.cv.parts(), { units: "mm", stl: $("cvSTL").checked, name: to, progress: (t) => cvStatus(t + "…") });
+    cvStatus("Saving…");
+    const fd = new FormData();
+    fd.append("folder", folder);
+    fd.append("to", to);
+    fd.append("triangles", String(res.triangles));
+    fd.append("obj", res.obj, to + ".obj");
+    if (res.stl) fd.append("stl", res.stl, to + ".stl");
+    const r = await fetch("/combine/save", { method: "POST", body: fd });
+    if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+    cvStatus(`Saved: ${folder} / ${to} (${res.triangles.toLocaleString()} triangles, mm)`, "ok");
+    log(`Combine Models: ${folder} / ${to} saved`);
+    cvModels();
+  } catch (e) { cvStatus(e.message, "bad"); }
+  cvs.busy = false; cvShow();
+};
+document.addEventListener("keydown", (e) => {
+  if ($("combineView").hidden || e.target.closest?.("input, textarea, select")) return;
+  if (e.key === "Escape") { e.preventDefault(); if (cvs.cv?.picking()) { cvs.cv.unpick(); cvStatus(""); } else closeCombine(); }
+  else if ((e.key === "f" || e.key === "F") && !e.metaKey && !e.ctrlKey) cvs.cv?.fit();
+});
 // ? in the model viewer: its keys, from MV_KEYS (Esc, ✕ or a click
 // outside: closed). MV_KEYS is the list: each line what's shown (show; <kbd>
 // for keys) and the e.key values it covers (k: the handlers' keys, lower
