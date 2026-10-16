@@ -456,6 +456,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-layers { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; background: var(--bg, rgba(0,0,0,.15)); overflow: hidden; }
 .cv-layers .cv-list { min-height: 200px; max-height: 320px; padding: 4px; }
 .cv-layers .cv-list > .mve-label { padding: 6px; white-space: normal; }
+.cv-layers.cv-cuts-box { overflow: visible; } /* (a cut's options over the rows below, and past the box) */
+.cv-layers .cv-list.cv-cuts { min-height: 120px; max-height: none; overflow: visible; }
 .cv-layers-bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--border); background: var(--panel-2); }
 .cv-layers-bar .btn { padding-left: 6px; padding-right: 6px; }
 .cv-layers-bar .btn-join { flex: 1; display: flex; }
@@ -1349,7 +1351,7 @@ kbd + kbd { margin-left: 3px; }
         <div class="cv-xyz" id="cvSize" hidden><span class="mve-label">Size (mm)</span></div>
       </section>
       <section id="cvFillSec" hidden>
-        <div class="mve-head"><b>Container Fill</b>The inside of its container (a case, a bowl), up to a fill line, kept off its walls: an insert.</div>
+        <div class="mve-head"><b>Container Fill</b></div>
         <div class="mve-row"><button class="btn small" id="cvFCont" title="Click the container (a case, a bowl) in the view">Pick Container</button><span class="cv-cont" id="cvFContWho" hidden><span class="cv-cont-name" id="cvFContName"></span><svg class="cv-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Picked"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span></div>
         <div class="mve-row"><button class="btn small" id="cvPickTop" title="Click on the container where the fill should come up to: its level (the Offset moves it from there)">Pick Fill Line</button><span class="mve-label">Offset</span><input type="number" id="cvBelow" value="0" step="1" title="The fill line moved down (+) or up (−) from the point picked, mm"><span class="mve-label">mm</span></div>
         <div class="mve-row"><button class="btn small" id="cvPickIn" title="The fill grows from a point on the fill line (down to the floor, out to the walls): the middle of the container (set with the fill line), unless picked here (click on the line, over its inside)">Pick Inside</button><span class="cv-cont" id="cvInWho" hidden><span class="cv-cont-name" id="cvInText"></span><svg class="cv-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Picked"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span></div>
@@ -1358,11 +1360,11 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-row"><span class="mve-label" id="cvFillText"></span></div>
       </section>
       <section id="cvCutsSec" hidden>
-        <div class="mve-head"><b>Objects to Cut</b>Each one checked is cut out of the fill where it's placed (and again wherever it's moved); hover its caret for how. The fill's kept in one piece.</div>
-        <div class="cv-list cv-cuts" id="cvCutList"></div>
+        <div class="mve-head"><b>Objects to Cut</b></div>
+        <div class="cv-layers cv-cuts-box"><div class="cv-list cv-cuts" id="cvCutList"></div></div>
       </section>
       <section>
-        <div class="mve-head"><b>Save</b>Save: this work as it is (its objects, where they are, the fills and their cuts), in the captures' folder, to open again from Browse. Export: the objects shown (hide the others with their eye) as one model.</div>
+        <div class="mve-head"><b>Save</b></div>
         <div class="mve-field"><label for="cvSaveName">Model Name</label><input type="text" id="cvSaveName" value="insert" spellcheck="false" autocomplete="off"></div>
         <div class="mve-field"><label for="cvSaveFolder">Capture Name</label><input type="text" id="cvSaveFolder" value="inserts" spellcheck="false" autocomplete="off"></div>
         <label class="mp-check"><input type="checkbox" id="cvSTL" checked> <span>Also an STL (z up)</span></label>
@@ -3903,7 +3905,7 @@ function cvCutList(f) {
   const list = $("cvCutList");
   if (list.dataset.key === key) return;
   list.dataset.key = key;
-  list.innerHTML = objs.length ? "" : '<div class="mve-label" style="white-space: normal">Nothing to cut yet: add the things that go in (a model or a shape) and place them in the fill.</div>';
+  list.innerHTML = "";
   const mm = (m) => +(m * 1000).toFixed(2);
   const norm = (x) => JSON.stringify([x.offset, x.keepAbove, x.smooth, x.colMax ?? null]);
   for (const o of objs) {
