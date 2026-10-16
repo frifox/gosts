@@ -501,6 +501,7 @@ export function createCombine(canvas) {
   // a step yet (setPose then makes it one, from where it was before).
   api.peekPose = (o, pos, rot) => {
     if (o.kind === "fill") return;
+    o.anim = null; // (a turn going: stopped where it's set now)
     o.peekFrom ||= pose(o);
     if (pos) o.pos = pos;
     if (rot) o.rot = rot;
@@ -508,8 +509,32 @@ export function createCombine(canvas) {
     outline();
     if (ring.visible && ring.userData.o === o) api.turnRing(o, ring.userData.ax, ring.userData.sign);
   };
+  // turnTo: o turned to rot (degrees), eased there over ms (the ±90°s, the
+  // degrees typed); one step, from where it was before. Its rot is the one
+  // it's going to at once (another ±90° meanwhile: from there).
+  api.turnTo = (o, rot, ms = 320) => {
+    if (o.kind === "fill") return;
+    o.peekFrom ||= pose(o);
+    const qa = o.holder.quaternion.clone(), qb = rotQuat(rot), go = (o.anim = {}), t0 = performance.now();
+    o.rot = { ...rot };
+    changedQuiet();
+    const step = (now) => {
+      if (o.anim !== go) return; // (another turn, a slider, a drag: that one's)
+      const t = Math.min(1, (now - t0) / ms), e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+      o.holder.quaternion.slerpQuaternions(qa, qb, e);
+      o.holder.updateMatrixWorld(true);
+      outline();
+      if (t < 1) return requestAnimationFrame(step);
+      o.anim = null;
+      api.setPose(o, null, rot);
+    };
+    requestAnimationFrame(step);
+  };
+  // changedQuiet: the page told, not the fills cut again (yet).
+  const changedQuiet = () => { outline(); onChange(); };
   api.setPose = (o, pos, rot) => {
     if (o.kind === "fill") return;
+    o.anim = null;
     const b = o.peekFrom || pose(o);
     delete o.peekFrom;
     if (pos) o.pos = pos;
@@ -609,6 +634,7 @@ export function createCombine(canvas) {
     // grabbed; with ⇧ held, up and down (Z) instead.
     controls.enabled = false;
     try { canvas.setPointerCapture(e.pointerId); } catch {} // (a pointer it can't hold: dragged all the same)
+    if (h.o.anim) api.setPose(h.o, null, h.o.rot); // (a turn going: done at once, its step kept)
     dragging = { o: h.o, start: pose(h.o) };
     anchor(h.point, e.shiftKey);
   }, { capture: true });

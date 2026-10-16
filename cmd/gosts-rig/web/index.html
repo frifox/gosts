@@ -3877,11 +3877,11 @@ $("cvRot").addEventListener("change", (e) => {
   if (!s) return;
   const r = e.target.closest("input[data-rax]"), t = e.target.closest("input[data-k]");
   if (r) cvs.cv.setPose(s, null, { ...s.rot, [r.dataset.rax]: Number(r.value) });
-  else if (t && Number.isFinite(Number(t.value))) cvs.cv.setPose(s, null, { ...s.rot, [t.dataset.k]: rotWrap(Number(t.value)) });
+  else if (t && Number.isFinite(Number(t.value))) cvs.cv.turnTo(s, { ...s.rot, [t.dataset.k]: rotWrap(Number(t.value)) }); // (eased there)
 });
 $("cvRot").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-rot]"), s = cvs.cv.selected();
-  if (b && s) { const ax = b.dataset.rot; cvs.cv.setPose(s, null, { ...s.rot, [ax]: rotWrap(s.rot[ax] + Number(b.dataset.deg)) }); cvs.cv.turnRing(s, ax, Math.sign(Number(b.dataset.deg))); }
+  if (b && s) { const ax = b.dataset.rot; cvs.cv.turnTo(s, { ...s.rot, [ax]: rotWrap(s.rot[ax] + Number(b.dataset.deg)) }); cvs.cv.turnRing(s, ax, Math.sign(Number(b.dataset.deg))); }
 });
 // The ring's arrow: the way it'd turn: −90° or left of a slider's handle,
 // down; +90° or right of it, up (a few px round the handle: as it was); the
