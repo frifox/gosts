@@ -623,7 +623,7 @@ export function createCombine(canvas) {
   api.turnRing = (o, ax, sign = 1) => {
     const key = o && JSON.stringify([o.id, ax, sign, o.pos, o.rot, o.size ?? null]);
     if (ring.visible && key && ring.userData.key === key) return; // (as it is: not made again)
-    for (const c of [...ring.children]) { ring.remove(c); c.geometry.dispose(); c.material.dispose(); }
+    for (const c of [...ring.children]) { ring.remove(c); c.geometry.dispose(); c.material.dispose(); } // (a geometry shared by two: disposing twice is harmless)
     ring.visible = !!(o && ax && objects.includes(o));
     if (!ring.visible) return;
     ring.userData = { o, ax, sign, key };
@@ -638,16 +638,18 @@ export function createCombine(canvas) {
     let R = 0.01;
     for (let i = 0; i < 8; i++) R = Math.max(R, new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).distanceTo(at));
     R *= 1.08;
-    const mat = () => new THREE.MeshBasicMaterial({ color: RING_COLOR[ax], depthTest: false, transparent: true, opacity: 0.9 });
-    const torus = new THREE.Mesh(new THREE.TorusGeometry(R, R * 0.012, 8, 128), mat());
-    const parts = [torus];
-    if (sign) {
-      const head = new THREE.Mesh(new THREE.ConeGeometry(R * 0.05, R * 0.14, 16), mat()); // (at +X of the circle, pointing +Y: the way + turns about +Z; −Y: −)
-      head.position.set(R, 0, 0);
-      if (sign < 0) head.rotation.z = Math.PI;
-      parts.push(head);
+    // (lit and shaded, hidden where it's behind things; and faintly over
+    // everything, so what's behind still shows)
+    const lit = () => new THREE.MeshStandardMaterial({ color: RING_COLOR[ax], roughness: 0.35, metalness: 0.1, emissive: RING_COLOR[ax], emissiveIntensity: 0.15 });
+    const ghost = () => new THREE.MeshBasicMaterial({ color: RING_COLOR[ax], depthTest: false, depthWrite: false, transparent: true, opacity: 0.25 });
+    const add = (geo, place = () => {}) => {
+      for (const [mat, order] of [[ghost(), 9], [lit(), 10]]) { const m = new THREE.Mesh(geo, mat); m.renderOrder = order; place(m); ring.add(m); }
+    };
+    add(new THREE.TorusGeometry(R, R * 0.022, 24, 160));
+    if (sign) for (let k = 0; k < 3; k++) { // (arrowheads round it: at angle a, along it the way it'd turn: + about +Z, counterclockwise)
+      const a = (k * 2 * Math.PI) / 3, cone = new THREE.ConeGeometry(R * 0.06, R * 0.16, 32);
+      add(cone, (m) => { m.position.set(R * Math.cos(a), R * Math.sin(a), 0); m.rotation.z = a + (sign < 0 ? Math.PI : 0); });
     }
-    for (const m of parts) { m.renderOrder = 10; ring.add(m); }
     ring.position.copy(at);
     ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
   };
