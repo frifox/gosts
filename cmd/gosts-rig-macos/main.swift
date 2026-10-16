@@ -328,7 +328,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         backend = nil
         lifeline = nil
         if quitting { return }
-        if p.terminationReason == .exit && p.terminationStatus == 0 { // (it quit as asked: Settings' Exit Backend)
+        if p.terminationReason == .exit && p.terminationStatus == 0 { // (it quit as asked: Settings' Quit)
             showStatus(appName, detail: "gosts-rig isn't running.", button: ("Start GoSTS Rig", "start"))
             return
         }

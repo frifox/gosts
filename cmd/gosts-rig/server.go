@@ -9,10 +9,11 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strconv"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -37,8 +38,9 @@ type app struct {
 
 	mu      sync.Mutex
 	clients map[*client]struct{}
-	quit    func() // gosts-rig quits (cleanly: see main), as for Ctrl-C
-	net     listening // where the pages are served (see listen)
+	quit    func()      // gosts-rig quits (cleanly: see main), as for Ctrl-C
+	restart atomic.Bool // quitting to start again (Settings' Restart: see main)
+	net     listening   // where the pages are served (see listen)
 }
 
 type client struct {
@@ -94,8 +96,13 @@ type resultMsg struct {
 
 func (a *app) exec(req request) (any, error) {
 	switch req.Type {
-	case "exit": // Settings' Exit Backend: gosts-rig quits, once the page has its answer
-		log.Print("exit: asked from the page: quitting")
+	case "exit", "restart": // Settings' Quit: gosts-rig quits, once the page has its answer; Restart: and starts again (main)
+		if req.Type == "restart" {
+			a.restart.Store(true)
+			log.Print("restart: asked from the page: quitting to start again")
+		} else {
+			log.Print("exit: asked from the page: quitting")
+		}
 		if a.model.msg().Running {
 			a.model.cancel() // (Object Capture runs apart: it'd go on after)
 		}

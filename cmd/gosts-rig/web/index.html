@@ -907,7 +907,7 @@ kbd + kbd { margin-left: 3px; }
 .app-settings .as-open svg { width: 15px; height: 15px; }
 .app-settings #asPublic.on { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
 .app-settings #asPublicNote a { color: inherit; }
-/* gosts-rig quit (Exit Backend): the page over everything, till it's back. */
+/* gosts-rig quit (Settings' Quit): the page over everything, till it's back. */
 .backend-gone { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; background: rgba(10,12,16,.82); }
 .backend-gone[hidden] { display: none; }
 .backend-gone .card { padding: 20px 24px; max-width: 420px; text-align: center; }
@@ -1379,7 +1379,7 @@ kbd + kbd { margin-left: 3px; }
       <div class="as-item">
         <div class="as-label">Backend</div>
         <div class="as-hint">gosts-rig itself, the program behind this page.</div>
-        <div class="as-row"><span class="as-path mono" id="asBackend"></span><button class="btn small" id="asPublic" title="Serve this page to your network too (every address, the same port), or this Mac alone again">Bind to 0.0.0.0</button><button class="btn small danger" id="asExit">Exit Backend</button></div>
+        <div class="as-row"><span class="as-path mono" id="asBackend"></span><button class="btn small" id="asPublic" title="Serve this page to your network too (every address, the same port), or this Mac alone again">Bind to 0.0.0.0</button><span class="btn-join"><button class="btn small" id="asRestart" title="gosts-rig starts again (as it is on disk now): the camera and the rig let go of and connected again; this page reconnects by itself">Restart</button><button class="btn small danger" id="asExit" title="gosts-rig quits: start it again (or GoSTS Rig) to carry on">Quit</button></span></div>
         <div class="as-note" id="asPublicNote"></div>
       </div>
       <div class="err" id="asErr"></div>
@@ -1504,7 +1504,7 @@ function connectWS() {
   };
   ws.onclose = () => {
     setPill("ws", false, "ws: disconnected");
-    if (state.exited) $("backendGone").hidden = false; // (Exit Backend: gone, not lost)
+    if (state.exited) $("backendGone").hidden = false; // (Quit: gone, not lost)
     for (const p of pending.values()) p.reject(new Error("disconnected"));
     pending.clear();
     setTimeout(connectWS, 1000);
@@ -3005,7 +3005,7 @@ $("appSettingsModal").onclick = async (e) => {
   if (!b || !appSet.s) return;
   const k = b.dataset.choose || b.dataset.default, set = k === "photos" ? "setPhotos" : "setSettingsDir";
   $("asErr").textContent = "";
-  for (const x of document.querySelectorAll("#appSettingsModal .as-row .btn:not(#asExit):not(#asPublic):not(.as-open)")) x.disabled = true;
+  for (const x of document.querySelectorAll("#appSettingsModal .as-row .btn:not(#asExit):not(#asRestart):not(#asPublic):not(.as-open)")) x.disabled = true;
   try {
     let dir = appSet.s[k + "Default"];
     if (b.dataset.choose) {
@@ -3036,13 +3036,24 @@ $("asPublic").onclick = async () => {
   catch (e) { $("asErr").textContent = e.message; }
   $("asPublic").disabled = false;
 };
-// Exit Backend: gosts-rig quits (asked first only while something's going:
-// a capture, a model build, the flash measured, an F-stop sweep); the page
-// says so till it's started again.
-$("asExit").onclick = async () => {
-  const busy = state.cap?.running ? "The capture running stops." : state.model?.running ? "The model being built is canceled." :
+// Quit: gosts-rig quits (asked first only while something's going: a
+// capture, a model build, the flash measured, an F-stop sweep); the page
+// says so till it's started again. Restart: it quits and starts again by
+// itself (asked first the same way); the page reconnects.
+function backendBusy() {
+  return state.cap?.running ? "The capture running stops." : state.model?.running ? "The model being built is canceled." :
     flash.running ? "Measuring the flash stops." : state.sweep?.running ? "The F-stop sweep stops." : "";
-  if (busy && !await confirmDanger("Exit the backend?", busy + " gosts-rig quits; start it again to carry on.", "Exit")) return;
+}
+$("asRestart").onclick = async () => {
+  const busy = backendBusy();
+  if (busy && !await confirmDanger("Restart the backend?", busy + " gosts-rig starts again; this page reconnects by itself.", "Restart")) return;
+  $("asErr").textContent = "";
+  try { await send("restart", {}); closeAppSettings(); log("Restarting the backend…"); }
+  catch (e) { $("asErr").textContent = e.message; }
+};
+$("asExit").onclick = async () => {
+  const busy = backendBusy();
+  if (busy && !await confirmDanger("Quit the backend?", busy + " gosts-rig quits; start it again to carry on.", "Quit")) return;
   $("asErr").textContent = "";
   state.exited = true;
   try { await send("exit", {}); closeAppSettings(); }

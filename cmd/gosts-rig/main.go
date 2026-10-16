@@ -38,6 +38,23 @@ import (
 )
 
 func main() {
+	if !run() {
+		return
+	}
+	// Settings' Restart: everything let go of (run's deferred: the camera,
+	// the rig, this run's samples), gosts-rig starts again in place: the
+	// same process (an app that started it, watching it, sees no exit),
+	// the binary there now (one installed since: that one), its flags.
+	exe, err := os.Executable()
+	if err == nil {
+		log.Print("restart: starting again")
+		err = syscall.Exec(exe, os.Args, os.Environ())
+	}
+	log.Fatalf("restart: %v", err)
+}
+
+// run is gosts-rig, till it quits; whether it's to start again (Restart).
+func run() bool {
 	port := flag.String("rig", "", `the rig's board to connect on startup: its serial device, or "sim" for the simulated rig (default: Port in the config file)`)
 	flag.StringVar(port, "port", "", "the same as --rig (its old name)")
 	sim := flag.Bool("sim", false, "the same as --rig sim (its old name)")
@@ -199,7 +216,7 @@ func main() {
 	mux.HandleFunc("POST /batches/{name}/models/{model}/rename", a.handleModelRename)
 	mux.HandleFunc("POST /batches/{name}/models/{model}/save", a.handleModelSave)
 	mux.HandleFunc("POST /combine/save", a.handleCombineSave) // (Combine Models: what it made)
-	mux.HandleFunc("GET /combine/works", a.handleWorks) // (Combine Models' work files)
+	mux.HandleFunc("GET /combine/works", a.handleWorks)       // (Combine Models' work files)
 	mux.HandleFunc("GET /combine/works/{name}", a.handleWork)
 	mux.HandleFunc("GET /combine/works/{name}/thumb", a.handleWorkThumb)
 	mux.HandleFunc("POST /combine/works/{name}", a.handleWorkSave)
@@ -219,6 +236,7 @@ func main() {
 	<-ctx.Done()
 	a.cap.stop()
 	hs.Close()
+	return a.restart.Load()
 }
 
 // ctlConfigPath is gosts-ctl's settings file (gosts-ctl/config.toml in the
