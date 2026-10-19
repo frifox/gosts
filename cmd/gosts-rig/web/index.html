@@ -2105,7 +2105,7 @@ async function modelTiles(g, name, seq) {
 state.mv = null; // { name, m } shown
 function openModel(name, m) {
   state.mv = { name, m };
-  $("mveFolder").textContent = `/${name}/`; // (Save's folder: where it's saved, as it is)
+  $("mveFolder").textContent = `${name}/`; // (Save's folder: where it's saved, as it is)
   const fmt = m.format.toUpperCase();
   $("mvBack").textContent = name.slice(name.lastIndexOf("/") + 1); // (its capture's own name; its path: on hover)
   $("mvBack").title = `Back to ${name}`;
@@ -4114,7 +4114,7 @@ function cvShow() {
   $("cvCutsSec").hidden = !isFill;
   if (isFill) cvCutList(s);
   $("cvExport").disabled = busy || !objs.some((o) => o.visible);
-  $("cvSaveDir").textContent = cvFolder() ? `/${cvFolder()}/` : "/";
+  $("cvSaveDir").textContent = cvFolder() ? `${cvFolder()}/` : "root"; // (as Browse calls it)
   const same = !cvUnsaved();
   $("cvSave").disabled = busy || !objs.length || same;
   $("cvSave").title = same ? "Saved: nothing changed since" : "Keep this work as a file (Name.combine.json) in the folder above: Browse opens it again";
