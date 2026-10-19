@@ -293,3 +293,39 @@ func (a *app) handleWorkDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// handleWorkRename renames a work file (POST /combine/works/{name}/rename,
+// {"to": …}); a name another one has: refused.
+func (a *app) handleWorkRename(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		To string `json:"to"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	from, ok := workPath(r.PathValue("name"))
+	to, ok2 := workPath(strings.TrimSpace(req.To))
+	if !ok || !ok2 {
+		http.Error(w, "the name: one file name, no slashes, no leading dot", http.StatusBadRequest)
+		return
+	}
+	if from == to {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if !fileExists(from) {
+		http.NotFound(w, r)
+		return
+	}
+	if fileExists(to) {
+		http.Error(w, fmt.Sprintf("%s is there already: pick another name", strings.TrimSpace(req.To)), http.StatusConflict)
+		return
+	}
+	if err := os.Rename(from, to); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("combine: work %s renamed to %s", filepath.Base(from), filepath.Base(to))
+	w.WriteHeader(http.StatusNoContent)
+}

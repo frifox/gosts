@@ -92,6 +92,7 @@ func TestCombineWorks(t *testing.T) {
 	mux.HandleFunc("GET /combine/works/{name}/thumb", a.handleWorkThumb)
 	mux.HandleFunc("POST /combine/works/{name}", a.handleWorkSave)
 	mux.HandleFunc("POST /combine/works/{name}/delete", a.handleWorkDelete)
+	mux.HandleFunc("POST /combine/works/{name}/rename", a.handleWorkRename)
 	do := func(method, path, body string) *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, httptest.NewRequest(method, path, strings.NewReader(body)))
@@ -118,6 +119,19 @@ func TestCombineWorks(t *testing.T) {
 	if w := do("GET", "/combine/works/case%20insert/thumb", ""); w.Code != http.StatusOK || w.Header().Get("Content-Type") != "image/png" || w.Body.String() != "\x89PNG fake" {
 		t.Errorf("thumb: %d %q %q", w.Code, w.Header().Get("Content-Type"), w.Body)
 	}
+	// Renamed: to a name free, yes; to one taken, refused; back again.
+	do("POST", "/combine/works/other", `{"version":1,"objects":[]}`)
+	if w := do("POST", "/combine/works/case%20insert/rename", `{"to":"other"}`); w.Code != http.StatusConflict {
+		t.Errorf("renamed onto another: %d, want 409", w.Code)
+	}
+	if w := do("POST", "/combine/works/case%20insert/rename", `{"to":"drone insert"}`); w.Code != http.StatusNoContent || !fileExists(filepath.Join(photoDir, "drone insert"+workExt)) || fileExists(filepath.Join(photoDir, "case insert"+workExt)) {
+		t.Errorf("renamed: %d", w.Code)
+	}
+	if w := do("POST", "/combine/works/drone%20insert/rename", `{"to":"../x"}`); w.Code != http.StatusBadRequest {
+		t.Errorf("renamed to a bad name: %d, want 400", w.Code)
+	}
+	do("POST", "/combine/works/drone%20insert/rename", `{"to":"case insert"}`)
+	do("POST", "/combine/works/other/delete", "")
 	if w := do("POST", "/combine/works/x", "not json"); w.Code != http.StatusBadRequest {
 		t.Errorf("not JSON: %d", w.Code)
 	}
@@ -130,8 +144,8 @@ func TestCombineWorks(t *testing.T) {
 	if fileExists(filepath.Join(photoDir, "case insert"+workExt)) {
 		t.Error("still there after delete")
 	}
-	if ents, _ := os.ReadDir(filepath.Join(os.Getenv("HOME"), ".Trash")); len(ents) != 2 {
-		t.Errorf("the Trash: %d, want 2 (the one replaced, the one deleted)", len(ents))
+	if ents, _ := os.ReadDir(filepath.Join(os.Getenv("HOME"), ".Trash")); len(ents) != 3 {
+		t.Errorf("the Trash: %d, want 3 (the one replaced, the other one, the one deleted)", len(ents))
 	}
 	if left, _ := filepath.Glob(filepath.Join(photoDir, ".work-*")); len(left) != 0 {
 		t.Errorf("left behind: %v", left)

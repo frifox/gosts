@@ -244,6 +244,7 @@ func run() bool {
 	mux.HandleFunc("GET /combine/works/{name}/thumb", a.handleWorkThumb)
 	mux.HandleFunc("POST /combine/works/{name}", a.handleWorkSave)
 	mux.HandleFunc("POST /combine/works/{name}/delete", a.handleWorkDelete)
+	mux.HandleFunc("POST /combine/works/{name}/rename", a.handleWorkRename)
 	mux.HandleFunc("POST /batches/{name}/delete", a.handleBatchDelete)
 	mux.HandleFunc("POST /batches/{name}/{file}/delete", a.handleBatchPhotoDelete)
 	mux.Handle("/ctl/", http.StripPrefix("/ctl", ctl.Routes()))

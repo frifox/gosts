@@ -1875,8 +1875,15 @@ function workTile(w) {
   b.title = `Open ${w.name} in Combine 3D`;
   b.innerHTML = `<div class="fold">${w.thumb ? `<img alt="" loading="lazy" decoding="async" src="/combine/works/${encodeURIComponent(w.name)}/thumb?at=${w.at}">` : '<div class="empty">Combine 3D</div>'}</div>` +
     `<div class="info"><b>${escHTML(w.name)}</b><span class="badge">Combine 3D</span><span class="count">${w.objects} object${w.objects === 1 ? "" : "s"}</span></div>` +
+    `<button class="edit" title="Rename ${escHTML(w.name)}" aria-label="Rename">${pencilIcon}</button>` +
     `<button class="del" title="Delete ${escHTML(w.name)} (to the Trash; asks first)" aria-label="Delete">${trashIcon}</button>`;
-  b.onclick = (e) => { if (!e.target.closest(".del")) cvOpenWork(w.name); };
+  b.onclick = (e) => { if (!e.target.closest(".del, .edit")) cvOpenWork(w.name); };
+  b.querySelector(".edit").onclick = () => renameFolder(w.name, "Rename Combine 3D Work", `The work file's new name, in <span class="photo-dir">${escHTML(document.querySelector(".photo-dir")?.textContent || "~/Pictures/gosts-rig")}</span>`,
+    `/combine/works/${encodeURIComponent(w.name)}/rename`, (to) => {
+      log(`${w.name} renamed to ${to}`);
+      if (cvs.work === w.name) { cvs.work = to; $("cvSaveName").value = to; } // (the one open: saved under its new name from now on)
+      galleryAgain();
+    });
   b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) cvOpenWork(w.name); };
   b.querySelector(".del").onclick = async () => {
     if (!await confirmDanger(`Delete ${w.name}?`, "This Combine 3D work file goes to the Trash, where you can still get it back in the Finder. The models in it stay where they are.", "Delete")) return;
