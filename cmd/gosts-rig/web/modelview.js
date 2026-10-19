@@ -8,6 +8,7 @@ import { OrbitControls } from "./vendor/OrbitControls.js";
 import { OBJLoader } from "./vendor/OBJLoader.js";
 import { MTLLoader } from "./vendor/MTLLoader.js";
 import { createModify } from "./modelmodify.js";
+import { sectionSegments, cutModel } from "./modelcut.js";
 import { mergeVertices } from "./vendor/BufferGeometryUtils.js";
 import { MeshoptSimplifier } from "./vendor/meshopt_simplifier.module.js";
 
@@ -323,6 +324,7 @@ export function createModelView(canvas) {
     if (holder) { scene.remove(holder); disposeModel(holder); holder = obj = null; }
     drop(grid); drop(axes); grid = axes = null;
     clip(null);
+    section(null);
     markers([]);
     modify.reset();
     editOn = false;
@@ -603,6 +605,44 @@ export function createModelView(canvas) {
     boxHelper.renderOrder = 9;
     scene.add(boxHelper);
   }
+  // section shows plane (a Plane, as edited; null: none) as Cut has it: a
+  // faint square through the model, where it crosses it outlined (color).
+  // (a plane: a Plane, or { n: [x, y, z], c }, its normal and constant)
+  const planeOf = (p) => p && (p.isPlane ? p : new THREE.Plane(new THREE.Vector3(...p.n), p.c));
+  let sectionG = null;
+  function section(plane, color = 0x2bc4c4) {
+    plane = planeOf(plane);
+    if (sectionG) { scene.remove(sectionG); sectionG.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); }); sectionG = null; }
+    if (!plane || !obj) return 0;
+    holder.updateMatrixWorld(true);
+    const b = box(), size = b.getSize(new THREE.Vector3()).length() * 0.8, at = plane.projectPoint(b.getCenter(new THREE.Vector3()), new THREE.Vector3());
+    sectionG = new THREE.Group();
+    const sq = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }));
+    sq.position.copy(at);
+    sq.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), plane.normal);
+    const edge = new THREE.LineSegments(new THREE.EdgesGeometry(sq.geometry), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.45, depthWrite: false }));
+    edge.position.copy(sq.position); edge.quaternion.copy(sq.quaternion);
+    const seg = sectionSegments(obj, plane), lg = new THREE.BufferGeometry();
+    lg.setAttribute("position", new THREE.Float32BufferAttribute(seg, 3));
+    const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true }));
+    lines.renderOrder = 9;
+    for (const o of [sq, edge, lines]) { o.raycast = () => {}; sectionG.add(o); }
+    scene.add(sectionG);
+    return seg.length / 6;
+  }
+  // cut slices the model by plane (as edited; its normal: the side taken
+  // away), Fill's way with fill (see modelcut.js). A function that puts it
+  // back, and how it went; an error if nothing'd be left, or nothing cut.
+  function cut(plane, opts) {
+    plane = planeOf(plane);
+    holder.updateMatrixWorld(true);
+    const r = cutModel(obj, plane, opts);
+    if (!r.swaps.length) throw new Error("the plane doesn't cross the model: nothing to cut");
+    if (!r.kept) { for (const [, , geo] of r.swaps) geo.dispose(); throw new Error("nothing would be left: it's all on that side"); }
+    for (const [o, , geo] of r.swaps) o.geometry = geo;
+    ground();
+    return { undo: () => { for (const [o, old, geo] of r.swaps) { o.geometry = old; geo.dispose(); } ground(); }, ...r };
+  }
   // trim cuts the model to b (a Box3, as edited): triangles inside kept,
   // outside dropped, across a side cut along it (their corners there
   // interpolated: texture and normals too). A function that puts it back,
@@ -748,7 +788,7 @@ export function createModelView(canvas) {
   }
   return {
     show, look, reset, view, clear, stats, box,
-    editing, shown, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, simplify, parts,
+    editing, shown, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, simplify, parts, section, cut,
     settle: () => tweenEnd(), // (a move going on: there at once)
     peek: (m) => { if (holder) { tweenEnd(); target = m.clone(); place(m); } }, // (the model there, as a slider drags: the ground left till setMatrix)
     setInset, modify,

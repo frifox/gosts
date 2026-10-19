@@ -589,6 +589,8 @@ input[type=text].save-name { width: 100%; min-width: 0; box-sizing: border-box; 
 .mve-move .x { color: #e5484d; } .mve-move .y { color: #46a758; } .mve-move .z { color: #3e7bfa; }
 .mve-move .mve-val { font: 11px var(--mono); color: var(--text); min-width: 52px; text-align: right; cursor: text; border-radius: 4px; }
 .mve-move .mve-val:hover { background: var(--panel-2); }
+.mve-cut-at { margin: 8px 0 4px; } .mve-cut-at[hidden] { display: none; }
+#mvEdit .mve-check { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); } #mvEdit .mve-check[hidden] { display: none; }
 /* (its sliders: Crop's, one handle, filled from 0 in the middle to it: see .mve-dual) */
 .mve-trim { display: grid; grid-template-columns: auto auto 1fr auto; gap: 6px 8px; align-items: center; }
 .mve-trim b { font: 600 12px var(--mono); }
@@ -1349,6 +1351,13 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-head"><b>Crop</b></div>
         <div class="mve-trim"><b class="x">X</b><span class="mve-val" data-val="x0"></span><span class="mve-dual" data-ax="x"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" data-ax="x" data-end="0" aria-label="X min"><input type="range" min="0" max="10000" step="1" data-ax="x" data-end="1" aria-label="X max"></span><span class="mve-val" data-val="x1"></span><b class="y">Y</b><span class="mve-val" data-val="y0"></span><span class="mve-dual" data-ax="y"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" data-ax="y" data-end="0" aria-label="Y min"><input type="range" min="0" max="10000" step="1" data-ax="y" data-end="1" aria-label="Y max"></span><span class="mve-val" data-val="y1"></span><b class="z">Z</b><span class="mve-val" data-val="z0"></span><span class="mve-dual" data-ax="z"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" data-ax="z" data-end="0" aria-label="Z min"><input type="range" min="0" max="10000" step="1" data-ax="z" data-end="1" aria-label="Z max"></span><span class="mve-val" data-val="z1"></span></div>
         <div class="mve-row"><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="trim" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveTrim" disabled title="Cut away what's outside the box">Apply</button></span></div>
+      </section>
+      <section data-cut>
+        <div class="mve-head"><b>Cut</b></div>
+        <div class="mve-row"><span class="mve-label">Plane</span><span class="views seg" id="mveCutPlane"><button data-v="xy" title="Level (across Z): a floor, a top">XY</button><button data-v="xz" title="Upright, front on (across Y)">XZ</button><button data-v="yz" title="Upright, side on (across X)">YZ</button></span><span class="spacer"></span><button class="btn small" id="mveCutPick" title="Click the model where the plane goes (through that point)">Pick Point</button></div>
+        <div class="mve-move mve-cut-at" id="mveCutAt" title="Where the plane is along its axis (click the number to type one)"><b class="z" id="mveCutAx">Z</b><span class="mve-dual mve-one"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" value="5000" id="mveCutRange" aria-label="Where the plane is"></span><span class="mve-val" id="mveCutVal"></span></div>
+        <div class="mve-row"><span class="views seg" id="mveCutMode"><button data-v="cut" title="Take away all on one side of the plane">Cut</button><button data-v="fill" title="Make the face it crosses flat on it (a dished or rounded-off floor, say): what's past it taken away, the hollows in it filled">Fill</button></span><span class="views seg" id="mveCutDir"><button data-v="-">−Z</button><button data-v="+">+Z</button></span><label class="mve-check" id="mveCutCapL" title="The cut closed: flat on the plane (off: left open)"><input type="checkbox" id="mveCutCap" checked> Close it</label></div>
+        <div class="mve-row"><span class="mve-label" id="mveCutInfo"></span><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="cut" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveCut" disabled title="Cut (or fill) along the plane">Apply</button></span></div>
       </section>
       <section data-step="scale">
         <div class="mve-head"><b>Scale</b></div>
@@ -2211,7 +2220,7 @@ $("mvReveal").onclick = async () => {
 // copied), an STL too if asked, simplified if asked. The edit's in the
 // viewer (modelView) till saved; Undo steps back.
 const mve = { picks: { level: [], align: [], scale: [], center: [] }, picking: null, undo: [], centerAxes: new Set(), centerMove: { x: 0, y: 0, z: 0 }, centerPts: [] };
-const MVE_COLORS = { level: 0xffb020, align: 0x46a758, scale: 0x3e7bfa, center: 0xe05ad8 };
+const MVE_COLORS = { level: 0xffb020, align: 0x46a758, scale: 0x3e7bfa, center: 0xe05ad8, cut: 0x2bc4c4 };
 const segPick = (id, v) => { for (const b of $(id).children) b.classList.toggle("active", b.dataset.v === v); };
 const segOf = (id) => $(id).querySelector(".active")?.dataset.v;
 for (const id of ["mveUnit", "mveFileUnit"]) $(id).onclick = (e) => { if (e.target.dataset?.v) { segPick(id, e.target.dataset.v); mveShow(); mveTrimShow(); } };
@@ -2265,6 +2274,7 @@ function mvePending() {
   if (mve.rotFrom && (mve.rot.x || mve.rot.y || mve.rot.z)) p.push("Rotate");
   if (!$("mveTrim").disabled) p.push("Crop");
   if (mveMod()?.changed()) p.push("Modify");
+  if (mve.cut?.at != null) p.push("Cut");
   return p;
 }
 function mveConfirm(on) {
@@ -2314,6 +2324,7 @@ function mveShow() {
   }
   mvMarks();
   mveModShow();
+  mveCutShow();
   try { localStorage.setItem("modelEditUnits", JSON.stringify([u, segOf("mveFileUnit")])); } catch {}
 }
 $("mveDist").oninput = mveShow;
@@ -2360,7 +2371,7 @@ function mvePicking(st) {
   if (st) mveTool(null); // (Delete's tool: no longer)
   mve.picking = st;
   if (st) window.modelView.hoverColor(MVE_COLORS[st]);
-  window.modelView.onPick = st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 2) mve.picks.center.shift(); if (st === "center" && mve.originFrom) { mve.centerPts.push(p.clone().applyMatrix4(mveMoveMatrix().invert())); if (mve.centerPts.length > 2) mve.centerPts.shift(); mveCenterAxes(); mveCenterGo(); } if (st === "align" && mve.alignFrom) { mve.alignPts.push(p.clone().applyMatrix4(mve.alignOff.clone().invert())); mveAlignGo(); } mveShow(); } : null;
+  window.modelView.onPick = st === "cut" ? (p) => { mvePicking(null); mveCutAt(p); } : st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 2) mve.picks.center.shift(); if (st === "center" && mve.originFrom) { mve.centerPts.push(p.clone().applyMatrix4(mveMoveMatrix().invert())); if (mve.centerPts.length > 2) mve.centerPts.shift(); mveCenterAxes(); mveCenterGo(); } if (st === "align" && mve.alignFrom) { mve.alignPts.push(p.clone().applyMatrix4(mve.alignOff.clone().invert())); mveAlignGo(); } mveShow(); } : null;
   mveShow();
 }
 $("mvEdit").addEventListener("click", (e) => {
@@ -2501,6 +2512,7 @@ $("mvEdit").addEventListener("click", async (e) => {
     case "align": await mveAlignCancel(false); mve.picks.align = []; break;
     case "rotate": await mveRotCancel(); break;
     case "trim": mveTrimReset(); break;
+    case "cut": mveCutReset(); break;
     case "modify": mveMod().cancel(); mveTrimReset(); break;
     case "center": await mveOriginCancel(); mve.picks.center = []; break;
     case "scale": mve.picks.scale = []; $("mveDist").value = ""; break;
@@ -2530,6 +2542,95 @@ $("mveTrim").onclick = () => {
     mve.undo.push(undo);
     mveStatus("");
   } catch (e) { mveStatus(e.message, "bad"); }
+  mveTrimReset();
+  mveShow();
+};
+// Cut: a plane (XY, XZ or YZ: across Z, Y or X), placed by a point picked
+// on the model, then slid along its axis (Blender's, meters: at; its
+// slider over the model's extents, as Crop's); Cut takes away what's on
+// one side (dir: its − or + side), closed flat on it or not; Fill makes the
+// face it crosses flat on it (see modelcut.js). Shown as it'd go: the
+// plane, and where it crosses the model.
+mve.cut = { plane: "xy", at: null, mode: "cut", dir: "-", cap: true };
+const CUT_AX = { xy: "z", xz: "y", yz: "x" };
+segPick("mveCutPlane", "xy"); segPick("mveCutMode", "cut"); segPick("mveCutDir", "-");
+// mveCutSpec: the plane as the viewer takes it (three.js' axes: Blender's
+// x, y, z are x, −z, y), its normal to the side taken away.
+function mveCutSpec() {
+  const c = mve.cut, ax = CUT_AX[c.plane], k = c.dir === "+" ? 1 : -1;
+  const n = { x: [1, 0, 0], y: [0, 0, -1], z: [0, 1, 0] }[ax].map((v) => v * k);
+  return { n, c: -c.at * k };
+}
+function mveCutAt(p) { // (a point picked: the plane through it)
+  const ax = CUT_AX[mve.cut.plane];
+  mve.cut.at = ax === "x" ? p.x : ax === "y" ? -p.z : p.y;
+  mveCutShow();
+}
+function mveCutReset() { mve.cut.at = null; mveCutShow(); }
+let mveCutQueued = false;
+function mveCutShow() {
+  if (!mve.cut) return; // (not set up yet)
+  const c = mve.cut, ax = CUT_AX[c.plane], placed = c.at != null && !!mve.ext;
+  $("mveCutAx").textContent = ax.toUpperCase();
+  $("mveCutAx").className = ax;
+  for (const b of $("mveCutDir").children) b.textContent = `${b.dataset.v === "-" ? "−" : "+"}${ax.toUpperCase()}`;
+  $("mveCutDir").title = `The side taken away: ${ax.toUpperCase()} below the plane (−) or above it (+)`;
+  $("mveCutCapL").hidden = c.mode !== "cut";
+  $("mveCutAt").hidden = !placed;
+  $("mveCutPick").classList.toggle("picking", mve.picking === "cut");
+  $("mveCutPick").textContent = mve.picking === "cut" ? "Picking…" : placed ? "Pick Again" : "Pick Point";
+  $("mveCut").disabled = !placed;
+  for (const f of window.mveCancelSyncs || []) f();
+  if (!placed) { $("mveCutInfo").textContent = ""; window.modelView.section(null); return; }
+  const [lo, hi] = mve.ext[ax], f = Math.max(0, Math.min(1, (c.at - lo) / (hi - lo)));
+  $("mveCutRange").value = Math.round(f * TRIM_N);
+  $("mveCutRange").parentElement.style.setProperty("--a", 0); $("mveCutRange").parentElement.style.setProperty("--b", f);
+  $("mveCutVal").textContent = mveNum(c.at, 1);
+  if (mveCutQueued) return;
+  mveCutQueued = true;
+  requestAnimationFrame(() => { // (where it crosses: worked out once a frame at most)
+    mveCutQueued = false;
+    if (mve.cut.at == null || $("mvEdit").hidden) return window.modelView.section(null);
+    const n = window.modelView.section(mveCutSpec(), mve.cut.mode === "fill" ? 0x2bc4c4 : 0xe5484d);
+    $("mveCutInfo").textContent = n ? "" : "It doesn't cross the model here";
+  });
+}
+$("mveCutPick").onclick = () => mvePicking(mve.picking === "cut" ? null : "cut");
+for (const [id, k] of [["mveCutPlane", "plane"], ["mveCutMode", "mode"], ["mveCutDir", "dir"]]) $(id).onclick = (e) => {
+  const v = e.target.closest("[data-v]")?.dataset.v;
+  if (!v || mve.cut[k] === v) return;
+  segPick(id, v);
+  mve.cut[k] = v;
+  if (k === "plane") mve.cut.at = null; // (another plane: picked again)
+  mveCutShow();
+};
+$("mveCutCap").onchange = (e) => { mve.cut.cap = e.target.checked; };
+$("mveCutRange").oninput = (e) => {
+  const [lo, hi] = mve.ext[CUT_AX[mve.cut.plane]];
+  mve.cut.at = lo + (hi - lo) * Number(e.target.value) / TRIM_N;
+  mveCutShow();
+};
+$("mveCutVal").onclick = (e) => {
+  if (e.target.tagName === "INPUT" || mve.cut.at == null) return;
+  const k = window.modelEdit.UNITS[segOf("mveFileUnit")];
+  mveEditValue($("mveCutVal"), Number(mveNum(mve.cut.at)), (v) => { mve.cut.at = v * k; mveCutShow(); });
+};
+$("mveCut").onclick = () => {
+  if (mve.cut.at == null) return;
+  window.modelView.settle();
+  mveRotCommit();
+  mveOriginCommit(); // (Origin's Set, not Applied: kept, first)
+  mveModCommit(); // (Delete's deletes: the same)
+  const fill = mve.cut.mode === "fill";
+  try {
+    const r = window.modelView.cut(mveCutSpec(), { fill, cap: mve.cut.cap });
+    mve.undo.push(r.undo);
+    let t = fill ? `Filled flat: ${r.removed.toLocaleString()} triangles past the plane taken away, ${r.craters} hollow${r.craters === 1 ? "" : "s"} filled` :
+      `Cut: ${r.removed.toLocaleString()} triangles taken away${mve.cut.cap ? `, closed (${r.caps} face${r.caps === 1 ? "" : "s"})` : ""}`;
+    if (r.open) t += `; ${r.open} opening${r.open === 1 ? "" : "s"} left open (didn't close up: the model's own edges)`;
+    mveStatus(t, r.open ? "" : "ok");
+  } catch (e) { mveStatus(e.message, "bad"); }
+  mveCutReset();
   mveTrimReset();
   mveShow();
 };
@@ -2941,7 +3042,7 @@ function mveOpen(on) {
   $("mvEditBtn").classList.toggle("primary", on);
   window.modelView.editing(on);
   window.modelView.setInset(on ? $("mvEdit").offsetWidth + 12 : 0); // (the panel over the stage's right: the model centered in the rest)
-  if (on) mveTrimReset(); else window.modelView.clip(null);
+  if (on) mveTrimReset(); else { window.modelView.clip(null); window.modelView.section(null); }
   mvePicking(null);
 }
 // Replace: the name is the model's own (and fixed); off, the name before.
@@ -2975,6 +3076,7 @@ function mveFresh(m) {
   mve.rotFrom = null;
   mve.rot = { x: 0, y: 0, z: 0 };
   rotShow();
+  mve.cut.at = null; // (Cut's plane: to be placed)
   segPick("mveAxis", null); // (Align's axis: to be picked)
   const base = m.name.replace(/-aligned(-\d+)?$/, "");
   mveTyped = "";

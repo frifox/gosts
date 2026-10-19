@@ -114,6 +114,10 @@ file.
 - **Move**: slide the model along X, Y, Z (or type how far), or center a picked point (or the midpoint of two) on an axis
 - **Rotate**: turn it about X, Y or Z
 - **Crop**: cut away what's outside a box (the platform, say)
+- **Cut**: a plane (XY, XZ or YZ) placed by clicking the model, then slid along its axis (or typed): **Cut** takes
+  away everything on one side of it (closed flat on the plane, or left open); **Fill** makes the face it crosses flat
+  on it (a scanned floor that's dished or rounded off): what's past it taken away, the hollows it rims filled, real
+  holes (a ring's middle) kept
 - **Scale**: set the real distance between two points
 - **Simplify**: cut it down to fewer triangles, keeping the shape as well as it can
 
