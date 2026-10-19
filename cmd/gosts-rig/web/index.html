@@ -1357,7 +1357,7 @@ kbd + kbd { margin-left: 3px; }
         <div class="mve-head"><b>Cut</b></div>
         <div class="mve-row"><span class="mve-label">Plane</span><span class="views seg" id="mveCutPlane"><button data-v="xy" title="Level (across Z): a floor, a top">XY</button><button data-v="xz" title="Upright, front on (across Y)">XZ</button><button data-v="yz" title="Upright, side on (across X)">YZ</button></span><span class="spacer"></span><button class="btn small" id="mveCutPick" title="Click the model where the plane goes (through that point)">Pick Point</button></div>
         <div class="mve-move mve-cut-at" id="mveCutAt" title="Where the plane is along its axis (click the number to type one)"><b class="z" id="mveCutAx">Z</b><span class="mve-dual mve-one"><span class="mve-fill"></span><input type="range" min="0" max="10000" step="1" value="5000" id="mveCutRange" aria-label="Where the plane is"></span><span class="mve-val" id="mveCutVal"></span></div>
-        <div class="mve-row"><span class="views seg" id="mveCutMode"><button data-v="cut" title="Take away all on one side of the plane">Cut</button><button data-v="fill" title="Make the face it's on flat on it (a dished, bulging or rounded-off floor, say): its hills and dips pulled to the plane, the sides round it stretched">Flatten</button></span><span class="views seg" id="mveCutDir"><button data-v="-">−Z</button><button data-v="+">+Z</button></span><label class="mve-check" id="mveCutCapL" title="The cut closed: flat on the plane (off: left open)"><input type="checkbox" id="mveCutCap" checked> Close it</label></div>
+        <div class="mve-row"><span class="views seg" id="mveCutMode"><button data-v="cut" title="Take away all on one side of the plane">Cut</button><button data-v="fill" title="Push the hills on one side of it onto it (lumps in a floor, say): a hill's edge all on the plane, closed in by it (not the walls)">Flatten</button></span><span class="views seg" id="mveCutDir"><button data-v="-">−Z</button><button data-v="+">+Z</button></span><label class="mve-check" id="mveCutCapL" title="The cut closed: flat on the plane (off: left open)"><input type="checkbox" id="mveCutCap" checked> Close it</label></div>
         <div class="mve-row"><button class="btn small" id="mveCutPreview" disabled aria-pressed="false" title="The model as Apply would leave it (again: back as it is); anything changed: back too">Preview</button><span class="mve-label" id="mveCutInfo"></span><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="cut" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveCut" disabled title="Cut (or fill) along the plane">Apply</button></span></div>
       </section>
       <section data-step="scale">
@@ -2550,15 +2550,16 @@ $("mveTrim").onclick = () => {
 // on the model, then slid along its axis (Blender's, meters: at; its
 // slider over the model's extents, as Crop's); Cut takes away what's on
 // one side (dir: its − or + side), closed flat on it or not; Flatten (dir:
-// the way the face faces: − a floor) makes the
+// the way it pushes: − down, onto a floor) pushes the hills closed in by
+// it onto it, the
 // face it crosses flat on it (see modelcut.js). Shown as it'd go: the
 // plane, where it crosses the model, and arrows the way it'd take away.
 mve.cut = { plane: "xy", at: null, mode: "cut", dir: "-", cap: true };
 const CUT_AX = { xy: "z", xz: "y", yz: "x" };
 segPick("mveCutPlane", "xy"); segPick("mveCutMode", "cut"); segPick("mveCutDir", "-");
 // mveCutSpec: the plane as the viewer takes it (three.js' axes: Blender's
-// x, y, z are x, −z, y), its normal to the side taken away (Flatten's: out
-// of the face).
+// x, y, z are x, −z, y), its normal to the side taken away (Flatten's: the
+// way it pushes).
 function mveCutSpec() {
   const c = mve.cut, ax = CUT_AX[c.plane], k = c.dir === "+" ? 1 : -1;
   const n = { x: [1, 0, 0], y: [0, 0, -1], z: [0, 1, 0] }[ax].map((v) => v * k);
@@ -2580,7 +2581,7 @@ function mveCutUnpreview() {
   mveStatus("");
 }
 function mveCutText(r, fill) {
-  if (fill) return `Flattened: ${r.moved.toLocaleString()} points put on the plane (hills up to ${mveNum(r.hill, 1)}, dips up to ${mveNum(r.dip, 1)} ${segOf("mveFileUnit")})`;
+  if (fill) return `Flattened: ${r.hills} hill${r.hills === 1 ? "" : "s"} pushed onto the plane (${r.moved.toLocaleString()} point${r.moved === 1 ? "" : "s"}; the tallest ${mveNum(r.high, 1)} ${segOf("mveFileUnit")})`;
   let t = `Cut: ${r.removed.toLocaleString()} triangles taken away${mve.cut.cap ? `, closed (${r.caps} face${r.caps === 1 ? "" : "s"})` : ""}`;
   if (r.open) t += `; ${r.open} opening${r.open === 1 ? "" : "s"} left open (didn't close up: the model's own edges)`;
   return t;
@@ -2608,7 +2609,7 @@ function mveCutShow() {
   $("mveCutAx").textContent = ax.toUpperCase();
   $("mveCutAx").className = ax;
   for (const b of $("mveCutDir").children) b.textContent = `${b.dataset.v === "-" ? "−" : "+"}${ax.toUpperCase()}`;
-  $("mveCutDir").title = c.mode === "fill" ? `The face to flatten, the way it faces: −${ax.toUpperCase()} (a floor, seen from under) or +${ax.toUpperCase()} (a top, seen from over)` : `The side taken away: ${ax.toUpperCase()} below the plane (−) or above it (+)`;
+  $("mveCutDir").title = c.mode === "fill" ? `The way the hills are pushed onto the plane: −${ax.toUpperCase()} (those over it, down) or +${ax.toUpperCase()} (those under it, up)` : `The side taken away: ${ax.toUpperCase()} below the plane (−) or above it (+)`;
   $("mveCutCapL").hidden = c.mode !== "cut";
   $("mveCutAt").hidden = !placed;
   $("mveCutPick").classList.toggle("picking", mve.picking === "cut");
@@ -2628,7 +2629,7 @@ function mveCutShow() {
   requestAnimationFrame(() => { // (where it crosses: worked out once a frame at most)
     mveCutQueued = false;
     if (mve.cut.at == null || $("mvEdit").hidden) return window.modelView.section(null);
-    const n = window.modelView.section(mveCutSpec(), mve.cut.mode === "fill" ? 0x2bc4c4 : 0xe5484d, mve.cut.mode === "fill"); // (Flatten's arrows: to the plane from both sides: its hills and dips pulled to it)
+    const n = window.modelView.section(mveCutSpec(), mve.cut.mode === "fill" ? 0x2bc4c4 : 0xe5484d, mve.cut.mode === "fill"); // (Flatten's arrows: from the hills' side to the plane)
     $("mveCutInfo").textContent = n || mve.cut.preview || mve.cut.mode === "fill" ? "" : "It doesn't cross the model here"; // (Flatten: the plane can be just under the face)
   });
 }

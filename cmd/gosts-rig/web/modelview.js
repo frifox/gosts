@@ -610,7 +610,7 @@ export function createModelView(canvas) {
   // (a plane: a Plane, or { n: [x, y, z], c }, its normal and constant)
   const planeOf = (p) => p && (p.isPlane ? p : new THREE.Plane(new THREE.Vector3(...p.n), p.c));
   let sectionG = null;
-  // (pull: the arrows to it from both sides (Flatten's), not from it to the side taken away)
+  // (pull: the arrows to it from the other side (Flatten's: the way its hills are pushed), not from it to the side taken away)
   function section(plane, color = 0x2bc4c4, pull = false) {
     plane = planeOf(plane);
     if (sectionG) { scene.remove(sectionG); sectionG.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); }); sectionG = null; }
@@ -628,30 +628,27 @@ export function createModelView(canvas) {
     const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true }));
     lines.renderOrder = 9;
     for (const o of [sq, edge, lines]) { o.raycast = () => {}; sectionG.add(o); }
-    // Arrows the way it works (its normal: the side taken away; pull: to it,
-    // from either side): one in the middle, four round it.
+    // Arrows the way it works (its normal: the side taken away; pull: the
+    // way the hills are pushed, to it): one in the middle, four round it.
     const u = new THREE.Vector3(1, 0, 0).applyQuaternion(sq.quaternion), v = new THREE.Vector3(0, 1, 0).applyQuaternion(sq.quaternion), len = size * 0.14;
     for (const [i, j] of [[0, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
       const l = i || j ? len * 0.75 : len, base = at.clone().addScaledVector(u, i * size * 0.3).addScaledVector(v, j * size * 0.3);
-      for (const k of pull ? [1, -1] : [0]) {
-        const dir = k ? plane.normal.clone().multiplyScalar(-k) : plane.normal.clone(), from = base.clone().addScaledVector(dir, -l);
-        const ar = new THREE.ArrowHelper(dir, k ? from : base, l, color, len * 0.3, len * 0.18);
-        ar.traverse((o) => { if (o.material) { o.material.depthTest = false; o.material.transparent = true; } o.renderOrder = 10; o.raycast = () => {}; });
-        sectionG.add(ar);
-      }
+      const ar = new THREE.ArrowHelper(plane.normal, pull ? base.clone().addScaledVector(plane.normal, -l) : base, l, color, len * 0.3, len * 0.18);
+      ar.traverse((o) => { if (o.material) { o.material.depthTest = false; o.material.transparent = true; } o.renderOrder = 10; o.raycast = () => {}; });
+      sectionG.add(ar);
     }
     scene.add(sectionG);
     return seg.length / 6;
   }
   // cut slices the model by plane (as edited; its normal: the side taken
-  // away), or with flatten makes the face it's on flat on it (its normal:
-  // out of the face) (see modelcut.js). A function that puts it back, and
+  // away), or with flatten pushes the hills closed in by it onto it (its
+  // normal: the way they're pushed) (see modelcut.js). A function that puts it back, and
   // how it went; an error if nothing'd be left, or nothing done.
   function cut(plane, opts = {}) {
     plane = planeOf(plane);
     holder.updateMatrixWorld(true);
     const r = opts.flatten ? flattenModel(obj, plane) : cutModel(obj, plane, opts);
-    if (!r.swaps.length) throw new Error(opts.flatten ? "no face there to flatten: put the plane on it (the side picked: the way it faces)" : "the plane doesn't cross the model: nothing to cut");
+    if (!r.swaps.length) throw new Error(opts.flatten ? "no hills there: a hill is closed in by the plane (its edge all on it), on the side the arrows come from" : "the plane doesn't cross the model: nothing to cut");
     if (opts.flatten) r.kept = 1;
     if (!r.kept) { for (const [, , geo] of r.swaps) geo.dispose(); throw new Error("nothing would be left: it's all on that side"); }
     for (const [o, , geo] of r.swaps) o.geometry = geo;

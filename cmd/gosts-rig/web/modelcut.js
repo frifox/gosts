@@ -1,17 +1,15 @@
 // Cut (the model editor's): the model sliced by a plane (XY, XZ or YZ),
-// either side of it taken away (Cut), or the face it's on made flat on it
-// (Flatten: a scanned floor that's dished, bulging or rounded off, say).
+// either side of it taken away (Cut), or the hills on one side of it
+// pushed onto it (Flatten: lumps in a scanned floor, say).
 //
 // The plane is in the world (as the model's shown, edited): a three.js
 // Plane. Cut: its normal points to the side taken away (beyond: distance >
 // 0); each mesh's triangles are split where they cross it, the pieces
 // beyond go, and each opening left on the plane is closed, flat, its holes
-// (a ring's middle) kept. Flatten: its normal points out of the face (a
-// floor: down); that face (the surface seen from that side, facing it,
-// joined to where the plane is) has each of its points put on the plane:
-// hills pulled back, dips pulled out, the sides round it stretched.
+// (a ring's middle) kept. Flatten: its normal points the way the hills
+// are pushed (a floor's: down); the hills on its other side whose edges
+// are all on it (closed in by it: not the walls) are pushed onto it.
 import * as THREE from "three";
-import { MeshBVH } from "./vendor/three-mesh-bvh.module.js";
 
 // sectionSegments: where the model crosses plane: line segments (world),
 // two points each, as an array (x, y, z, x, y, z, …).
@@ -227,99 +225,144 @@ function cutMesh(o, g, plane, eps, cap) {
   return { geo, removed, caps, open, kept };
 }
 
-// flattenModel: obj's meshes' face plane is on (its normal: out of it)
-// made flat on it (see above). Each mesh's new geometry (swaps, as
-// cutModel's) and how it went: { moved (points), hill, dip (the furthest
-// one pulled back, out: m) }.
+// flattenModel: obj's hills pushed down onto plane (its normal: the way
+// they're pushed; a hill: on the other side). A hill is a piece of the
+// surface past the plane that way whose edge is all on it, a loop the
+// plane closes round it: not one with an edge of its own (an open scan's),
+// nor the model's main body (its walls). Each mesh's new geometry (swaps,
+// as cutModel's: its triangles cut where they cross the plane) and how it
+// went: { hills, moved (points), high (the tallest one's height: m) }.
 export function flattenModel(obj, plane) {
-  const swaps = [], r = { moved: 0, hill: 0, dip: 0 };
-  const size = Math.max(new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3()).length(), 1e-9);
+  const swaps = [], r = { hills: 0, moved: 0, high: 0 };
+  const eps = Math.max(new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3()).length(), 1e-9) * 1e-7;
   obj.traverse((o) => {
     if (!o.isMesh) return;
     const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
-    const res = flattenMesh(o, g, plane, size);
-    r.moved += res.moved; r.hill = Math.max(r.hill, res.hill); r.dip = Math.max(r.dip, res.dip);
+    const res = flattenMesh(o, g, plane, eps);
+    r.hills += res.hills; r.moved += res.moved; r.high = Math.max(r.high, res.high);
     if (res.geo) swaps.push([o, o.geometry, res.geo]);
   });
   return { swaps, ...r };
 }
 
-// (FACING: how squarely a triangle faces the plane's way to be the face's;
-// a 45° bevel's is 0.71, a wall's 0)
-const FACING = 0.3;
-
-function flattenMesh(o, g, plane, size) {
-  const pos = g.getAttribute("position"), N = pos.count, T = Math.floor(N / 3), M = o.matrixWorld, D = plane.normal;
-  const eps = size * 1e-7, band = size * 0.005;
-  // Its points (world), welded: a corner's vertex, each vertex's place and distance.
-  const w = new Float64Array(N * 3), ids = new Map(), vid = new Int32Array(N), vp = [];
-  const p = new THREE.Vector3();
-  for (let i = 0; i < N; i++) {
-    p.fromBufferAttribute(pos, i).applyMatrix4(M);
-    w[i * 3] = p.x; w[i * 3 + 1] = p.y; w[i * 3 + 2] = p.z;
-    const k = `${Math.round(p.x / eps)},${Math.round(p.y / eps)},${Math.round(p.z / eps)}`;
-    let v = ids.get(k);
-    if (v === undefined) { v = vp.length; ids.set(k, v); vp.push(p.clone()); }
-    vid[i] = v;
-  }
-  const dist = vp.map((q) => plane.distanceToPoint(q));
-  // The face's triangles: facing the plane's way (either winding: a scan's
-  // may face in) and seen from that side (nothing of the model past them).
-  const bvh = new MeshBVH(g, { indirect: true }), inv = M.clone().invert(), dl = D.clone().transformDirection(inv);
-  const ray = new THREE.Ray(), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
-  const face = new Uint8Array(T);
-  for (let t = 0; t < T; t++) {
-    a.fromArray(w, t * 9); b.fromArray(w, t * 9 + 3); c.fromArray(w, t * 9 + 6);
-    n.subVectors(c, b).cross(a.clone().sub(b));
-    const len = n.length();
-    if (!len || Math.abs(n.dot(D)) / len < FACING) continue;
-    a.add(b).add(c).divideScalar(3).addScaledVector(D, size * 1e-5); // (its middle, just off it)
-    ray.origin.copy(a).applyMatrix4(inv);
-    ray.direction.copy(dl);
-    if (!bvh.raycastFirst(ray, THREE.DoubleSide)) face[t] = 1;
-  }
-  // Joined to where the plane is: from the face's triangles at it (across
-  // it, or within a little of it), on through the face's.
-  const vt = new Map();
-  for (let t = 0; t < T; t++) if (face[t]) for (let k = 0; k < 3; k++) { const v = vid[t * 3 + k]; (vt.get(v) || vt.set(v, []).get(v)).push(t); }
-  const on = new Uint8Array(T), q = [];
-  for (let t = 0; t < T; t++) {
-    if (!face[t]) continue;
-    const ds = [0, 1, 2].map((k) => dist[vid[t * 3 + k]]);
-    if (Math.min(...ds) <= 0 && Math.max(...ds) >= 0 || Math.min(...ds.map(Math.abs)) <= band) { on[t] = 1; q.push(t); }
-  }
-  while (q.length) {
-    const t = q.pop();
-    for (let k = 0; k < 3; k++) for (const u of vt.get(vid[t * 3 + k]) || []) if (!on[u]) { on[u] = 1; q.push(u); }
-  }
-  // Its points on the plane (in the mesh's own space).
-  const move = new Uint8Array(vp.length);
-  for (let t = 0; t < T; t++) if (on[t]) for (let k = 0; k < 3; k++) move[vid[t * 3 + k]] = 1;
-  let moved = 0, hill = 0, dip = 0;
-  const to = vp.map((q, v) => {
-    if (!move[v] || dist[v] === 0) return null;
-    moved++;
-    if (dist[v] > 0) hill = Math.max(hill, dist[v]); else dip = Math.max(dip, -dist[v]);
-    return q.clone().addScaledVector(D, -dist[v]).applyMatrix4(inv);
+function flattenMesh(o, g, plane, eps) {
+  const names = Object.keys(g.attributes), attrs = names.map((n) => g.getAttribute(n));
+  const pos = g.getAttribute("position"), N = pos.count, T = Math.floor(N / 3);
+  const groups = g.groups.length ? g.groups : [{ start: 0, count: N, materialIndex: 0 }];
+  const M = o.matrixWorld, inv = M.clone().invert(), n = plane.normal;
+  // A corner: its place (world), height over the plane (> 0: the hills'
+  // side), and attributes (as stored).
+  const corner = (i) => {
+    const w = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(M);
+    let h = -plane.distanceToPoint(w);
+    if (Math.abs(h) < eps) h = 0;
+    return { w, h, a: attrs.map((at) => Array.from(at.array.subarray(i * at.itemSize, (i + 1) * at.itemSize))) };
+  };
+  const less = (p, q) => p.w.x < q.w.x || (p.w.x === q.w.x && (p.w.y < q.w.y || (p.w.y === q.w.y && p.w.z < q.w.z)));
+  const cross = (p, q) => {
+    if (less(q, p)) return cross(q, p);
+    const t = p.h / (p.h - q.h);
+    return { w: p.w.clone().lerp(q.w, t), h: 0, a: p.a.map((v, k) => v.map((x, j) => x + (q.a[k][j] - x) * t)) };
+  };
+  // Every triangle, those across the plane cut in two along it; each
+  // [c0, c1, c2, group, up (on the hills' side)].
+  const tris = [];
+  let across = 0;
+  groups.forEach((gr, gi) => {
+    for (let t = gr.start / 3; t < Math.min(T, (gr.start + gr.count) / 3); t++) {
+      const cs = [corner(t * 3), corner(t * 3 + 1), corner(t * 3 + 2)];
+      const up = cs.every((c) => c.h >= 0) && cs.some((c) => c.h > 0);
+      if (up || cs.every((c) => c.h <= 0)) { tris.push([...cs, gi, up]); continue; }
+      across++;
+      for (const side of [1, -1]) {
+        const poly = [];
+        for (let i = 0; i < 3; i++) {
+          const p = cs[i], q = cs[(i + 1) % 3];
+          if (p.h * side >= 0) poly.push(p);
+          if (p.h * q.h < 0) poly.push(cross(p, q));
+        }
+        for (let i = 1; i + 1 < poly.length; i++) tris.push([poly[0], poly[i], poly[i + 1], gi, side > 0]);
+      }
+    }
   });
-  if (!moved) return { geo: null, moved: 0, hill: 0, dip: 0 };
-  const out = g.clone(), op = out.getAttribute("position"), nrm = out.getAttribute("normal"), touched = new Uint8Array(T);
-  for (let i = 0; i < N; i++) {
-    const t2 = to[vid[i]];
-    if (!t2) continue;
-    op.setXYZ(i, t2.x, t2.y, t2.z);
-    touched[(i / 3) | 0] = 1;
+  // Corners welded (the same place: one point), the hills' side's pieces.
+  const ids = new Map(), at = [];
+  const vid = (c) => {
+    const k = `${Math.round(c.w.x / eps)},${Math.round(c.w.y / eps)},${Math.round(c.w.z / eps)}`;
+    let v = ids.get(k);
+    if (v === undefined) { v = at.length; ids.set(k, v); at.push(c); }
+    return v;
+  };
+  const tv = tris.map((tr) => [vid(tr[0]), vid(tr[1]), vid(tr[2])]);
+  const parent = at.map((_, i) => i), find = (i) => { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
+  // (joined across an edge, not just at a point: a hill touching the walls
+  // at a corner on the plane is still a hill of its own)
+  const used = new Map(); // (an edge of the hills' side's triangles: how many, and one of them)
+  tv.forEach((t, i) => {
+    if (!tris[i][4]) return;
+    for (let k = 0; k < 3; k++) {
+      const a = t[k], b = t[(k + 1) % 3], e = a < b ? `${a},${b}` : `${b},${a}`, u = used.get(e);
+      if (u) { u.n++; parent[find(t[0])] = find(tv[u.t][0]); } else used.set(e, { n: 1, t: i });
+    }
+  });
+  const pieceOf = (i) => find(tv[i][0]);
+  // Each piece: its triangles; open if an edge of it isn't on the plane and
+  // has nothing the other side (the model's own edge), or meets the other
+  // side's triangles off the plane (it isn't cut off by it).
+  const pieces = new Map();
+  tv.forEach((t, i) => { if (tris[i][4]) { const p = pieceOf(i); (pieces.get(p) || pieces.set(p, { tris: 0, open: false }).get(p)).tris++; } });
+  for (const [e, u] of used) {
+    if (u.n !== 1) continue;
+    const [a, b] = e.split(",").map(Number);
+    if (at[a].h !== 0 || at[b].h !== 0) pieces.get(pieceOf(u.t)).open = true;
   }
-  // The triangles moved: flat normals again, the way their own were.
-  if (nrm) for (let t = 0; t < T; t++) {
-    if (!touched[t]) continue;
-    a.fromBufferAttribute(op, t * 3); b.fromBufferAttribute(op, t * 3 + 1); c.fromBufferAttribute(op, t * 3 + 2);
-    n.subVectors(c, b).cross(a.sub(b)).normalize();
-    p.set(nrm.getX(t * 3) + nrm.getX(t * 3 + 1) + nrm.getX(t * 3 + 2), nrm.getY(t * 3) + nrm.getY(t * 3 + 1) + nrm.getY(t * 3 + 2), nrm.getZ(t * 3) + nrm.getZ(t * 3 + 1) + nrm.getZ(t * 3 + 2));
-    if (n.dot(p) < 0) n.negate();
-    for (let k = 0; k < 3; k++) nrm.setXYZ(t * 3 + k, n.x, n.y, n.z);
-  }
-  out.computeBoundingBox();
-  out.computeBoundingSphere();
-  return { geo: out, moved, hill, dip };
+  // The hills: the closed pieces, but the biggest (the model itself).
+  let main = null;
+  for (const [p, pc] of pieces) if (main === null || pc.tris > pieces.get(main).tris) main = p;
+  const hill = new Set([...pieces].filter(([p, pc]) => !pc.open && p !== main).map(([p]) => p));
+  const pts = new Set();
+  let high = 0;
+  tv.forEach((t, i) => { if (tris[i][4] && hill.has(pieceOf(i))) for (const v of t) if (at[v].h > 0) { pts.add(v); high = Math.max(high, at[v].h); } });
+  const moved = pts.size;
+  if (!hill.size) return { geo: null, hills: 0, moved: 0, high: 0 };
+  // Out: every triangle, by group; a hill's corners on the plane (pushed
+  // along its normal), its triangles facing as they did, flat.
+  const ni = names.indexOf("normal"), pi = names.indexOf("position");
+  const outs = names.map(() => []), ng = [];
+  const nl = n.clone().applyMatrix3(new THREE.Matrix3().setFromMatrix4(M).transpose()).normalize(); // (the push, in its own space: as a normal)
+  let count = 0;
+  const e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  groups.forEach((gr, gi) => {
+    const start = count;
+    tris.forEach((tr, i) => {
+      if (tr[3] !== gi) return;
+      const flat = tr[4] && hill.has(pieceOf(i));
+      let fn = null;
+      if (flat && ni >= 0) { // (its normal: the push's, or against it, as its own were)
+        const s = tr[0].a[ni].map((x, j) => x + tr[1].a[ni][j] + tr[2].a[ni][j]);
+        e1.set(...s);
+        fn = e1.dot(nl) >= 0 ? nl : nl.clone().negate();
+      }
+      for (let k = 0; k < 3; k++) {
+        const c = tr[k];
+        c.a.forEach((vals, j) => {
+          if (flat && j === pi) { e2.copy(c.w).addScaledVector(n, c.h).applyMatrix4(inv); outs[j].push(e2.x, e2.y, e2.z); }
+          else if (fn && j === ni) outs[j].push(fn.x, fn.y, fn.z);
+          else outs[j].push(...vals);
+        });
+      }
+      count += 3;
+    });
+    if (g.groups.length) ng.push({ start, count: count - start, materialIndex: gr.materialIndex });
+  });
+  const geo = new THREE.BufferGeometry();
+  names.forEach((name, k) => {
+    const arr = new Float32Array(outs[k]);
+    if (name === "normal") for (let i = 0; i < arr.length; i += 3) { const l = Math.hypot(arr[i], arr[i + 1], arr[i + 2]) || 1; arr[i] /= l; arr[i + 1] /= l; arr[i + 2] /= l; }
+    geo.setAttribute(name, new THREE.BufferAttribute(arr, attrs[k].itemSize, attrs[k].normalized));
+  });
+  for (const gr of ng) geo.addGroup(gr.start, gr.count, gr.materialIndex);
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  return { geo, hills: hill.size, moved, high };
 }
