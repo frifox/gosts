@@ -384,11 +384,10 @@ export function createCombine(canvas) {
   api.start = () => { if (!running) { running = true; last = 0; requestAnimationFrame(loop); } };
   api.stop = () => { running = false; };
 
-  // outline: the selected one's box (none for one with nothing in it yet, a
-  // fill not made: the box helper would keep the last one's).
+  // outline: no box round the one selected (the plane lit through it shows
+  // which; its row in the list too).
   function outline() {
-    sel.visible = !!selected?.visible && !new THREE.Box3().setFromObject(selected.holder).isEmpty();
-    if (sel.visible) sel.setFromObject(selected.holder);
+    sel.visible = false;
   }
   // place: o's holder where its pos and rot say.
   function place(o) {
