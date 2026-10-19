@@ -470,7 +470,7 @@ export function createCombine(canvas) {
     inner.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0xffb020 })));
     return add("model", name, inner, { ...extra, missing: true });
   };
-  // relink: o's model another one (name, base, file, scale; extra: its ref),
+  // relink: o's model another one (name, base, file, scale; extra: its ref, and what: the step's name),
   // where o is, as it's turned; a missing one found again. A step.
   api.relink = async (o, name, base, file, scale, extra = {}, status = () => {}) => {
     const obj = await loadOBJ(base, file, status);
@@ -489,7 +489,7 @@ export function createCombine(canvas) {
       place(o);
     };
     put(now);
-    record(`Re-link ${name}`, () => put(was), () => put(now));
+    record(extra.what || `Re-link ${name}`, () => put(was), () => put(now));
     changed();
   };
   // clear: nothing in the space, no steps to undo (a work file opened next).

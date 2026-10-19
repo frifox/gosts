@@ -484,7 +484,7 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-obj .rm { width: 20px; height: 20px; padding: 0; margin-left: -2px; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; border-radius: 4px; color: var(--muted); font-size: 11px; cursor: pointer; visibility: hidden; }
 .cv-obj:hover .rm { visibility: visible; }
 .cv-obj .rm svg { width: 13px; height: 13px; }
-.cv-obj .rm.dup:hover { color: var(--text); }
+.cv-obj .rm.dup:hover, .cv-obj .rm.swap:hover { color: var(--text); }
 .cv-obj.missing .nm { color: var(--warn, #ffb020); }
 .cv-obj.missing .nm::before { content: "⚠ "; }
 .cv-obj .relink { padding: 1px 7px; font-size: 11px; }
@@ -4173,7 +4173,7 @@ async function cvPickShow(where) {
     }
   } catch (e) { grid.innerHTML = ""; const d = document.createElement("div"); d.className = "mve-label"; d.textContent = e.message; grid.appendChild(d); }
 }
-function cvPickOpen(on, then = null, label = "Add a model", works = false) {
+function cvPickOpen(on, then = null, label = "Add a model", works = false, start = null) {
   $("cvPickModal").hidden = !on;
   if (!on) return;
   cvPick.then = then;
@@ -4181,7 +4181,7 @@ function cvPickOpen(on, then = null, label = "Add a model", works = false) {
   $("cvPickModal").querySelector("[role=dialog]").setAttribute("aria-label", label);
   $("cvPickNav").hidden = works;
   $("cvPickTitle").hidden = $("cvPickNew").hidden = !works;
-  if (works) cvWorksShow(); else cvPickShow(null); // (from the top each time)
+  if (works) cvWorksShow(); else cvPickShow(start); // (from the top each time, or where it's asked to start)
 }
 // The header's Combine 3D: its work files (as Browse shows them), what's in
 // it now if anything (Continue), or Create New.
@@ -4255,6 +4255,7 @@ function cvShow() {
     row.dataset.id = o.id;
     row.innerHTML = `<button class="eye" title="${o.visible ? "Hide it (left out of Export)" : "Show it"}">${o.visible ? eyeOn : eyeOff}</button><span class="nm"></span>` +
       (o.missing ? `<button class="btn small relink" title="Not found (renamed, moved or deleted since): pick the model it is now">Re-link</button>` : `<span class="kd">${o.kind}</span>`) +
+      (o.kind === "model" && !o.missing ? `<button class="rm swap" title="Replace it with another model (picked from your captures: an edited one, say), where it is and turned as it is, its cuts kept" aria-label="Replace"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6h10l-2.5-2.5"/><path d="M13.5 10h-10l2.5 2.5"/></svg></button>` : "") +
       (o.kind === "fill" ? "" : `<button class="rm dup" title="Duplicate it (beside it, 20 mm along X)" aria-label="Duplicate"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg></button>`) +
       `<button class="rm del" title="Delete it (an undo brings it back)" aria-label="Delete">${trashIcon}</button>`;
     row.querySelector(".nm").textContent = o.name;
@@ -4263,6 +4264,7 @@ function cvShow() {
       if (cvRowDrag.justDropped) return; // (a drag's end: not a click)
       if (e.target.closest(".eye")) cv.setVisible(o, !o.visible);
       else if (e.target.closest(".relink")) cvRelink(o);
+      else if (e.target.closest(".swap")) cvRelink(o, true);
       else if (e.target.closest(".dup")) cv.duplicate(o);
       else if (e.target.closest(".del")) cv.remove(o); // (an undo brings it back)
       else cv.select(o === cv.selected() ? null : o); // (the selected one again: none)
@@ -4806,15 +4808,17 @@ async function cvOpenWork(path) {
   cvs.loading = false;
 }
 // cvRelink: a missing model (or any) found again: the model it is now picked.
-function cvRelink(o) {
+// (replace: one there swapped for another (an edited one, say): the picker
+// starting in its capture; a step, Replace)
+function cvRelink(o, replace = false) {
   cvPickOpen(true, async (b, m) => {
     cvPickOpen(false);
     const was = o.ref ? `${o.ref.folder}/${o.ref.model}` : null, name = !was || o.name === was ? `${b}/${m.name}` : o.name; // (its own name kept, if it had one)
     try {
-      await cvs.cv.relink(o, name, modelBase(b, m), m.file, window.modelEdit.UNITS[m.edit?.units] || 1, { ref: { folder: b, model: m.name } }, (t) => cvStatus(t + "…"));
-      cvStatus(`${name}: linked`, "ok");
+      await cvs.cv.relink(o, name, modelBase(b, m), m.file, window.modelEdit.UNITS[m.edit?.units] || 1, { ref: { folder: b, model: m.name }, what: replace ? `Replace ${o.name}` : null }, (t) => cvStatus(t + "…"));
+      cvStatus(replace ? `Replaced with ${b}/${m.name}` : `${name}: linked`, "ok");
     } catch (e) { cvStatus(e.message, "bad"); }
-  }, `Re-link ${o.name}`);
+  }, replace ? `Replace ${o.name} with…` : `Re-link ${o.name}`, false, replace ? o.ref?.folder ?? null : null);
 }
 // ⌘S / Ctrl+S: Save, in the model editor (the model) or Combine 3D (its work
 // file); not the browser's own Save.
