@@ -2950,8 +2950,8 @@ async function renderGallery() {
         g.appendChild(folderTile("Current Batch", state.photos.length, photoURL(state.photos[Math.floor((state.photos.length - 1) / 2)]) + "&thumb", true, () => galleryGo("current")));
       const works = await getJSON("/combine/works").catch(() => []);
       if (seq !== state.gal.seq) return;
-      for (const w of works) g.appendChild(workTile(w)); // (Combine 3D's work files first)
       for (const b of bs) g.appendChild(folderTile(b.name, b.count, b.mid ? batchURL(b.name, b.mid) + "?thumb" : "", b.current, () => openFolder(b), true, b));
+      for (const w of works) g.appendChild(workTile(w)); // (Combine 3D's work files: files, after the folders)
       if (!g.children.length) g.innerHTML = `<span class="hint">No captures yet: they are saved in ${escHTML(state.photoDir || "~/Pictures/gosts-rig")}.</span>`;
     } else {
       const ps = await getJSON(`/batches/${encodeURIComponent(where)}`);
@@ -2963,7 +2963,9 @@ async function renderGallery() {
       await modelTiles(g, where, seq);
       const works = await getJSON(`/combine/works?folder=${encodeURIComponent(where)}`).catch(() => []);
       if (seq !== state.gal.seq) return;
-      g.prepend(...works.map(workTile)); // (Combine 3D's work files kept here: first)
+      // (Combine 3D's work files kept here: after its models, before its photos)
+      const lastModel = [...g.querySelectorAll(":scope > .thumb.model:not(.work)")].at(-1);
+      if (lastModel) lastModel.after(...works.map(workTile)); else g.prepend(...works.map(workTile));
     }
   } catch (e) {
     if (seq === state.gal.seq) g.innerHTML = `<span class="hint">Couldn't read it: ${escHTML(e.message)}</span>`;
