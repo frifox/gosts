@@ -1,16 +1,17 @@
 // Cut (the model editor's): the model sliced by a plane (XY, XZ or YZ),
-// either side of it taken away (Cut), or the uneven face it crosses made
-// flat on it (Flatten, fill here: a scanned floor that's dished or rounded off, say).
+// either side of it taken away (Cut), or the face it's on made flat on it
+// (Flatten: a scanned floor that's dished, bulging or rounded off, say).
 //
 // The plane is in the world (as the model's shown, edited): a three.js
-// Plane whose normal points to the side to take away (beyond: distance >
-// 0). Each mesh's triangles are split where they cross it; the pieces
-// beyond go. Fill takes away the craters too: the parts left that hang
-// off the plane's line round them only, facing the side taken away (by
-// their area: a closed body's sums to nothing, one cut open by the plane
-// faces away from the opening, a crater towards it). Then each opening
-// left on the plane is closed: flat, its holes (a ring's middle) kept.
+// Plane. Cut: its normal points to the side taken away (beyond: distance >
+// 0); each mesh's triangles are split where they cross it, the pieces
+// beyond go, and each opening left on the plane is closed, flat, its holes
+// (a ring's middle) kept. Flatten: its normal points out of the face (a
+// floor: down); that face (the surface seen from that side, facing it,
+// joined to where the plane is) has each of its points put on the plane:
+// hills pulled back, dips pulled out, the sides round it stretched.
 import * as THREE from "three";
+import { MeshBVH } from "./vendor/three-mesh-bvh.module.js";
 
 // sectionSegments: where the model crosses plane: line segments (world),
 // two points each, as an array (x, y, z, x, y, z, …).
@@ -44,26 +45,25 @@ export function sectionSegments(obj, plane) {
   return out;
 }
 
-// cutModel: obj's meshes cut by plane (see above); fill: Fill's craters
-// taken too; cap: the openings closed (Fill: always). Each mesh's new
-// geometry (swaps: [mesh, old, new]; not put in yet) and how it went:
-// { removed (triangles beyond, whole or cut), craters, caps, open (an
-// opening that didn't close up: left so) }.
-export function cutModel(obj, plane, { fill = false, cap = true } = {}) {
-  const swaps = [], r = { removed: 0, craters: 0, caps: 0, open: 0, kept: 0 };
+// cutModel: obj's meshes cut by plane (see above); cap: the openings
+// closed. Each mesh's new geometry (swaps: [mesh, old, new]; not put in
+// yet) and how it went: { removed (triangles beyond, whole or cut), caps,
+// open (an opening that didn't close up: left so) }.
+export function cutModel(obj, plane, { cap = true } = {}) {
+  const swaps = [], r = { removed: 0, caps: 0, open: 0, kept: 0 };
   // (eps: as near as counts as on the plane, the same place: the model's size × 1e-7)
   const box = new THREE.Box3().setFromObject(obj), eps = Math.max(box.getSize(new THREE.Vector3()).length(), 1e-9) * 1e-7;
   obj.traverse((o) => {
     if (!o.isMesh) return;
     const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
-    const res = cutMesh(o, g, plane, eps, fill, cap || fill);
-    r.removed += res.removed; r.craters += res.craters; r.caps += res.caps; r.open += res.open; r.kept += res.kept;
+    const res = cutMesh(o, g, plane, eps, cap);
+    r.removed += res.removed; r.caps += res.caps; r.open += res.open; r.kept += res.kept;
     if (res.geo) swaps.push([o, o.geometry, res.geo]);
   });
   return { swaps, ...r };
 }
 
-function cutMesh(o, g, plane, eps, fill, cap) {
+function cutMesh(o, g, plane, eps, cap) {
   const names = Object.keys(g.attributes), attrs = names.map((n) => g.getAttribute(n));
   const pos = g.getAttribute("position"), N = pos.count, T = Math.floor(N / 3);
   const groups = g.groups.length ? g.groups : [{ start: 0, count: N, materialIndex: 0 }];
@@ -99,7 +99,7 @@ function cutMesh(o, g, plane, eps, fill, cap) {
       for (let i = 1; i + 1 < poly.length; i++) tris.push([poly[0], poly[i], poly[i + 1], gi]);
     }
   });
-  if (!removed) return { geo: null, removed: 0, craters: 0, caps: 0, open: 0, kept: T };
+  if (!removed) return { geo: null, removed: 0, caps: 0, open: 0, kept: T };
   // Its corners welded (the same place: one vertex), for what's joined.
   const ids = new Map(), at = [];
   const vid = (c) => {
@@ -167,18 +167,7 @@ function cutMesh(o, g, plane, eps, fill, cap) {
     }
   }
   const inside = (p, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) c = !c; } return c; };
-  // Fill: the craters taken too: a piece of its own whose openings on the
-  // plane are all within another piece's (a dish in a floor, rimmed by it).
-  // (Which way its triangles face: not asked; a scan's may face in.)
-  let keep = tris.map(() => true), craters = 0;
-  const gone = new Set();
-  if (fill) {
-    const byPiece = new Map();
-    for (const l of loops) (byPiece.get(l.piece) || byPiece.set(l.piece, []).get(l.piece)).push(l);
-    for (const [piece, ls] of byPiece) if (ls.every((l) => loops.some((o) => o.piece !== piece && inside(l.pts[0], o.pts)))) gone.add(piece);
-    craters = gone.size;
-    keep = tv.map((t) => !gone.has(find(t[0])));
-  }
+  const keep = tris.map(() => true), gone = new Set();
   // Each opening left closed, flat: a loop within an even number of others
   // an outline, within an odd number a hole in the one round it (a ring's
   // middle: kept open); its triangles wound as the outline's loop is (as
@@ -235,5 +224,102 @@ function cutMesh(o, g, plane, eps, fill, cap) {
     geo.setAttribute(name, new THREE.BufferAttribute(arr, attrs[k].itemSize, attrs[k].normalized));
   });
   for (const gr of ng) geo.addGroup(gr.start, gr.count, gr.materialIndex);
-  return { geo, removed, craters, caps, open, kept };
+  return { geo, removed, caps, open, kept };
+}
+
+// flattenModel: obj's meshes' face plane is on (its normal: out of it)
+// made flat on it (see above). Each mesh's new geometry (swaps, as
+// cutModel's) and how it went: { moved (points), hill, dip (the furthest
+// one pulled back, out: m) }.
+export function flattenModel(obj, plane) {
+  const swaps = [], r = { moved: 0, hill: 0, dip: 0 };
+  const size = Math.max(new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3()).length(), 1e-9);
+  obj.traverse((o) => {
+    if (!o.isMesh) return;
+    const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry;
+    const res = flattenMesh(o, g, plane, size);
+    r.moved += res.moved; r.hill = Math.max(r.hill, res.hill); r.dip = Math.max(r.dip, res.dip);
+    if (res.geo) swaps.push([o, o.geometry, res.geo]);
+  });
+  return { swaps, ...r };
+}
+
+// (FACING: how squarely a triangle faces the plane's way to be the face's;
+// a 45° bevel's is 0.71, a wall's 0)
+const FACING = 0.3;
+
+function flattenMesh(o, g, plane, size) {
+  const pos = g.getAttribute("position"), N = pos.count, T = Math.floor(N / 3), M = o.matrixWorld, D = plane.normal;
+  const eps = size * 1e-7, band = size * 0.005;
+  // Its points (world), welded: a corner's vertex, each vertex's place and distance.
+  const w = new Float64Array(N * 3), ids = new Map(), vid = new Int32Array(N), vp = [];
+  const p = new THREE.Vector3();
+  for (let i = 0; i < N; i++) {
+    p.fromBufferAttribute(pos, i).applyMatrix4(M);
+    w[i * 3] = p.x; w[i * 3 + 1] = p.y; w[i * 3 + 2] = p.z;
+    const k = `${Math.round(p.x / eps)},${Math.round(p.y / eps)},${Math.round(p.z / eps)}`;
+    let v = ids.get(k);
+    if (v === undefined) { v = vp.length; ids.set(k, v); vp.push(p.clone()); }
+    vid[i] = v;
+  }
+  const dist = vp.map((q) => plane.distanceToPoint(q));
+  // The face's triangles: facing the plane's way (either winding: a scan's
+  // may face in) and seen from that side (nothing of the model past them).
+  const bvh = new MeshBVH(g, { indirect: true }), inv = M.clone().invert(), dl = D.clone().transformDirection(inv);
+  const ray = new THREE.Ray(), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+  const face = new Uint8Array(T);
+  for (let t = 0; t < T; t++) {
+    a.fromArray(w, t * 9); b.fromArray(w, t * 9 + 3); c.fromArray(w, t * 9 + 6);
+    n.subVectors(c, b).cross(a.clone().sub(b));
+    const len = n.length();
+    if (!len || Math.abs(n.dot(D)) / len < FACING) continue;
+    a.add(b).add(c).divideScalar(3).addScaledVector(D, size * 1e-5); // (its middle, just off it)
+    ray.origin.copy(a).applyMatrix4(inv);
+    ray.direction.copy(dl);
+    if (!bvh.raycastFirst(ray, THREE.DoubleSide)) face[t] = 1;
+  }
+  // Joined to where the plane is: from the face's triangles at it (across
+  // it, or within a little of it), on through the face's.
+  const vt = new Map();
+  for (let t = 0; t < T; t++) if (face[t]) for (let k = 0; k < 3; k++) { const v = vid[t * 3 + k]; (vt.get(v) || vt.set(v, []).get(v)).push(t); }
+  const on = new Uint8Array(T), q = [];
+  for (let t = 0; t < T; t++) {
+    if (!face[t]) continue;
+    const ds = [0, 1, 2].map((k) => dist[vid[t * 3 + k]]);
+    if (Math.min(...ds) <= 0 && Math.max(...ds) >= 0 || Math.min(...ds.map(Math.abs)) <= band) { on[t] = 1; q.push(t); }
+  }
+  while (q.length) {
+    const t = q.pop();
+    for (let k = 0; k < 3; k++) for (const u of vt.get(vid[t * 3 + k]) || []) if (!on[u]) { on[u] = 1; q.push(u); }
+  }
+  // Its points on the plane (in the mesh's own space).
+  const move = new Uint8Array(vp.length);
+  for (let t = 0; t < T; t++) if (on[t]) for (let k = 0; k < 3; k++) move[vid[t * 3 + k]] = 1;
+  let moved = 0, hill = 0, dip = 0;
+  const to = vp.map((q, v) => {
+    if (!move[v] || dist[v] === 0) return null;
+    moved++;
+    if (dist[v] > 0) hill = Math.max(hill, dist[v]); else dip = Math.max(dip, -dist[v]);
+    return q.clone().addScaledVector(D, -dist[v]).applyMatrix4(inv);
+  });
+  if (!moved) return { geo: null, moved: 0, hill: 0, dip: 0 };
+  const out = g.clone(), op = out.getAttribute("position"), nrm = out.getAttribute("normal"), touched = new Uint8Array(T);
+  for (let i = 0; i < N; i++) {
+    const t2 = to[vid[i]];
+    if (!t2) continue;
+    op.setXYZ(i, t2.x, t2.y, t2.z);
+    touched[(i / 3) | 0] = 1;
+  }
+  // The triangles moved: flat normals again, the way their own were.
+  if (nrm) for (let t = 0; t < T; t++) {
+    if (!touched[t]) continue;
+    a.fromBufferAttribute(op, t * 3); b.fromBufferAttribute(op, t * 3 + 1); c.fromBufferAttribute(op, t * 3 + 2);
+    n.subVectors(c, b).cross(a.sub(b)).normalize();
+    p.set(nrm.getX(t * 3) + nrm.getX(t * 3 + 1) + nrm.getX(t * 3 + 2), nrm.getY(t * 3) + nrm.getY(t * 3 + 1) + nrm.getY(t * 3 + 2), nrm.getZ(t * 3) + nrm.getZ(t * 3 + 1) + nrm.getZ(t * 3 + 2));
+    if (n.dot(p) < 0) n.negate();
+    for (let k = 0; k < 3; k++) nrm.setXYZ(t * 3 + k, n.x, n.y, n.z);
+  }
+  out.computeBoundingBox();
+  out.computeBoundingSphere();
+  return { geo: out, moved, hill, dip };
 }
