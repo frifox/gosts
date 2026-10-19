@@ -483,6 +483,8 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-obj .kd { color: var(--muted); font-size: 11px; }
 .cv-obj .rm { width: 20px; height: 20px; padding: 0; margin-left: -2px; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; border-radius: 4px; color: var(--muted); font-size: 11px; cursor: pointer; visibility: hidden; }
 .cv-obj:hover .rm { visibility: visible; }
+.cv-obj .rm svg { width: 13px; height: 13px; }
+.cv-obj .rm.dup:hover { color: var(--text); }
 .cv-obj.missing .nm { color: var(--warn, #ffb020); }
 .cv-obj.missing .nm::before { content: "⚠ "; }
 .cv-obj .relink { padding: 1px 7px; font-size: 11px; }
@@ -4048,13 +4050,15 @@ function cvShow() {
     row.className = "cv-obj" + (o === s ? " on" : "") + (o.visible ? "" : " hid") + (o.missing ? " missing" : "");
     row.innerHTML = `<button class="eye" title="${o.visible ? "Hide it (left out of Export)" : "Show it"}">${o.visible ? eyeOn : eyeOff}</button><span class="nm"></span>` +
       (o.missing ? `<button class="btn small relink" title="Not found (renamed, moved or deleted since): pick the model it is now">Re-link</button>` : `<span class="kd">${o.kind}</span>`) +
-      `<button class="rm" title="Take it out of the space" aria-label="Remove">✕</button>`;
+      (o.kind === "fill" ? "" : `<button class="rm dup" title="Duplicate it (beside it, 20 mm along X)" aria-label="Duplicate"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg></button>`) +
+      `<button class="rm del" title="Delete it (an undo brings it back)" aria-label="Delete">${trashIcon}</button>`;
     row.querySelector(".nm").textContent = o.name;
     row.querySelector(".nm").title = o.missing ? `${o.name}: missing (a box its size in its place)` : o.name;
     row.onclick = (e) => {
       if (e.target.closest(".eye")) cv.setVisible(o, !o.visible);
       else if (e.target.closest(".relink")) cvRelink(o);
-      else if (e.target.closest(".rm")) cv.remove(o); // (an undo brings it back)
+      else if (e.target.closest(".dup")) cv.duplicate(o);
+      else if (e.target.closest(".del")) cv.remove(o); // (an undo brings it back)
       else cv.select(o === cv.selected() ? null : o); // (the selected one again: none)
     };
     list.appendChild(row);

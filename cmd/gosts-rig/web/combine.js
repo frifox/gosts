@@ -574,6 +574,36 @@ export function createCombine(canvas) {
     record(`${on ? "Show" : "Hide"} ${o.name}`, () => shown(o, !on), () => shown(o, on));
     changed();
   };
+  // duplicate: a copy of o (a model or a shape; not a fill), beside it (20 mm
+  // along X), turned as it is, named "… copy"; selected; one step.
+  api.duplicate = (o) => {
+    if (o.kind === "fill") return null;
+    const names = new Set(objects.map((x) => x.name));
+    let name = `${o.name} copy`;
+    for (let i = 2; names.has(name); i++) name = `${o.name} copy ${i}`;
+    let inner;
+    if (o.kind === "model") {
+      inner = o.inner.clone(true); // (its meshes' geometry shared; their look as built, not as shown now)
+      const src = [], dst = [];
+      o.inner.traverse((m) => m.isMesh && src.push(m));
+      inner.traverse((m) => m.isMesh && dst.push(m));
+      dst.forEach((m, i) => { m.material = originals.get(src[i]) || src[i].material; });
+      inner.position.set(0, 0, 0);
+    } else {
+      inner = new THREE.Group();
+      inner.add(new THREE.Mesh(shapeGeo(o.kind, o.size), SHAPE_MAT()));
+    }
+    const extra = { ...(o.size ? { size: { ...o.size } } : {}), ...(o.ref ? { ref: { ...o.ref } } : {}), ...(o.missing ? { missing: true } : {}) };
+    const c = add(o.kind, name, inner, extra); // (its step: Add …)
+    c.pos = { ...o.pos, x: o.pos.x + 20 };
+    c.rot = { ...o.rot };
+    if (o.dims) c.dims = [...o.dims];
+    c.visible = o.visible;
+    c.holder.visible = o.visible;
+    place(c);
+    changed();
+    return c;
+  };
   // remove: o out of the space (kept: an undo brings it back).
   api.remove = (o) => {
     const i = detach(o);
