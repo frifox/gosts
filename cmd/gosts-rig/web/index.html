@@ -1952,7 +1952,7 @@ function workTile(w) {
   b.querySelector(".edit").onclick = () => renameFolder(w.name, "Rename Combine 3D Work", `The work file's new name, in ${w.folder ? escHTML(w.folder) : `<span class="photo-dir">${escHTML(document.querySelector(".photo-dir")?.textContent || "~/Pictures/gosts-rig")}</span>`}`,
     workURL(w.path, "/rename"), (to) => {
       log(`${w.name} renamed to ${to}`);
-      if (cvs.work === w.path) { cvs.work = w.folder ? `${w.folder}/${to}` : to; $("cvSaveName").value = to; } // (the one open: saved under its new name from now on)
+      if (cvs.work === w.path) { cvs.work = w.folder ? `${w.folder}/${to}` : to; $("cvSaveName").value = to; if (cvs.saved?.path === w.path) cvs.saved.path = cvs.work; } // (the one open: saved under its new name from now on)
       galleryAgain();
     });
   b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) cvOpenWork(w.path); };
@@ -3168,6 +3168,9 @@ const galParent = (p) => (p && p.includes("/") ? p.slice(0, p.lastIndexOf("/")) 
 function galFolderMoved(from, to) {
   const w = state.gal.where;
   if (w && w !== "current" && (w === from || w.startsWith(from + "/"))) state.gal.where = to + w.slice(from.length);
+  const at = (p) => (p?.startsWith(from + "/") ? to + p.slice(from.length) : p); // (the work open, in it: saved where it is now)
+  cvs.work = at(cvs.work);
+  if (cvs.saved) cvs.saved.path = at(cvs.saved.path);
   if (!$("gallery").hidden) galleryAgain();
 }
 // moveTo: Move to…: a folder ({folder, title}) or a work file ({work,
@@ -3212,7 +3215,7 @@ async function moveTo(what) {
         const { path } = await r.json();
         m.hidden = true;
         log(`${what.title} moved to ${to || "the root"}`);
-        if (cvs.work === what.work) cvs.work = path; // (the one open: saved there from now on)
+        if (cvs.work === what.work) { cvs.work = path; if (cvs.saved?.path === what.work) cvs.saved.path = path; } // (the one open: saved there from now on)
         if (!$("gallery").hidden) galleryAgain();
       }
     } catch (e) { err.textContent = e.message; }
@@ -4013,6 +4016,7 @@ $("cvPickNew").onclick = async () => {
   if (cv.objects().length && !await confirmDanger("Start new?", "What's in Combine 3D now is put away (Save it first to keep it).", "Create New")) return;
   cv.clear();
   cvs.work = null;
+  cvs.saved = null;
   $("cvSaveName").value = "insert";
   cvStatus("");
 };
@@ -4099,7 +4103,9 @@ function cvShow() {
   $("cvCutsSec").hidden = !isFill;
   if (isFill) cvCutList(s);
   $("cvExport").disabled = busy || !objs.some((o) => o.visible);
-  $("cvSave").disabled = busy || !objs.length;
+  const same = !cvUnsaved();
+  $("cvSave").disabled = busy || !objs.length || same;
+  $("cvSave").title = same ? "Saved: nothing changed since" : "Keep this work as a file (Name.combine.json) in the captures' folder: Browse opens it again";
   const un = cv.undoName(), re = cv.redoName();
   $("cvUndo").disabled = busy || !un; $("cvUndo").title = un ? `Undo ${un} (⌘Z)` : "Undo (⌘Z)";
   $("cvRedo").disabled = busy || !re; $("cvRedo").title = re ? `Redo ${re} (⇧⌘Z)` : "Redo (⇧⌘Z)";
@@ -4431,7 +4437,7 @@ $("cvExport").onclick = async () => {
 // shapes as they were, models found again by capture and model name (one
 // not found: missing, a box its size in its place, till Re-link), fills set
 // as they were and made again, their cuts.
-function cvWork() {
+function cvWork(thumb = true) {
   const objs = cvs.cv.objects().map((o) => {
     const s = { id: o.id, kind: o.kind, name: o.name, visible: o.visible, pos: o.pos, rot: o.rot };
     if (o.size) s.size = o.size;
@@ -4443,14 +4449,26 @@ function cvWork() {
     }
     return s;
   });
-  return { version: 1, app: "gosts-rig combine", objects: objs, thumb: cvs.cv.picture() };
+  return { version: 1, app: "gosts-rig combine", objects: objs, thumb: thumb ? cvs.cv.picture() : "" };
 }
+// cvSavePath: where Save puts it (the folder it was opened from, or the
+// captures' folder; Model Name). cvUnsaved: Save would write something other
+// than the file it was opened from or last saved as (cvs.saved: its path
+// and objects then).
+function cvSavePath() {
+  const name = $("cvSaveName").value.trim(), dir = cvs.work?.includes("/") ? cvs.work.slice(0, cvs.work.lastIndexOf("/")) : "";
+  return { name, dir, path: dir ? `${dir}/${name}` : name };
+}
+const cvSig = () => JSON.stringify(cvWork(false).objects);
+function cvUnsaved() {
+  return !cvs.saved || !cvs.work || cvs.saved.path !== cvs.work || cvSavePath().path !== cvs.work || cvs.saved.sig !== cvSig();
+}
+function cvMarkSaved() { cvs.saved = cvs.work ? { path: cvs.work, sig: cvSig() } : null; }
+$("cvSaveName").addEventListener("input", () => { if (cvs.cv) cvShow(); });
 $("cvSave").onclick = async () => {
-  const name = $("cvSaveName").value.trim();
+  const { name, dir, path } = cvSavePath();
   if (!name) return cvStatus("A name first", "bad");
-  if (cvs.cv.recutting()) return;
-  // (where it was opened from: its folder; a new one: the captures' folder)
-  const dir = cvs.work?.includes("/") ? cvs.work.slice(0, cvs.work.indexOf("/")) : "", path = dir ? `${dir}/${name}` : name;
+  if (cvs.cv.recutting() || !cvUnsaved()) return;
   let replace = false;
   try { replace = cvs.work !== path && (await getJSON(`/combine/works?folder=${encodeURIComponent(dir)}`)).some((w) => w.path === path); } catch {}
   if (replace && !await confirmDanger(`Replace ${name}?`, `A work file named ${name} is there already${dir ? ` (in ${dir})` : ""}: it goes to the Trash, and this one takes its place.`, "Replace")) return;
@@ -4459,6 +4477,7 @@ $("cvSave").onclick = async () => {
     const r = await fetch(workURL(path) + (replace ? "&trash=1" : ""), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cvWork()) });
     if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
     cvs.work = path;
+    cvMarkSaved();
     cvStatus("Saved", "ok", true);
     if (!$("gallery").hidden && (state.gal.where === null || state.gal.where === dir)) galleryAgain();
   } catch (e) { cvStatus(e.message, "bad"); }
@@ -4560,6 +4579,7 @@ async function cvOpenWork(path) {
   await new Promise((r) => setTimeout(r, 300));
   while (cv.recutting()) await new Promise((r) => setTimeout(r, 100)); // (its cuts, as they're made in the background: done first)
   cv.clearHistory(); // (opened: nothing to undo)
+  cvMarkSaved(); // (as the file is: Save's off till something changes)
   cvStep(fin, "done");
   cvs.busy = false; cvShow();
   clearTimeout(cvs.loadHide);
