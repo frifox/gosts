@@ -144,38 +144,14 @@ func listFolder(rel string) ([]batchInfo, error) {
 		if rel != "" {
 			p = rel + "/" + n
 		}
-		if bi := folderInfo(p, current); shown(bi) {
-			out = append(out, bi)
-		}
+		out = append(out, folderInfo(p, current)) // (empty ones too: there to delete, or fill)
 	}
 	slices.SortFunc(out, func(a, b batchInfo) int { return strings.Compare(b.Title, a.Title) })
 	return out, nil
 }
 
-// kidShown: folder p would be listed (see shown), told at a glance: no
-// counting down through the folders in it.
-func kidShown(p, current string) bool {
-	dir := filepath.Join(photoDir, filepath.FromSlash(p))
-	if p == current || fileExists(filepath.Join(dir, folderMark)) || len(folderKids(p)) > 0 || len(worksIn(p)) > 0 {
-		return true
-	}
-	if ps, _ := batchPhotos(dir); len(ps) > 0 {
-		return true
-	}
-	ms, _ := batchModels(dir)
-	return len(ms) > 0
-}
-
-// folderMark marks a folder made in Browse (New Folder): listed even empty.
-// (Other empty ones aren't: a capture started and left, say.)
+// folderMark marks a folder made in Browse (New Folder).
 const folderMark = ".gosts-folder"
-
-// shown: folder bi is listed: something in it, the current capture, or
-// one made to keep others in.
-func shown(bi batchInfo) bool {
-	return bi.Count > 0 || bi.Models > 0 || bi.Works > 0 || bi.Folders > 0 || bi.Current ||
-		fileExists(filepath.Join(photoDir, filepath.FromSlash(bi.Name), folderMark))
-}
 
 // folderInfo: folder p, as Browse shows it (current: the current capture's
 // path).
@@ -187,12 +163,7 @@ func folderInfo(p, current string) batchInfo {
 	if len(ps) > 0 {
 		mid = ps[(len(ps)-1)/2].File
 	}
-	folders := 0
-	for _, k := range folderKids(p) {
-		if kidShown(p+"/"+k, current) {
-			folders++
-		}
-	}
+	folders := len(folderKids(p))
 	bi := batchInfo{Name: p, Title: filepath.Base(dir), Count: len(ps), Models: len(ms), Works: len(worksIn(p)), Folders: folders, Mid: mid, Current: p == current}
 	if s, err := readCaptureState(dir); err == nil && s.resumable() {
 		bi.Interrupted, bi.Taken, bi.Planned = true, s.taken(), len(s.Shots)
@@ -213,9 +184,7 @@ func allFolders() []batchInfo {
 			if rel != "" {
 				p = rel + "/" + n
 			}
-			if bi := folderInfo(p, current); shown(bi) {
-				out = append(out, bi)
-			}
+			out = append(out, folderInfo(p, current))
 			walk(p)
 		}
 	}

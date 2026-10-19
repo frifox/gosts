@@ -29,13 +29,9 @@ func TestListBatches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(bs) != 2 || bs[0].Name != "2026-01-02 10.00.00" || bs[1].Count != 3 || bs[1].Mid != "DSC2.JPG" {
+	// (an empty folder too: listed, to delete or fill)
+	if len(bs) != 3 || bs[0].Name != "empty" || bs[1].Name != "2026-01-02 10.00.00" || bs[2].Count != 3 || bs[2].Mid != "DSC2.JPG" {
 		t.Fatalf("batches %+v", bs)
-	}
-	// An empty folder made to keep others in (New Folder: its mark): listed.
-	os.WriteFile(filepath.Join(photoDir, "empty", folderMark), nil, 0o644)
-	if bs, _ := listFolder(""); len(bs) != 3 {
-		t.Errorf("with the empty folder made in Browse: %+v", bs)
 	}
 	for _, n := range []string{"..", "../x", ".hidden", "a/b", ""} {
 		if cleanName(n) {
@@ -217,8 +213,8 @@ func TestListBatchesModelOnly(t *testing.T) {
 			t.Errorf("carry case: %+v, want 0 photos, 1 model", b)
 		}
 	}
-	if !slices.Contains(names, "carry case") || slices.Contains(names, "empty") {
-		t.Errorf("listed %q, want carry case, not empty", names)
+	if !slices.Contains(names, "carry case") || !slices.Contains(names, "empty") {
+		t.Errorf("listed %q, want carry case, and empty (to delete)", names)
 	}
 }
 

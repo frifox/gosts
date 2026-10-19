@@ -153,10 +153,11 @@ func (c *capture) pictured(n int, p photo) {
 	}
 }
 
-// adopt makes the capture in folder name (an interrupted one: see
-// resumable) the current one: its photos to come go into its folder, its
-// plan is the plan again, and its shots are the capture's, the ones taken
-// marked (Before), Resume taking the rest.
+// adopt makes the capture in folder name the current one: its photos to
+// come go into its folder. An interrupted one (see resumable): its plan is
+// the plan again, and its shots are the capture's, the ones taken marked
+// (Before), Resume taking the rest. Any other (done, or photos with no
+// capture.json): added to (see addTo).
 func (a *app) adopt(name string) error {
 	if !cleanPath(name) {
 		return errors.New("no such capture")
@@ -165,15 +166,15 @@ func (a *app) adopt(name string) error {
 		return errors.New(why)
 	}
 	dir := filepath.Join(photoDir, name)
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return errors.New("no such capture")
+	}
 	s, err := readCaptureState(dir)
-	if errors.Is(err, os.ErrNotExist) {
-		return errors.New("that capture has nothing to resume (no capture.json)")
+	if errors.Is(err, os.ErrNotExist) || err == nil && !s.resumable() {
+		return a.addTo(name, dir)
 	}
 	if err != nil {
 		return err
-	}
-	if !s.resumable() {
-		return errors.New("that capture is complete")
 	}
 	for i, sh := range s.Shots { // (a photo deleted since: its shot's not taken, to be taken again)
 		if sh.File != "" && !fileExists(filepath.Join(dir, sh.File)) {
@@ -204,6 +205,59 @@ func (a *app) adopt(name string) error {
 	a.rig.sendState() // (the plan: back)
 	c.send()
 	return nil
+}
+
+// addTo makes folder dir (name: its path) the current capture, to add
+// photos to: its photos on the timeline, the ones to come going into it; a
+// capture there keeps the shots taken before (see priorShots), its own
+// numbered on from them. The plan: as it is.
+func (a *app) addTo(name, dir string) error {
+	ps, err := batchPhotos(dir)
+	if err != nil {
+		return err
+	}
+	files := make([]string, len(ps))
+	for i, p := range ps {
+		files[i] = p.File
+	}
+	prior, _ := priorShots(dir)
+	c := a.cap
+	a.camera.resumeIn(dir, files)
+	c.mu.Lock()
+	c.shots, c.index, c.folder, c.complete, c.resumable = prior, len(prior), dir, len(prior) > 0, false
+	c.photoShot = map[int]int{}
+	c.note = fmt.Sprintf("Adding to %s (%d photos in it): a capture's photos go in with them, numbered on.", filepath.Base(dir), len(files))
+	c.mu.Unlock()
+	c.rig.logf("info", "capture: %s opened to add photos to (%d in it)", name, len(files))
+	c.send()
+	return nil
+}
+
+// priorShots: the shots taken before in folder dir (capture.json's, their
+// photo still there), marked so (Done, Before), and the highest capt_
+// number there (a capture's own numbered on from it: none overwritten).
+func priorShots(dir string) ([]shot, int) {
+	top := 0
+	var out []shot
+	if s, err := readCaptureState(dir); err == nil {
+		for _, sh := range s.Shots {
+			if sh.File == "" || !fileExists(filepath.Join(dir, sh.File)) {
+				continue
+			}
+			sh.Done, sh.Before = true, true
+			out = append(out, sh)
+			top = max(top, sh.Num)
+		}
+	}
+	if ents, err := os.ReadDir(dir); err == nil {
+		for _, e := range ents {
+			n := strings.ToLower(e.Name())
+			if v, err := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(n, "capt_"), filepath.Ext(n))); err == nil && strings.HasPrefix(n, "capt_") {
+				top = max(top, v)
+			}
+		}
+	}
+	return out, top
 }
 
 // fileStem is the name (no extension) photo n's files get if it's one of

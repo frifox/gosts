@@ -69,7 +69,9 @@ time left. **Take Photo** takes a single one.
 
 Photos show up in the **Photos** card as they arrive, and are saved in `~/Pictures/gosts-rig/`, one folder per
 capture. **New Capture** starts a fresh folder; **Browse** (in the header) opens past captures to view, rename or delete them
-(deleting moves files to the Trash).
+(deleting moves files to the Trash; empty folders are listed too, to delete). **Add Photos** (on a capture's tile, on
+hover) makes it the current capture again, to take more photos into: a capture's photos are numbered on from the
+ones there (none overwritten), its alignment data covering them all. New Capture leaves no empty folder behind.
 
 To keep them in order, **New Folder** (in Browse) makes a folder, at any depth, and **Move to…** (on a folder's, a model's or
 a Combine 3D work file's tile, on hover) puts one into another, or back in the root (a model: into a folder). A folder shows its folders

@@ -344,7 +344,7 @@ func (a *app) exec(req request) (any, error) {
 		folder := a.camera.reset(true)
 		a.cap.forget() // (an interrupted one: left as it is, in its folder)
 		return map[string]string{"folder": folder}, nil
-	case "openCapture": // Browse: an interrupted capture opened, to resume
+	case "openCapture": // Browse: a capture opened (an interrupted one: to resume; else to add photos to)
 		return nil, a.adopt(req.Folder)
 	case "cameraDisconnect":
 		a.cap.stop()

@@ -490,10 +490,13 @@ func (c *capture) begin(p Plan) error {
 		cancel()
 		return errors.New("a capture is already running")
 	}
+	// (a folder with a capture's photos in it already: kept, taken before;
+	// this one's numbered on from them)
+	prior, top := priorShots(batchFolder())
 	for i := range shots {
-		shots[i].Num = i + 1 // (its place in the plan: its photo's name, see fileStem)
+		shots[i].Num = top + i + 1 // (its place in the plan: its photo's name, see fileStem)
 	}
-	c.shots, c.index, c.running, c.paused, c.cancel = shots, 0, true, false, cancel
+	c.shots, c.index, c.running, c.paused, c.cancel = append(prior, shots...), len(prior), true, false, cancel
 	c.pausedAt, c.pausedTotal = time.Time{}, 0
 	c.rows, c.spacing = rows, spacing
 	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
@@ -509,6 +512,9 @@ func (c *capture) begin(p Plan) error {
 		how = fmt.Sprintf("on a %d-turn spiral, Continuous", rows)
 	}
 	c.rig.logf("info", "capture started: %d photos about %.0f° apart, %s", len(shots), spacing, how)
+	if len(prior) > 0 || top > 0 {
+		c.rig.logf("info", "capture: adding to the %d photos in its folder already (numbered on from capt_%03d)", len(prior), top)
+	}
 	if at, err := c.rig.platformTurns(); err == nil {
 		c.rig.logf("info", "capture: the platform is %.2f turns round (its servo reaches ±7.5)", at)
 	}

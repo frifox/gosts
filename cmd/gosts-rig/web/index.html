@@ -1916,13 +1916,14 @@ function folderTile(name, count, img, current, open, rename, info) {
   b.innerHTML = `<div class="fold">${img ? `<img alt="" loading="lazy" decoding="async" src="${img}">` : `<div class="empty">${info?.models ? "3D model" : info?.works ? "Combine 3D" : info?.folders ? "Folder" : current ? "No photos yet" : "Empty"}</div>`}</div><div class="info"><b>${escHTML(title)}</b>` +
     (current ? '<span class="badge">Current</span>' : "") +
     (info?.interrupted ? `<span class="badge interrupted" title="Stopped short: ${info.taken} of ${info.planned} photos taken. Open it to resume.">Interrupted ${info.taken}/${info.planned}</span>` : "") + `<span class="count" title="${[info?.folders && `${info.folders} folder${info.folders === 1 ? "" : "s"}`, count && `${count} photo${count === 1 ? "" : "s"}`, info?.models && `${info.models} model${info.models === 1 ? "" : "s"}`, info?.works && `${info.works} Combine 3D work file${info.works === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}">${[info?.folders && `${info.folders} folder${info.folders === 1 ? "" : "s"}`, (count || (current && !(info?.models || info?.works || info?.folders))) && `${count} photo${count === 1 ? "" : "s"}`, !count && !current && !(info?.models || info?.works || info?.folders) && "empty", info?.models && `${info.models} model${info.models === 1 ? "" : "s"}`, info?.works && `${info.works} 3D work${info.works === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</span></div>` +
-    (info?.interrupted && !current ? `<button class="btn small primary resume" title="${info.taken} of ${info.planned} photos taken: make this the current capture, its plan back, to take the rest (Resume in the Camera card)">Resume</button>` : "") +
+    (info?.interrupted && !current ? `<button class="btn small primary resume" title="${info.taken} of ${info.planned} photos taken: make this the current capture, its plan back, to take the rest (Resume in the Camera card)">Resume</button>` :
+      rename && !current && (count || !(info?.folders || info?.models || info?.works)) ? `<button class="btn small primary resume add" title="Make this the current capture: the photos to come (a capture, Take Photo) go into it, with the ${count} there, numbered on (none overwritten)">Add Photos</button>` : "") +
     (rename ? `<button class="mvto" title="Move ${escHTML(title)} to another folder" aria-label="Move to…">${moveIcon}</button>` +
       `<button class="edit" title="Rename ${escHTML(title)}" aria-label="Rename">${pencilIcon}</button>` +
       `<button class="del" title="Delete ${escHTML(title)} (to the Trash; asks first)" aria-label="Delete">${trashIcon}</button>` : "");
   b.onclick = (e) => { if (!e.target.closest(".edit, .del, .resume, .mvto")) open(); };
   const r = b.querySelector(".resume");
-  if (r) r.onclick = () => { if (!state.cap?.running) resumeCapture(info); else log("A capture is running: resume after it.", "error"); };
+  if (r) r.onclick = () => { if (state.cap?.running) log("A capture is running: wait for it first.", "error"); else if (r.classList.contains("add")) addToCapture(name, title, count); else resumeCapture(info); };
   b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) open(); };
   if (rename) {
     b.querySelector(".edit").onclick = () => renameCapture(name);
@@ -1990,6 +1991,16 @@ async function resumeCapture(b) {
   } catch (e) { log(`${b.name}: ${e.message}`, "error"); }
 }
 
+// addToCapture: a capture done (or a folder of photos) made the current one,
+// to take more photos into (see adopt: numbered on from its own).
+async function addToCapture(name, title, count) {
+  if (state.photos.length && !await confirmDanger(`Add photos to ${title}?`,
+    `It's the current capture then (${count} photo${count === 1 ? "" : "s"} in it): the photos to come go in with them. The ${state.photos.length} photos of the capture now stay saved (Browse has them).`, "Add Photos")) return;
+  try {
+    await send("openCapture", { folder: name });
+    closeGallery();
+  } catch (e) { log(`${title}: ${e.message}`, "error"); }
+}
 // postBatch posts to a batch's address (rename, delete), the error its text.
 async function postBatch(path, body) {
   const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });

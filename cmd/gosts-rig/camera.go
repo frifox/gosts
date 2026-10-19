@@ -211,6 +211,21 @@ func startBatch(make bool) {
 	}
 }
 
+// startNamed: a folder named as a new batch is (its start time, "… 2" and
+// on: see freeBatchDir).
+func startNamed(n string) bool {
+	if _, err := time.Parse(batchName, n); err == nil {
+		return true
+	}
+	i := strings.LastIndexByte(n, ' ')
+	if i < 0 {
+		return false
+	}
+	_, err1 := strconv.Atoi(n[i+1:])
+	_, err2 := time.Parse(batchName, n[:i])
+	return err1 == nil && err2 == nil
+}
+
 // freeBatchDir is a new batch's folder: named after now, "… 2" and on if
 // that's taken (two in a second).
 func freeBatchDir() string {
@@ -1181,6 +1196,12 @@ func (c *cameraConn) reset(make bool) string {
 	c.gen++
 	c.mu.Unlock()
 	discard(gone)
+	batch.Lock()
+	was := batch.dir
+	batch.Unlock()
+	if was != "" && startNamed(filepath.Base(was)) {
+		os.Remove(was) // (the capture before, one named for its start, left empty: not kept, an orphan in Browse; one with anything in it stays)
+	}
 	startBatch(make)
 	c.out(c.timeline())
 	c.out(c.batchStatus())

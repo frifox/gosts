@@ -204,16 +204,24 @@ func TestCamerasNowBusy(t *testing.T) {
 
 // TestNewCapture: New Capture makes the new folder at once, empty (the
 // next photos go there; sample shots don't: see sampleFolder), shown in
-// Browse though empty; two in a second get different ones.
+// Browse though empty; the one before, left empty: gone (no orphan), one
+// with a photo in it: kept, the new one another.
 func TestNewCapture(t *testing.T) {
 	old := photoDir
 	photoDir = t.TempDir()
 	defer func() { photoDir = old; newBatch() }()
 	c := &cameraConn{out: func(any) {}}
 	first := c.reset(true)
+	os.WriteFile(filepath.Join(photoDir, first, "a.jpg"), []byte("x"), 0o644)
+	second := c.reset(true)
+	if second == "" || second == first {
+		t.Fatalf("folders %q, %q: want two", first, second)
+	}
+	os.Remove(filepath.Join(photoDir, first, "a.jpg"))
+	os.Remove(filepath.Join(photoDir, first))
 	f := c.reset(true)
-	if f == "" || f == first {
-		t.Fatalf("folders %q, %q: want two", first, f)
+	if f == "" || fileExists(filepath.Join(photoDir, second)) && f != second {
+		t.Fatalf("New Capture again: %q, the empty one before (%q) still there", f, second)
 	}
 	if bs, _ := listFolder(""); len(bs) != 1 || bs[0].Name != f || !bs[0].Current || bs[0].Count != 0 {
 		t.Errorf("Browse: %+v, want the new one (empty, current) alone", bs)
