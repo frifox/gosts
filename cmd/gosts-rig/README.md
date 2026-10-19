@@ -68,7 +68,7 @@ Pick how many photos you want in the **Camera** card, and how:
 time left. **Take Photo** takes a single one.
 
 Photos show up in the **Photos** card as they arrive, and are saved in `~/Pictures/gosts-rig/`, one folder per
-capture. **New Capture** starts a fresh folder; **Browse** opens past captures to view, rename or delete them
+capture. **New Capture** starts a fresh folder; **Browse** (in the header) opens past captures to view, rename or delete them
 (deleting moves files to the Trash).
 
 To keep them in order, **New Folder** (in Browse) makes a folder, at any depth, and **Move to…** (on a folder's, a model's or
