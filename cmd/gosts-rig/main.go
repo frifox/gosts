@@ -149,8 +149,8 @@ func run() bool {
 	}
 	// Unless the command line says what to connect: the board and the camera
 	// used last, if they're here; else the only one there is (see
-	// startupDevice). The rig: else the first likely adapter there is; with
-	// none (or it won't connect), the simulated rig, so it's ready to try.
+	// startupDevice); else the first there is (the rig: a likely adapter);
+	// with none (or it won't connect), the simulator, so it's ready to try.
 	go func() {
 		p, chosen := *port, *port != ""
 		if !chosen {
@@ -181,8 +181,10 @@ func run() bool {
 		}
 	}()
 	go func() {
-		cam := *camera
-		if cam == "" {
+		// The camera as the rig: the one used last, else the first there
+		// is; with none (or it won't connect), the simulated camera.
+		cam, chosen := *camera, *camera != ""
+		if !chosen {
 			var real []string
 			for _, ci := range listCameras() {
 				if ci.ID != simCameraID {
@@ -190,12 +192,22 @@ func run() bool {
 				}
 			}
 			cam = startupDevice(c.Camera, real)
-		}
-		if cam == "" {
-			return
+			if cam == "" && len(real) > 0 {
+				cam = real[0]
+			}
+			if cam == "" {
+				cam = simCameraID
+			}
 		}
 		if err := a.camera.connect(cam); err != nil {
 			log.Printf("camera %s: %v", cam, err)
+			if chosen || cam == simCameraID {
+				return
+			}
+			log.Printf("camera: the simulated camera instead")
+			if err := a.camera.connect(simCameraID); err != nil {
+				log.Printf("camera %s: %v", simCameraID, err)
+			}
 		}
 	}()
 	cleanStaleSamples()   // (sample shots a run that's gone left)
