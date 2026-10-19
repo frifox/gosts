@@ -753,6 +753,22 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
   background: rgba(15,18,24,.72); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer;
   opacity: 0; transition: opacity .12s; }
 .thumb:hover .edit, .thumb:focus-within .edit { opacity: 1; }
+/* Move to… (on hover): beside the pencil. */
+.thumb .mvto { position: absolute; top: 6px; right: 70px; width: 26px; height: 26px; border-radius: 7px; border: 1px solid rgba(255,255,255,.25);
+  background: rgba(15,18,24,.72); color: #fff; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer;
+  opacity: 0; transition: opacity .12s; }
+.thumb .mvto svg { width: 14px; height: 14px; }
+.thumb:hover .mvto, .thumb:focus-within .mvto { opacity: 1; }
+.thumb .mvto:hover { background: var(--accent); border-color: var(--accent); }
+.folder .mvto { top: 19px; }
+.gallery-grid.list .thumb .mvto { position: static; flex: none; margin-right: 4px; }
+/* Move to…'s folders: a tree, indented by depth. */
+.move-list { display: flex; flex-direction: column; gap: 2px; max-height: 60vh; overflow-y: auto; }
+.move-list button { display: flex; align-items: center; gap: 7px; text-align: left; padding: 6px 8px; border: 0; border-radius: 6px; background: none; color: var(--text); font-size: 13px; cursor: pointer; }
+.move-list button:hover:not(:disabled) { background: var(--panel-2); }
+.move-list button:disabled { color: var(--muted); cursor: default; }
+.move-list button svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
+#galleryNewFolder svg { width: 14px; height: 14px; vertical-align: -2px; }
 /* An interrupted capture's Resume (its tile, on hover): over the folder's picture. */
 .thumb .resume { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); opacity: 0; transition: opacity .12s; z-index: 1; }
 .thumb:hover .resume, .thumb:focus-within .resume { opacity: 1; }
@@ -1193,6 +1209,7 @@ kbd + kbd { margin-left: 3px; }
   <div class="gallery-bar"><nav class="crumbs"><span class="btn-join"><button class="btn small crumb-home" id="galleryUp" data-tip="~/Pictures/gosts-rig" aria-label="All captures (Backspace)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>root</button><button class="btn small crumb-btn crumb-cur" id="galleryTitle" tabindex="-1" hidden></button></span></nav><button class="icon-btn pen-btn" id="galleryRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button><span class="spacer"></span>
     <button class="btn small primary" id="resumeCapBtn" hidden>Resume</button>
     <button class="btn small" id="buildModelBtn" title="Build a 3D model from these photos, with Apple's Object Capture" hidden>Build Model</button><span class="spacer"></span>
+    <button class="btn small" id="galleryNewFolder" title="A folder here, to keep captures and other folders in (Move to… on a tile puts one in it)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/><path d="M8 7.5v4M6 9.5h4"/></svg> New Folder</button>
     <span class="views seg" id="galleryViewSeg"><button data-v="grid">Thumbnails</button><button data-v="list">List</button></span>
     <button class="icon-btn" id="galleryClose" title="Close (Esc)" aria-label="Close">✕</button></div>
   <!-- Build Model: Object Capture's options (apple-obj-cap's), Process, and how the build goes; the photos marked below. -->
@@ -1346,6 +1363,12 @@ kbd + kbd { margin-left: 3px; }
     </div>
     </div>
     <div class="mv-corner mv-corner-r"><div class="mv-measure" id="mvMeasure" hidden><span id="mvMeasureText"></span><button class="mvm-close" id="mvMeasureClose" title="Close Measure" aria-label="Close Measure">✕</button></div><span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, gray">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span></div></div>
+</div>
+<div class="modal-backdrop" id="moveModal" style="z-index:60" hidden>
+  <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="moveTitle" style="width:min(460px,100%)">
+    <h2><span id="moveTitle">Move to…</span><span class="spacer"></span><button class="icon-btn" id="moveClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
+    <div class="card-body"><div class="move-list" id="moveList"></div><div class="err" id="moveErr" style="margin-top:6px"></div></div>
+  </div>
 </div>
 <div class="modal-backdrop" id="renameModal" style="z-index:60" hidden>
   <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="renameTitle" style="width:min(420px,100%)">
@@ -1842,9 +1865,27 @@ async function getJSON(url) {
   if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
   return r.json();
 }
+// galleryCrumbs: the path to where (root, each folder it's in, it): each
+// folder before it a button, back to it.
+function galleryCrumbs(where) {
+  for (const b of document.querySelectorAll("#galleryUp ~ .crumb-anc")) b.remove();
+  $("galleryTitle").textContent = where ? where.slice(where.lastIndexOf("/") + 1) : "";
+  $("galleryTitle").title = where || "";
+  if (!where) return;
+  const parts = where.split("/");
+  for (let i = 0; i < parts.length - 1; i++) {
+    const p = parts.slice(0, i + 1).join("/"), b = document.createElement("button");
+    b.className = "btn small crumb-btn crumb-anc";
+    b.textContent = parts[i];
+    b.title = `Back to ${p}`;
+    b.onclick = () => galleryGo(p);
+    $("galleryTitle").before(b);
+  }
+}
 function galleryTitle() {
   if (state.gal.where === "current") $("galleryTitle").textContent = galleryFolder() || "Current Batch";
 }
+const moveIcon = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/><path d="M6 9.5h4.5M8.8 7.8l1.7 1.7-1.7 1.7"/></svg>';
 const pencilIcon = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5l2.5 2.5L5.5 13H3v-2.5z"/><path d="M9.5 4l2.5 2.5"/></svg>';
 $("batchRename").innerHTML = $("galleryRename").innerHTML = $("mvRename").innerHTML = pencilIcon;
 $("mvRename").onclick = () => { if (state.mv) renameModel(state.mv.name, state.mv.m); };
@@ -1859,20 +1900,23 @@ function folderTile(name, count, img, current, open, rename, info) {
   b.className = "thumb folder";
   b.tabIndex = 0;
   b.setAttribute("role", "button");
+  const title = info?.title || name;
   b.title = `Open ${name}`;
-  b.innerHTML = `<div class="fold">${img ? `<img alt="" loading="lazy" decoding="async" src="${img}">` : `<div class="empty">${info?.models ? "3D model" : info?.works ? "Combine 3D" : "No photos yet"}</div>`}</div><div class="info"><b>${escHTML(name)}</b>` +
+  b.innerHTML = `<div class="fold">${img ? `<img alt="" loading="lazy" decoding="async" src="${img}">` : `<div class="empty">${info?.models ? "3D model" : info?.works ? "Combine 3D" : info?.folders ? "Folder" : current ? "No photos yet" : "Empty"}</div>`}</div><div class="info"><b>${escHTML(title)}</b>` +
     (current ? '<span class="badge">Current</span>' : "") +
-    (info?.interrupted ? `<span class="badge interrupted" title="Stopped short: ${info.taken} of ${info.planned} photos taken. Open it to resume.">Interrupted ${info.taken}/${info.planned}</span>` : "") + `<span class="count" title="${[count && `${count} photo${count === 1 ? "" : "s"}`, info?.models && `${info.models} model${info.models === 1 ? "" : "s"}`, info?.works && `${info.works} Combine 3D work file${info.works === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}">${[(count || !(info?.models || info?.works)) && `${count} photo${count === 1 ? "" : "s"}`, info?.models && `${info.models} model${info.models === 1 ? "" : "s"}`, info?.works && `${info.works} 3D work${info.works === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</span></div>` +
+    (info?.interrupted ? `<span class="badge interrupted" title="Stopped short: ${info.taken} of ${info.planned} photos taken. Open it to resume.">Interrupted ${info.taken}/${info.planned}</span>` : "") + `<span class="count" title="${[info?.folders && `${info.folders} folder${info.folders === 1 ? "" : "s"}`, count && `${count} photo${count === 1 ? "" : "s"}`, info?.models && `${info.models} model${info.models === 1 ? "" : "s"}`, info?.works && `${info.works} Combine 3D work file${info.works === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}">${[info?.folders && `${info.folders} folder${info.folders === 1 ? "" : "s"}`, (count || (current && !(info?.models || info?.works || info?.folders))) && `${count} photo${count === 1 ? "" : "s"}`, !count && !current && !(info?.models || info?.works || info?.folders) && "empty", info?.models && `${info.models} model${info.models === 1 ? "" : "s"}`, info?.works && `${info.works} 3D work${info.works === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</span></div>` +
     (info?.interrupted && !current ? `<button class="btn small primary resume" title="${info.taken} of ${info.planned} photos taken: make this the current capture, its plan back, to take the rest (Resume in the Camera card)">Resume</button>` : "") +
-    (rename ? `<button class="edit" title="Rename ${escHTML(name)}" aria-label="Rename">${pencilIcon}</button>` +
-      `<button class="del" title="Delete ${escHTML(name)} (to the Trash; asks first)" aria-label="Delete">${trashIcon}</button>` : "");
-  b.onclick = (e) => { if (!e.target.closest(".edit, .del, .resume")) open(); };
+    (rename ? `<button class="mvto" title="Move ${escHTML(title)} to another folder" aria-label="Move to…">${moveIcon}</button>` +
+      `<button class="edit" title="Rename ${escHTML(title)}" aria-label="Rename">${pencilIcon}</button>` +
+      `<button class="del" title="Delete ${escHTML(title)} (to the Trash; asks first)" aria-label="Delete">${trashIcon}</button>` : "");
+  b.onclick = (e) => { if (!e.target.closest(".edit, .del, .resume, .mvto")) open(); };
   const r = b.querySelector(".resume");
   if (r) r.onclick = () => { if (!state.cap?.running) resumeCapture(info); else log("A capture is running: resume after it.", "error"); };
   b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) open(); };
   if (rename) {
     b.querySelector(".edit").onclick = () => renameCapture(name);
-    b.querySelector(".del").onclick = () => deleteCapture(name, count);
+    b.querySelector(".del").onclick = () => deleteCapture(name, count, info);
+    b.querySelector(".mvto").onclick = () => moveTo({ folder: name, title });
   }
   return b;
 }
@@ -1890,11 +1934,13 @@ function workTile(w) {
   b.innerHTML = (w.thumb ? `<img alt="" loading="lazy" decoding="async" src="${workURL(w.path, "/thumb")}&at=${w.at}">` : '<div class="mph">Combine 3D</div>') +
     `<span class="mbadge">Combine 3D</span><span class="num">${escHTML(w.name)}</span>` +
     `<span class="meta">${w.objects} object${w.objects === 1 ? "" : "s"} · ${fmtMB(w.size || 0)} · ${new Date(w.at).toLocaleString()}</span>` +
+    `<button class="mvto" title="Move ${escHTML(w.name)} to another folder" aria-label="Move to…">${moveIcon}</button>` +
     `<button class="edit" title="Rename ${escHTML(w.name)}" aria-label="Rename">${pencilIcon}</button>` +
     `<button class="del" title="Delete ${escHTML(w.name)} (to the Trash; asks first)" aria-label="Delete">${trashIcon}</button>`;
+  b.querySelector(".mvto").onclick = () => moveTo({ work: w.path, title: w.name, from: w.folder });
   const img = b.querySelector("img");
   if (img) img.onerror = () => { const ph = document.createElement("div"); ph.className = "mph"; ph.textContent = "Combine 3D"; img.replaceWith(ph); };
-  b.onclick = (e) => { if (!e.target.closest(".del, .edit")) cvOpenWork(w.path); };
+  b.onclick = (e) => { if (!e.target.closest(".del, .edit, .mvto")) cvOpenWork(w.path); };
   b.querySelector(".edit").onclick = () => renameFolder(w.name, "Rename Combine 3D Work", `The work file's new name, in ${w.folder ? escHTML(w.folder) : `<span class="photo-dir">${escHTML(document.querySelector(".photo-dir")?.textContent || "~/Pictures/gosts-rig")}</span>`}`,
     workURL(w.path, "/rename"), (to) => {
       log(`${w.name} renamed to ${to}`);
@@ -1946,9 +1992,11 @@ async function galleryAgain() {
 }
 // deleteCapture: a capture's folder (and its samples') to the Trash, asking
 // first; the one being taken: the timeline's cleared too.
-async function deleteCapture(name, count) {
-  if (!await confirmDanger(`Delete ${name}?`,
-    `${count === 1 ? "Its photo" : `Its ${count} photos`} (and its sample shots) go to the Trash, where you can still get them back in the Finder.`,
+async function deleteCapture(name, count, info) {
+  const title = info?.title || name, more = info?.folders || info?.models || info?.works;
+  if (!await confirmDanger(`Delete ${title}?`,
+    more ? `It and everything in it (${[info.folders && `${info.folders} folder${info.folders === 1 ? "" : "s"}`, count && `${count} photo${count === 1 ? "" : "s"}`, info.models && `${info.models} model${info.models === 1 ? "" : "s"}`, info.works && `${info.works} Combine 3D work file${info.works === 1 ? "" : "s"}`].filter(Boolean).join(", ")}) go to the Trash, where you can still get them back in the Finder.`
+      : `${count === 1 ? "Its photo" : `Its ${count} photos`} (and its sample shots) go to the Trash, where you can still get them back in the Finder.`,
     "Delete")) return;
   try {
     await postBatch(`/batches/${encodeURIComponent(name)}/delete`);
@@ -2042,7 +2090,8 @@ async function modelTiles(g, name, seq) {
   if (seq !== state.gal.seq) return;
   for (const t of g.querySelectorAll(":scope > .thumb.model:not(.work)")) t.remove(); // (a work file's tile: not a model's)
   if (ms.length) g.querySelector(":scope > .hint")?.remove();
-  for (const m of ms.reverse()) g.prepend(modelTile(name, m));
+  const lastFolder = [...g.querySelectorAll(":scope > .thumb.folder")].at(-1); // (after its folders)
+  for (const m of ms.reverse()) lastFolder ? lastFolder.after(modelTile(name, m)) : g.prepend(modelTile(name, m));
 }
 // The model viewer: the model in 3D (an OBJ); Esc back to the capture.
 state.mv = null; // { name, m } shown
@@ -2050,7 +2099,8 @@ function openModel(name, m) {
   state.mv = { name, m };
   $("mveCapture").value = name; // (Save's Capture Name: where it's saved, as it is)
   const fmt = m.format.toUpperCase();
-  $("mvBack").textContent = name;
+  $("mvBack").textContent = name.slice(name.lastIndexOf("/") + 1); // (its capture's own name; its path: on hover)
+  $("mvBack").title = `Back to ${name}`;
   $("mvFile").textContent = m.name;
   $("mvCap").textContent = fmt;
   $("modelViewer").hidden = false;
@@ -2929,6 +2979,7 @@ async function renderGallery() {
   g.classList.toggle("list", state.gal.view === "list");
   for (const b of $("galleryViewSeg").children) b.classList.toggle("active", b.dataset.v === state.gal.view);
   $("galleryTitle").hidden = where === null;
+  $("galleryNewFolder").hidden = where === "current";
   $("galleryRename").hidden = where === null || !galleryFolder();
   $("buildModelBtn").hidden = where === null || !galleryFolder();
   // An interrupted capture opened (see openFolder): Resume, beside Build Model.
@@ -2946,7 +2997,7 @@ async function renderGallery() {
     if (galleryFolder()) modelTiles(g, galleryFolder(), seq);
     return;
   }
-  $("galleryTitle").textContent = where ?? "";
+  galleryCrumbs(where);
   if (!g.querySelector(".thumb")) g.innerHTML = '<span class="hint">Loading…</span>';
   try {
     if (where === null) {
@@ -2961,20 +3012,22 @@ async function renderGallery() {
       if (seq !== state.gal.seq) return;
       for (const b of bs) g.appendChild(folderTile(b.name, b.count, b.mid ? batchURL(b.name, b.mid) + "?thumb" : "", b.current, () => openFolder(b), true, b));
       for (const w of works) g.appendChild(workTile(w)); // (Combine 3D's work files: files, after the folders)
-      if (!g.children.length) g.innerHTML = `<span class="hint">No captures yet: they are saved in ${escHTML(state.photoDir || "~/Pictures/gosts-rig")}.</span>`;
+      if (!g.children.length) g.innerHTML = `<span class="hint">No captures yet: they are saved in ${escHTML(state.photoDir || "~/Pictures/gosts-rig")}. New Folder makes one to keep them in.</span>`;
     } else {
-      const ps = await getJSON(`/batches/${encodeURIComponent(where)}`);
+      const [ps, kids] = await Promise.all([getJSON(`/batches/${encodeURIComponent(where)}`), getJSON(`/batches?in=${encodeURIComponent(where)}`).catch(() => [])]);
       if (seq !== state.gal.seq) return;
       state.gal.files = ps;
       g.innerHTML = "";
+      for (const b of kids) g.appendChild(folderTile(b.name, b.count, b.mid ? batchURL(b.name, b.mid) + "?thumb" : "", b.current, () => openFolder(b), true, b)); // (its folders: first)
       ps.forEach((p, i) => g.appendChild(diskThumb(where, p, i)));
-      if (!ps.length) g.innerHTML = '<span class="hint">No photos in this folder.</span>';
+      if (!ps.length && !kids.length) g.innerHTML = '<span class="hint">Nothing in this folder yet.</span>';
       await modelTiles(g, where, seq);
       const works = await getJSON(`/combine/works?folder=${encodeURIComponent(where)}`).catch(() => []);
       if (seq !== state.gal.seq) return;
       // (Combine 3D's work files kept here: after its models, before its photos)
       const lastModel = [...g.querySelectorAll(":scope > .thumb.model:not(.work)")].at(-1);
-      if (lastModel) lastModel.after(...works.map(workTile)); else g.prepend(...works.map(workTile));
+      const before = lastModel || [...g.querySelectorAll(":scope > .thumb.folder")].at(-1);
+      if (before) before.after(...works.map(workTile)); else g.prepend(...works.map(workTile));
     }
   } catch (e) {
     if (seq === state.gal.seq) g.innerHTML = `<span class="hint">Couldn't read it: ${escHTML(e.message)}</span>`;
@@ -3093,15 +3146,79 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !$("appSettingsModal").hidden) { e.preventDefault(); e.stopPropagation(); closeAppSettings(); }
 }, true);
 function renameCapture(name) {
-  renameFolder(name, "Rename Capture", `The folder's new name, in <span class="photo-dir">${escHTML(document.querySelector(".photo-dir")?.textContent || "~/Pictures/gosts-rig")}</span>`,
+  const parent = galParent(name), title = name.slice(name.lastIndexOf("/") + 1);
+  renameFolder(title, "Rename Folder", `The folder's new name, in ${parent ? escHTML(parent) : `<span class="photo-dir">${escHTML(document.querySelector(".photo-dir")?.textContent || "~/Pictures/gosts-rig")}</span>`}`,
     `/batches/${encodeURIComponent(name)}/rename`, (to) => {
       log(`${name} renamed to ${to}`);
-      if (!$("gallery").hidden) { // the gallery where it was, under the new name if it's that folder
-        if (state.gal.where === name) state.gal.where = to;
-        galleryAgain();
-      }
+      galFolderMoved(name, parent ? `${parent}/${to}` : to);
     });
 }
+// galParent: a folder's (by its path) folder's path; null: it's in the root.
+const galParent = (p) => (p && p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : null);
+// galFolderMoved: folder from is at to now (renamed, moved): the gallery
+// where it was (in it: there still, under its new path).
+function galFolderMoved(from, to) {
+  const w = state.gal.where;
+  if (w && w !== "current" && (w === from || w.startsWith(from + "/"))) state.gal.where = to + w.slice(from.length);
+  if (!$("gallery").hidden) galleryAgain();
+}
+// moveTo: Move to…: a folder ({folder, title}) or a work file ({work,
+// title, from}) put in another folder, picked from all of them (a tree);
+// not into itself nor one in it, nor where it is.
+async function moveTo(what) {
+  const m = $("moveModal"), list = $("moveList"), err = $("moveErr");
+  $("moveTitle").textContent = `Move ${what.title} to…`;
+  err.textContent = "";
+  list.innerHTML = '<div class="hint">Loading…</div>';
+  m.hidden = false;
+  let all = [];
+  try { all = await getJSON("/batches?all=1"); } catch (e) { err.textContent = e.message; }
+  const here = what.folder ? galParent(what.folder) : (what.from || null);
+  list.innerHTML = "";
+  const row = (path, label, depth) => {
+    const b = document.createElement("button");
+    b.style.paddingLeft = `${8 + depth * 18}px`;
+    b.innerHTML = (path === null ? '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>' : moveIcon.replace('<path d="M6 9.5h4.5M8.8 7.8l1.7 1.7-1.7 1.7"/>', "")) + "<span></span>";
+    b.querySelector("span").textContent = label;
+    const inside = what.folder && path !== null && (path === what.folder || path.startsWith(what.folder + "/"));
+    b.disabled = inside || path === here;
+    if (path === here) b.title = "It's here now";
+    b.onclick = () => go(path);
+    list.appendChild(b);
+  };
+  row(null, "root", 0);
+  for (const f of all) row(f.name, f.title, f.name.split("/").length);
+  async function go(to) {
+    err.textContent = "";
+    try {
+      if (what.folder) {
+        const r = await fetch(`/batches/${encodeURIComponent(what.folder)}/move`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: to || "" }) });
+        if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+        const { name } = await r.json();
+        m.hidden = true;
+        log(`${what.title} moved to ${to || "the root"}`);
+        galFolderMoved(what.folder, name);
+      } else {
+        const r = await fetch(workURL(what.work, "/move"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: to || "" }) });
+        if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+        const { path } = await r.json();
+        m.hidden = true;
+        log(`${what.title} moved to ${to || "the root"}`);
+        if (cvs.work === what.work) cvs.work = path; // (the one open: saved there from now on)
+        if (!$("gallery").hidden) galleryAgain();
+      }
+    } catch (e) { err.textContent = e.message; }
+  }
+}
+$("moveClose").onclick = () => { $("moveModal").hidden = true; };
+$("moveModal").addEventListener("click", (e) => { if (e.target === $("moveModal")) $("moveModal").hidden = true; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("moveModal").hidden) { e.preventDefault(); e.stopPropagation(); $("moveModal").hidden = true; } }, true);
+// New Folder: one in the folder open (or the root), named here.
+$("galleryNewFolder").onclick = () => {
+  const where = state.gal.where === "current" ? null : state.gal.where;
+  renameFolder("", "New Folder", `Its name, in ${where ? escHTML(where) : `<span class="photo-dir">${escHTML(document.querySelector(".photo-dir")?.textContent || "~/Pictures/gosts-rig")}</span>`}`,
+    "/batches/new", (to) => { log(`Folder ${where ? `${where}/` : ""}${to} made`); galleryAgain(); }, (to) => ({ in: where || "", name: to }));
+};
 // renameModel renames a capture's model's folder (its tile's pencil, or the
 // viewer's, by its name); the viewer showing it goes on with the new name.
 function renameModel(capture, mo) {
@@ -3114,7 +3231,7 @@ function renameModel(capture, mo) {
 }
 // renameFolder asks for a folder's new name (title; label: where it is) and
 // posts it to url ({"to": …}); after(to) once renamed.
-function renameFolder(name, title, label, url, after) {
+function renameFolder(name, title, label, url, after, body = (to) => ({ to })) {
   const m = $("renameModal"), inp = $("renameInput"), err = $("renameErr");
   $("renameTitle").textContent = title;
   m.querySelector('label[for="renameInput"]').innerHTML = label;
@@ -3133,7 +3250,7 @@ function renameFolder(name, title, label, url, after) {
     if (!to || to === name) return done();
     $("renameYes").disabled = true;
     try {
-      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to }) });
+      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body(to)) });
       if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
       done();
       after(to);
@@ -3823,7 +3940,7 @@ async function cvPickShow(where) {
   grid.innerHTML = '<div class="mve-label">Loading…</div>';
   try {
     if (where == null) {
-      const bs = (await getJSON("/batches")).filter((b) => b.models);
+      const bs = (await getJSON("/batches?all=1")).filter((b) => b.models); // (at any depth: by path)
       grid.innerHTML = bs.length ? "" : '<div class="mve-label">No models yet: build one (Build Model) in a capture.</div>';
       for (const b of bs) {
         const t = document.createElement("button");
@@ -4495,7 +4612,7 @@ document.addEventListener("keydown", (e) => {
     else if (e.key === "ArrowRight") stepPhoto(-1);
     else return;
   } else if (!$("gallery").hidden && e.key === "Escape") closeGallery();
-  else if (!$("gallery").hidden && e.key === "Backspace" && state.gal.where !== null && !e.target.closest?.("input, textarea, select")) galleryGo(null);
+  else if (!$("gallery").hidden && e.key === "Backspace" && state.gal.where !== null && !e.target.closest?.("input, textarea, select")) galleryGo(state.gal.where === "current" ? null : galParent(state.gal.where)); // (up one folder)
   else return;
   e.preventDefault();
 });

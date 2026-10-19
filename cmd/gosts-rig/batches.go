@@ -25,7 +25,9 @@ import (
 // the middle one's file (its thumbnail stands for the folder), and whether
 // it's the batch being taken now.
 type batchInfo struct {
-	Name    string `json:"name"`
+	Name    string `json:"name"`              // its path in photoDir ("drones/cinelog 1": in a folder)
+	Title   string `json:"title"`             // its own name (the path's last)
+	Folders int    `json:"folders,omitempty"` // folders in it (see folderKids)
 	Count   int    `json:"count"`
 	Models  int    `json:"models,omitempty"` // models in it (see batchModels)
 	Works   int    `json:"works,omitempty"`  // Combine 3D work files in it (see worksIn)
@@ -90,46 +92,136 @@ func batchPhotos(dir string) ([]batchPhoto, error) {
 	return out, nil
 }
 
-// listBatches are the batch folders with photos, newest first (their names
-// are their start times).
-func listBatches() ([]batchInfo, error) {
-	ents, err := os.ReadDir(photoDir)
-	if os.IsNotExist(err) {
-		return []batchInfo{}, nil
-	}
+// Folders: photoDir holds folders, at any depth: a capture's (its photos,
+// models, work files) or one to keep others in, or both. Each is known by
+// its path in photoDir ("drones/cinelog 1"); a model's own folder (in its
+// capture's), a build's, a capture's samples: not folders of these.
+
+// folderKids are folder rel's folders (not its models', nor a build's or
+// samples'), by name.
+func folderKids(rel string) []string {
+	dir := filepath.Join(photoDir, filepath.FromSlash(rel))
+	ents, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil
 	}
-	batch.Lock()
-	current := filepath.Base(batch.dir)
-	batch.Unlock()
-	out := []batchInfo{}
+	var out []string
 	for _, e := range ents {
 		n := e.Name()
-		if !e.IsDir() || strings.HasPrefix(n, ".") || strings.HasSuffix(n, "-samples") {
+		if !e.IsDir() || strings.HasPrefix(n, ".") || strings.HasSuffix(n, "-samples") || n == buildDir || n == "samples" || n == "colmap" { // (a capture's own: its build, samples, alignment data)
 			continue
 		}
-		ps, err := batchPhotos(filepath.Join(photoDir, n))
-		if err != nil {
-			continue
+		if _, ok := modelIn(filepath.Join(dir, n)); ok {
+			continue // (a model's folder)
 		}
-		ms, _ := batchModels(filepath.Join(photoDir, n))
-		works := len(worksIn(n))
-		if len(ps) == 0 && len(ms) == 0 && works == 0 && n != current { // (a folder of a model alone, say one brought in, or of work files: shown; the current one: shown empty too)
-			continue
-		}
-		mid := ""
-		if len(ps) > 0 {
-			mid = ps[(len(ps)-1)/2].File
-		}
-		bi := batchInfo{Name: n, Count: len(ps), Models: len(ms), Works: works, Mid: mid, Current: n == current}
-		if s, err := readCaptureState(filepath.Join(photoDir, n)); err == nil && s.resumable() {
-			bi.Interrupted, bi.Taken, bi.Planned = true, s.taken(), len(s.Shots)
-		}
-		out = append(out, bi)
+		out = append(out, n)
 	}
-	slices.SortFunc(out, func(a, b batchInfo) int { return strings.Compare(b.Name, a.Name) })
+	return out
+}
+
+// relPath is dir's path in photoDir ("" if it isn't in it).
+func relPath(dir string) string {
+	r, err := filepath.Rel(photoDir, dir)
+	if err != nil || r == "." || strings.HasPrefix(r, "..") {
+		return ""
+	}
+	return filepath.ToSlash(r)
+}
+
+// listFolder lists folder rel's folders ("": photoDir's), newest first (a
+// capture's name is its start time); the current capture's shown even with
+// nothing in it yet.
+func listFolder(rel string) ([]batchInfo, error) {
+	if _, err := os.Stat(filepath.Join(photoDir, filepath.FromSlash(rel))); os.IsNotExist(err) {
+		return []batchInfo{}, nil
+	}
+	batch.Lock()
+	current := relPath(batch.dir)
+	batch.Unlock()
+	out := []batchInfo{}
+	for _, n := range folderKids(rel) {
+		p := n
+		if rel != "" {
+			p = rel + "/" + n
+		}
+		if bi := folderInfo(p, current); shown(bi) {
+			out = append(out, bi)
+		}
+	}
+	slices.SortFunc(out, func(a, b batchInfo) int { return strings.Compare(b.Title, a.Title) })
 	return out, nil
+}
+
+// kidShown: folder p would be listed (see shown), told at a glance: no
+// counting down through the folders in it.
+func kidShown(p, current string) bool {
+	dir := filepath.Join(photoDir, filepath.FromSlash(p))
+	if p == current || fileExists(filepath.Join(dir, folderMark)) || len(folderKids(p)) > 0 || len(worksIn(p)) > 0 {
+		return true
+	}
+	if ps, _ := batchPhotos(dir); len(ps) > 0 {
+		return true
+	}
+	ms, _ := batchModels(dir)
+	return len(ms) > 0
+}
+
+// folderMark marks a folder made in Browse (New Folder): listed even empty.
+// (Other empty ones aren't: a capture started and left, say.)
+const folderMark = ".gosts-folder"
+
+// shown: folder bi is listed: something in it, the current capture, or
+// one made to keep others in.
+func shown(bi batchInfo) bool {
+	return bi.Count > 0 || bi.Models > 0 || bi.Works > 0 || bi.Folders > 0 || bi.Current ||
+		fileExists(filepath.Join(photoDir, filepath.FromSlash(bi.Name), folderMark))
+}
+
+// folderInfo: folder p, as Browse shows it (current: the current capture's
+// path).
+func folderInfo(p, current string) batchInfo {
+	dir := filepath.Join(photoDir, filepath.FromSlash(p))
+	ps, _ := batchPhotos(dir)
+	ms, _ := batchModels(dir)
+	mid := ""
+	if len(ps) > 0 {
+		mid = ps[(len(ps)-1)/2].File
+	}
+	folders := 0
+	for _, k := range folderKids(p) {
+		if kidShown(p+"/"+k, current) {
+			folders++
+		}
+	}
+	bi := batchInfo{Name: p, Title: filepath.Base(dir), Count: len(ps), Models: len(ms), Works: len(worksIn(p)), Folders: folders, Mid: mid, Current: p == current}
+	if s, err := readCaptureState(dir); err == nil && s.resumable() {
+		bi.Interrupted, bi.Taken, bi.Planned = true, s.taken(), len(s.Shots)
+	}
+	return bi
+}
+
+// allFolders lists every folder in photoDir, at any depth (by path).
+func allFolders() []batchInfo {
+	batch.Lock()
+	current := relPath(batch.dir)
+	batch.Unlock()
+	out := []batchInfo{}
+	var walk func(rel string)
+	walk = func(rel string) {
+		for _, n := range folderKids(rel) {
+			p := n
+			if rel != "" {
+				p = rel + "/" + n
+			}
+			if bi := folderInfo(p, current); shown(bi) {
+				out = append(out, bi)
+			}
+			walk(p)
+		}
+	}
+	walk("")
+	slices.SortFunc(out, func(a, b batchInfo) int { return strings.Compare(a.Name, b.Name) })
+	return out
 }
 
 // cleanName is a folder or file name from a request: one name, nothing that
@@ -138,9 +230,35 @@ func cleanName(n string) bool {
 	return n != "" && n == filepath.Base(n) && !strings.HasPrefix(n, ".") && !strings.ContainsAny(n, `/\`)
 }
 
-// handleBatches lists the batch folders (GET /batches).
+// cleanPath is a folder's path in photoDir from a request: names (cleanName
+// each), slash between; none a samples' folder.
+func cleanPath(p string) bool {
+	if p == "" {
+		return false
+	}
+	for _, n := range strings.Split(p, "/") {
+		if !cleanName(n) || strings.HasSuffix(n, "-samples") {
+			return false
+		}
+	}
+	return true
+}
+
+// handleBatches lists folders (GET /batches): photoDir's; ?in=: a
+// folder's; ?all=1: all of them, at any depth.
 func (a *app) handleBatches(w http.ResponseWriter, r *http.Request) {
-	bs, err := listBatches()
+	q := r.URL.Query()
+	if q.Get("all") == "1" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(allFolders())
+		return
+	}
+	in := q.Get("in")
+	if in != "" && !cleanPath(in) {
+		http.Error(w, "bad folder", http.StatusBadRequest)
+		return
+	}
+	bs, err := listFolder(in)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -152,7 +270,7 @@ func (a *app) handleBatches(w http.ResponseWriter, r *http.Request) {
 // handleBatch lists a batch folder's photos (GET /batches/{name}).
 func (a *app) handleBatch(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	if !cleanName(name) || strings.HasSuffix(name, "-samples") {
+	if !cleanPath(name) {
 		http.NotFound(w, r)
 		return
 	}
@@ -173,7 +291,7 @@ func (a *app) handleBatch(w http.ResponseWriter, r *http.Request) {
 // the user's cache folder).
 func (a *app) handleBatchPhoto(w http.ResponseWriter, r *http.Request) {
 	name, file := r.PathValue("name"), r.PathValue("file")
-	if !cleanName(name) || !cleanName(file) {
+	if !cleanPath(name) || !cleanName(file) {
 		http.NotFound(w, r)
 		return
 	}
@@ -284,36 +402,57 @@ func thumbCache(key, old string) string {
 	return p
 }
 
-// renameBatch renames a batch folder (and its samples' folder with it). The
-// batch being taken keeps going in the new folder; not while a capture runs
-// into it.
+// renameBatch renames folder from (a path) to the name to, where it is.
 func (a *app) renameBatch(from, to string) error {
 	to = strings.TrimSpace(to)
-	if !cleanName(from) || strings.HasSuffix(from, "-samples") {
-		return errors.New("no such capture")
-	}
 	if !cleanName(to) || strings.HasSuffix(to, "-samples") || strings.ContainsAny(to, `:*?"<>|`) {
 		return errors.New("not a folder name: no slashes, no leading dot, nor any of : * ? \" < > |, nor ending in -samples")
+	}
+	dst := to
+	if i := strings.LastIndexByte(from, '/'); i >= 0 {
+		dst = from[:i+1] + to
+	}
+	return a.moveBatch(from, dst)
+}
+
+// moveBatch moves folder from (a path in photoDir) to path to: renamed, or
+// into another folder (made if need be), and its samples' folder with it.
+// The current capture in it keeps going there; not while a capture runs
+// into it, nor a model's built in it. Combine 3D's work files naming its
+// models: told where they are now.
+func (a *app) moveBatch(from, to string) error {
+	if !cleanPath(from) {
+		return errors.New("no such folder")
+	}
+	if !cleanPath(to) {
+		return errors.New("not a place for it: folder names, no leading dots")
 	}
 	if to == from {
 		return nil
 	}
+	if strings.HasPrefix(to+"/", from+"/") {
+		return errors.New("a folder can't go into itself")
+	}
 	src, dst := filepath.Join(photoDir, from), filepath.Join(photoDir, to)
 	if _, err := os.Stat(dst); err == nil {
-		return fmt.Errorf("there's a folder named %q already", to)
+		return fmt.Errorf("there's a folder named %q there already", filepath.Base(dst))
 	}
+	if why := a.model.buildingIn(from); why != "" {
+		return errors.New(why)
+	}
+	sep := string(filepath.Separator)
 	batch.Lock()
-	current := batch.dir == src
-	if current {
+	in := batch.dir == src || strings.HasPrefix(batch.dir, src+sep) // (the current capture: it, or in it)
+	if in {
 		if why := a.currentBusy(); why != "" {
 			batch.Unlock()
 			return errors.New(why)
 		}
 	}
 	if _, err := os.Stat(src); err != nil {
-		if !current {
+		if batch.dir != src {
 			batch.Unlock()
-			return errors.New("no such capture")
+			return errors.New("no such folder")
 		}
 		// The current capture with nothing saved yet (its folder made with
 		// its first photo): only its name changes.
@@ -321,6 +460,10 @@ func (a *app) renameBatch(from, to string) error {
 		batch.Unlock()
 		a.broadcastBatch()
 		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		batch.Unlock()
+		return err
 	}
 	if err := os.Rename(src, dst); err != nil {
 		batch.Unlock()
@@ -331,19 +474,82 @@ func (a *app) renameBatch(from, to string) error {
 			os.Rename(src+"-samples", dst+"-samples")
 		}
 	}
-	if current {
-		batch.dir = dst
+	if in {
+		oldDir := batch.dir
+		batch.dir = dst + strings.TrimPrefix(oldDir, src)
 		if a.camera != nil {
-			a.camera.relocate(src, dst) // (the timeline's files: there now)
-			a.cap.relocate(src, dst)
+			a.camera.relocate(oldDir, batch.dir) // (the timeline's files: there now)
+			a.cap.relocate(oldDir, batch.dir)
 		}
 	}
 	batch.Unlock()
-	if current {
+	if in {
 		a.broadcastBatch() // (after the lock: it reads the name)
 	}
-	log.Printf("photos: renamed %s to %s", from, to)
+	rewriteWorkRefs(from, to)
+	log.Printf("photos: %s moved to %s", from, to)
 	return nil
+}
+
+// handleBatchMove moves a folder (POST /batches/{name}/move, {"to": …}: the
+// folder it goes into, "" for photoDir itself), its name kept.
+func (a *app) handleBatchMove(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		To string `json:"to"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	from := r.PathValue("name")
+	to := filepath.Base(filepath.FromSlash(from))
+	if req.To != "" {
+		to = req.To + "/" + to
+	}
+	if err := a.moveBatch(from, to); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"name": to})
+}
+
+// handleBatchNew makes a folder (POST /batches/new, {"in": its folder, "": photoDir; "name": …}).
+func (a *app) handleBatchNew(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		In   string `json:"in"`
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if !cleanName(name) || strings.HasSuffix(name, "-samples") || strings.ContainsAny(name, `:*?"<>|`) {
+		http.Error(w, "not a folder name: no slashes, no leading dot, nor any of : * ? \" < > |", http.StatusBadRequest)
+		return
+	}
+	p := name
+	if req.In != "" {
+		if !cleanPath(req.In) {
+			http.Error(w, "bad folder", http.StatusBadRequest)
+			return
+		}
+		p = req.In + "/" + name
+	}
+	dir := filepath.Join(photoDir, filepath.FromSlash(p))
+	if _, err := os.Stat(dir); err == nil {
+		http.Error(w, fmt.Sprintf("there's a folder named %q there already", name), http.StatusConflict)
+		return
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	os.WriteFile(filepath.Join(dir, folderMark), nil, 0o644) // (listed even empty)
+	log.Printf("photos: folder %s made", p)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"name": p})
 }
 
 // handleBatchRename renames a batch folder (POST /batches/{name}/rename,
@@ -422,7 +628,7 @@ func trashPhoto(path string) error {
 // batch being taken: not while a capture runs; else the timeline's cleared
 // and the next photos start a new folder (as New Capture).
 func (a *app) deleteBatch(name string) error {
-	if !cleanName(name) || strings.HasSuffix(name, "-samples") {
+	if !cleanPath(name) {
 		return errors.New("no such capture")
 	}
 	dir := filepath.Join(photoDir, name)
@@ -430,7 +636,7 @@ func (a *app) deleteBatch(name string) error {
 		return errors.New("no such capture")
 	}
 	batch.Lock()
-	current := batch.dir == dir
+	current := batch.dir == dir || strings.HasPrefix(batch.dir, dir+string(filepath.Separator)) // (it, or in it)
 	batch.Unlock()
 	if current {
 		if why := a.currentBusy(); why != "" {
@@ -487,7 +693,7 @@ func (a *app) handleBatchDelete(w http.ResponseWriter, r *http.Request) {
 // /batches/{name}/{file}/delete), its RAW too.
 func (a *app) handleBatchPhotoDelete(w http.ResponseWriter, r *http.Request) {
 	name, file := r.PathValue("name"), r.PathValue("file")
-	if !cleanName(name) || !cleanName(file) {
+	if !cleanPath(name) || !cleanName(file) {
 		http.NotFound(w, r)
 		return
 	}

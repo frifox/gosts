@@ -158,7 +158,7 @@ func (c *capture) pictured(n int, p photo) {
 // plan is the plan again, and its shots are the capture's, the ones taken
 // marked (Before), Resume taking the rest.
 func (a *app) adopt(name string) error {
-	if !cleanName(name) {
+	if !cleanPath(name) {
 		return errors.New("no such capture")
 	}
 	if why := a.busyWith(); why != "" {

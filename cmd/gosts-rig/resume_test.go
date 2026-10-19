@@ -44,7 +44,7 @@ func TestCaptureResume(t *testing.T) {
 	app := &app{cfg: cfg, clients: map[*client]struct{}{}, camera: cam, model: &modelBuilder{out: func(any) {}}}
 	app.rig = &rig{cfg: cfg, out: func(any) {}}
 	app.cap = &capture{rig: app.rig, camera: cam, out: func(any) {}}
-	if bs, _ := listBatches(); len(bs) != 1 || !bs[0].Interrupted || bs[0].Planned != 4 {
+	if bs, _ := listFolder(""); len(bs) != 1 || !bs[0].Interrupted || bs[0].Planned != 4 {
 		t.Fatalf("Browse: %+v", bs)
 	}
 	if err := app.adopt(name); err != nil {

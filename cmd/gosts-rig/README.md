@@ -71,6 +71,11 @@ Photos show up in the **Photos** card as they arrive, and are saved in `~/Pictur
 capture. **New Capture** starts a fresh folder; **Browse** opens past captures to view, rename or delete them
 (deleting moves files to the Trash).
 
+To keep them in order, **New Folder** (in Browse) makes a folder, at any depth, and **Move to…** (on a folder's or
+a Combine 3D work file's tile, on hover) puts one into another, or back in the root. A folder shows its folders
+first, then its models, its Combine 3D work files, and its photos; the path above it goes back up (so does
+Backspace). Moving or renaming a folder tells the Combine 3D work files naming its models where they are now.
+
 ## Camera settings
 
 The **camera** button in the Camera card opens **Control**: the camera's settings next to a live preview or a sample

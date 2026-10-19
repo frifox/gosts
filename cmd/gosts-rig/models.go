@@ -114,7 +114,7 @@ func modelIn(dir string) (builtModel, bool) {
 // own name), and the model in it.
 func modelPath(r *http.Request) (string, builtModel, bool) {
 	name, model := r.PathValue("name"), r.PathValue("model")
-	if !cleanName(name) || !modelFolderName(model) {
+	if !cleanPath(name) || !modelFolderName(model) {
 		return "", builtModel{}, false
 	}
 	dir := filepath.Join(photoDir, name, model)
@@ -125,7 +125,7 @@ func modelPath(r *http.Request) (string, builtModel, bool) {
 // handleModels lists a capture's models (GET /batches/{name}/models).
 func (a *app) handleModels(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	if !cleanName(name) {
+	if !cleanPath(name) {
 		http.NotFound(w, r)
 		return
 	}
@@ -313,6 +313,20 @@ func (a *app) handleModelRename(w http.ResponseWriter, r *http.Request) {
 }
 
 // building is an error if a build is going into capture name's folder out.
+// buildingIn: why folder p (or one in it) can't move just now: a model
+// being built in it; "" if it can.
+func (b *modelBuilder) buildingIn(p string) string {
+	if b == nil {
+		return ""
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.state.Running && (b.state.Folder == p || strings.HasPrefix(b.state.Folder, p+"/")) {
+		return "a model is being built in it: wait for it, or cancel the build first"
+	}
+	return ""
+}
+
 func (b *modelBuilder) building(name, out string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()

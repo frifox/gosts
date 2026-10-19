@@ -61,7 +61,7 @@ func (a *app) handleCombineSave(w http.ResponseWriter, r *http.Request) {
 				triangles, _ = strconv.Atoi(s)
 			}
 		case "obj", "stl":
-			if !cleanName(folder) || strings.HasSuffix(folder, "-samples") {
+			if !cleanPath(folder) {
 				fail(http.StatusBadRequest, "the folder: one folder name, no slashes, no leading dot")
 				return
 			}
@@ -140,14 +140,15 @@ func (a *app) handleCombineSave(w http.ResponseWriter, r *http.Request) {
 
 const workExt = ".combine.json"
 
-// workPath: the work file at rel ("name" or "folder/name"), if it's a fine
-// one.
+// workPath: the work file at rel ("name", or "folder/name": a folder at any
+// depth), if it's a fine one.
 func workPath(rel string) (string, bool) {
-	dir, name, sub := strings.Cut(rel, "/")
-	if !sub {
-		dir, name = "", rel
-	} else if !cleanName(dir) {
-		return "", false
+	dir, name := "", rel
+	if i := strings.LastIndexByte(rel, '/'); i >= 0 {
+		dir, name = rel[:i], rel[i+1:]
+		if !cleanPath(dir) {
+			return "", false
+		}
 	}
 	if !cleanName(name) || strings.Contains(name, workExt) {
 		return "", false
@@ -168,7 +169,7 @@ type workInfo struct {
 
 // worksIn lists the work files in folder ("": photoDir itself).
 func worksIn(folder string) []workInfo {
-	ents, _ := os.ReadDir(filepath.Join(photoDir, folder))
+	ents, _ := os.ReadDir(filepath.Join(photoDir, filepath.FromSlash(folder)))
 	out := []workInfo{}
 	for _, e := range ents {
 		n := e.Name()
@@ -187,7 +188,7 @@ func worksIn(folder string) []workInfo {
 			Objects []json.RawMessage `json:"objects"`
 			Thumb   string            `json:"thumb"`
 		}
-		if b, err := os.ReadFile(filepath.Join(photoDir, folder, n)); err == nil && json.Unmarshal(b, &head) == nil {
+		if b, err := os.ReadFile(filepath.Join(photoDir, filepath.FromSlash(folder), n)); err == nil && json.Unmarshal(b, &head) == nil {
 			wi.Objects, wi.Thumb = len(head.Objects), head.Thumb != ""
 		}
 		out = append(out, wi)
@@ -202,14 +203,8 @@ func (a *app) handleWorks(w http.ResponseWriter, r *http.Request) {
 	var out []workInfo
 	switch folder := q.Get("folder"); {
 	case q.Get("all") == "1":
-		out = worksIn("")
-		ents, _ := os.ReadDir(photoDir)
-		for _, e := range ents {
-			if e.IsDir() && cleanName(e.Name()) {
-				out = append(out, worksIn(e.Name())...)
-			}
-		}
-	case folder != "" && !cleanName(folder):
+		out = allWorks()
+	case folder != "" && !cleanPath(folder):
 		http.Error(w, "bad folder", http.StatusBadRequest)
 		return
 	default:
@@ -342,8 +337,8 @@ func (a *app) handleWorkRename(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
 	from, ok := workPath(rel)
 	toRel := strings.TrimSpace(req.To)
-	if dir, _, sub := strings.Cut(rel, "/"); sub {
-		toRel = dir + "/" + toRel
+	if i := strings.LastIndexByte(rel, '/'); i >= 0 {
+		toRel = rel[:i+1] + toRel
 	}
 	to, ok2 := workPath(toRel)
 	if strings.Contains(strings.TrimSpace(req.To), "/") {
@@ -371,4 +366,112 @@ func (a *app) handleWorkRename(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("combine: work %s renamed to %s", filepath.Base(from), filepath.Base(to))
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// allWorks lists every work file: photoDir's and every folder's.
+func allWorks() []workInfo {
+	out := worksIn("")
+	for _, f := range allFolders() {
+		out = append(out, worksIn(f.Name)...)
+	}
+	return out
+}
+
+// rewriteWorkRefs: folder from now at to (moved, renamed): the work files
+// naming models in it (or in folders in it) told where they are now.
+func rewriteWorkRefs(from, to string) {
+	moved := func(f string) (string, bool) {
+		if f == from {
+			return to, true
+		}
+		if strings.HasPrefix(f, from+"/") {
+			return to + f[len(from):], true
+		}
+		return f, false
+	}
+	for _, wi := range allWorks() {
+		p, ok := workPath(wi.Path)
+		if !ok {
+			continue
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		var doc map[string]any
+		if json.Unmarshal(b, &doc) != nil {
+			continue
+		}
+		objs, _ := doc["objects"].([]any)
+		changed := false
+		for _, o := range objs {
+			ref, _ := o.(map[string]any)["ref"].(map[string]any)
+			if f, ok := ref["folder"].(string); ok {
+				if nf, hit := moved(f); hit {
+					ref["folder"], changed = nf, true
+				}
+			}
+		}
+		if !changed {
+			continue
+		}
+		out, err := json.Marshal(doc)
+		if err != nil {
+			continue
+		}
+		tmp := p + ".tmp"
+		if os.WriteFile(tmp, out, 0o644) == nil && os.Rename(tmp, p) == nil {
+			log.Printf("combine: %s: its models in %s, at %s now", wi.Path, from, to)
+		} else {
+			os.Remove(tmp)
+		}
+	}
+}
+
+// handleWorkMove moves a work file into another folder (POST
+// /combine/work/move?path=, {"to": the folder, "" for photoDir itself}), its
+// name kept; a name taken there: refused.
+func (a *app) handleWorkMove(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		To string `json:"to"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	rel := r.URL.Query().Get("path")
+	from, ok := workPath(rel)
+	name := rel[strings.LastIndexByte(rel, '/')+1:]
+	toRel := name
+	if req.To != "" {
+		toRel = req.To + "/" + name
+	}
+	to, ok2 := workPath(toRel)
+	if !ok || !ok2 {
+		http.Error(w, "bad path", http.StatusBadRequest)
+		return
+	}
+	if from == to {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if !fileExists(from) {
+		http.NotFound(w, r)
+		return
+	}
+	if fileExists(to) {
+		http.Error(w, fmt.Sprintf("%s is there already: rename one first", name), http.StatusConflict)
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := os.Rename(from, to); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("combine: work %s moved to %s", rel, toRel)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"path": toRel})
 }

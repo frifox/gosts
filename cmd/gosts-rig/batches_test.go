@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -24,12 +25,17 @@ func TestListBatches(t *testing.T) {
 	put("2026-01-02 10.00.00", "a.jpg")
 	put("2026-01-02 10.00.00-samples", "s.jpg")
 	put("empty")
-	bs, err := listBatches()
+	bs, err := listFolder("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(bs) != 2 || bs[0].Name != "2026-01-02 10.00.00" || bs[1].Count != 3 || bs[1].Mid != "DSC2.JPG" {
 		t.Fatalf("batches %+v", bs)
+	}
+	// An empty folder made to keep others in (New Folder: its mark): listed.
+	os.WriteFile(filepath.Join(photoDir, "empty", folderMark), nil, 0o644)
+	if bs, _ := listFolder(""); len(bs) != 3 {
+		t.Errorf("with the empty folder made in Browse: %+v", bs)
 	}
 	for _, n := range []string{"..", "../x", ".hidden", "a/b", ""} {
 		if cleanName(n) {
@@ -200,7 +206,7 @@ func TestListBatchesModelOnly(t *testing.T) {
 	os.MkdirAll(filepath.Join(photoDir, "carry case", "model-laser"), 0o755)
 	os.WriteFile(filepath.Join(photoDir, "carry case", "model-laser", "case.obj"), []byte("v 0 0 0\n"), 0o644)
 	os.MkdirAll(filepath.Join(photoDir, "empty"), 0o755)
-	bs, err := listBatches()
+	bs, err := listFolder("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,5 +219,84 @@ func TestListBatchesModelOnly(t *testing.T) {
 	}
 	if !slices.Contains(names, "carry case") || slices.Contains(names, "empty") {
 		t.Errorf("listed %q, want carry case, not empty", names)
+	}
+}
+
+// Folders at any depth: listed in their folder (not a model's own folder
+// in a capture), and all of them; made; moved into another (and back to the
+// root), its samples along, the current capture in it following it, the
+// work files naming its models told; into itself, onto a taken name, or a
+// bad path: refused.
+func TestFolders(t *testing.T) {
+	old := photoDir
+	photoDir = t.TempDir()
+	defer func() { photoDir = old }()
+	t.Setenv("HOME", t.TempDir())
+	put := func(dir string, files ...string) {
+		os.MkdirAll(filepath.Join(photoDir, dir), 0o755)
+		for _, f := range files {
+			os.WriteFile(filepath.Join(photoDir, dir, f), []byte("x"), 0o644)
+		}
+	}
+	put("cine", "a.jpg")
+	put("cine/model-full", "model-full.obj") // (a model's folder: not a folder of these)
+	put("cine-samples", "s.jpg")
+	put("drones")
+	put("drones/goggles", "g.jpg")
+	os.WriteFile(filepath.Join(photoDir, "w"+workExt), []byte(`{"objects":[{"id":1,"kind":"model","ref":{"folder":"cine","model":"model-full"}},{"id":2,"kind":"model","ref":{"folder":"drones/goggles","model":"m"}}]}`), 0o644)
+	batch.Lock()
+	batch.dir = filepath.Join(photoDir, "cine")
+	batch.Unlock()
+	defer newBatch()
+	a := &app{}
+	if kids, _ := listFolder("drones"); len(kids) != 1 || kids[0].Name != "drones/goggles" || kids[0].Title != "goggles" {
+		t.Errorf("drones' folders: %+v", kids)
+	}
+	if kids, _ := listFolder("cine"); len(kids) != 0 {
+		t.Errorf("cine's folders (its model's isn't one): %+v", kids)
+	}
+	if all := allFolders(); len(all) != 3 {
+		t.Errorf("all folders: %+v", all)
+	}
+	for _, bad := range []string{"", "..", "a/../b", "a//b", ".h/x", "x-samples/y", "/a"} {
+		if cleanPath(bad) {
+			t.Errorf("cleanPath(%q) true", bad)
+		}
+	}
+	if err := a.moveBatch("drones", "drones/goggles/x"); err == nil {
+		t.Error("moved into itself")
+	}
+	if err := a.moveBatch("cine", "drones/goggles"); err == nil {
+		t.Error("moved onto a folder there")
+	}
+	if err := a.moveBatch("cine", "drones/cine"); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{"drones/cine/a.jpg", "drones/cine-samples/s.jpg", "drones/cine/model-full/model-full.obj"} {
+		if !fileExists(filepath.Join(photoDir, d)) {
+			t.Errorf("%s not there", d)
+		}
+	}
+	if batchFolder() != filepath.Join(photoDir, "drones", "cine") || currentBatch() != "drones/cine" {
+		t.Errorf("current batch %s (%s)", batchFolder(), currentBatch())
+	}
+	b, _ := os.ReadFile(filepath.Join(photoDir, "w"+workExt))
+	if !strings.Contains(string(b), `"folder":"drones/cine"`) || !strings.Contains(string(b), `"folder":"drones/goggles"`) {
+		t.Errorf("the work file's refs: %s", b)
+	}
+	// The whole folder renamed: the refs in it follow.
+	if err := a.renameBatch("drones", "fpv"); err != nil {
+		t.Fatal(err)
+	}
+	b, _ = os.ReadFile(filepath.Join(photoDir, "w"+workExt))
+	if !strings.Contains(string(b), `"folder":"fpv/cine"`) || !strings.Contains(string(b), `"folder":"fpv/goggles"`) {
+		t.Errorf("the work file's refs, renamed: %s", b)
+	}
+	if currentBatch() != "fpv/cine" {
+		t.Errorf("current batch after the rename: %s", currentBatch())
+	}
+	// Back to the root.
+	if err := a.moveBatch("fpv/goggles", "goggles"); err != nil || !fileExists(filepath.Join(photoDir, "goggles", "g.jpg")) {
+		t.Errorf("to the root: %v", err)
 	}
 }

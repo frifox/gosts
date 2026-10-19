@@ -16,8 +16,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -224,12 +224,16 @@ func freeBatchDir() string {
 	}
 }
 
-// batchName is the current batch's name (its folder's), "" if none yet.
+// batchName is the current batch's name (its folder's path in photoDir),
+// "" if none yet.
 func currentBatch() string {
 	batch.Lock()
 	defer batch.Unlock()
 	if batch.dir == "" {
 		return ""
+	}
+	if r := relPath(batch.dir); r != "" {
+		return r
 	}
 	return filepath.Base(batch.dir)
 }

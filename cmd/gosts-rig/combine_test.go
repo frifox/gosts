@@ -95,6 +95,7 @@ func TestCombineWorks(t *testing.T) {
 	mux.HandleFunc("POST /combine/work", a.handleWorkSave)
 	mux.HandleFunc("POST /combine/work/delete", a.handleWorkDelete)
 	mux.HandleFunc("POST /combine/work/rename", a.handleWorkRename)
+	mux.HandleFunc("POST /combine/work/move", a.handleWorkMove)
 	do := func(method, path, body string) *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, httptest.NewRequest(method, path, strings.NewReader(body)))
@@ -160,10 +161,18 @@ func TestCombineWorks(t *testing.T) {
 	if w := do("POST", "/combine/work/rename?path=inserts/goggles%20insert", `{"to":"other/x"}`); w.Code != http.StatusBadRequest {
 		t.Errorf("renamed to a path: %d, want 400", w.Code)
 	}
+	// Moved: to the root and back into a folder two deep.
+	if w := do("POST", "/combine/work/move?path=inserts/goggles%20insert", `{"to":""}`); w.Code != http.StatusOK || !fileExists(filepath.Join(photoDir, "goggles insert"+workExt)) {
+		t.Errorf("moved to the root: %d %s", w.Code, w.Body)
+	}
+	if w := do("POST", "/combine/work/move?path=goggles%20insert", `{"to":"inserts/fpv"}`); w.Code != http.StatusOK || !fileExists(filepath.Join(photoDir, "inserts", "fpv", "goggles insert"+workExt)) {
+		t.Errorf("moved two deep: %d %s", w.Code, w.Body)
+	}
+	do("POST", "/combine/work/move?path=inserts/fpv/goggles%20insert", `{"to":"inserts"}`)
 	if w := do("POST", "/combine/work?path=x", "not json"); w.Code != http.StatusBadRequest {
 		t.Errorf("not JSON: %d", w.Code)
 	}
-	for _, bad := range []string{".hidden", "../x", "a/b/c", "inserts/.x"} {
+	for _, bad := range []string{".hidden", "../x", "a//c", "inserts/.x", "a/../b"} {
 		if w := do("POST", "/combine/work?path="+bad, "{}"); w.Code != http.StatusBadRequest {
 			t.Errorf("a bad path %q: %d", bad, w.Code)
 		}

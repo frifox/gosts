@@ -233,7 +233,7 @@ func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
 // start builds a model from capture folder name with o: config.json saved
 // first, then the tool run, its events followed.
 func (b *modelBuilder) start(a *app, name string, o modelOptions) error {
-	if !cleanName(name) || strings.HasSuffix(name, "-samples") {
+	if !cleanPath(name) {
 		return errors.New("no such capture")
 	}
 	dir := filepath.Join(photoDir, name)
@@ -454,7 +454,7 @@ type modelInfo struct {
 
 func (a *app) handleModelInfo(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	if !cleanName(name) {
+	if !cleanPath(name) {
 		http.NotFound(w, r)
 		return
 	}

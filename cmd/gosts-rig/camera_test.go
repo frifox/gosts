@@ -215,7 +215,7 @@ func TestNewCapture(t *testing.T) {
 	if f == "" || f == first {
 		t.Fatalf("folders %q, %q: want two", first, f)
 	}
-	if bs, _ := listBatches(); len(bs) != 1 || bs[0].Name != f || !bs[0].Current || bs[0].Count != 0 {
+	if bs, _ := listFolder(""); len(bs) != 1 || bs[0].Name != f || !bs[0].Current || bs[0].Count != 0 {
 		t.Errorf("Browse: %+v, want the new one (empty, current) alone", bs)
 	}
 	defer removeSamples()
