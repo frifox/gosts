@@ -949,7 +949,7 @@ kbd + kbd { margin-left: 3px; }
   <span class="spacer"></span>
   <button class="btn small primary" id="hdrBuilding" hidden>Building…</button><span class="spacer"></span>
   <button class="btn small" id="openCaptureBtn" title="Browse the captures saved on this computer">Browse</button>
-  <span class="btn-join hdr-3d"><button class="btn small" id="hdrEdit3D" title="Open a model (picked from your captures) in the model editor">Edit 3D</button><button class="btn small" id="hdrCombine3D" title="Put models and simple shapes together, each placed on its own; make a Container Fill (an insert) and cut the objects out of it; save it as a model">Combine 3D</button></span>
+  <span class="btn-join hdr-3d"><button class="btn small" id="hdrEdit3D" title="Open a model (picked from your captures) in the model editor">Edit</button><button class="btn small" id="hdrCombine3D" title="Put models and simple shapes together, each placed on its own; make a Container Fill (an insert) and cut the objects out of it; save it as a model">Combine</button></span>
   <span class="pill-group">
     <span class="pill" title="This page's link to the app (gosts-rig)"><svg class="pill-ic" id="wsDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v3M10 2v3M4.5 5h7v2a3.5 3.5 0 0 1-7 0zM8 10.5V14"/></svg><span id="wsText">ws: connecting…</span></span>
     <span class="pill" title="The servo controller board (the rig's servos)"><svg class="pill-ic" id="busDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.2"/><path d="M6.5 2v2M9.5 2v2M6.5 12v2M9.5 12v2M2 6.5h2M2 9.5h2M12 6.5h2M12 9.5h2"/></svg><span id="busText">rig: none</span></span>
@@ -4076,7 +4076,7 @@ $("cvPickNew").onclick = async () => {
   cvStatus("");
 };
 $("cvAdd").onclick = () => cvPickOpen(true);
-// The header's Edit 3D: a model picked (as Add Model picks one), opened with
+// The header's Edit: a model picked (as Add Model picks one), opened with
 // its editor; Combine 3D: Combine 3D Models.
 $("hdrEdit3D").onclick = () => cvPickOpen(true, (b, m) => { cvPickOpen(false); openModel(b, m); mveOpen(true); }, "Edit a model");
 $("hdrCombine3D").onclick = () => cvPickOpen(true, null, "Combine 3D: open a work, or Create New", true);

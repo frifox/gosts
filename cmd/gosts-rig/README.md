@@ -122,9 +122,9 @@ own folder, or another (click the folder over its name).
 
 ## Combining models
 
-**Edit 3D** in the header opens a model (picked from your captures, as Objects' Add: Model picks one) with its editor open.
+**Edit** in the header opens a model (picked from your captures, as Objects' Add: Model picks one) with its editor open.
 
-**Combine 3D** in the header (pick a saved work, Continue what's open, or **Create New**) puts models (picked from your captures) and simple shapes (box, cylinder, sphere) in one
+**Combine** in the header (Combine 3D: pick a saved work, Continue what's open, or **Create New**) puts models (picked from your captures) and simple shapes (box, cylinder, sphere) in one
 space. The one the pointer's on (its row in the list, shown or hidden, or it in the view) gets an orange box round it: the one a click selects. Select one from the list or by clicking it (Esc, a click on it in the list again, or on the list's
 empty space: none). With one selected, a drag anywhere in the view moves it, even when it's inside another, along the
 plane lit through it: whichever of XY, XZ or YZ the view looks at most squarely (look from above: XY, the floor;
