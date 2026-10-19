@@ -147,7 +147,7 @@ It can make a custom case insert, to print in foaming TPU, say:
   under a part of it that hangs over): at that height over the cut round it; 0 (as it starts) leaves none, empty lets it stand.
   Pieces a cut leaves loose are taken out, so the insert stays in one piece. Cuts stay live: move or
   turn an object and the fill is cut again where it's let go, so they can be arranged after cutting.
-- **Save** keeps the work itself as *Model Name*`.combine.json` in the folder shown over the name: a new one in `inserts`, one opened back where it came from (Browse's **Move to…** puts it in another): its objects, where they are and how
+- **Save** keeps the work itself as *Model Name*`.combine.json` in the folder shown over the name (click it for another): a new one in `inserts`, one opened back where it came from: its objects, where they are and how
   they're turned, the fills (as they're set) and their cuts. Browse lists it among the captures; a click opens it
   again, the fills made again. The models in it are named (capture / model), not copied: one renamed, moved or deleted
   since comes back as a box its size in its place, marked ⚠ in Objects, with **Re-link** (pick the model it is now)

@@ -562,6 +562,8 @@ body.cv-reordering, body.cv-reordering * { cursor: grabbing !important; user-sel
 /* Save's folder (where it goes) over the model's name (Combine 3D's, the model editor's). */
 .save-dir { display: flex; align-items: center; gap: 6px; min-width: 0; font: 12px var(--mono); color: var(--muted); margin-bottom: 6px; }
 .save-dir svg { width: 14px; height: 14px; flex: none; }
+button.save-dir.pick { width: 100%; padding: 2px 4px; margin-left: -4px; border: 0; border-radius: 5px; background: none; cursor: pointer; text-align: left; }
+button.save-dir.pick:hover { color: var(--text); background: var(--panel-2); }
 .save-dir span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 input[type=text].save-name { width: 100%; min-width: 0; box-sizing: border-box; }
 .cv-head-row { display: flex; align-items: center; gap: 8px; }
@@ -1372,7 +1374,7 @@ kbd + kbd { margin-left: 3px; }
     <div class="mv-corner mv-corner-r"><div class="mv-measure" id="mvMeasure" hidden><span id="mvMeasureText"></span><button class="mvm-close" id="mvMeasureClose" title="Close Measure" aria-label="Close Measure">✕</button></div><span class="views seg" id="mvLook"><button data-v="textured" title="As built: its textures">Textured</button><button data-v="clay" title="Its shape only, gray">Clay</button><button data-v="wire" title="Its triangles">Wireframe</button></span></div>
     <div class="mv-measure mv-moved" id="mveMoved" hidden title="How far the selection's been moved since Move went on"></div></div>
 </div>
-<div class="modal-backdrop" id="moveModal" style="z-index:60" hidden>
+<div class="modal-backdrop" id="moveModal" style="z-index:70" hidden>
   <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="moveTitle" style="width:min(460px,100%)">
     <h2><span id="moveTitle">Move to…</span><span class="spacer"></span><button class="icon-btn" id="moveClose" title="Close (Esc)" aria-label="Close">✕</button></h2>
     <div class="card-body"><div class="move-list" id="moveList"></div><div class="err" id="moveErr" style="margin-top:6px"></div></div>
@@ -1477,7 +1479,7 @@ kbd + kbd { margin-left: 3px; }
     <div class="mv-edit side-save" id="cvSaveCard">
       <section>
         <div class="mve-head"><b>Save</b></div>
-        <div class="save-dir" title="Where Save and Export put it: the folder the work is in (a new one: inserts; Browse's Move to… moves it)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg><span id="cvSaveDir"></span></div><input type="text" class="save-name" id="cvSaveName" value="insert" spellcheck="false" autocomplete="off" placeholder="Model name" aria-label="Model name">
+        <button type="button" class="save-dir pick" title="Where Save and Export put it: the folder the work is in (a new one: inserts). Click: another folder"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg><span id="cvSaveDir"></span></button><input type="text" class="save-name" id="cvSaveName" value="insert" spellcheck="false" autocomplete="off" placeholder="Model name" aria-label="Model name">
         <label class="mp-check"><input type="checkbox" id="cvSTL"> <span>Also an STL (z up)</span></label>
         <div class="cv-load" id="cvLoad" hidden><div class="cv-load-bar"><span id="cvLoadBar"></span></div><ol class="cv-load-list" id="cvLoadList"></ol></div>
         <div class="mve-row save-row"><div class="mve-status" id="cvStatus"></div><button class="btn small" id="cvSave" title="Keep this work as a file (Name.combine.json) in the folder above: Browse opens it again">Save</button><button class="btn small primary" id="cvExport" title="The objects shown as one model (OBJ, mm), in the folder above">Export</button></div>
@@ -3181,21 +3183,24 @@ function galFolderMoved(from, to) {
   if (w && w !== "current" && (w === from || w.startsWith(from + "/"))) state.gal.where = to + w.slice(from.length);
   const at = (p) => (p?.startsWith(from + "/") ? to + p.slice(from.length) : p); // (the work open, in it: saved where it is now)
   cvs.work = at(cvs.work);
+  if (cvs.dir) cvs.dir = cvs.dir === from ? to : at(cvs.dir);
   if (cvs.saved) cvs.saved.path = at(cvs.saved.path);
   if (!$("gallery").hidden) galleryAgain();
 }
 // moveTo: Move to…: a folder ({folder, title}) or a work file ({work,
 // title, from}) put in another folder, picked from all of them (a tree);
 // not into itself nor one in it, nor where it is.
+// (or with pick: a folder picked for it (what.title, the title; what.here,
+// where it is now: not to pick), handed to pick)
 async function moveTo(what) {
   const m = $("moveModal"), list = $("moveList"), err = $("moveErr");
-  $("moveTitle").textContent = `Move ${what.title} to…`;
+  $("moveTitle").textContent = what.pick ? what.title : `Move ${what.title} to…`;
   err.textContent = "";
   list.innerHTML = '<div class="hint">Loading…</div>';
   m.hidden = false;
   let all = [];
   try { all = await getJSON("/batches?all=1"); } catch (e) { err.textContent = e.message; }
-  const here = what.folder ? galParent(what.folder) : (what.from || null);
+  const here = what.pick ? what.here || null : what.folder ? galParent(what.folder) : (what.from || null);
   list.innerHTML = "";
   const row = (path, label, depth) => {
     const b = document.createElement("button");
@@ -3212,6 +3217,7 @@ async function moveTo(what) {
   for (const f of all) row(f.name, f.title, f.name.split("/").length);
   async function go(to) {
     err.textContent = "";
+    if (what.pick) { m.hidden = true; return what.pick(to || ""); }
     try {
       if (what.folder) {
         const r = await fetch(`/batches/${encodeURIComponent(what.folder)}/move`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: to || "" }) });
@@ -4026,7 +4032,7 @@ $("cvPickNew").onclick = async () => {
   const cv = cvs.cv;
   if (cv.objects().length && !await confirmDanger("Start new?", "What's in Combine 3D now is put away (Save it first to keep it).", "Create New")) return;
   cv.clear();
-  cvs.work = null;
+  cvs.work = null; cvs.dir = null;
   cvs.saved = null;
   $("cvSaveName").value = "insert";
   cvStatus("");
@@ -4478,7 +4484,8 @@ function cvWork(thumb = true) {
 // saved as (cvs.saved: its path and objects then).
 // cvFolder: where Save and Export put it: the work's own folder (a new
 // one: inserts).
-const cvFolder = () => (cvs.work ? (cvs.work.includes("/") ? cvs.work.slice(0, cvs.work.lastIndexOf("/")) : "") : "inserts");
+// (cvs.dir: one picked, by clicking the folder: there from now on)
+const cvFolder = () => cvs.dir ?? (cvs.work ? (cvs.work.includes("/") ? cvs.work.slice(0, cvs.work.lastIndexOf("/")) : "") : "inserts");
 function cvSavePath() {
   const name = $("cvSaveName").value.trim(), dir = cvFolder();
   return { name, dir, path: dir ? `${dir}/${name}` : name };
@@ -4489,6 +4496,7 @@ function cvUnsaved() {
 }
 function cvMarkSaved() { cvs.saved = cvs.work ? { path: cvs.work, sig: cvSig() } : null; }
 $("cvSaveName").addEventListener("input", () => { if (cvs.cv) cvShow(); });
+$("cvSaveDir").parentElement.onclick = () => moveTo({ title: "Save in…", here: cvFolder(), pick: (to) => { cvs.dir = to; cvShow(); } });
 $("cvSave").onclick = async () => {
   const { name, dir, path } = cvSavePath();
   if (!name) return cvStatus("A name first", "bad");
@@ -4500,7 +4508,7 @@ $("cvSave").onclick = async () => {
   try {
     const r = await fetch(workURL(path) + (replace ? "&trash=1" : ""), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cvWork()) });
     if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
-    cvs.work = path;
+    cvs.work = path; cvs.dir = null; // (its folder: the work's own now)
     cvMarkSaved();
     cvStatus("Saved", "ok", true);
     if (!$("gallery").hidden && (state.gal.where === null || state.gal.where === dir)) galleryAgain();
@@ -4589,7 +4597,7 @@ async function cvOpenWork(path) {
   }
   cv.select(null);
   cv.fit();
-  cvs.work = path;
+  cvs.work = path; cvs.dir = null;
   $("cvSaveName").value = name;
   let bad = "";
   for (const f of fills) {
