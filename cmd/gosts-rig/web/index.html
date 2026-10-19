@@ -4370,12 +4370,13 @@ document.addEventListener("pointerdown", (e) => { // (a click elsewhere, not in 
 });
 // cvMarks: the selected fill's line (a sheet over its container) and inside
 // point (the Offset as it's typed).
+// (Its line and point: in its own frame, shown where its container is now.)
 function cvMarks() {
   const f = cvs.cv.selected(), st = f?.kind === "fill" ? f.fill.set : null;
   const level = st && st.top != null ? st.top - (Number($("cvBelow").value) || 0) / 1000 : null;
   const box = st?.container && cvs.cv.objects().includes(st.container) ? cvs.cv.boxOf(st.container) : null;
-  const p = st?.inside && level != null ? { x: st.inside.x, y: level, z: st.inside.z } : null; // (on the line, as it moves)
-  cvs.cv.marks(box ? level : null, box, box ? p : null);
+  const c = box?.getCenter(box.min.clone()), at = box && level != null ? cvs.cv.fillToWorld(f, st.inside ? { x: st.inside.x, y: level, z: st.inside.z } : cvs.cv.worldToFill(f, c).setY(level)) : null;
+  cvs.cv.marks(at ? at.y : null, box, st?.inside ? at : null); // (on the line, as it moves)
 }
 // cvSetFill: the selected fill's settings changed (a step).
 function cvSetFill(ch, what) { const f = cvs.cv.selected(); if (f?.kind === "fill") cvs.cv.setFill(f, ch, what && `${what} of ${f.name}`); }
@@ -4505,9 +4506,9 @@ $("cvPickTop").onclick = () => {
   const f = cvs.cv.selected(), c = f?.fill?.set.container;
   if (!c) return;
   cvStatus("Click on the container where the fill should come up to");
-  cvs.cv.pick(c, (p) => { // (the inside point: the middle, unless one was picked)
+  cvs.cv.pick(c, (p) => { // (the inside point: the middle, unless one was picked; in the fill's frame)
     cvStatus("");
-    const ch = { top: p.y }, m = cvs.cv.boxOf(c).getCenter(p.clone());
+    const q = cvs.cv.worldToFill(f, p), ch = { top: q.y }, m = cvs.cv.worldToFill(f, cvs.cv.boxOf(c).getCenter(p.clone()));
     if (!f.fill.set.inside || f.fill.set.inside.auto) ch.inside = { x: m.x, z: m.z, auto: true };
     cvs.cv.setFill(f, ch, `Pick the fill line of ${f.name}`);
   }, null, "line");
@@ -4516,7 +4517,8 @@ $("cvPickIn").onclick = () => {
   const f = cvs.cv.selected(), level = f?.kind === "fill" ? cvs.cv.fillLevel(f) : null;
   if (level == null) return;
   cvStatus("Click on the fill line, over the container's inside");
-  cvs.cv.pick(null, (p) => { cvStatus(""); cvs.cv.setFill(f, { inside: { x: p.x, z: p.z } }, `Pick the inside point of ${f.name}`); }, level, "inside");
+  const st = f.fill.set, c = cvs.cv.boxOf(st.container).getCenter(new (cvs.cv.boxOf(st.container).min.constructor)()), lw = cvs.cv.fillToWorld(f, st.inside ? { x: st.inside.x, y: level, z: st.inside.z } : cvs.cv.worldToFill(f, c).setY(level)).y; // (the line, where its container is now)
+  cvs.cv.pick(null, (p) => { cvStatus(""); const q = cvs.cv.worldToFill(f, p); cvs.cv.setFill(f, { inside: { x: q.x, z: q.z } }, `Pick the inside point of ${f.name}`); }, lw, "inside");
 };
 $("cvMakeFill").onclick = async () => {
   const f = cvs.cv.selected();
@@ -4655,7 +4657,9 @@ function cvWork(thumb = true) {
     if (o.kind === "model") { s.ref = o.ref ?? null; s.dims = o.dims; }
     if (o.kind === "fill") {
       const st = o.fill.set;
-      s.fill = { container: st.container?.id ?? null, top: st.top, offset: st.offset, inside: st.inside, tol: st.tol, res: st.res, made: !!o.fill.g,
+      // (its line and point: where they are now, its container as it's placed: opened, its frame that)
+      const w = st.top != null && st.container ? cvs.cv.fillToWorld(o, st.inside ? { x: st.inside.x, y: st.top, z: st.inside.z } : cvs.cv.worldToFill(o, cvs.cv.boxOf(st.container).getCenter(cvs.cv.boxOf(st.container).min.clone())).setY(st.top)) : null;
+      s.fill = { container: st.container?.id ?? null, top: w ? w.y : st.top, offset: st.offset, inside: st.inside && w ? { ...st.inside, x: w.x, z: w.z } : st.inside, tol: st.tol, res: st.res, made: !!o.fill.g,
         cuts: [...o.fill.cuts].map(([t, c]) => ({ id: t.id, opts: c.opts })) };
     }
     return s;

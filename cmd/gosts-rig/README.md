@@ -154,7 +154,7 @@ It can make a custom case insert, to print in foaming TPU, say:
   **Smooth** rounds the pocket off without ever cutting into the margin. With Open Above, **Column max** caps the fill
   left standing inside the object, cut off from the rest of the fill (inside a drone's prop guards, or a pillar
   under a part of it that hangs over): at that height over the cut round it; 0 (as it starts) leaves none, empty lets it stand.
-  Pieces a cut leaves loose are taken out, so the insert stays in one piece. Cuts stay live: move or
+  Pieces a cut leaves loose are taken out, so the insert stays in one piece. A fill goes with its container: move, turn or drop the case and the fill's with it, its cuts made again where they are now. Cuts stay live: move or
   turn an object and the fill is cut again where it's let go, so they can be arranged after cutting.
 - **Save** keeps the work itself as *Model Name*`.combine.json` in the folder shown over the name (click it for another): a new one in `inserts`, one opened back where it came from: its objects, where they are and how
   they're turned, the fills (as they're set) and their cuts. Browse lists it among the captures; a click opens it

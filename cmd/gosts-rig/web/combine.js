@@ -43,9 +43,10 @@ function grid(o, h, nx, ny, nz) {
 }
 const at = (g, x, y, z) => (z * g.ny + y) * g.nx + x;
 
-// rasterize marks the voxels of g that obj's surfaces (as placed) pass
-// through: points along each triangle, closer than half a voxel apart.
-function rasterize(g, obj) {
+// rasterize marks the voxels of g that obj's surfaces (as placed; pre: then
+// moved by it: into a fill's own frame) pass through: points along each
+// triangle, closer than half a voxel apart.
+function rasterize(g, obj, pre = null) {
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), p = new THREE.Vector3();
   const { o, h, nx, ny, nz, v } = g;
   const mark = (q) => {
@@ -55,7 +56,7 @@ function rasterize(g, obj) {
   obj.updateMatrixWorld(true);
   obj.traverse((m) => {
     if (!m.isMesh) return;
-    const pos = m.geometry.getAttribute("position"), idx = m.geometry.index, mw = m.matrixWorld;
+    const pos = m.geometry.getAttribute("position"), idx = m.geometry.index, mw = pre ? pre.clone().multiply(m.matrixWorld) : m.matrixWorld;
     const T = (idx ? idx.count : pos.count) / 3;
     for (let t = 0; t < T; t++) {
       const i0 = idx ? idx.getX(t * 3) : t * 3, i1 = idx ? idx.getX(t * 3 + 1) : t * 3 + 1, i2 = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
@@ -156,8 +157,9 @@ function flood(g, seed, pass, out) {
 // size, its corner a whole number of voxels off), round its box and pad
 // voxels more: its surface, and all it closes in (what can't be reached from
 // outside). Open meshes: their surface, as it is.
-function solid(base, obj, pad) {
+function solid(base, obj, pad, pre = null) {
   const box = new THREE.Box3().setFromObject(obj), h = base.h;
+  if (pre) box.applyMatrix4(pre);
   const lo = [0, 0, 0], n = [0, 0, 0];
   ["x", "y", "z"].forEach((k, i) => {
     lo[i] = Math.floor((box.min[k] - base.o[k]) / h) - pad;
@@ -165,7 +167,7 @@ function solid(base, obj, pad) {
   });
   const g = grid(new THREE.Vector3(base.o.x + lo[0] * h, base.o.y + lo[1] * h, base.o.z + lo[2] * h), h, n[0], n[1], n[2]);
   g.off = lo;
-  rasterize(g, obj);
+  rasterize(g, obj, pre);
   const outside = new Uint8Array(g.v.length);
   flood(g, 0, (i) => !g.v[i], outside);
   for (let i = 0; i < g.v.length; i++) g.v[i] = outside[i] ? 0 : 1;
@@ -312,6 +314,7 @@ export function createCombine(canvas) {
   let seq = 0, selected = null, onChange = () => {}, picking = null, dragging = null;
   const api = {};
   const changed = () => {
+    syncFills();
     applyLook();
     outline();
     if (ring.visible) api.turnRing(ring.userData.o === selected ? selected : null, ring.userData.ax, ring.userData.sign); // (where it is now; none once it's not selected)
@@ -392,6 +395,7 @@ export function createCombine(canvas) {
     shiftTick(dt);
     glideTick(last ? dt : 0);
     movePlaneTick();
+    syncFills(); // (each fill with its container, as it moves)
     last = now;
     controls.update();
     if (sel.visible) fitSel();
@@ -557,6 +561,7 @@ export function createCombine(canvas) {
     if (pos) o.pos = pos;
     if (rot) o.rot = rot;
     place(o);
+    syncFills(); // (a container's fills with it, as it slides)
     outline();
     if (ring.visible && ring.userData.o === o) api.turnRing(o, ring.userData.ax, ring.userData.sign);
   };
@@ -574,6 +579,7 @@ export function createCombine(canvas) {
       const t = Math.min(1, (now - t0) / ms), e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
       o.holder.quaternion.slerpQuaternions(qa, qb, e);
       o.holder.updateMatrixWorld(true);
+      syncFills();
       outline();
       if (t < 1) return requestAnimationFrame(step);
       o.anim = null;
@@ -582,7 +588,7 @@ export function createCombine(canvas) {
     requestAnimationFrame(step);
   };
   // changedQuiet: the page told, not the fills cut again (yet).
-  const changedQuiet = () => { outline(); onChange(); };
+  const changedQuiet = () => { syncFills(); outline(); onChange(); };
   api.setPose = (o, pos, rot) => {
     if (o.kind === "fill") return;
     o.anim = null;
@@ -754,7 +760,7 @@ export function createCombine(canvas) {
   api.unpick = () => { const was = picking; picking = null; canvas.style.cursor = ""; if (was) onChange(); };
   api.pickWhat = () => picking?.what ?? null;
   api.picking = () => !!picking;
-  api.boxOf = (o) => new THREE.Box3().setFromObject(o.holder);
+  api.boxOf = (o) => { syncFills(); return new THREE.Box3().setFromObject(o.holder); };
   canvas.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
     const h = picking?.plane != null ? planeAt(e, picking.plane) : hitAt(e, picking?.only);
@@ -954,7 +960,33 @@ export function createCombine(canvas) {
   // line picked (y, m), offset: it moved from there (m, + down), inside: a
   // point over the inside (x, z), tol (m) off the walls, res (m) voxels),
   // then made (g: its voxels, base: before its cuts). Its level: top − offset.
-  const FILL_SET = { container: null, top: null, offset: 0, inside: null, tol: 0.001, res: 0.001 };
+  // Its frame: the container as it was when picked (anchor: its matrix);
+  // the fill's line, inside point, voxels and mesh are all in it, so the
+  // fill goes with its container, moved or turned (its holder: the
+  // container now, from there), its cuts worked out in it.
+  const FILL_SET = { container: null, top: null, offset: 0, inside: null, tol: 0.001, res: 0.001, anchor: null };
+  const anchorOf = (st) => (st.container && st.anchor ? new THREE.Matrix4().fromArray(st.anchor) : null);
+  // frameOf: f's frame to the world now (identity: not moved since).
+  function frameOf(f) {
+    const st = f.fill.set, A = anchorOf(st);
+    if (!A) return new THREE.Matrix4();
+    st.container.holder.updateMatrixWorld(true);
+    return st.container.holder.matrixWorld.clone().multiply(A.invert());
+  }
+  // syncFills: each fill's holder where its container is now.
+  function syncFills() {
+    for (const f of objects) {
+      if (f.kind !== "fill") continue;
+      frameOf(f).decompose(f.holder.position, f.holder.quaternion, f.holder.scale);
+      f.holder.updateMatrixWorld(true);
+    }
+  }
+  // fillToWorld, worldToFill: a point ({x, y, z}) from f's frame to the
+  // world as it is now, and back.
+  api.fillToWorld = (f, p) => new THREE.Vector3(p.x, p.y, p.z).applyMatrix4(frameOf(f));
+  api.worldToFill = (f, p) => new THREE.Vector3(p.x, p.y, p.z).applyMatrix4(frameOf(f).invert());
+  // (where its container is, from where it was: its cuts worked out again)
+  const frameKey = (f) => (anchorOf(f.fill.set) ? JSON.stringify([f.fill.set.container.pos, f.fill.set.container.rot]) : "");
   api.fillLevel = (f) => (f.fill.set.top == null ? null : f.fill.set.top - f.fill.set.offset);
   // addFill: a fill, not set yet.
   api.addFill = () => {
@@ -976,7 +1008,10 @@ export function createCombine(canvas) {
   // setFill: f's settings changed (ch: some of FILL_SET's); a step.
   api.setFill = (f, ch, what = `Set ${f.name}`) => {
     const b = f.fill.set, a = { ...b, ...ch };
-    if (Object.keys(ch).every((k) => a[k] === b[k] || (k === "inside" && JSON.stringify(a[k]) === JSON.stringify(b[k])))) return;
+    if ("container" in ch && ch.container !== b.container) { // (another container: its frame, as it is now)
+      if (a.container) { a.container.holder.updateMatrixWorld(true); a.anchor = a.container.holder.matrixWorld.toArray(); } else a.anchor = null;
+    }
+    if (Object.keys(ch).every((k) => a[k] === b[k] || (k === "inside" && JSON.stringify(a[k]) === JSON.stringify(b[k]))) && a.anchor === b.anchor) return;
     f.fill.set = a;
     record(what, () => { f.fill.set = b; }, () => { f.fill.set = a; });
     changed();
@@ -998,7 +1033,7 @@ export function createCombine(canvas) {
     if (!st.container || st.top == null || !st.inside) throw new Error("pick its container and fill line first");
     if (!objects.includes(st.container)) throw new Error(`its container (${st.container.name}) isn't in the space`);
     if (st.container.missing) throw new Error(`its container (${st.container.name}) is missing: Re-link it (in Objects) first`);
-    const { g } = await fillVoxels(st.container, st.top - st.offset, st.inside, st.tol, st.res, status);
+    const { g } = await fillVoxels(st.container, st.top - st.offset, st.inside, st.tol, st.res, status, frameOf(f).invert());
     const b = { g: F.g, base: F.base, madeWith: F.madeWith }, a = { g, base: g.v.slice(), madeWith: setKey(st) };
     const put = (x) => { Object.assign(F, x); F.gen++; if (!F.g) clearMesh(f); }; // (gen: its cuts worked out again, for this grid)
     put(a);
@@ -1011,16 +1046,17 @@ export function createCombine(canvas) {
     m.geometry = new THREE.BufferGeometry();
   }
   // fillVoxels: makeFill's voxels (g), and how many the islands left took.
-  async function fillVoxels(container, level, inside, tol, res, status) {
+  async function fillVoxels(container, level, inside, tol, res, status, pre = null) {
     status("Fill: placing the container's walls");
     await tick();
     container.holder.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(container.holder), h = res, pad = Math.ceil(tol / h) + 3;
+    if (pre) box.applyMatrix4(pre); // (in the fill's frame)
     if (level <= box.min.y) throw new Error("the level is under the container");
     const ny = Math.ceil((level - box.min.y) / h) + pad;
     const o = new THREE.Vector3(box.min.x - pad * h, level - ny * h, box.min.z - pad * h); // (its top: the level, exactly)
     const g = grid(o, h, Math.ceil((box.max.x - box.min.x) / h) + 2 * pad, ny, Math.ceil((box.max.z - box.min.z) / h) + 2 * pad);
-    rasterize(g, container.holder);
+    rasterize(g, container.holder, pre);
     status("Fill: keeping it off the walls");
     await tick();
     const d = edt(g, (i) => g.v[i]), r = tol / h + 0.5, r2 = r * r;
@@ -1043,18 +1079,18 @@ export function createCombine(canvas) {
   // out with obj at key). Moved, turned, resized, taken out or put back: the
   // fill's cut again from its base (in the background, one at a time).
   const cutKey = (o) => JSON.stringify([objects.includes(o) && !o.missing, o.pos, o.rot, o.size ?? null, o.geo]);
-  const fillKey = (f) => JSON.stringify([f.fill.gen, ...[...f.fill.cuts].map(([o, c]) => [o.id, cutKey(o), c.opts])]);
+  const fillKey = (f) => JSON.stringify([f.fill.gen, frameKey(f), ...[...f.fill.cuts].map(([o, c]) => [o.id, cutKey(o), c.opts])]);
   // cutVoxels: the voxels of F obj takes (as placed): it grown sideways by
   // wall (m) and down by floor (m),
   // smoothed by smooth (m: its hollows filled in, never cutting less), and
   // with keepAbove everything over it too (so it can go in from above); and
   // with colMax (m), the fill's columns standing inside it cut down to colMax
   // over the cut round them (see domes). base: the fill's voxels as made.
-  async function cutVoxels(F, base, obj, { wall, floor, keepAbove, smooth, colMax = null }, status) {
+  async function cutVoxels(F, base, obj, { wall, floor, keepAbove, smooth, colMax = null }, status, pre = null) {
     const h = F.h, gr = Math.ceil(Math.max(wall, floor) / h), sm = Math.ceil(smooth / h);
     status(`Cut: ${obj.name} as voxels`);
     await tick();
-    const s = solid(F, obj.holder, gr + 2 * sm + 3);
+    const s = solid(F, obj.holder, gr + 2 * sm + 3, pre); // (pre: into the fill's frame)
     status(`Cut: ${obj.name} grown by the margin`);
     await tick();
     grow(s, wall / h + 0.5, true);
@@ -1134,11 +1170,11 @@ export function createCombine(canvas) {
   // kept in one piece. How many voxels the islands left took.
   async function recut(f, status) {
     if (!f.fill.g) { f.fill.made = fillKey(f); return 0; } // (not made: nothing to cut)
-    const F = f.fill.g, v = f.fill.base.slice();
+    const F = f.fill.g, v = f.fill.base.slice(), pre = frameOf(f).invert(), fk = frameKey(f);
     for (const [o, c] of f.fill.cuts) {
       if (!objects.includes(o) || o.missing) continue; // (a missing model: no cut till it's linked again)
-      const key = cutKey(o) + f.fill.gen;
-      if (c.key !== key) { c.idx = await cutVoxels(F, f.fill.base, o, c.opts, status); c.key = key; c.hits = c.idx.reduce((n, i) => n + f.fill.base[i], 0); }
+      const key = cutKey(o) + f.fill.gen + fk;
+      if (c.key !== key) { c.idx = await cutVoxels(F, f.fill.base, o, c.opts, status, pre); c.key = key; c.hits = c.idx.reduce((n, i) => n + f.fill.base[i], 0); }
       for (const i of c.idx) v[i] = 0;
     }
     status("Cut: keeping it in one piece");
