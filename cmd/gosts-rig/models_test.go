@@ -131,11 +131,14 @@ func TestModelSave(t *testing.T) {
 	a := &app{model: &modelBuilder{out: func(any) {}}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /batches/{name}/models/{model}/save", a.handleModelSave)
-	tex := "" // (a hole's fill texture to send: its name)
+	tex, folder := "", "" // (a hole's fill texture to send: its name; another folder to save in)
 	save := func(to string, stl bool, replace ...bool) *httptest.ResponseRecorder {
 		var body bytes.Buffer
 		mw := multipart.NewWriter(&body)
 		mw.WriteField("to", to)
+		if folder != "" {
+			mw.WriteField("folder", folder)
+		}
 		if len(replace) > 0 && replace[0] {
 			mw.WriteField("replace", "1")
 		}
@@ -198,6 +201,26 @@ func TestModelSave(t *testing.T) {
 	if data, _ := os.ReadFile(filepath.Join(dir, "mine", "keep.txt")); string(data) != "x" {
 		t.Error("mine's file is gone")
 	}
+	// In another folder: there, its materials and textures with it; not one
+	// that isn't there, nor over the model itself from elsewhere.
+	os.MkdirAll(filepath.Join(photoDir, "cases", "small"), 0o755)
+	folder = "cases/small"
+	if w := save("model-full-moved", false); w.Code != 200 {
+		t.Fatalf("in another folder: %d %s", w.Code, w.Body)
+	}
+	for _, f := range []string{"model-full-moved.obj", "model-full-moved.mtl", "tex.png", "edit.json"} {
+		if !fileExists(filepath.Join(photoDir, "cases", "small", "model-full-moved", f)) {
+			t.Errorf("in another folder: no %s", f)
+		}
+	}
+	if w := save("model-full", false, true); w.Code == 200 {
+		t.Error("replaced the model from another folder")
+	}
+	folder = "nowhere"
+	if w := save("x", false); w.Code != http.StatusNotFound {
+		t.Errorf("a folder not there: %d, want 404", w.Code)
+	}
+	folder = ""
 	if ents, _ := os.ReadDir(dir); len(ents) != 3 {
 		t.Errorf("left in the capture: %v", ents)
 	}

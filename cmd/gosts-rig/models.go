@@ -396,10 +396,10 @@ var textureExts = []string{".png", ".jpg", ".jpeg", ".tif", ".tiff", ".exr", ".b
 
 // handleModelSave saves an edited model (POST
 // /batches/{name}/models/{model}/save, multipart): to (the new folder's
-// name), edit (its modelEdit, JSON), mtl (the model's materials' file, to
-// copy), obj (the edited OBJ), stl (if made), and, for the holes filled,
-// mtlextra (their materials, added to the MTL) and tex (each one's
-// texture, a PNG). The folder gets <to>.obj, <to>.mtl (the model's,
+// name), folder (where it goes: another folder; none, the model's own),
+// edit (its modelEdit, JSON), mtl (the model's materials' file, to copy),
+// obj (the edited OBJ), stl (if made), and, for the holes filled, mtlextra
+// (their materials, added to the MTL) and tex (each one's texture, a PNG). The folder gets <to>.obj, <to>.mtl (the model's,
 // copied, with mtlextra), its textures (copied, and the tex ones),
 // <to>.stl and edit.json. Over an edit saved here before (that one to the
 // Trash first); over the model itself only with replace (it to the Trash,
@@ -426,6 +426,7 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.RemoveAll(tmp)
 	var to, mtl, mtlExtra string
+	folder := name // (where it goes: the model's own folder, or another one there)
 	replace := false
 	var edit modelEdit
 	got := map[string]bool{}
@@ -440,11 +441,13 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 		}
 		field := part.FormName()
 		switch field {
-		case "to", "mtl", "edit", "replace", "mtlextra":
+		case "to", "mtl", "edit", "replace", "mtlextra", "folder":
 			v, _ := io.ReadAll(io.LimitReader(part, 1<<20))
 			switch field {
 			case "mtlextra":
 				mtlExtra = string(v)
+			case "folder":
+				folder = strings.Trim(strings.TrimSpace(string(v)), "/")
 			case "to":
 				to = strings.TrimSpace(string(v))
 			case "mtl":
@@ -501,18 +504,25 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 	case to == model && !replace:
 		fail(http.StatusBadRequest, "save it under another name: %s is the model it's made from (or Replace it)", to)
 		return
-	case replace && to != model:
-		fail(http.StatusBadRequest, "replace: the name is the model's own (%s)", model)
+	case replace && (to != model || folder != name):
+		fail(http.StatusBadRequest, "replace: the name is the model's own (%s), in its own folder", model)
+		return
+	case !cleanPath(folder):
+		fail(http.StatusBadRequest, "the folder %q?", folder)
 		return
 	case !slices.Contains([]string{"mm", "in", "m"}, edit.Units):
 		fail(http.StatusBadRequest, "units %q?", edit.Units)
 		return
 	}
-	if err := a.model.building(name, to); err != nil {
+	if info, err := os.Stat(filepath.Join(photoDir, folder)); err != nil || !info.IsDir() {
+		fail(http.StatusNotFound, "no folder %q", folder)
+		return
+	}
+	if err := a.model.building(folder, to); err != nil {
 		fail(http.StatusConflict, "%v", err)
 		return
 	}
-	dst := filepath.Join(photoDir, name, to)
+	dst := filepath.Join(photoDir, folder, to)
 	old := false
 	if ents, err := os.ReadDir(dst); err == nil && len(ents) > 0 {
 		if readModelEdit(dst) == nil && !replace {
@@ -575,7 +585,7 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 			fail(http.StatusInternalServerError, "the one saved before couldn't go to the Trash: %v", err)
 			return
 		}
-		log.Printf("model: %s's %s from before moved to the Trash", name, to)
+		log.Printf("model: %s's %s from before moved to the Trash", folder, to)
 	} else {
 		os.Remove(dst) // (an empty folder)
 	}
@@ -583,7 +593,7 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 		fail(http.StatusInternalServerError, "%v", err)
 		return
 	}
-	log.Printf("model: %s's %s saved as %s (%s, %d triangles)", name, model, to, edit.Units, edit.Triangles)
+	log.Printf("model: %s's %s saved as %s/%s (%s, %d triangles)", name, model, folder, to, edit.Units, edit.Triangles)
 	m, _ := modelIn(dst)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(m)

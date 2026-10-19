@@ -115,7 +115,8 @@ file.
 - **Scale**: set the real distance between two points
 - **Simplify**: cut it down to fewer triangles, keeping the shape as well as it can
 
-**Save** writes it as a new model (or overwrites this one) in mm, inches or meters, optionally as an STL too.
+**Save** writes it as a new model (or overwrites this one) in mm, inches or meters, optionally as an STL too; in its
+own folder, or another (click the folder over its name).
 
 ## Combining models
 
