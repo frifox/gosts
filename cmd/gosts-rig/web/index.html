@@ -948,6 +948,7 @@ kbd + kbd { margin-left: 3px; }
   <h1>GoSTS</h1><span class="sub">Photogrammetry Rig</span>
   <span class="spacer"></span>
   <button class="btn small primary" id="hdrBuilding" hidden>Building…</button><span class="spacer"></span>
+  <button class="btn small" id="openCaptureBtn" title="Browse the captures saved on this computer">Browse</button>
   <span class="btn-join hdr-3d"><button class="btn small" id="hdrEdit3D" title="Open a model (picked from your captures) in the model editor">Edit 3D</button><button class="btn small" id="hdrCombine3D" title="Put models and simple shapes together, each placed on its own; make a Container Fill (an insert) and cut the objects out of it; save it as a model">Combine 3D</button></span>
   <span class="pill-group">
     <span class="pill" title="This page's link to the app (gosts-rig)"><svg class="pill-ic" id="wsDot" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2v3M10 2v3M4.5 5h7v2a3.5 3.5 0 0 1-7 0zM8 10.5V14"/></svg><span id="wsText">ws: connecting…</span></span>
@@ -1083,7 +1084,7 @@ kbd + kbd { margin-left: 3px; }
 
   <div class="right">
   <section class="card" id="cameraCard">
-    <h2>Photos <button class="btn small" id="openCaptureBtn" title="Browse the captures saved on this computer" style="text-transform:none;letter-spacing:0;margin-left:6px">Browse</button>
+    <h2>Photos
       <span class="dev-name" id="batchName" title="The capture the photos and sample shots go to: its folder"></span>
       <button class="icon-btn pen-btn" id="batchRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button>
       <span class="spacer"></span>
