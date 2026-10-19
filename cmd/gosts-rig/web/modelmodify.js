@@ -1,6 +1,7 @@
 // Modify (the model editor's Delete section): picking out parts of the model (its
 // triangles: a wand (a part, all joined), a lasso, a rectangle, a brush) and deleting them, each
-// hole that leaves filled if asked (flat, or smooth). Steps back and on
+// hole that leaves filled if asked (flat, or smooth), or moving them (pushed
+// or pulled: the triangles round them stretched to follow). Steps back and on
 // (Undo, Redo) till applied; Cancel puts it as it was.
 //
 // The model's meshes are each a triangle soup (three.js' OBJ: no index,
@@ -337,6 +338,34 @@ function remove(geo, sel, fill) {
   return { geo: out, deleted: T - kept, holes, open, added };
 }
 
+// shifted: a copy of geo with the corners of the triangles sel marks (and
+// every corner joined to them: the same vertex) moved by d (geo's own
+// space); the triangles that moved, or touch them, given flat normals again.
+// Its triangles as geo's: the same joins (info shared, its BVH made anew).
+function shifted(geo, sel, d) {
+  const f = info(geo), out = geo.clone(), pos = out.getAttribute("position"), a = pos.array;
+  const mv = new Uint8Array(f.V), touched = new Uint8Array(f.T);
+  for (let t = 0; t < f.T; t++) if (sel[t]) for (let c = 0; c < 3; c++) mv[f.vid[t * 3 + c]] = 1;
+  for (let i = 0; i < f.T * 3; i++) if (mv[f.vid[i]]) {
+    a[i * 3] += d.x; a[i * 3 + 1] += d.y; a[i * 3 + 2] += d.z;
+    touched[(i / 3) | 0] = 1;
+  }
+  const nrm = out.getAttribute("normal");
+  if (nrm) {
+    const p0 = new THREE.Vector3(), p1 = new THREE.Vector3(), p2 = new THREE.Vector3(), n = new THREE.Vector3();
+    for (let t = 0; t < f.T; t++) {
+      if (!touched[t]) continue;
+      p0.fromArray(a, t * 9); p1.fromArray(a, t * 9 + 3); p2.fromArray(a, t * 9 + 6);
+      n.subVectors(p2, p1).cross(p0.sub(p1)).normalize();
+      for (let c = 0; c < 3; c++) nrm.setXYZ(t * 3 + c, n.x, n.y, n.z);
+    }
+  }
+  out.computeBoundingBox();
+  out.computeBoundingSphere();
+  infos.set(out, { ...f, bvh: null });
+  return out;
+}
+
 // ----------------------------------------------------------- the textures
 
 // sampler: a material's colors at texture places (u, v): its texture's
@@ -508,6 +537,16 @@ export function createModify(v) {
     ring.setAttribute("fill", `rgba(${r},${g},${b},.08)`);
   }
   svg.append(shape, ring);
+  // Move: the plane the selection moves along (the one of XY, XZ, YZ the
+  // view looks at most squarely), a faint square through its middle.
+  const mvPlane = new THREE.Group();
+  {
+    const sq = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false }));
+    const edge = new THREE.LineSegments(new THREE.EdgesGeometry(sq.geometry), new THREE.LineBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.35, depthWrite: false }));
+    for (const m of [sq, edge]) { m.raycast = () => {}; m.renderOrder = 4; mvPlane.add(m); }
+  }
+  mvPlane.visible = false;
+  scene.add(mvPlane);
   canvas.parentElement.insertBefore(svg, canvas.nextSibling);
   shape.style.display = ring.style.display = "none";
 
@@ -560,6 +599,7 @@ export function createModify(v) {
   // show: the step now on the model: its geometries, its selections.
   function show() {
     const st = cur();
+    mvAt = null; // (Move's square: round the selection as it is now)
     hoverOff(); // (the model may have changed: worked out again as the pointer moves)
     let geoChanged = false;
     for (const o of meshes()) {
@@ -611,6 +651,7 @@ export function createModify(v) {
   // tick: the selections where their meshes are (each frame).
   function tick() {
     group.visible = shownOn;
+    planeTick();
     for (const [o, ov] of overlays) { ov.matrix.copy(o.matrixWorld); ov.matrixWorld.copy(o.matrixWorld); }
     for (const [o, hm] of hover.meshes) { hm.matrix.copy(o.matrixWorld); hm.matrixWorld.copy(o.matrixWorld); }
   }
@@ -737,6 +778,7 @@ export function createModify(v) {
   }, { capture: true });
   canvas.addEventListener("pointerdown", (e) => {
     if (!tool || e.button !== 0 || e.metaKey || !v.obj()) return;
+    if (tool === "move") return moveDown(e);
     begin();
     canvas.setPointerCapture(e.pointerId);
     const mode = e.altKey ? "sub" : e.shiftKey && tool === "island" ? "others" : e.shiftKey || tool === "brush" ? "add" : "set";
@@ -744,6 +786,7 @@ export function createModify(v) {
     if (tool === "brush") { drag.d = xray ? null : depth(); paint(e.clientX, e.clientY); }
   });
   canvas.addEventListener("pointermove", (e) => {
+    if (moving) return moveMove(e);
     if (tool === "brush") ringAt(e);
     if (tool === "island" && !drag && !e.buttons) { // (what a click would take: shaded, once a frame at most)
       hover.at = [e.clientX, e.clientY];
@@ -764,6 +807,7 @@ export function createModify(v) {
     }
   });
   const end = (e) => {
+    if (moving) return moveEnd(e);
     if (!drag) return;
     const d = drag;
     drag = null;
@@ -869,12 +913,111 @@ export function createModify(v) {
     }
   }
 
+  // ----------------------------------------------------------- moving
+
+  // The selection's middle (world) and size, as the step now has it.
+  function selBox() {
+    const b = new THREE.Box3(), p = new THREE.Vector3();
+    for (const [o, s] of cur().sels) {
+      const a = cur().geos.get(o).getAttribute("position").array;
+      for (let t = 0; t < s.length; t++) if (s[t]) for (let c = 0; c < 3; c++) b.expandByPoint(p.fromArray(a, t * 9 + c * 3).applyMatrix4(o.matrixWorld));
+    }
+    return b;
+  }
+  // planeAxis: the axis (0 x, 1 y, 2 z) the view looks along most: the
+  // plane across it, the one moved along.
+  function planeAxis() {
+    const d = camera.getWorldDirection(new THREE.Vector3()), a = [Math.abs(d.x), Math.abs(d.y), Math.abs(d.z)];
+    return a[0] >= a[1] && a[0] >= a[2] ? 0 : a[1] >= a[2] ? 1 : 2;
+  }
+  const AXES = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+  let mvAt = null; // (the square's middle and size, for the selection now)
+  function planeTick() {
+    mvPlane.visible = tool === "move" && !!hist && count() > 0;
+    if (!mvPlane.visible) { mvAt = null; return; }
+    if (!mvAt) {
+      const b = selBox(), sz = b.getSize(new THREE.Vector3());
+      mvAt = { c: b.getCenter(new THREE.Vector3()), r: Math.max(sz.length(), v.radius() * 0.3) * 1.4 };
+    }
+    const n = moving ? moving.n : planeAxis();
+    mvPlane.position.copy(mvAt.c);
+    if (moving) mvPlane.position.add(moving.d);
+    mvPlane.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), AXES[n]);
+    mvPlane.scale.setScalar(mvAt.r);
+  }
+  const rayOf = (e) => {
+    const b = canvas.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2((e.clientX - b.left) / b.width * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1), camera);
+    return ray.ray;
+  };
+  // A drag, Move on: the selection along the plane lit (⇧: the one axis
+  // moved along most), shown as it goes; let go: a step.
+  let moving = null;
+  function moveDown(e) {
+    if (!hist || !count()) return;
+    const b = selBox(), n = planeAxis();
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(AXES[n], b.getCenter(new THREE.Vector3()));
+    const from = rayOf(e).intersectPlane(plane, new THREE.Vector3());
+    if (!from) return;
+    canvas.setPointerCapture(e.pointerId);
+    // (each mesh: a copy to move, its corners as they were)
+    const live = new Map();
+    for (const [o, s] of cur().sels) {
+      if (!s.some((x) => x)) continue;
+      const g = cur().geos.get(o), c = g.clone(), f = info(g), idx = [];
+      const mv = new Uint8Array(f.V);
+      for (let t = 0; t < f.T; t++) if (s[t]) for (let k = 0; k < 3; k++) mv[f.vid[t * 3 + k]] = 1;
+      for (let i = 0; i < f.T * 3; i++) if (mv[f.vid[i]]) idx.push(i);
+      live.set(o, { c, base: g.getAttribute("position").array, idx: Int32Array.from(idx), inv: o.matrixWorld.clone().invert() });
+      o.geometry = c;
+      overlay(o, s);
+    }
+    moving = { n, plane, from, d: new THREE.Vector3(), lock: null, live };
+  }
+  function moveMove(e) {
+    const m = moving, p = rayOf(e).intersectPlane(m.plane, new THREE.Vector3());
+    if (!p) return;
+    const d = p.sub(m.from);
+    d.setComponent(m.n, 0);
+    const [a, b] = [0, 1, 2].filter((k) => k !== m.n);
+    if (e.shiftKey) {
+      const ea = Math.abs(d.getComponent(a)), eb = Math.abs(d.getComponent(b));
+      if (!m.lock && Math.max(ea, eb) > v.radius() * 0.005) m.lock = ea >= eb ? a : b;
+      if (m.lock != null) d.setComponent(m.lock === a ? b : a, 0); else d.set(0, 0, 0);
+    } else m.lock = null;
+    m.d.copy(d);
+    for (const [o, l] of m.live) {
+      const o0 = new THREE.Vector3().applyMatrix4(l.inv), dl = d.clone().applyMatrix4(l.inv).sub(o0); // (in its own space)
+      const pos = l.c.getAttribute("position"), a2 = pos.array;
+      for (const i of l.idx) { a2[i * 3] = l.base[i * 3] + dl.x; a2[i * 3 + 1] = l.base[i * 3 + 1] + dl.y; a2[i * 3 + 2] = l.base[i * 3 + 2] + dl.z; }
+      pos.needsUpdate = true;
+      l.dl = dl;
+    }
+    onChange();
+  }
+  function moveEnd(e) {
+    const m = moving;
+    moving = null;
+    const geos = new Map(cur().geos), sels = copySels();
+    for (const [o, l] of m.live) { o.geometry = cur().geos.get(o); l.c.dispose(); } // (the copy shown: done with)
+    if (e.type === "pointercancel" || m.d.lengthSq() === 0) return show();
+    for (const [o, l] of m.live) geos.set(o, shifted(cur().geos.get(o), cur().sels.get(o), l.dl));
+    mvAt = null;
+    push({ geos, sels });
+  }
+  // moved: how far the selection's been moved in the drag going (world), or null.
+  const moved = () => (moving ? moving.d.clone() : null);
+
   // ------------------------------------------------------------ the API
 
   function setTool(t) {
-    tool = TOOLS.includes(t) ? t : null;
+    if (moving) moveEnd({ type: "pointercancel" });
+    tool = TOOLS.includes(t) || t === "move" ? t : null;
+    if (tool === "move") begin();
+    mvAt = null;
     controls.mouseButtons.LEFT = tool ? -1 : THREE.MOUSE.PAN; // (a drag: the tool's, not moving the view)
     canvas.style.cursor = tool === "brush" ? "none" : tool ? "crosshair" : "";
+    canvas.style.cursor = tool === "move" ? "move" : canvas.style.cursor;
     if (tool !== "brush") ring.style.display = "none";
     if (tool !== "island") hoverOff();
     if (!tool && drag) { drag = null; shape.style.display = "none"; show(); }
@@ -969,7 +1112,7 @@ export function createModify(v) {
     onChange();
   }
   return {
-    tick, op, del, commit, cancel, reset, changed, count, fills,
+    tick, op, del, commit, cancel, reset, changed, count, fills, moved,
     get tool() { return tool; }, set tool(t) { setTool(t); },
     get brush() { return brush; },
     get xray() { return xray; },

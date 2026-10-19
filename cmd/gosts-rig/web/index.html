@@ -1318,7 +1318,7 @@ kbd + kbd { margin-left: 3px; }
         <span class="mve-label">Selected</span><div class="mve-row"><span class="btn-join" id="mveSelOps"><button class="btn small mve-tip" data-op="invert" disabled data-tip="Invert (⇧X)" aria-label="Invert"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M2.6 13.4L13.4 2.6V13.4z" fill="currentColor" stroke="none"/></svg></button><button class="btn small mve-tip" data-op="grow" disabled data-tip="Grow" aria-label="Grow"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="1" stroke-dasharray="1.8 1.5"/><path d="M8 5.2v5.6M5.2 8h5.6"/></svg></button><button class="btn small mve-tip" data-op="shrink" disabled data-tip="Shrink" aria-label="Shrink"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="1" stroke-dasharray="1.8 1.5"/><path d="M5.2 8h5.6"/></svg></button></span><span class="mve-n" id="mveSelN"></span></div>
         <span class="mve-label">Fill Holes</span><span class="views seg" id="mveFillType"><button data-v="none" title="Leave the holes a delete makes open">None</button><button data-v="flat" title="Across the hole: its edge's own triangles">Flat</button><button data-v="smooth" title="A smooth skin, as fine as the mesh round it">Smooth</button></span>
         <span class="mve-label">Fill Texture</span><span class="views seg" id="mveFillTex"><button data-v="color" title="One color: the hole's edge's, on average">Color</button><button data-v="extend" title="The edge's colors drawn in across it, each fading into the next">Extend</button><button data-v="patch" title="A sewn-on cloth patch, stitched round its edge">Patch</button></span></div>
-        <div class="mve-row"><span class="btn-join"><button class="btn small mve-icon" id="mveModUndo" disabled title="Undo (⌘Z): the last selection or delete" aria-label="Undo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5L2.5 6.5l3 3"/><path d="M2.5 6.5h7a4 4 0 0 1 0 8h-2"/></svg></button><button class="btn small mve-icon" id="mveModRedo" disabled title="Redo (⇧⌘Z)" aria-label="Redo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l3 3-3 3"/><path d="M13.5 6.5h-7a4 4 0 0 0 0 8h2"/></svg></button></span><button class="btn small" id="mveClear" disabled title="Clear the selection (nothing selected)">Clear</button><button class="btn small" id="mveDelete" disabled title="Delete the selected triangles (⌫)">Delete</button><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="modify" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveModify" disabled title="Keep the deletes">Apply</button></span></div>
+        <div class="mve-row"><span class="btn-join"><button class="btn small mve-icon" id="mveModUndo" disabled title="Undo (⌘Z): the last selection, delete or move" aria-label="Undo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3.5L2.5 6.5l3 3"/><path d="M2.5 6.5h7a4 4 0 0 1 0 8h-2"/></svg></button><button class="btn small mve-icon" id="mveModRedo" disabled title="Redo (⇧⌘Z)" aria-label="Redo"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l3 3-3 3"/><path d="M13.5 6.5h-7a4 4 0 0 0 0 8h2"/></svg></button></span><button class="btn small" id="mveClear" disabled title="Clear the selection (nothing selected)">Clear</button><button class="btn small" id="mveMove" disabled title="Move the selected triangles (G): drag anywhere, along the plane lit (the one the view looks at most squarely); ⇧: one axis only. The triangles round them stretch to follow; Apply keeps it">Move</button><button class="btn small" id="mveDelete" disabled title="Delete the selected triangles (⌫)">Delete</button><span class="spacer"></span><span class="btn-join"><button class="btn small" data-cancel="modify" hidden title="Undo what this step has set up: back as it was">Cancel</button><button class="btn small primary" id="mveModify" disabled title="Keep the deletes and moves">Apply</button></span></div>
       </section>
       <section data-step="level">
         <div class="mve-head"><b>Level</b></div>
@@ -2810,6 +2810,7 @@ const MVE_HINTS = {
   lasso: "Draw round what to select (%) · ⇧ adds · ⌥ takes away",
   box: "Drag a rectangle round what to select (%) · ⇧ adds · ⌥ takes away",
   brush: "Paint over what to select (%) · ⌥ takes away · [ ] size",
+  move: "Drag to move the selection along the plane lit · ⇧ one axis only",
 };
 function mveTool(t) {
   const md = mveMod();
@@ -2822,6 +2823,7 @@ $("mveSel").onclick = (e) => { const t = e.target.closest("[data-v]")?.dataset.v
 $("mveXray").onclick = () => { const md = mveMod(); md.xray = !md.xray; try { localStorage.setItem("modelXray", md.xray ? "1" : ""); } catch {} };
 $("mveSelOps").onclick = (e) => { const op = e.target.closest("[data-op]")?.dataset.op; if (op) mveMod().op(op); };
 $("mveClear").onclick = () => mveMod().op("clear");
+$("mveMove").onclick = () => mveTool(mveMod().tool === "move" ? null : "move");
 function mveModShow() {
   const md = mveMod();
   if (!md) return;
@@ -2829,7 +2831,12 @@ function mveModShow() {
   const n = md.count();
   for (const b of $("mveSelOps").children) b.disabled = !n;
   $("mveSelN").innerHTML = n ? `<span class="mve-ic" role="img" aria-label="Triangles selected" title="Triangles selected">${MVE_TRIANGLE}</span>${n.toLocaleString()}` : ""; // (as the size's triangles, above)
-  $("mveDelete").disabled = $("mveClear").disabled = !n;
+  $("mveDelete").disabled = $("mveClear").disabled = $("mveMove").disabled = !n;
+  if (!n && md.tool === "move") return mveTool(null); // (nothing to move: done)
+  $("mveMove").classList.toggle("active", md.tool === "move");
+  const mvd = md.moved(); // (a drag going: how far, in the status)
+  if (mvd) { mveStatus(`Moving: X ${(mvd.x * 1000).toFixed(1)}, Y ${(-mvd.z * 1000).toFixed(1)}, Z ${(mvd.y * 1000).toFixed(1)} mm`); mveModShow.moving = true; }
+  else if (mveModShow.moving) { mveModShow.moving = false; mveStatus($("mveStatus").textContent.replace(/^Moving/, "Moved")); }
   $("mveModUndo").disabled = !md.canUndo;
   $("mveModRedo").disabled = !md.canRedo;
   $("mveModify").disabled = !md.changed();
@@ -2877,14 +2884,14 @@ function mveModCommit() {
 }
 $("mveModify").onclick = () => { mveModCommit(); mveTool(null); mveTrimReset(); mveShow(); };
 // Its keys, Edit open: L, R, B, W (Lasso, Rectangle, Brush, Wand: as
-// Photoshop's), X (X-Ray), ⇧X (Invert), Esc (the tool done with), [ ]
+// Photoshop's), G (Move: as Blender's grab), X (X-Ray), ⇧X (Invert), Esc (the tool done with), [ ]
 // (the brush's size), ⌫ (Delete), ⌘Z, ⇧⌘Z (its Undo, Redo).
-const MVE_KEYS = { l: "lasso", r: "box", b: "brush", w: "island" };
+const MVE_KEYS = { l: "lasso", r: "box", b: "brush", w: "island", g: "move" };
 function mveModKey(e) {
   const md = mveMod();
   if (!md || $("mvEdit").hidden) return false;
   const k = e.key.toLowerCase(), plain = !e.metaKey && !e.ctrlKey && !e.altKey;
-  if (plain && !e.shiftKey && MVE_KEYS[k]) mveTool(MVE_KEYS[k]);
+  if (plain && !e.shiftKey && MVE_KEYS[k]) { if (k !== "g" || md.count()) mveTool(MVE_KEYS[k] === "move" && md.tool === "move" ? null : MVE_KEYS[k]); }
   else if (plain && !e.shiftKey && k === "x") $("mveXray").click();
   else if (plain && e.shiftKey && k === "x") { if (md.count()) md.op("invert"); }
   else if (e.key === "Escape" && md.tool) mveTool(null);
@@ -4666,6 +4673,7 @@ const MV_KEYS = [
   ] },
   { part: "Edit: Modify", lines: [
     { show: `${kb("L")} / ${kb("R")} / ${kb("B")} / ${kb("W")}`, what: "Lasso / Rectangle / Brush / Magic Wand", k: ["l", "r", "b", "w"] },
+    { show: kb("G"), what: "Move the selection (again: done)", k: ["g"] },
     { show: `Drag / ${kb("⇧")} drag / ${kb("⌥")} drag`, what: "Select / add to it / take from it", k: [] },
     { show: `${kb("⇧")} click (Wand)`, what: "Select all but the part clicked", k: [] },
     { show: `${kb("[")} / ${kb("]")}`, what: "Brush smaller / larger", k: ["[", "]"] },

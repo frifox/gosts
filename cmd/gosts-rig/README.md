@@ -104,7 +104,9 @@ file.
 
 **Edit** gets a model ready for Blender, Fusion 360 and the like: click points on the model, then
 
-- **Modify**: select parts of the mesh (lasso, box, brush or magic wand) and delete them, filling the holes left
+- **Modify**: select parts of the mesh (lasso, box, brush or magic wand) and delete them, filling the holes left, or
+  **Move** them (push or pull: drag along the plane lit, the one the view looks at most squarely; Shift: one axis),
+  the triangles round them stretching to follow; **Apply** keeps it
 - **Level**: put a surface flat on the ground
 - **Align**: turn an edge to run along X or Y
 - **Move**: slide the model along X, Y, Z (or type how far), or center a picked point (or the midpoint of two) on an axis
