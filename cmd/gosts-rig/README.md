@@ -139,7 +139,7 @@ It can make a custom case insert, to print in foaming TPU, say:
   the settings, change any of them and **Make Again**: its cuts are made again in it.
 - **Objects to Cut**: select the fill, and it lists everything but its container. Check each object that goes in (a
   drone, goggles, a controller), placed where it'll sit, and hover its caret for how it's cut (then **Apply**):
-  **Open Above** leaves room to drop it in from the top, **Around** only takes its shape; a **Margin** round it;
+  **Open Above** leaves room to drop it in from the top, **Around** only takes its shape; a **Walls margin** (the room round its sides) and a **Floor margin** (under it);
   **Smooth** rounds the pocket off without ever cutting into the margin. With Open Above, **Column max** caps the fill
   left standing inside the object, cut off from the rest of the fill (inside a drone's prop guards, or a pillar
   under a part of it that hangs over): at that height over the cut round it; 0 (as it starts) leaves none, empty lets it stand.

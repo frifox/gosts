@@ -73,8 +73,9 @@ function rasterize(g, obj) {
 }
 
 // edt: each voxel's squared distance (in voxels) to the nearest voxel of the
-// set (src[i] true), Felzenszwalb's, one axis at a time.
-function edt(g, src) {
+// set (src[i] true), Felzenszwalb's, one axis at a time (flat: along x and z
+// only, within each layer).
+function edt(g, src, flat = false) {
   const { nx, ny, nz } = g, N = nx * ny * nz, INF = 1e20, d = new Float32Array(N);
   for (let i = 0; i < N; i++) d[i] = src(i) ? 0 : INF;
   const n = Math.max(nx, ny, nz), f = new Float64Array(n), out = new Float64Array(n), vv = new Int32Array(n), zz = new Float64Array(n + 1);
@@ -99,7 +100,7 @@ function edt(g, src) {
     line(nx);
     for (let x = 0; x < nx; x++) d[b + x] = out[x];
   }
-  for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) { // along y
+  if (!flat) for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) { // along y
     for (let y = 0; y < ny; y++) f[y] = d[(z * ny + y) * nx + x];
     line(ny);
     for (let y = 0; y < ny; y++) d[(z * ny + y) * nx + x] = out[y];
@@ -111,11 +112,24 @@ function edt(g, src) {
   }
   return d;
 }
-// grow: the set g.v, grown by r voxels (in place). shrink: shrunk by r.
-function grow(g, r) {
+// grow: the set g.v, grown by r voxels (in place; flat: sideways only).
+// shrink: shrunk by r.
+function grow(g, r, flat = false) {
   if (r <= 0) return;
-  const d = edt(g, (i) => g.v[i]), r2 = r * r;
+  const d = edt(g, (i) => g.v[i], flat), r2 = r * r;
   for (let i = 0; i < d.length; i++) if (d[i] <= r2) g.v[i] = 1;
+}
+// drop: the set g.v, grown down by n voxels (in place).
+function drop(g, n) {
+  if (n <= 0) return;
+  const { nx, ny, nz } = g;
+  for (let z = 0; z < nz; z++) for (let x = 0; x < nx; x++) {
+    let k = 0;
+    for (let y = ny - 1; y >= 0; y--) {
+      const i = (z * ny + y) * nx + x;
+      if (g.v[i]) k = n; else if (k > 0) { g.v[i] = 1; k--; }
+    }
+  }
 }
 function shrink(g, r) {
   if (r <= 0) return;
@@ -988,24 +1002,26 @@ export function createCombine(canvas) {
     return { g, removed: keepLargest(g) };
   }
   // Cuts stay live: a fill keeps its voxels as made (base) and its cuts (obj
-  // → opts: { offset, keepAbove, smooth }; idx: the voxels it takes, worked
+  // → opts: { wall, floor, keepAbove, smooth, colMax }; idx: the voxels it takes, worked
   // out with obj at key). Moved, turned, resized, taken out or put back: the
   // fill's cut again from its base (in the background, one at a time).
   const cutKey = (o) => JSON.stringify([objects.includes(o) && !o.missing, o.pos, o.rot, o.size ?? null, o.geo]);
   const fillKey = (f) => JSON.stringify([f.fill.gen, ...[...f.fill.cuts].map(([o, c]) => [o.id, cutKey(o), c.opts])]);
-  // cutVoxels: the voxels of F obj takes (as placed): it grown by offset (m),
+  // cutVoxels: the voxels of F obj takes (as placed): it grown sideways by
+  // wall (m) and down by floor (m),
   // smoothed by smooth (m: its hollows filled in, never cutting less), and
   // with keepAbove everything over it too (so it can go in from above); and
   // with colMax (m), the fill's columns standing inside it cut down to colMax
   // over the cut round them (see domes). base: the fill's voxels as made.
-  async function cutVoxels(F, base, obj, { offset, keepAbove, smooth, colMax = null }, status) {
-    const h = F.h, gr = Math.ceil(offset / h), sm = Math.ceil(smooth / h);
+  async function cutVoxels(F, base, obj, { wall, floor, keepAbove, smooth, colMax = null }, status) {
+    const h = F.h, gr = Math.ceil(Math.max(wall, floor) / h), sm = Math.ceil(smooth / h);
     status(`Cut: ${obj.name} as voxels`);
     await tick();
     const s = solid(F, obj.holder, gr + 2 * sm + 3);
     status(`Cut: ${obj.name} grown by the margin`);
     await tick();
-    grow(s, offset / h + 0.5);
+    grow(s, wall / h + 0.5, true);
+    drop(s, Math.round(floor / h));
     if (sm > 0) {
       status(`Cut: ${obj.name} smoothed`);
       await tick();
@@ -1121,9 +1137,11 @@ export function createCombine(canvas) {
       changed();
     }), 150);
   }
-  // setCut: obj's cut in f: opts ({ offset (m), keepAbove, smooth (m) }), or
-  // none (null); a step. The fill's cut again in the background.
+  // setCut: obj's cut in f: opts ({ wall, floor (m), keepAbove, smooth,
+  // colMax (m) }; an older one's offset: both), or none (null); a step. The
+  // fill's cut again in the background.
   api.setCut = (f, obj, opts) => {
+    if (opts && opts.offset != null) { const { offset, ...o } = opts; opts = { wall: offset, floor: offset, ...o }; }
     const cuts = f.fill.cuts, b = cuts.get(obj) ?? null, a = opts ? { opts: { ...opts }, key: null } : null;
     if (JSON.stringify(b?.opts ?? null) === JSON.stringify(a?.opts ?? null)) return;
     const put = (c) => (c ? cuts.set(obj, c) : cuts.delete(obj));

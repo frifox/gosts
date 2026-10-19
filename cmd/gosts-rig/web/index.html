@@ -4333,7 +4333,7 @@ document.addEventListener("pointerdown", (e) => { // (a click elsewhere: closed,
   cvs.cutDraft = null;
   if (cvs.cv) cvShow();
 });
-const CUT_DEFAULT = { offset: 0.001, keepAbove: true, smooth: 0, colMax: 0 };
+const CUT_DEFAULT = { wall: 0.001, floor: 0.001, keepAbove: true, smooth: 0, colMax: 0 };
 function cvCutList(f) {
   const cv = cvs.cv, objs = cv.objects().filter((o) => o.kind !== "fill" && o !== f.fill.set.container);
   if (cvs.cutDraft && cvs.cutDraft.id !== cvs.cutOpen) cvs.cutDraft = null; // (a row closed: its edits not applied, dropped)
@@ -4344,7 +4344,7 @@ function cvCutList(f) {
   list.dataset.key = key;
   list.innerHTML = objs.length ? "" : '<div class="mve-label">No objects to add</div>'; // (as Objects' box, empty)
   const mm = (m) => +(m * 1000).toFixed(2);
-  const norm = (x) => JSON.stringify([x.offset, x.keepAbove, x.smooth, x.colMax ?? null]);
+  const norm = (x) => JSON.stringify([x.wall, x.floor, x.keepAbove, x.smooth, x.colMax ?? null]);
   for (const o of objs) {
     const c = cv.cutOf(f, o), open = cvs.cutOpen === o.id;
     const row = document.createElement("div");
@@ -4381,8 +4381,9 @@ function cvCutList(f) {
     const opts = document.createElement("div");
     opts.className = "cv-cutopts";
     opts.innerHTML = `<div class="mve-row"><span class="mve-label">Cut</span><span class="views seg"><button data-v="above"${dis} class="${v.keepAbove ? "active" : ""}" title="It and all above it: it goes in from the top">Open Above</button><button data-v="around"${dis} class="${v.keepAbove ? "" : "active"}" title="Just round it">Around</button></span></div>
-      <div class="mve-row"><span class="mve-label">Margin</span><input type="number" data-k="offset" value="${mm(v.offset)}" step="0.5" min="0"${dis}><span class="mve-label">mm round it</span></div>
-      <div class="mve-row"><span class="mve-label">Smooth</span><input type="number" data-k="smooth" value="${mm(v.smooth)}" step="1" min="0"${dis} title="0: following its shape exactly; more: its nooks filled in, the cut rounder (never less than the margin)"><span class="mve-label">mm</span></div>${v.keepAbove ? `
+      <div class="mve-row"><span class="mve-label">Walls margin</span><input type="number" data-k="wall" value="${mm(v.wall)}" step="0.5" min="0"${dis} title="The room left round its sides, mm"><span class="mve-label">mm</span></div>
+      <div class="mve-row"><span class="mve-label">Floor margin</span><input type="number" data-k="floor" value="${mm(v.floor)}" step="0.5" min="0"${dis} title="The room left under it, mm"><span class="mve-label">mm</span></div>
+      <div class="mve-row"><span class="mve-label">Smooth</span><input type="number" data-k="smooth" value="${mm(v.smooth)}" step="1" min="0"${dis} title="0: following its shape exactly; more: its nooks filled in, the cut rounder (never less than the margins)"><span class="mve-label">mm</span></div>${v.keepAbove ? `
       <div class="mve-row"><span class="mve-label">Column max</span><input type="number" data-k="colMax" value="${v.colMax == null ? "" : mm(v.colMax)}" placeholder="any" step="1" min="0"${dis} title="How tall the fill left standing inside it (cut off from the rest of the fill: in a prop guard, or a pillar under a part that hangs over) can be, over the cut round it, mm. 0: none; empty: any height"><span class="mve-label">mm</span></div>` : ""}
       <div class="mve-row"><span class="spacer"></span><button class="btn small primary" data-apply disabled title="Cut it again with these">Apply</button></div>`;
     const apply = opts.querySelector("[data-apply]");
