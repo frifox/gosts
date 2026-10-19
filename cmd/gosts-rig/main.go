@@ -239,6 +239,7 @@ func run() bool {
 	mux.HandleFunc("POST /batches/{name}/models/{model}/open", a.handleModelOpen)
 	mux.HandleFunc("POST /batches/{name}/models/{model}/delete", a.handleModelDelete)
 	mux.HandleFunc("POST /batches/{name}/models/{model}/rename", a.handleModelRename)
+	mux.HandleFunc("POST /batches/{name}/models/{model}/move", a.handleModelMove) // (Browse's Move to…)
 	mux.HandleFunc("POST /batches/{name}/models/{model}/save", a.handleModelSave)
 	mux.HandleFunc("POST /combine/save", a.handleCombineSave) // (Combine Models: what it made)
 	mux.HandleFunc("GET /combine/works", a.handleWorks)       // (Combine Models' work files: each by its path, ?path=)

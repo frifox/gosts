@@ -242,3 +242,48 @@ func TestModelSave(t *testing.T) {
 		t.Error("the model replaced isn't in the Trash:", err)
 	}
 }
+
+// Move to… on a model: its folder into another folder, its name kept; the
+// work files naming it told (and on a rename too); not to the root, nor
+// where its name's taken.
+func TestModelMove(t *testing.T) {
+	old := photoDir
+	photoDir = t.TempDir()
+	defer func() { photoDir = old }()
+	a := &app{model: &modelBuilder{out: func(any) {}}}
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /batches/{name}/models/{model}/move", a.handleModelMove)
+	mux.HandleFunc("POST /batches/{name}/models/{model}/rename", a.handleModelRename)
+	do := func(path, body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest("POST", path, strings.NewReader(body)))
+		return w
+	}
+	for _, d := range []string{"cap/drone", "cases/small", "taken/drone"} {
+		os.MkdirAll(filepath.Join(photoDir, d), 0o755)
+		os.WriteFile(filepath.Join(photoDir, d, "m.obj"), []byte("v 0 0 0\n"), 0o644)
+	}
+	os.WriteFile(filepath.Join(photoDir, "cases", "box.combine.json"), []byte(`{"objects":[{"ref":{"folder":"cap","model":"drone"}},{"ref":{"folder":"cap","model":"other"}}]}`), 0o644)
+	refs := func() string { b, _ := os.ReadFile(filepath.Join(photoDir, "cases", "box.combine.json")); return string(b) }
+	if w := do("/batches/cap/models/drone/move", `{"to":""}`); w.Code != http.StatusBadRequest {
+		t.Errorf("to the root: %d, want 400", w.Code)
+	}
+	if w := do("/batches/cap/models/drone/move", `{"to":"taken"}`); w.Code != http.StatusConflict {
+		t.Errorf("its name taken there: %d, want 409", w.Code)
+	}
+	if w := do("/batches/cap/models/drone/move", `{"to":"cases/small"}`); w.Code != http.StatusOK {
+		t.Fatalf("moved: %d %s", w.Code, w.Body)
+	}
+	if !fileExists(filepath.Join(photoDir, "cases", "small", "drone", "m.obj")) || fileExists(filepath.Join(photoDir, "cap", "drone")) {
+		t.Errorf("not moved on disk")
+	}
+	if r := refs(); !strings.Contains(r, `{"folder":"cases/small","model":"drone"}`) || !strings.Contains(r, `{"folder":"cap","model":"other"}`) {
+		t.Errorf("work refs: %s", r)
+	}
+	if w := do("/batches/cases%2Fsmall/models/drone/rename", `{"to":"quad"}`); w.Code != http.StatusNoContent {
+		t.Fatalf("renamed: %d %s", w.Code, w.Body)
+	}
+	if r := refs(); !strings.Contains(r, `{"folder":"cases/small","model":"quad"}`) {
+		t.Errorf("work refs, renamed: %s", r)
+	}
+}

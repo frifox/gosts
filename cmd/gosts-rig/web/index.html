@@ -562,7 +562,7 @@ body.cv-reordering, body.cv-reordering * { cursor: grabbing !important; user-sel
 /* Save's folder (where it goes) over the model's name (Combine 3D's, the model editor's). */
 .save-dir { display: flex; align-items: center; gap: 6px; min-width: 0; font: 12px var(--mono); color: var(--muted); margin-bottom: 6px; }
 .save-dir svg { width: 14px; height: 14px; flex: none; }
-button.save-dir.pick { width: 100%; padding: 2px 4px; margin-left: -4px; border: 0; border-radius: 5px; background: none; cursor: pointer; text-align: left; }
+button.save-dir.pick { width: calc(100% + 16px); padding: 6px 8px; margin: -6px -8px 0; border: 0; border-radius: 7px; background: none; cursor: pointer; text-align: left; } /* (roomy round it on hover, its icon and text where they'd be) */
 button.save-dir.pick:hover { color: var(--text); background: var(--panel-2); }
 .save-dir span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 input[type=text].save-name { width: 100%; min-width: 0; box-sizing: border-box; }
@@ -2052,9 +2052,11 @@ function modelTile(name, m) {
   b.title = `${m.name}: the model (${fmt}), in 3D`;
   b.innerHTML = `<img alt="" decoding="async"><span class="mbadge">3D · ${fmt}</span><span class="num">${escHTML(m.name)}</span>` +
     `<span class="meta">${fmtMB(m.size)} · ${new Date(m.at).toLocaleString()}</span>` +
+    `<button class="mvto" title="Move ${escHTML(m.name)} to another folder" aria-label="Move to…">${moveIcon}</button>` +
     `<button class="edit" title="Rename ${escHTML(m.name)} (the model's folder)" aria-label="Rename ${escHTML(m.name)}">${pencilIcon}</button>` +
     `<button class="del" title="Delete ${escHTML(m.name)} (the model's folder, to the Trash; asks first)" aria-label="Delete ${escHTML(m.name)}">${trashIcon}</button>`;
   b.querySelector(".edit").onclick = () => renameModel(name, m);
+  b.querySelector(".mvto").onclick = () => moveTo({ model: m, from: name, title: m.name });
   const img = b.querySelector("img");
   // Its picture: the server's, else made here (an OBJ) and given to it.
   const placeholder = (text, busy) => {
@@ -2080,7 +2082,7 @@ function modelTile(name, m) {
     }
   };
   img.src = `${base}thumb?at=${m.at}`;
-  b.onclick = (e) => { if (!e.target.closest(".del, .edit")) openModel(name, m); };
+  b.onclick = (e) => { if (!e.target.closest(".del, .edit, .mvto")) openModel(name, m); };
   b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) openModel(name, m); };
   b.querySelector(".del").onclick = async () => {
     if (!await confirmDanger(`Delete ${m.name}?`, `The model's folder (${m.files.length} file${m.files.length === 1 ? "" : "s"}, ${fmtMB(m.size)}) goes to the Trash, where you can still get it back in the Finder.`, "Delete")) return;
@@ -3188,7 +3190,8 @@ function galFolderMoved(from, to) {
   if (!$("gallery").hidden) galleryAgain();
 }
 // moveTo: Move to…: a folder ({folder, title}) or a work file ({work,
-// title, from}) put in another folder, picked from all of them (a tree);
+// title, from}, or a model {model, title, from: its folder}: not to the
+// root) put in another folder, picked from all of them (a tree);
 // not into itself nor one in it, nor where it is.
 // (or with pick: a folder picked for it (what.title, the title; what.here,
 // where it is now: not to pick), handed to pick)
@@ -3208,8 +3211,9 @@ async function moveTo(what) {
     b.innerHTML = (path === null ? '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>' : moveIcon.replace('<path d="M6 9.5h4.5M8.8 7.8l1.7 1.7-1.7 1.7"/>', "")) + "<span></span>";
     b.querySelector("span").textContent = label;
     const inside = what.folder && path !== null && (path === what.folder || path.startsWith(what.folder + "/"));
-    b.disabled = inside || path === here;
+    b.disabled = inside || path === here || (what.model && path === null);
     if (path === here) b.title = "It's here now";
+    else if (what.model && path === null) b.title = "A model goes in a folder";
     b.onclick = () => go(path);
     list.appendChild(b);
   };
@@ -3226,6 +3230,15 @@ async function moveTo(what) {
         m.hidden = true;
         log(`${what.title} moved to ${to || "the root"}`);
         galFolderMoved(what.folder, name);
+      } else if (what.model) {
+        const r = await fetch(modelBase(what.from, what.model) + "move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to }) });
+        if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+        m.hidden = true;
+        log(`${what.title} moved to ${to}`);
+        // (Combine 3D's objects naming it: where it is now, as its work files are told)
+        for (const o of cvs.cv?.objects() || []) if (o.ref?.folder === what.from && o.ref?.model === what.model.name) o.ref = { ...o.ref, folder: to };
+        if (state.mv?.m === what.model) state.mv.name = to; // (open in the viewer: saved where it is now)
+        if (!$("gallery").hidden) galleryAgain();
       } else {
         const r = await fetch(workURL(what.work, "/move"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: to || "" }) });
         if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
@@ -3252,6 +3265,7 @@ $("galleryNewFolder").onclick = () => {
 function renameModel(capture, mo) {
   renameFolder(mo.name, "Rename Model", `The model's folder's new name, in ${escHTML(capture)}`, modelBase(capture, mo) + "rename", (to) => {
     log(`${capture}: ${mo.name} renamed to ${to}`);
+    for (const o of cvs.cv?.objects() || []) if (o.ref?.folder === capture && o.ref?.model === mo.name) o.ref = { ...o.ref, model: to }; // (Combine 3D's, as its work files)
     mo.name = to; // (its address from now on: modelBase)
     if (state.mv?.m === mo) $("mvFile").textContent = to;
     if (!$("gallery").hidden) galleryAgain();

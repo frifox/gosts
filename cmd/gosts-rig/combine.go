@@ -380,15 +380,38 @@ func allWorks() []workInfo {
 // rewriteWorkRefs: folder from now at to (moved, renamed): the work files
 // naming models in it (or in folders in it) told where they are now.
 func rewriteWorkRefs(from, to string) {
-	moved := func(f string) (string, bool) {
+	rewriteRefs(from, func(ref map[string]any) bool {
+		f, _ := ref["folder"].(string)
 		if f == from {
-			return to, true
+			ref["folder"] = to
+			return true
 		}
 		if strings.HasPrefix(f, from+"/") {
-			return to + f[len(from):], true
+			ref["folder"] = to + f[len(from):]
+			return true
 		}
-		return f, false
-	}
+		return false
+	})
+}
+
+// rewriteModelRefs: the model folder/model now at toFolder/toModel (moved,
+// renamed): the work files naming it told.
+func rewriteModelRefs(folder, model, toFolder, toModel string) {
+	rewriteRefs(folder+"/"+model, func(ref map[string]any) bool {
+		if f, _ := ref["folder"].(string); f != folder {
+			return false
+		}
+		if m, _ := ref["model"].(string); m != model {
+			return false
+		}
+		ref["folder"], ref["model"] = toFolder, toModel
+		return true
+	})
+}
+
+// rewriteRefs: each work file's model refs ({folder, model}) handed to fix;
+// the files with one it changed written again (what: for the log).
+func rewriteRefs(what string, fix func(ref map[string]any) bool) {
 	for _, wi := range allWorks() {
 		p, ok := workPath(wi.Path)
 		if !ok {
@@ -405,11 +428,8 @@ func rewriteWorkRefs(from, to string) {
 		objs, _ := doc["objects"].([]any)
 		changed := false
 		for _, o := range objs {
-			ref, _ := o.(map[string]any)["ref"].(map[string]any)
-			if f, ok := ref["folder"].(string); ok {
-				if nf, hit := moved(f); hit {
-					ref["folder"], changed = nf, true
-				}
+			if ref, _ := o.(map[string]any)["ref"].(map[string]any); ref != nil && fix(ref) {
+				changed = true
 			}
 		}
 		if !changed {
@@ -421,7 +441,7 @@ func rewriteWorkRefs(from, to string) {
 		}
 		tmp := p + ".tmp"
 		if os.WriteFile(tmp, out, 0o644) == nil && os.Rename(tmp, p) == nil {
-			log.Printf("combine: %s: its models in %s, at %s now", wi.Path, from, to)
+			log.Printf("combine: %s: its models in %s, where they are now", wi.Path, what)
 		} else {
 			os.Remove(tmp)
 		}

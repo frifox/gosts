@@ -309,7 +309,62 @@ func (a *app) handleModelRename(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("model: %s's %s renamed to %s", r.PathValue("name"), filepath.Base(dir), to)
+	rewriteModelRefs(r.PathValue("name"), filepath.Base(dir), r.PathValue("name"), to)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleModelMove moves a model's folder into another folder (POST
+// /batches/{name}/models/{model}/move, {"to": the folder}: one there, not
+// the root: a model's in a folder), its name kept: not while a build goes
+// into it, nor to a name taken there. The work files naming it told.
+func (a *app) handleModelMove(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		To string `json:"to"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	dir, _, ok := modelPath(r)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	name, model := r.PathValue("name"), r.PathValue("model")
+	if err := a.model.building(name, model); err != nil {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	to := strings.Trim(req.To, "/")
+	if !cleanPath(to) {
+		http.Error(w, "not a folder to move it to", http.StatusBadRequest)
+		return
+	}
+	if to == name {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if to == name+"/"+model || strings.HasPrefix(to, name+"/"+model+"/") {
+		http.Error(w, "not into itself", http.StatusConflict)
+		return
+	}
+	if info, err := os.Stat(filepath.Join(photoDir, to)); err != nil || !info.IsDir() {
+		http.Error(w, fmt.Sprintf("no folder %q", to), http.StatusNotFound)
+		return
+	}
+	dst := filepath.Join(photoDir, to, model)
+	if _, err := os.Stat(dst); err == nil {
+		http.Error(w, fmt.Sprintf("there's a %s in %s already: rename one first", model, to), http.StatusConflict)
+		return
+	}
+	if err := os.Rename(dir, dst); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	log.Printf("model: %s's %s moved to %s", name, model, to)
+	rewriteModelRefs(name, model, to, model)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"folder": to})
 }
 
 // building is an error if a build is going into capture name's folder out.
