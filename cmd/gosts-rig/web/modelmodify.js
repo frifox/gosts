@@ -1003,17 +1003,22 @@ export function createModify(v) {
     if (e.type === "pointercancel" || m.d.lengthSq() === 0) return show();
     for (const [o, l] of m.live) geos.set(o, shifted(cur().geos.get(o), cur().sels.get(o), l.dl));
     mvAt = null;
-    push({ geos, sels });
+    push({ geos, sels, off: offNow().add(m.d) });
   }
-  // moved: how far the selection's been moved in the drag going (world), or null.
+  // moved: how far the selection's been moved (world): in the drag going,
+  // or null; total: since Move went on (each step keeps its own: undone,
+  // as it was), the drag going's too.
   const moved = () => (moving ? moving.d.clone() : null);
+  let offAt = 0; // (the step Move went on at: counted from there)
+  const offNow = () => (at > offAt && cur()?.off ? cur().off.clone() : new THREE.Vector3());
+  const movedTotal = () => { const o = offNow(); if (moving) o.add(moving.d); return o; };
 
   // ------------------------------------------------------------ the API
 
   function setTool(t) {
     if (moving) moveEnd({ type: "pointercancel" });
     tool = TOOLS.includes(t) || t === "move" ? t : null;
-    if (tool === "move") begin();
+    if (tool === "move") { begin(); offAt = at; }
     mvAt = null;
     controls.mouseButtons.LEFT = tool ? -1 : THREE.MOUSE.PAN; // (a drag: the tool's, not moving the view)
     canvas.style.cursor = tool === "brush" ? "none" : tool ? "crosshair" : "";
@@ -1112,7 +1117,7 @@ export function createModify(v) {
     onChange();
   }
   return {
-    tick, op, del, commit, cancel, reset, changed, count, fills, moved,
+    tick, op, del, commit, cancel, reset, changed, count, fills, moved, movedTotal,
     get tool() { return tool; }, set tool(t) { setTool(t); },
     get brush() { return brush; },
     get xray() { return xray; },
