@@ -374,6 +374,7 @@ export function createCombine(canvas) {
     const dt = last ? Math.min(0.1, (now - last) / 1000) : 1;
     shiftTick(dt);
     glideTick(last ? dt : 0);
+    movePlaneTick();
     last = now;
     controls.update();
     if (sel.visible) sel.update();
@@ -683,52 +684,43 @@ export function createCombine(canvas) {
       if (h) { e.stopImmediatePropagation(); controls.enabled = false; const p = picking; api.unpick(); p.done(h.point, h.o); setTimeout(() => (controls.enabled = true)); }
       return;
     }
-    // Only the selected one, grabbed, is dragged (⌘ or Ctrl held: the view
-    // turned instead); otherwise the view moves (or turns, ⌘/Ctrl/⇧ held),
-    // and a click (not a drag) selects what it's on (on nothing: none).
-    if (!h || h.o !== selected || h.o.kind === "fill" || e.ctrlKey || e.metaKey) { clickDown = { x: e.clientX, y: e.clientY, o: h?.o ?? null }; return; }
-    // Dragging the selected one: along the floor, at the height it was
-    // grabbed; with ⇧ held, up and down (Z) instead.
+    // The selected one (not a fill), dragged from anywhere: moved along the
+    // plane lit (see movePlane); ⌘ or Ctrl held, or nothing selected: the
+    // view moves (or turns). A click (not a drag) on another: that one
+    // selected (on nothing: as it was; Esc or the list unselects).
+    const o = selected;
+    if (!o || o.kind === "fill" || !o.visible || e.ctrlKey || e.metaKey) { clickDown = { x: e.clientX, y: e.clientY, o: h?.o ?? null }; return; }
+    if (o.anim) api.setPose(o, null, o.rot); // (a turn going: done at once, its step kept)
+    const pn = planeName(), at = new THREE.Box3().setFromObject(o.holder).getCenter(new THREE.Vector3());
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(AX3[PLANES[pn][2]], at);
+    const from = rayAt(e).intersectPlane(plane, new THREE.Vector3());
+    if (!from) { clickDown = { x: e.clientX, y: e.clientY, o: h?.o ?? null }; return; }
     controls.enabled = false;
     try { canvas.setPointerCapture(e.pointerId); } catch {} // (a pointer it can't hold: dragged all the same)
-    if (h.o.anim) api.setPose(h.o, null, h.o.rot); // (a turn going: done at once, its step kept)
-    dragging = { o: h.o, start: pose(h.o) };
-    anchor(h.point, e.shiftKey);
+    dragging = { o, start: pose(o), pos: { ...o.pos }, pn, plane, from, lock: null, down: [e.clientX, e.clientY], hit: h?.o ?? null };
   }, { capture: true });
-  // anchor: the drag from point p on, as it is now: along the floor, or up
-  // (an upright sheet through p, facing the camera). (⇧ pressed or let go
-  // mid-drag: anchored again where it is, so it doesn't jump.)
-  function anchor(p, up) {
-    const d = dragging;
-    d.up = up;
-    d.from = p.clone();
-    d.pos = { ...d.o.pos };
-    if (!up) d.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -p.y);
-    else {
-      const n = camera.getWorldDirection(new THREE.Vector3()).setY(0);
-      if (n.lengthSq() < 1e-9) n.set(0, 0, 1); // (looking straight down: any upright sheet)
-      d.plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n.normalize(), p);
-    }
-  }
   const rayAt = (e) => {
     const b = canvas.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2(((e.clientX - b.left) / b.width) * 2 - 1, -((e.clientY - b.top) / b.height) * 2 + 1), camera);
     return ray.ray;
   };
+  // A drag: the pointer's way along the plane, as Blender's X, Y, Z (mm), the
+  // plane's own two only; ⇧ held: just the one moved along most so far.
   canvas.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    let p = rayAt(e).intersectPlane(dragging.plane, new THREE.Vector3());
+    const d = dragging;
+    if (!d) return;
+    const p = rayAt(e).intersectPlane(d.plane, new THREE.Vector3());
     if (!p) return;
-    if (e.shiftKey !== dragging.up) { // (⇧ changed: from here on, the other way)
-      anchor(p, e.shiftKey);
-      p = rayAt(e).intersectPlane(dragging.plane, new THREE.Vector3());
-      if (!p) return;
-    }
-    const d = p.sub(dragging.from);
-    dragging.o.pos = dragging.up
-      ? { ...dragging.pos, z: dragging.pos.z + d.y * 1000 }
-      : { x: dragging.pos.x + d.x * 1000, y: dragging.pos.y - d.z * 1000, z: dragging.pos.z };
-    place(dragging.o);
+    const v = p.sub(d.from), c = { x: v.x * 1000, y: -v.z * 1000, z: v.y * 1000 };
+    const [a, b, n] = PLANES[d.pn];
+    c[n] = 0;
+    if (e.shiftKey) {
+      if (!d.lock && Math.max(Math.abs(c[a]), Math.abs(c[b])) > 0.5) d.lock = Math.abs(c[a]) >= Math.abs(c[b]) ? a : b;
+      if (d.lock) c[d.lock === a ? b : a] = 0;
+      else c[a] = c[b] = 0; // (not moved enough to tell which yet)
+    } else d.lock = null;
+    d.o.pos = { x: d.pos.x + c.x, y: d.pos.y + c.y, z: d.pos.z + c.z };
+    place(d.o);
     changed();
   });
   let clickDown = null;
@@ -736,18 +728,72 @@ export function createCombine(canvas) {
     const d = clickDown;
     clickDown = null;
     if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return; // (a drag of the view)
-    if (d.o !== selected) { selected = d.o; changed(); }
+    if (d.o && d.o !== selected) { selected = d.o; changed(); }
   });
-  const endDrag = () => {
+  const endDrag = (e) => {
     if (!dragging) return;
     const d = dragging;
     dragging = null;
     controls.enabled = true;
+    if (e && Math.hypot(e.clientX - d.down[0], e.clientY - d.down[1]) <= 4) { // (a click, not a drag: another one, selected)
+      posed(d.o, d.start);
+      if (d.hit && d.hit !== selected) selected = d.hit;
+      changed();
+      return;
+    }
     moved(d.o, d.start); // (the whole drag: one step)
     changed();
   };
   canvas.addEventListener("pointerup", endDrag);
   canvas.addEventListener("pointercancel", endDrag);
+
+  // ------------------------------------------------------------ move plane
+  // The plane the selected one's dragged along: the one of Blender's XY, XZ
+  // and YZ the view looks at most squarely, lit through it (its two axes
+  // drawn, in their colors; ⇧ locking one: that one only).
+  const AX3 = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 0, -1), z: new THREE.Vector3(0, 1, 0) };
+  const PLANES = { xy: ["x", "y", "z"], xz: ["x", "z", "y"], yz: ["y", "z", "x"] }; // (its two axes, then its normal)
+  const AXC = { x: 0xe5484d, y: 0x46a758, z: 0x3e7bfa };
+  function planeName() {
+    const d = camera.getWorldDirection(new THREE.Vector3()), bx = Math.abs(d.x), by = Math.abs(d.z), bz = Math.abs(d.y);
+    return bz >= bx && bz >= by ? "xy" : by >= bx ? "xz" : "yz";
+  }
+  const movePlane = new THREE.Group();
+  movePlane.visible = false;
+  movePlane.renderOrder = 8;
+  scene.add(movePlane);
+  let mpName = "", mpLines = {};
+  function buildMovePlane(name) {
+    for (const c of [...movePlane.children]) { movePlane.remove(c); c.geometry.dispose(); c.material.dispose(); }
+    const [a, b] = PLANES[name], A = AX3[a], B = AX3[b];
+    const corner = (i, j) => A.clone().multiplyScalar(i * 0.5).addScaledVector(B, j * 0.5);
+    const quad = new THREE.BufferGeometry().setFromPoints([corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, -1), corner(1, 1), corner(-1, 1)]);
+    const flat = new THREE.Mesh(quad, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06, depthWrite: false, side: THREE.DoubleSide }));
+    const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)]), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, depthWrite: false }));
+    mpLines = {};
+    for (const [k, D] of [[a, A], [b, B]]) {
+      const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([D.clone().multiplyScalar(-0.5), D.clone().multiplyScalar(0.5)]), new THREE.LineBasicMaterial({ color: AXC[k], transparent: true, opacity: 0.9, depthTest: false }));
+      l.renderOrder = 9;
+      mpLines[k] = l;
+      movePlane.add(l);
+    }
+    movePlane.add(flat, edge);
+    mpName = name;
+  }
+  // movePlaneTick: where the plane is now (each frame): through the selected
+  // one's middle, a little bigger than it; the view's plane, or the drag's.
+  function movePlaneTick() {
+    const o = selected;
+    movePlane.visible = !!(o && o.kind !== "fill" && o.visible && !picking && objects.includes(o));
+    if (!movePlane.visible) return;
+    const name = dragging ? dragging.pn : planeName();
+    if (name !== mpName) buildMovePlane(name);
+    const box = new THREE.Box3().setFromObject(o.inner), size = box.getSize(new THREE.Vector3());
+    movePlane.position.copy(box.getCenter(new THREE.Vector3()));
+    movePlane.scale.setScalar(Math.max(size.x, size.y, size.z, 0.02) * 1.4);
+    for (const [k, l] of Object.entries(mpLines)) l.material.opacity = dragging?.lock && dragging.lock !== k ? 0.15 : 0.9;
+  }
+  api.planeName = () => (dragging ? dragging.pn : planeName());
 
   // ------------------------------------------------------------ turn ring
   // turnRing: a circle round o along which its ax slider (Blender's X, Y or

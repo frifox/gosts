@@ -561,6 +561,9 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .save-path input[readonly] { color: var(--muted); cursor: default; }
 .save-path-sep { display: flex; align-items: center; padding: 0 7px; border: 1px solid var(--border); border-left: 0; border-right: 0; background: var(--panel); color: var(--muted); font: 13px var(--mono); }
 .save-path input:focus { position: relative; z-index: 1; }
+.cv-head-row { display: flex; align-items: center; gap: 8px; }
+.cv-from { font: 12px var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-from.missing { color: var(--warn, #ffb020); }
 .cv-ic-label { display: inline-flex; align-items: center; gap: 5px; }
 .cv-ic-label svg { width: 13px; height: 13px; flex: none; }
 .mv-edit .mve-field input { width: 100%; box-sizing: border-box; }
@@ -1396,7 +1399,7 @@ kbd + kbd { margin-left: 3px; }
     <button class="icon-btn" id="cvClose" title="Close (Esc): kept as it is till it's opened again" aria-label="Close">✕</button></div>
   <div class="stage model-stage" id="cvStage"><canvas id="cvCanvas"></canvas>
     <div class="mv-corner"><span class="views seg mv-views" id="cvViews"><button data-v="3d" title="Z up, X right and away, Y left and away">3D</button><button data-v="front" title="X right, Z up, Y away">Front</button><button data-v="side" title="Y right, Z up, X towards you">Side</button><button data-v="top" title="Y right, X down, Z towards you">Top</button></span><span class="mv-show" id="cvShow"><button data-v="axes" title="Axis: the X, Y, Z axes from the origin, shown or not" aria-label="Axis"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 11V2.5M5 11h8.5M5 11l-3.2 3.2"/><path d="M3.6 4.2L5 2.5l1.4 1.7M11.8 9.6l1.7 1.4-1.7 1.4"/></svg></button><button data-v="ground" title="Ground: its grid, shown or not" aria-label="Ground"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5h8l2.5 8h-13z"/><path d="M6.7 4.5l-1 8M9.3 4.5l1 8M2.6 8.5h10.8"/></svg></button></span></div>
-    <div class="mv-hint">Click an object to select it · drag the selected one to slide it along the floor (⇧: up and down) · drag elsewhere to move the view (⌘: turn it) · drag scroll to turn · scroll to zoom · F to fit · Esc to deselect, then to close</div>
+    <div class="mv-hint">Click an object to select it · selected: drag anywhere to move it along the lit plane (⇧: along one axis) · nothing selected: drag to move the view (⌘: turn it) · drag scroll to turn · scroll to zoom · F to fit · Esc to deselect, then to close</div>
     <div class="side-stack" id="cvStack">
     <aside class="mv-edit cv-side" id="cvSide">
       <section class="cv-first">
@@ -1409,14 +1412,20 @@ kbd + kbd { margin-left: 3px; }
       <section id="cvSel" hidden>
         <div class="mve-head"><b>Selected</b></div>
         <div class="mve-row"><input type="text" id="cvName" spellcheck="false" autocomplete="off" title="Its name"></div>
-        <div class="cv-xyz" id="cvPos"><span class="mve-label">Move (mm)</span><b class="x">X</b><input type="number" step="1" data-k="x"><b class="y">Y</b><input type="number" step="1" data-k="y"><b class="z">Z</b><input type="number" step="1" data-k="z"></div>
-        <div class="mve-row"><span class="mve-label">Turn (°)</span><span class="spacer"></span><button class="btn small" id="cvDrop" title="Down (or up) so its lowest point is on the floor">Drop to Floor</button></div>
+        <div class="cv-from" id="cvFrom"></div>
+        <div class="cv-xyz" id="cvSize" hidden><span class="mve-label">Size (mm)</span></div>
+      </section>
+      <section id="cvMoveSec" hidden>
+        <div class="mve-head cv-head-row"><b>Move</b><span class="spacer"></span><button class="btn small" id="cvDrop" title="Down (or up) so its lowest point is on the floor">Drop to Floor</button></div>
+        <div class="cv-xyz" id="cvPos"><span class="mve-label">Position (mm)</span><b class="x">X</b><input type="number" step="1" data-k="x"><b class="y">Y</b><input type="number" step="1" data-k="y"><b class="z">Z</b><input type="number" step="1" data-k="z"></div>
+      </section>
+      <section id="cvRotSec" hidden>
+        <div class="mve-head"><b>Rotate</b></div>
         <div class="mve-rot cv-rot" id="cvRot" title="Hover one to see the circle it turns the object along (the arrow: the way it would go)">
           <b class="x">X</b><button class="btn small" data-rot="x" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="x"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="x" aria-label="Turn about X"></span><button class="btn small" data-rot="x" data-deg="90">+90°</button><input type="number" class="cv-deg" step="1" data-k="x" title="Degrees (type one)">
           <b class="y">Y</b><button class="btn small" data-rot="y" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="y"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="y" aria-label="Turn about Y"></span><button class="btn small" data-rot="y" data-deg="90">+90°</button><input type="number" class="cv-deg" step="1" data-k="y" title="Degrees (type one)">
           <b class="z">Z</b><button class="btn small" data-rot="z" data-deg="-90">−90°</button><span class="mve-dual mve-one" data-rax="z"><span class="mve-fill"></span><input type="range" min="-180" max="180" step="1" value="0" data-rax="z" aria-label="Turn about Z"></span><button class="btn small" data-rot="z" data-deg="90">+90°</button><input type="number" class="cv-deg" step="1" data-k="z" title="Degrees (type one)">
         </div>
-        <div class="cv-xyz" id="cvSize" hidden><span class="mve-label">Size (mm)</span></div>
       </section>
       <section id="cvFillSec" hidden>
         <div class="mve-head cv-fill-head"><b>Container Fill</b><span class="cv-fill-made" id="cvFillMade" title="Made" hidden><svg class="cv-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="Made"><path d="M3 8.5l3.2 3L13 4.5"/></svg></span><span class="spacer"></span><button class="cv-caret" id="cvFillCaret" hidden title="Its settings: change them and Make Again"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 4.5l3 3 3-3"/></svg></button></div>
@@ -3933,8 +3942,12 @@ function cvShow() {
   }
   $("cvSel").hidden = !s;
   const isFill = s?.kind === "fill";
+  $("cvMoveSec").hidden = $("cvRotSec").hidden = !s || isFill; // (a fill: where its container is)
   if (s) {
     if (document.activeElement !== $("cvName")) $("cvName").value = s.name;
+    // (where it's from: a model's capture / model; else what it is)
+    $("cvFrom").textContent = s.kind === "model" ? (s.ref ? `${s.ref.folder} / ${s.ref.model}${s.missing ? " (missing)" : ""}` : "A model") : s.kind === "fill" ? "Container fill" : s.kind[0].toUpperCase() + s.kind.slice(1);
+    $("cvFrom").classList.toggle("missing", !!s.missing);
     for (const inp of $("cvPos").querySelectorAll("input")) {
       if (document.activeElement !== inp) inp.value = cvNum(s.pos[inp.dataset.k]);
       inp.disabled = isFill;
@@ -4045,6 +4058,7 @@ $("cvFCont").onclick = () => {
     if (cvs.cv.selected() === f) $("cvPickTop").onclick(); // (the next step at once: its fill line)
   }, null, "container");
 };
+$("cvList").addEventListener("click", (e) => { if (e.target === $("cvList")) cvs.cv?.select(null); }); // (the list's empty space: none selected)
 $("cvName").addEventListener("change", () => { const s = cvs.cv.selected(); if (s && $("cvName").value.trim()) cvs.cv.rename(s, $("cvName").value.trim()); });
 $("cvPos").addEventListener("change", (e) => {
   const s = cvs.cv.selected(), k = e.target.dataset.k;

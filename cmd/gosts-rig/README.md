@@ -115,9 +115,11 @@ file.
 **Edit 3D** in the header opens a model (picked from your captures, as Objects' Add: Model picks one) with its editor open.
 
 **Combine 3D** in the header (pick a saved work, Continue what's open, or **Create New**) puts models (picked from your captures) and simple shapes (box, cylinder, sphere) in one
-space. Select one from the list or by clicking it, then drag it along the floor
-(hold Shift to lift or lower it instead) or type where it goes. Only the selected one drags: a drag anywhere else
-moves the view (with ⌘ or Ctrl held, turns it). As in the model viewer: the view's presets (3D, Front, Side, Top) and the Axis and Ground toggles
+space. Select one from the list or by clicking it (Esc, a click on it in the list again, or on the list's
+empty space: none). With one selected, a drag anywhere in the view moves it, even when it's inside another, along the
+plane lit through it: whichever of XY, XZ or YZ the view looks at most squarely (look from above: XY, the floor;
+from the front: XZ; from the side: YZ); hold Shift to keep it to one axis, the one it's moved along most. With none
+selected, a drag moves the view (with ⌘ or Ctrl held, turns it); typing the position works too. As in the model viewer: the view's presets (3D, Front, Side, Top) and the Axis and Ground toggles
 at the top left, and Textured, Clay or Wireframe at the top right (left of the sidebar). Turn it with the X, Y, Z sliders (or ±90°, or type the
 degrees); hovering one shows the circle it turns the object along, an arrow on it the way it'd go: −90° or left of
 the slider's handle one way, +90° or right of it the other.
