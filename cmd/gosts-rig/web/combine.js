@@ -603,6 +603,17 @@ export function createCombine(canvas) {
     changed();
     return c;
   };
+  // reorder: o moved to place i in the list (as the list will be); a step.
+  api.reorder = (o, i) => {
+    const from = objects.indexOf(o);
+    if (from < 0) return;
+    const to = Math.max(0, Math.min(i, objects.length - 1));
+    if (to === from) return;
+    const put = (at) => { objects.splice(objects.indexOf(o), 1); objects.splice(at, 0, o); };
+    put(to);
+    record(`Reorder ${o.name}`, () => put(from), () => put(to));
+    changed();
+  };
   // remove: o out of the space (kept: an undo brings it back).
   api.remove = (o) => {
     const i = detach(o);

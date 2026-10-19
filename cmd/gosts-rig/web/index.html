@@ -490,6 +490,10 @@ input.shift::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; b
 .cv-obj .relink { padding: 1px 7px; font-size: 11px; }
 .cv-obj .rm:hover { color: var(--danger, #e5484d); background: var(--panel-2); }
 .cv-obj.hid .nm { opacity: .45; }
+.cv-obj.dragging { opacity: .5; }
+.cv-obj.drop-before { box-shadow: 0 -2px 0 0 var(--accent); }
+.cv-obj.drop-after { box-shadow: 0 2px 0 0 var(--accent); }
+body.cv-reordering, body.cv-reordering * { cursor: grabbing !important; user-select: none; }
 .cv-obj .eye { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; color: var(--muted); cursor: pointer; }
 .cv-obj .eye svg { width: 15px; height: 15px; }
 .cv-xyz { display: grid; grid-template-columns: auto auto 1fr auto 1fr auto 1fr; gap: 6px; align-items: center; }
@@ -4048,6 +4052,7 @@ function cvShow() {
   for (const o of objs) {
     const row = document.createElement("div");
     row.className = "cv-obj" + (o === s ? " on" : "") + (o.visible ? "" : " hid") + (o.missing ? " missing" : "");
+    row.dataset.id = o.id;
     row.innerHTML = `<button class="eye" title="${o.visible ? "Hide it (left out of Export)" : "Show it"}">${o.visible ? eyeOn : eyeOff}</button><span class="nm"></span>` +
       (o.missing ? `<button class="btn small relink" title="Not found (renamed, moved or deleted since): pick the model it is now">Re-link</button>` : `<span class="kd">${o.kind}</span>`) +
       (o.kind === "fill" ? "" : `<button class="rm dup" title="Duplicate it (beside it, 20 mm along X)" aria-label="Duplicate"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg></button>`) +
@@ -4055,6 +4060,7 @@ function cvShow() {
     row.querySelector(".nm").textContent = o.name;
     row.querySelector(".nm").title = o.missing ? `${o.name}: missing (a box its size in its place)` : o.name;
     row.onclick = (e) => {
+      if (cvRowDrag.justDropped) return; // (a drag's end: not a click)
       if (e.target.closest(".eye")) cv.setVisible(o, !o.visible);
       else if (e.target.closest(".relink")) cvRelink(o);
       else if (e.target.closest(".dup")) cv.duplicate(o);
@@ -4182,6 +4188,45 @@ $("cvFCont").onclick = () => {
   }, null, "container");
 };
 $("cvList").addEventListener("click", (e) => { if (e.target === $("cvList")) cvs.cv?.select(null); }); // (the list's empty space: none selected)
+// The list reordered: a row dragged (not by its buttons) up or down, a line
+// where it goes; let go: there (a step). A row only clicked: as a click.
+const cvRowDrag = { row: null, y0: 0, on: false, to: -1, justDropped: false };
+$("cvList").addEventListener("pointerdown", (e) => {
+  const row = e.target.closest(".cv-obj");
+  if (e.button !== 0 || !row || e.target.closest("button")) return;
+  Object.assign(cvRowDrag, { row, y0: e.clientY, on: false, to: -1 });
+});
+document.addEventListener("pointermove", (e) => {
+  const d = cvRowDrag;
+  if (!d.row) return;
+  if (!d.on) {
+    if (Math.abs(e.clientY - d.y0) < 5) return;
+    d.on = true;
+    d.row.classList.add("dragging");
+    document.body.classList.add("cv-reordering");
+  }
+  const rows = [...$("cvList").querySelectorAll(".cv-obj")];
+  let to = rows.length;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i].getBoundingClientRect();
+    if (e.clientY < r.top + r.height / 2) { to = i; break; }
+  }
+  d.to = to;
+  rows.forEach((r, i) => { r.classList.toggle("drop-before", i === to); r.classList.toggle("drop-after", to === rows.length && i === rows.length - 1); });
+});
+document.addEventListener("pointerup", () => {
+  const d = cvRowDrag;
+  if (!d.row) return;
+  const { row, on, to } = d;
+  d.row = null;
+  document.body.classList.remove("cv-reordering");
+  if (!on) return;
+  for (const r of $("cvList").querySelectorAll(".cv-obj")) r.classList.remove("drop-before", "drop-after", "dragging");
+  d.justDropped = true;
+  setTimeout(() => { d.justDropped = false; }); // (the click after it: not one)
+  const rows = [...$("cvList").querySelectorAll(".cv-obj")], from = rows.indexOf(row), o = cvs.cv.objects().find((x) => String(x.id) === row.dataset.id);
+  if (o && from >= 0) cvs.cv.reorder(o, to > from ? to - 1 : to); // (its own place taken out first)
+});
 $("cvName").addEventListener("change", () => { const s = cvs.cv.selected(); if (s && $("cvName").value.trim()) cvs.cv.rename(s, $("cvName").value.trim()); });
 $("cvPos").addEventListener("change", (e) => {
   const s = cvs.cv.selected(), k = e.target.dataset.k;
