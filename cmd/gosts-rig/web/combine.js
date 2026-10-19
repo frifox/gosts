@@ -492,6 +492,11 @@ export function createCombine(canvas) {
     record(extra.what || `Re-link ${name}`, () => put(was), () => put(now));
     changed();
   };
+  // syncNames: each model named as its path (capture / model, where it is
+  // now: replaced, moved or renamed since), not as a step.
+  api.syncNames = () => {
+    for (const o of objects) if (o.kind === "model" && o.ref) { const n = `${o.ref.folder}/${o.ref.model}`; if (o.name !== n) o.name = n; }
+  };
   // clear: nothing in the space, no steps to undo (a work file opened next).
   api.clear = () => {
     for (const o of [...objects]) detach(o);
@@ -606,12 +611,13 @@ export function createCombine(canvas) {
     changed();
   };
   // duplicate: a copy of o (a model or a shape; not a fill), beside it (20 mm
-  // along X), turned as it is, named "… copy"; selected; one step.
+  // along X), turned as it is, named "… copy" (a model: as it is, its path);
+  // selected; one step.
   api.duplicate = (o) => {
     if (o.kind === "fill") return null;
     const names = new Set(objects.map((x) => x.name));
-    let name = `${o.name} copy`;
-    for (let i = 2; names.has(name); i++) name = `${o.name} copy ${i}`;
+    let name = o.kind === "model" ? o.name : `${o.name} copy`;
+    for (let i = 2; o.kind !== "model" && names.has(name); i++) name = `${o.name} copy ${i}`;
     let inner;
     if (o.kind === "model") {
       inner = o.inner.clone(true); // (its meshes' geometry shared; their look as built, not as shown now)

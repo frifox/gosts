@@ -568,8 +568,7 @@ button.save-dir.pick:hover { color: var(--text); background: var(--panel-2); }
 .save-dir span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 input[type=text].save-name { width: 100%; min-width: 0; box-sizing: border-box; }
 .cv-head-row { display: flex; align-items: center; gap: 8px; }
-.cv-from { font: 12px var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cv-from.missing { color: var(--warn, #ffb020); }
+#cvName[readonly] { color: var(--muted); cursor: default; } #cvName.missing { color: var(--warn, #ffb020); }
 .cv-ic-label { display: inline-flex; align-items: center; gap: 5px; }
 .cv-ic-label svg { width: 13px; height: 13px; flex: none; }
 .mv-edit .mve-field input { width: 100%; box-sizing: border-box; }
@@ -1456,7 +1455,6 @@ kbd + kbd { margin-left: 3px; }
       <section id="cvSel" hidden>
         <div class="mve-head"><b>Selected</b></div>
         <div class="mve-row"><input type="text" id="cvName" spellcheck="false" autocomplete="off" title="Its name"></div>
-        <div class="cv-from" id="cvFrom"></div>
         <div class="cv-xyz" id="cvSize" hidden><span class="mve-label">Size (mm)</span></div>
       </section>
       <section id="cvMoveSec" hidden>
@@ -4246,6 +4244,7 @@ const cvNum = (n, d = 1) => String(Math.round(n * 10 ** d) / 10 ** d);
 function cvShow() {
   const cv = cvs.cv;
   if (!cv) return;
+  cv.syncNames(); // (each model named as its path, as it is now)
   const objs = cv.objects(), s = cv.selected(), busy = cvs.busy || cv.recutting(); // (busy: a fill being cut again, too)
   const list = $("cvList");
   list.innerHTML = objs.length ? "" : '<div class="mve-label">None yet: add a model or a shape.</div>';
@@ -4275,10 +4274,12 @@ function cvShow() {
   const isFill = s?.kind === "fill";
   $("cvMoveSec").hidden = $("cvRotSec").hidden = !s || isFill; // (a fill: where its container is)
   if (s) {
+    // (a model's name: its path, as it is (not renamed here: in Browse); a shape's or fill's: its own)
     if (document.activeElement !== $("cvName")) $("cvName").value = s.name;
-    // (where it's from: a model's capture / model; else what it is)
-    $("cvFrom").textContent = s.kind === "model" ? (s.ref ? `${s.ref.folder} / ${s.ref.model}${s.missing ? " (missing)" : ""}` : "A model") : s.kind === "fill" ? "Container fill" : s.kind[0].toUpperCase() + s.kind.slice(1);
-    $("cvFrom").classList.toggle("missing", !!s.missing);
+    const named = s.kind === "model" && !!s.ref;
+    $("cvName").readOnly = named;
+    $("cvName").title = named ? `Its capture / model${s.missing ? ": missing (renamed, moved or deleted since): Re-link it in Objects" : " (rename or move it in Browse)"}` : "Its name";
+    $("cvName").classList.toggle("missing", !!s.missing);
     for (const inp of $("cvPos").querySelectorAll("input")) {
       if (document.activeElement !== inp) inp.value = cvNum(s.pos[inp.dataset.k]);
       inp.disabled = isFill;
@@ -4647,6 +4648,7 @@ $("cvExport").onclick = async () => {
 // not found: missing, a box its size in its place, till Re-link), fills set
 // as they were and made again, their cuts.
 function cvWork(thumb = true) {
+  cvs.cv.syncNames();
   const objs = cvs.cv.objects().map((o) => {
     const s = { id: o.id, kind: o.kind, name: o.name, visible: o.visible, pos: o.pos, rot: o.rot };
     if (o.size) s.size = o.size;
@@ -4813,7 +4815,7 @@ async function cvOpenWork(path) {
 function cvRelink(o, replace = false) {
   cvPickOpen(true, async (b, m) => {
     cvPickOpen(false);
-    const was = o.ref ? `${o.ref.folder}/${o.ref.model}` : null, name = !was || o.name === was ? `${b}/${m.name}` : o.name; // (its own name kept, if it had one)
+    const name = `${b}/${m.name}`; // (a model's name: its path)
     try {
       await cvs.cv.relink(o, name, modelBase(b, m), m.file, window.modelEdit.UNITS[m.edit?.units] || 1, { ref: { folder: b, model: m.name }, what: replace ? `Replace ${o.name}` : null }, (t) => cvStatus(t + "…"));
       // The fills it's the container of (made): made again in it as it is now.
