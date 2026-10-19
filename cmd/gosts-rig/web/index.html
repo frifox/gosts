@@ -559,15 +559,11 @@ body.cv-reordering, body.cv-reordering * { cursor: grabbing !important; user-sel
 .side-stack > .side-save { overflow: visible; }
 .side-save > section:first-child { border-top: 0; padding-top: 0; }
 .side-stack::-webkit-scrollbar { width: 0; }
-/* Save's Capture Name / Model Name (Combine 3D's, the model editor's): side by side, one joined field, a slash between (a folder in a folder). */
-.save-path { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); row-gap: 4px; font-size: 12px; color: var(--muted); }
-.save-path input[type=text] { width: 100%; min-width: 0; }
-.save-path > label { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.save-path .p1 { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.save-path .p2 { border-top-left-radius: 0; border-bottom-left-radius: 0; }
-.save-path input[readonly] { color: var(--muted); cursor: default; }
-.save-path-sep { display: flex; align-items: center; padding: 0 7px; border: 1px solid var(--border); border-left: 0; border-right: 0; background: var(--panel); color: var(--muted); font: 13px var(--mono); }
-.save-path input:focus { position: relative; z-index: 1; }
+/* Save's folder (where it goes) over the model's name (Combine 3D's, the model editor's). */
+.save-dir { display: flex; align-items: center; gap: 6px; min-width: 0; font: 12px var(--mono); color: var(--muted); margin-bottom: 6px; }
+.save-dir svg { width: 14px; height: 14px; flex: none; }
+.save-dir span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+input[type=text].save-name { width: 100%; min-width: 0; box-sizing: border-box; }
 .cv-head-row { display: flex; align-items: center; gap: 8px; }
 .cv-from { font: 12px var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-from.missing { color: var(--warn, #ffb020); }
@@ -1365,7 +1361,7 @@ kbd + kbd { margin-left: 3px; }
     <div class="mv-edit side-save">
       <section class="mve-save">
         <div class="mve-head"><b>Save</b></div>
-        <div class="save-path" title="Where it's saved: its capture (as it is: a model's saved beside it) / the model (a folder in it)"><label for="mveCapture" class="cv-ic-label"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg>Capture Name</label><span></span><label for="mveName" class="cv-ic-label"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.75l5.5 3.1v6.3L8 14.25l-5.5-3.1v-6.3z"/><path d="M2.5 4.85L8 8l5.5-3.15M8 8v6.25"/></svg>Model Name</label><input type="text" class="p1" id="mveCapture" readonly tabindex="-1" title="Its capture: a model's saved in the capture it's from"><span class="save-path-sep">/</span><input type="text" class="p2" id="mveName" spellcheck="false" autocomplete="off"></div>
+        <div class="save-dir" title="Where it's saved: the capture it's from (a model's saved beside it)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg><span id="mveFolder"></span></div><input type="text" class="save-name" id="mveName" spellcheck="false" autocomplete="off" placeholder="Model name" aria-label="Model name">
         <div class="mve-row"><span class="mve-label">Units</span><span class="views seg" id="mveFileUnit"><button data-v="mm" title="Fusion 360, CAD: 1 unit = 1 mm">mm</button><button data-v="in">in</button><button data-v="m" title="Blender's own: 1 unit = 1 m">m</button></span><span class="spacer"></span><button class="btn small" id="mveReplace" aria-pressed="false" title="Save over this model (its folder; the one there now goes to the Trash)">Overwrite</button></div>
         <label class="mp-check"><input type="checkbox" id="mveSTL"> <span>Also an STL (z up)</span></label>
         <div class="mve-row mve-saverow"><button class="btn small" id="mveUndo" disabled>Undo</button><button class="btn small" id="mveResetEdit" disabled>Reset Edits</button><span class="spacer"></span><span class="mve-warn" id="mveWarn"></span><button class="btn small primary" id="mveSave">Save</button></div>
@@ -1481,10 +1477,10 @@ kbd + kbd { margin-left: 3px; }
     <div class="mv-edit side-save" id="cvSaveCard">
       <section>
         <div class="mve-head"><b>Save</b></div>
-        <div class="save-path" title="Where Export puts it: the capture (a folder in your captures) / the model (a folder in it)"><label for="cvSaveFolder" class="cv-ic-label"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg>Capture Name</label><span></span><label for="cvSaveName" class="cv-ic-label"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.75l5.5 3.1v6.3L8 14.25l-5.5-3.1v-6.3z"/><path d="M2.5 4.85L8 8l5.5-3.15M8 8v6.25"/></svg>Model Name</label><input type="text" class="p1" id="cvSaveFolder" value="inserts" spellcheck="false" autocomplete="off"><span class="save-path-sep">/</span><input type="text" class="p2" id="cvSaveName" value="insert" spellcheck="false" autocomplete="off"></div>
+        <div class="save-dir" title="Where Save and Export put it: the folder the work is in (a new one: inserts; Browse's Move to… moves it)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.6h5.6a1 1 0 0 1 1 1v6.9a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg><span id="cvSaveDir"></span></div><input type="text" class="save-name" id="cvSaveName" value="insert" spellcheck="false" autocomplete="off" placeholder="Model name" aria-label="Model name">
         <label class="mp-check"><input type="checkbox" id="cvSTL"> <span>Also an STL (z up)</span></label>
         <div class="cv-load" id="cvLoad" hidden><div class="cv-load-bar"><span id="cvLoadBar"></span></div><ol class="cv-load-list" id="cvLoadList"></ol></div>
-        <div class="mve-row save-row"><div class="mve-status" id="cvStatus"></div><button class="btn small" id="cvSave" title="Keep this work as a file (Name.combine.json) in the captures' folder: Browse opens it again">Save</button><button class="btn small primary" id="cvExport" title="The objects shown as one model (OBJ, mm), in the capture folder named">Export</button></div>
+        <div class="mve-row save-row"><div class="mve-status" id="cvStatus"></div><button class="btn small" id="cvSave" title="Keep this work as a file (Name.combine.json) in the folder above: Browse opens it again">Save</button><button class="btn small primary" id="cvExport" title="The objects shown as one model (OBJ, mm), in the folder above">Export</button></div>
       </section>
     </div>
     </div>
@@ -2109,7 +2105,7 @@ async function modelTiles(g, name, seq) {
 state.mv = null; // { name, m } shown
 function openModel(name, m) {
   state.mv = { name, m };
-  $("mveCapture").value = name; // (Save's Capture Name: where it's saved, as it is)
+  $("mveFolder").textContent = `/${name}/`; // (Save's folder: where it's saved, as it is)
   const fmt = m.format.toUpperCase();
   $("mvBack").textContent = name.slice(name.lastIndexOf("/") + 1); // (its capture's own name; its path: on hover)
   $("mvBack").title = `Back to ${name}`;
@@ -4118,9 +4114,10 @@ function cvShow() {
   $("cvCutsSec").hidden = !isFill;
   if (isFill) cvCutList(s);
   $("cvExport").disabled = busy || !objs.some((o) => o.visible);
+  $("cvSaveDir").textContent = cvFolder() ? `/${cvFolder()}/` : "/";
   const same = !cvUnsaved();
   $("cvSave").disabled = busy || !objs.length || same;
-  $("cvSave").title = same ? "Saved: nothing changed since" : "Keep this work as a file (Name.combine.json) in the captures' folder: Browse opens it again";
+  $("cvSave").title = same ? "Saved: nothing changed since" : "Keep this work as a file (Name.combine.json) in the folder above: Browse opens it again";
   const un = cv.undoName(), re = cv.redoName();
   $("cvUndo").disabled = busy || !un; $("cvUndo").title = un ? `Undo ${un} (⌘Z)` : "Undo (⌘Z)";
   $("cvRedo").disabled = busy || !re; $("cvRedo").title = re ? `Redo ${re} (⇧⌘Z)` : "Redo (⇧⌘Z)";
@@ -4436,8 +4433,9 @@ function cvUndo(redo) {
 $("cvUndo").onclick = () => cvUndo(false);
 $("cvRedo").onclick = () => cvUndo(true);
 $("cvExport").onclick = async () => {
-  const to = $("cvSaveName").value.trim(), folder = $("cvSaveFolder").value.trim();
-  if (!to || !folder) return cvStatus("A name and a folder, first", "bad");
+  const to = $("cvSaveName").value.trim(), folder = cvFolder();
+  if (!to) return cvStatus("A name first", "bad");
+  if (!folder) return cvStatus("Export puts it in a folder: move this work into one first (Browse: Move to…)", "bad");
   if (cvs.cv.recutting()) return;
   cvs.busy = true; cvShow();
   try {
@@ -4475,12 +4473,14 @@ function cvWork(thumb = true) {
   });
   return { version: 1, app: "gosts-rig combine", objects: objs, thumb: thumb ? cvs.cv.picture() : "" };
 }
-// cvSavePath: where Save puts it (the folder it was opened from, or the
-// captures' folder; Model Name). cvUnsaved: Save would write something other
-// than the file it was opened from or last saved as (cvs.saved: its path
-// and objects then).
+// cvSavePath: where Save puts it (cvFolder, the name). cvUnsaved: Save
+// would write something other than the file it was opened from or last
+// saved as (cvs.saved: its path and objects then).
+// cvFolder: where Save and Export put it: the work's own folder (a new
+// one: inserts).
+const cvFolder = () => (cvs.work ? (cvs.work.includes("/") ? cvs.work.slice(0, cvs.work.lastIndexOf("/")) : "") : "inserts");
 function cvSavePath() {
-  const name = $("cvSaveName").value.trim(), dir = cvs.work?.includes("/") ? cvs.work.slice(0, cvs.work.lastIndexOf("/")) : "";
+  const name = $("cvSaveName").value.trim(), dir = cvFolder();
   return { name, dir, path: dir ? `${dir}/${name}` : name };
 }
 const cvSig = () => JSON.stringify(cvWork(false).objects);

@@ -147,13 +147,13 @@ It can make a custom case insert, to print in foaming TPU, say:
   under a part of it that hangs over): at that height over the cut round it; 0 (as it starts) leaves none, empty lets it stand.
   Pieces a cut leaves loose are taken out, so the insert stays in one piece. Cuts stay live: move or
   turn an object and the fill is cut again where it's let go, so they can be arranged after cutting.
-- **Save** keeps the work itself as *Model Name*`.combine.json`: a new one in the captures' folder, one opened back where it came from (a work file can be kept in any capture folder too): its objects, where they are and how
+- **Save** keeps the work itself as *Model Name*`.combine.json` in the folder shown over the name: a new one in `inserts`, one opened back where it came from (Browse's **Move to…** puts it in another): its objects, where they are and how
   they're turned, the fills (as they're set) and their cuts. Browse lists it among the captures; a click opens it
   again, the fills made again. The models in it are named (capture / model), not copied: one renamed, moved or deleted
   since comes back as a box its size in its place, marked ⚠ in Objects, with **Re-link** (pick the model it is now)
   or ✕ to take it out; it isn't cut out of a fill till it's linked again.
-- **Export** writes the objects shown (hide the rest with their eye) as one model (*Model Name*, in the capture
-  *Capture Name*), in mm (an STL too, with **Also an STL** checked).
+- **Export** writes the objects shown (hide the rest with their eye) as one model (*Model Name*, in that same
+  folder), in mm (an STL too, with **Also an STL** checked).
 
 **Undo** and **Redo** (⌘Z, ⇧⌘Z) step back and on through everything done: moves and turns, sizes, objects added or
 removed, hidden or renamed, the fill and each cut.
