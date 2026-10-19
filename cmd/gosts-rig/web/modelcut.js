@@ -1,6 +1,6 @@
 // Cut (the model editor's): the model sliced by a plane (XY, XZ or YZ),
 // either side of it taken away (Cut), or the uneven face it crosses made
-// flat on it (Fill: a scanned floor that's dished or rounded off, say).
+// flat on it (Flatten, fill here: a scanned floor that's dished or rounded off, say).
 //
 // The plane is in the world (as the model's shown, edited): a three.js
 // Plane whose normal points to the side to take away (beyond: distance >

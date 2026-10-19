@@ -627,6 +627,15 @@ export function createModelView(canvas) {
     const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true }));
     lines.renderOrder = 9;
     for (const o of [sq, edge, lines]) { o.raycast = () => {}; sectionG.add(o); }
+    // Arrows from it the way it works (its normal: the side taken away): one
+    // in the middle, four round it.
+    const u = new THREE.Vector3(1, 0, 0).applyQuaternion(sq.quaternion), v = new THREE.Vector3(0, 1, 0).applyQuaternion(sq.quaternion), len = size * 0.14;
+    for (const [i, j] of [[0, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const from = at.clone().addScaledVector(u, i * size * 0.3).addScaledVector(v, j * size * 0.3);
+      const ar = new THREE.ArrowHelper(plane.normal, from, i || j ? len * 0.75 : len, color, len * 0.3, len * 0.18);
+      ar.traverse((o) => { if (o.material) { o.material.depthTest = false; o.material.transparent = true; } o.renderOrder = 10; o.raycast = () => {}; });
+      sectionG.add(ar);
+    }
     scene.add(sectionG);
     return seg.length / 6;
   }
