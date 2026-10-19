@@ -149,10 +149,11 @@ func run() bool {
 	}
 	// Unless the command line says what to connect: the board and the camera
 	// used last, if they're here; else the only one there is (see
-	// startupDevice). With none here, the page offers the simulators.
+	// startupDevice). The rig: else the first likely adapter there is; with
+	// none (or it won't connect), the simulated rig, so it's ready to try.
 	go func() {
-		p := *port
-		if p == "" {
+		p, chosen := *port, *port != ""
+		if !chosen {
 			var real []string
 			ports, _ := listPorts()
 			for _, pi := range ports {
@@ -161,12 +162,22 @@ func run() bool {
 				}
 			}
 			p = startupDevice(c.Port, real)
-		}
-		if p == "" {
-			return
+			if p == "" && len(real) > 0 {
+				p = real[0]
+			}
+			if p == "" {
+				p = simPort
+			}
 		}
 		if err := a.rig.connect(ctx, p, c.Baud); err != nil {
 			log.Printf("connect %s: %v", p, err)
+			if chosen || p == simPort {
+				return
+			}
+			log.Printf("connect: the simulated rig instead")
+			if err := a.rig.connect(ctx, simPort, c.Baud); err != nil {
+				log.Printf("connect %s: %v", simPort, err)
+			}
 		}
 	}()
 	go func() {
