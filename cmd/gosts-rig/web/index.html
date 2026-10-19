@@ -2549,16 +2549,18 @@ $("mveTrim").onclick = () => {
 // Cut: a plane (XY, XZ or YZ: across Z, Y or X), placed by a point picked
 // on the model, then slid along its axis (Blender's, meters: at; its
 // slider over the model's extents, as Crop's); Cut takes away what's on
-// one side (dir: its − or + side), closed flat on it or not; Flatten makes the
+// one side (dir: its − or + side), closed flat on it or not; Flatten (dir:
+// the way it's pulled to the plane: + what's under it up) makes the
 // face it crosses flat on it (see modelcut.js). Shown as it'd go: the
 // plane, where it crosses the model, and arrows the way it'd take away.
 mve.cut = { plane: "xy", at: null, mode: "cut", dir: "-", cap: true };
 const CUT_AX = { xy: "z", xz: "y", yz: "x" };
 segPick("mveCutPlane", "xy"); segPick("mveCutMode", "cut"); segPick("mveCutDir", "-");
 // mveCutSpec: the plane as the viewer takes it (three.js' axes: Blender's
-// x, y, z are x, −z, y), its normal to the side taken away.
+// x, y, z are x, −z, y), its normal to the side taken away (Flatten's: the
+// side it's pulled from).
 function mveCutSpec() {
-  const c = mve.cut, ax = CUT_AX[c.plane], k = c.dir === "+" ? 1 : -1;
+  const c = mve.cut, ax = CUT_AX[c.plane], k = (c.dir === "+" ? 1 : -1) * (c.mode === "fill" ? -1 : 1);
   const n = { x: [1, 0, 0], y: [0, 0, -1], z: [0, 1, 0] }[ax].map((v) => v * k);
   return { n, c: -c.at * k };
 }
@@ -2606,7 +2608,7 @@ function mveCutShow() {
   $("mveCutAx").textContent = ax.toUpperCase();
   $("mveCutAx").className = ax;
   for (const b of $("mveCutDir").children) b.textContent = `${b.dataset.v === "-" ? "−" : "+"}${ax.toUpperCase()}`;
-  $("mveCutDir").title = `The side taken away: ${ax.toUpperCase()} below the plane (−) or above it (+)`;
+  $("mveCutDir").title = c.mode === "fill" ? `The way it's pulled to the plane: what's under it up (+${ax.toUpperCase()}), or over it down (−${ax.toUpperCase()})` : `The side taken away: ${ax.toUpperCase()} below the plane (−) or above it (+)`;
   $("mveCutCapL").hidden = c.mode !== "cut";
   $("mveCutAt").hidden = !placed;
   $("mveCutPick").classList.toggle("picking", mve.picking === "cut");
@@ -2626,7 +2628,7 @@ function mveCutShow() {
   requestAnimationFrame(() => { // (where it crosses: worked out once a frame at most)
     mveCutQueued = false;
     if (mve.cut.at == null || $("mvEdit").hidden) return window.modelView.section(null);
-    const n = window.modelView.section(mveCutSpec(), mve.cut.mode === "fill" ? 0x2bc4c4 : 0xe5484d);
+    const n = window.modelView.section(mveCutSpec(), mve.cut.mode === "fill" ? 0x2bc4c4 : 0xe5484d, mve.cut.mode === "fill"); // (Flatten's arrows: to the plane, the way it's pulled)
     $("mveCutInfo").textContent = n ? "" : "It doesn't cross the model here";
   });
 }

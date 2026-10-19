@@ -51,6 +51,7 @@ export function sectionSegments(obj, plane) {
 // opening that didn't close up: left so) }.
 export function cutModel(obj, plane, { fill = false, cap = true } = {}) {
   const swaps = [], r = { removed: 0, craters: 0, caps: 0, open: 0, kept: 0 };
+  // (eps: as near as counts as on the plane, the same place: the model's size × 1e-7)
   const box = new THREE.Box3().setFromObject(obj), eps = Math.max(box.getSize(new THREE.Vector3()).length(), 1e-9) * 1e-7;
   obj.traverse((o) => {
     if (!o.isMesh) return;
@@ -75,6 +76,10 @@ function cutMesh(o, g, plane, eps, fill, cap) {
     return { w, d, a: attrs.map((at) => Array.from(at.array.subarray(i * at.itemSize, (i + 1) * at.itemSize))) };
   };
   const lerp = (p, q, t) => ({ w: p.w.clone().lerp(q.w, t), d: 0, a: p.a.map((v, k) => v.map((x, j) => x + (q.a[k][j] - x) * t)) });
+  // cross: where edge p–q crosses the plane, worked out from its lesser end
+  // (by place) whichever triangle it's in: the same point both sides (welded).
+  const less = (p, q) => p.w.x < q.w.x || (p.w.x === q.w.x && (p.w.y < q.w.y || (p.w.y === q.w.y && p.w.z < q.w.z)));
+  const cross = (p, q) => (less(q, p) ? cross(q, p) : lerp(p, q, p.d / (p.d - q.d)));
   // The triangles kept (the side not taken away, the pieces of those cut),
   // each [c0, c1, c2, group].
   const tris = [];
@@ -89,7 +94,7 @@ function cutMesh(o, g, plane, eps, fill, cap) {
       for (let i = 0; i < 3; i++) {
         const j = (i + 1) % 3, p = cs[i], q = cs[j];
         if (p.d <= 0) poly.push(p);
-        if ((p.d < 0 && q.d > 0) || (p.d > 0 && q.d < 0)) poly.push(lerp(p, q, p.d / (p.d - q.d)));
+        if ((p.d < 0 && q.d > 0) || (p.d > 0 && q.d < 0)) poly.push(cross(p, q));
       }
       for (let i = 1; i + 1 < poly.length; i++) tris.push([poly[0], poly[i], poly[i + 1], gi]);
     }
@@ -104,78 +109,97 @@ function cutMesh(o, g, plane, eps, fill, cap) {
     return v;
   };
   const tv = tris.map((tr) => [vid(tr[0]), vid(tr[1]), vid(tr[2])]);
-  // Fill: the craters (parts joined only among themselves, facing the
-  // side taken away) taken too.
+  // The pieces (triangles joined by a corner, on and on).
+  const parent = at.map((_, i) => i), find = (i) => { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
+  for (const [a, b, c] of tv) { parent[find(b)] = find(a); parent[find(c)] = find(a); }
+  // The openings on the plane: the edges on it with no triangle the other
+  // way, chained into loops (the cap's way round: each edge reversed), each
+  // on the plane's own axes (u, v) and with its piece.
+  const on = (v) => at[v].d === 0, edges = new Set(), groupOf = new Map(), next = new Map();
+  tv.forEach((t) => { for (let k = 0; k < 3; k++) edges.add(`${t[k]},${t[(k + 1) % 3]}`); });
+  tv.forEach((t, i) => {
+    for (let k = 0; k < 3; k++) {
+      const a = t[k], b = t[(k + 1) % 3];
+      if (a === b || !on(a) || !on(b) || edges.has(`${b},${a}`)) continue;
+      (next.get(b) || next.set(b, []).get(b)).push(a);
+      groupOf.set(b, tris[i][3]);
+    }
+  });
+  const nrm = plane.normal, u = new THREE.Vector3(), v = new THREE.Vector3();
+  u.copy(Math.abs(nrm.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)).cross(nrm).normalize();
+  v.crossVectors(nrm, u);
+  const loops = [], chains = [];
+  let open = 0;
+  const closed = (loop) => {
+    while (loop.length > 3 && at[loop[loop.length - 1]].w.equals(at[loop[0]].w)) loop.pop(); // (its start again at the end: once; see triangulateShape)
+    const pts = loop.map((i) => new THREE.Vector2(at[i].w.dot(u), at[i].w.dot(v)));
+    loops.push({ loop, pts, area: THREE.ShapeUtils.area(pts), piece: find(loop[0]) });
+  };
+  for (const start of [...next.keys()]) {
+    while (next.get(start)?.length) {
+      const loop = [start];
+      let cur = next.get(start).pop(), ok = false;
+      for (let guard = 0; guard < at.length + 1; guard++) {
+        if (cur === start) { ok = true; break; }
+        loop.push(cur);
+        const nx = next.get(cur);
+        if (!nx?.length) break;
+        cur = nx.pop();
+      }
+      if (ok && loop.length >= 3) closed(loop);
+      else if (!ok) chains.push(loop);
+    }
+  }
+  // The ones that didn't close (a gap in the model's own surface where the
+  // plane crosses it, or a piece started midway): joined end to the
+  // nearest start, across a small gap at most, till they close.
+  const gap = eps * 2e5; // (2% of the model's size)
+  while (chains.length) {
+    let c = chains.pop();
+    for (;;) {
+      const end = at[c[c.length - 1]].w;
+      let best = -1, bd = end.distanceTo(at[c[0]].w); // (-1: its own start)
+      chains.forEach((o, i) => { const d = end.distanceTo(at[o[0]].w); if (d < bd) { bd = d; best = i; } });
+      if (bd > gap) { open++; break; }
+      if (best < 0) { if (c.length >= 3) closed(c); else open++; break; }
+      const o = chains.splice(best, 1)[0];
+      c = c.concat(o[0] === c[c.length - 1] ? o.slice(1) : o);
+    }
+  }
+  const inside = (p, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) c = !c; } return c; };
+  // Fill: the craters taken too: a piece of its own whose openings on the
+  // plane are all within another piece's (a dish in a floor, rimmed by it).
+  // (Which way its triangles face: not asked; a scan's may face in.)
   let keep = tris.map(() => true), craters = 0;
+  const gone = new Set();
   if (fill) {
-    const parent = at.map((_, i) => i), find = (i) => { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
-    for (const [a, b, c] of tv) { parent[find(b)] = find(a); parent[find(c)] = find(a); }
-    const sum = new Map(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
-    let total = 0;
-    tris.forEach((tr, i) => {
-      e1.subVectors(tr[1].w, tr[0].w); e2.subVectors(tr[2].w, tr[0].w);
-      const v = e1.cross(e2), root = find(tv[i][0]);
-      total += v.length();
-      if (!sum.has(root)) sum.set(root, new THREE.Vector3());
-      sum.get(root).add(v);
-    });
-    const gone = new Set();
-    for (const [root, s] of sum) if (s.dot(plane.normal) > total * 1e-4) gone.add(root);
+    const byPiece = new Map();
+    for (const l of loops) (byPiece.get(l.piece) || byPiece.set(l.piece, []).get(l.piece)).push(l);
+    for (const [piece, ls] of byPiece) if (ls.every((l) => loops.some((o) => o.piece !== piece && inside(l.pts[0], o.pts)))) gone.add(piece);
     craters = gone.size;
     keep = tv.map((t) => !gone.has(find(t[0])));
   }
-  // Each opening on the plane closed: the edges on it with no triangle the
-  // other way, their loops flat (the cap facing the side taken away), its
-  // holes (loops the other way round) kept open.
+  // Each opening left closed, flat: a loop within an even number of others
+  // an outline, within an odd number a hole in the one round it (a ring's
+  // middle: kept open); its triangles wound as the outline's loop is (as
+  // the surface round it: whichever way that faces).
   const capTris = []; // [[corner, corner, corner], group]
-  let caps = 0, open = 0;
+  let caps = 0;
   if (cap) {
-    const on = (v) => at[v].d === 0, edges = new Set(), groupOf = new Map();
-    tv.forEach((t, i) => { if (keep[i]) for (let k = 0; k < 3; k++) edges.add(`${t[k]},${t[(k + 1) % 3]}`); });
-    const next = new Map(); // (the cap's edges: each boundary edge the other way)
-    tv.forEach((t, i) => {
-      if (!keep[i]) return;
-      for (let k = 0; k < 3; k++) {
-        const a = t[k], b = t[(k + 1) % 3];
-        if (a === b || !on(a) || !on(b) || edges.has(`${b},${a}`)) continue;
-        (next.get(b) || next.set(b, []).get(b)).push(a);
-        groupOf.set(b, tris[i][3]);
-      }
-    });
-    // Its plane's own axes: u × v = the normal (an outer loop: counterclockwise).
-    const nrm = plane.normal, u = new THREE.Vector3(), v = new THREE.Vector3();
-    u.copy(Math.abs(nrm.x) < 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)).cross(nrm).normalize();
-    v.crossVectors(nrm, u);
-    const loops = [];
-    for (const start of [...next.keys()]) {
-      while (next.get(start)?.length) {
-        const loop = [start];
-        let cur = next.get(start).pop(), ok = false;
-        for (let guard = 0; guard < at.length + 1; guard++) {
-          if (cur === start) { ok = true; break; }
-          loop.push(cur);
-          const nx = next.get(cur);
-          if (!nx?.length) break;
-          cur = nx.pop();
-        }
-        if (!ok || loop.length < 3) { open++; continue; }
-        const pts = loop.map((i) => new THREE.Vector2(at[i].w.dot(u), at[i].w.dot(v)));
-        loops.push({ loop, pts, area: THREE.ShapeUtils.area(pts) });
-      }
-    }
-    const outers = loops.filter((l) => l.area > 0), holes = loops.filter((l) => l.area < 0);
-    const inside = (p, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) c = !c; } return c; };
-    for (const h of holes) {
+    const left = loops.filter((l) => !gone.has(l.piece));
+    for (const l of left) l.depth = left.filter((o) => o !== l && Math.abs(o.area) > Math.abs(l.area) && inside(l.pts[0], o.pts)).length;
+    const outers = left.filter((l) => l.depth % 2 === 0);
+    for (const h of left.filter((l) => l.depth % 2 === 1)) {
       let best = null;
-      for (const ol of outers) if (inside(h.pts[0], ol.pts) && (!best || ol.area < best.area)) best = ol;
+      for (const ol of outers) if (ol.depth === h.depth - 1 && inside(h.pts[0], ol.pts) && (!best || Math.abs(ol.area) < Math.abs(best.area))) best = ol;
       if (best) (best.holes ||= []).push(h); else open++;
     }
     for (const ol of outers) {
-      const hs = ol.holes || [], all = [ol, ...hs], ptsAll = all.flatMap((l) => l.pts), vAll = all.flatMap((l) => l.loop);
+      const hs = ol.holes || [], all = [ol, ...hs], ptsAll = all.flatMap((l) => l.pts), vAll = all.flatMap((l) => l.loop), sign = Math.sign(ol.area);
       const faces = THREE.ShapeUtils.triangulateShape(ol.pts, hs.map((h) => h.pts));
       const gi = groupOf.get(ol.loop[0]) ?? 0;
       for (let [a, b, c] of faces) {
-        if (THREE.ShapeUtils.area([ptsAll[a], ptsAll[b], ptsAll[c]]) < 0) [b, c] = [c, b];
+        if (Math.sign(THREE.ShapeUtils.area([ptsAll[a], ptsAll[b], ptsAll[c]])) !== sign) [b, c] = [c, b];
         capTris.push([[at[vAll[a]], at[vAll[b]], at[vAll[c]]], gi]);
       }
       caps++;

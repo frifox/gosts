@@ -117,8 +117,8 @@ file.
 - **Cut**: a plane (XY, XZ or YZ) placed by clicking the model, then slid along its axis (or typed), arrows showing
   the side it works on: **Cut** takes
   away everything on one side of it (closed flat on the plane, or left open); **Flatten** makes the face it crosses flat
-  on it (a scanned floor that's dished or rounded off): what's past it taken away, the hollows it rims filled, real
-  holes (a ring's middle) kept; **Preview** shows the model as Apply would leave it (again, or any change: back)
+  on it (a scanned floor that's dished or rounded off), pulled to it the way picked (+Z: what's under it up): what's
+  past it taken away, the hollows it rims filled, real holes (a ring's middle) kept; **Preview** shows the model as Apply would leave it (again, or any change: back)
 - **Scale**: set the real distance between two points
 - **Simplify**: cut it down to fewer triangles, keeping the shape as well as it can
 

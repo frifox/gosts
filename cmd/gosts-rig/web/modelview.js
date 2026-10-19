@@ -610,7 +610,8 @@ export function createModelView(canvas) {
   // (a plane: a Plane, or { n: [x, y, z], c }, its normal and constant)
   const planeOf = (p) => p && (p.isPlane ? p : new THREE.Plane(new THREE.Vector3(...p.n), p.c));
   let sectionG = null;
-  function section(plane, color = 0x2bc4c4) {
+  // (pull: the arrows to it from the side taken away, not from it to that side)
+  function section(plane, color = 0x2bc4c4, pull = false) {
     plane = planeOf(plane);
     if (sectionG) { scene.remove(sectionG); sectionG.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); }); sectionG = null; }
     if (!plane || !obj) return 0;
@@ -627,12 +628,13 @@ export function createModelView(canvas) {
     const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color, depthTest: false, transparent: true }));
     lines.renderOrder = 9;
     for (const o of [sq, edge, lines]) { o.raycast = () => {}; sectionG.add(o); }
-    // Arrows from it the way it works (its normal: the side taken away): one
-    // in the middle, four round it.
+    // Arrows the way it works (its normal: the side taken away; pull: from
+    // there to it): one in the middle, four round it.
     const u = new THREE.Vector3(1, 0, 0).applyQuaternion(sq.quaternion), v = new THREE.Vector3(0, 1, 0).applyQuaternion(sq.quaternion), len = size * 0.14;
     for (const [i, j] of [[0, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
-      const from = at.clone().addScaledVector(u, i * size * 0.3).addScaledVector(v, j * size * 0.3);
-      const ar = new THREE.ArrowHelper(plane.normal, from, i || j ? len * 0.75 : len, color, len * 0.3, len * 0.18);
+      const l = i || j ? len * 0.75 : len, from = at.clone().addScaledVector(u, i * size * 0.3).addScaledVector(v, j * size * 0.3);
+      if (pull) from.addScaledVector(plane.normal, l);
+      const ar = new THREE.ArrowHelper(pull ? plane.normal.clone().negate() : plane.normal, from, l, color, len * 0.3, len * 0.18);
       ar.traverse((o) => { if (o.material) { o.material.depthTest = false; o.material.transparent = true; } o.renderOrder = 10; o.raycast = () => {}; });
       sectionG.add(ar);
     }
