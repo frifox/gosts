@@ -497,6 +497,7 @@ body.cv-reordering, body.cv-reordering * { cursor: grabbing !important; user-sel
 .cv-obj .eye { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; color: var(--muted); cursor: pointer; }
 .cv-obj .eye svg { width: 15px; height: 15px; }
 .cv-xyz { display: grid; grid-template-columns: auto auto 1fr auto 1fr auto 1fr; gap: 6px; align-items: center; }
+.cv-xyz.bare { grid-template-columns: auto 1fr auto 1fr auto 1fr; }
 .cv-xyz input[type=number] { width: 100% !important; min-width: 0; }
 .cv-xyz b { font: 600 12px var(--mono); } .cv-xyz .x { color: #e5484d; } .cv-xyz .y { color: #46a758; } .cv-xyz .z { color: #3e7bfa; }
 /* Add Model's small Browse: tiles, a capture's or a model's. */
@@ -1448,7 +1449,7 @@ kbd + kbd { margin-left: 3px; }
       </section>
       <section id="cvMoveSec" hidden>
         <div class="mve-head cv-head-row"><b>Move</b><span class="spacer"></span><button class="btn small" id="cvDrop" title="Down (or up) so its lowest point is on the floor">Drop to Floor</button></div>
-        <div class="cv-xyz" id="cvPos"><span class="mve-label">Position (mm)</span><b class="x">X</b><input type="number" step="1" data-k="x"><b class="y">Y</b><input type="number" step="1" data-k="y"><b class="z">Z</b><input type="number" step="1" data-k="z"></div>
+        <div class="cv-xyz bare" id="cvPos" title="Where it is, mm"><b class="x">X</b><input type="number" step="1" data-k="x"><b class="y">Y</b><input type="number" step="1" data-k="y"><b class="z">Z</b><input type="number" step="1" data-k="z"></div>
       </section>
       <section id="cvRotSec" hidden>
         <div class="mve-head"><b>Rotate</b></div>
