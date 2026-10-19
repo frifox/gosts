@@ -161,6 +161,7 @@ type workInfo struct {
 	Name    string `json:"name"`    // its name
 	Folder  string `json:"folder"`  // the capture folder it's in ("": the root)
 	At      int64  `json:"at"`      // last saved (ms)
+	Size    int64  `json:"size"`    // bytes
 	Objects int    `json:"objects"` // how many things are in it
 	Thumb   bool   `json:"thumb"`   // a picture of it kept
 }
@@ -180,7 +181,7 @@ func worksIn(folder string) []workInfo {
 			wi.Path = folder + "/" + wi.Name
 		}
 		if st, err := e.Info(); err == nil {
-			wi.At = st.ModTime().UnixMilli()
+			wi.At, wi.Size = st.ModTime().UnixMilli(), st.Size()
 		}
 		var head struct {
 			Objects []json.RawMessage `json:"objects"`
