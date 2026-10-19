@@ -1850,9 +1850,9 @@ function folderTile(name, count, img, current, open, rename, info) {
   b.tabIndex = 0;
   b.setAttribute("role", "button");
   b.title = `Open ${name}`;
-  b.innerHTML = `<div class="fold">${img ? `<img alt="" loading="lazy" decoding="async" src="${img}">` : `<div class="empty">${info?.models ? "3D model" : "No photos yet"}</div>`}</div><div class="info"><b>${escHTML(name)}</b>` +
+  b.innerHTML = `<div class="fold">${img ? `<img alt="" loading="lazy" decoding="async" src="${img}">` : `<div class="empty">${info?.models ? "3D model" : info?.works ? "Combine 3D" : "No photos yet"}</div>`}</div><div class="info"><b>${escHTML(name)}</b>` +
     (current ? '<span class="badge">Current</span>' : "") +
-    (info?.interrupted ? `<span class="badge interrupted" title="Stopped short: ${info.taken} of ${info.planned} photos taken. Open it to resume.">Interrupted ${info.taken}/${info.planned}</span>` : "") + `<span class="count">${[(count || !info?.models) && `${count} photo${count === 1 ? "" : "s"}`, info?.models && `${info.models} model${info.models === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</span></div>` +
+    (info?.interrupted ? `<span class="badge interrupted" title="Stopped short: ${info.taken} of ${info.planned} photos taken. Open it to resume.">Interrupted ${info.taken}/${info.planned}</span>` : "") + `<span class="count">${[(count || !(info?.models || info?.works)) && `${count} photo${count === 1 ? "" : "s"}`, info?.models && `${info.models} model${info.models === 1 ? "" : "s"}`, info?.works && `${info.works} Combine 3D work${info.works === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</span></div>` +
     (info?.interrupted && !current ? `<button class="btn small primary resume" title="${info.taken} of ${info.planned} photos taken: make this the current capture, its plan back, to take the rest (Resume in the Camera card)">Resume</button>` : "") +
     (rename ? `<button class="edit" title="Rename ${escHTML(name)}" aria-label="Rename">${pencilIcon}</button>` +
       `<button class="del" title="Delete ${escHTML(name)} (to the Trash; asks first)" aria-label="Delete">${trashIcon}</button>` : "");
@@ -1866,28 +1866,32 @@ function folderTile(name, count, img, current, open, rename, info) {
   }
   return b;
 }
-// workTile: a Combine 3D work file, in Captures: a click opens it there.
+// A work file's addresses (by its path: "name", or "folder/name").
+const workURL = (path, what = "") => `/combine/work${what}?path=${encodeURIComponent(path)}`;
+const workName = (path) => path.slice(path.lastIndexOf("/") + 1);
+// workTile: a Combine 3D work file, in Captures or a capture folder: a click
+// opens it in Combine 3D.
 function workTile(w) {
   const b = document.createElement("div");
   b.className = "thumb folder work";
   b.tabIndex = 0;
   b.setAttribute("role", "button");
   b.title = `Open ${w.name} in Combine 3D`;
-  b.innerHTML = `<div class="fold">${w.thumb ? `<img alt="" loading="lazy" decoding="async" src="/combine/works/${encodeURIComponent(w.name)}/thumb?at=${w.at}">` : '<div class="empty">Combine 3D</div>'}</div>` +
+  b.innerHTML = `<div class="fold">${w.thumb ? `<img alt="" loading="lazy" decoding="async" src="${workURL(w.path, "/thumb")}&at=${w.at}">` : '<div class="empty">Combine 3D</div>'}</div>` +
     `<div class="info"><b>${escHTML(w.name)}</b><span class="badge">Combine 3D</span><span class="count">${w.objects} object${w.objects === 1 ? "" : "s"}</span></div>` +
     `<button class="edit" title="Rename ${escHTML(w.name)}" aria-label="Rename">${pencilIcon}</button>` +
     `<button class="del" title="Delete ${escHTML(w.name)} (to the Trash; asks first)" aria-label="Delete">${trashIcon}</button>`;
-  b.onclick = (e) => { if (!e.target.closest(".del, .edit")) cvOpenWork(w.name); };
-  b.querySelector(".edit").onclick = () => renameFolder(w.name, "Rename Combine 3D Work", `The work file's new name, in <span class="photo-dir">${escHTML(document.querySelector(".photo-dir")?.textContent || "~/Pictures/gosts-rig")}</span>`,
-    `/combine/works/${encodeURIComponent(w.name)}/rename`, (to) => {
+  b.onclick = (e) => { if (!e.target.closest(".del, .edit")) cvOpenWork(w.path); };
+  b.querySelector(".edit").onclick = () => renameFolder(w.name, "Rename Combine 3D Work", `The work file's new name, in ${w.folder ? escHTML(w.folder) : `<span class="photo-dir">${escHTML(document.querySelector(".photo-dir")?.textContent || "~/Pictures/gosts-rig")}</span>`}`,
+    workURL(w.path, "/rename"), (to) => {
       log(`${w.name} renamed to ${to}`);
-      if (cvs.work === w.name) { cvs.work = to; $("cvSaveName").value = to; } // (the one open: saved under its new name from now on)
+      if (cvs.work === w.path) { cvs.work = w.folder ? `${w.folder}/${to}` : to; $("cvSaveName").value = to; } // (the one open: saved under its new name from now on)
       galleryAgain();
     });
-  b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) cvOpenWork(w.name); };
+  b.onkeydown = (e) => { if (e.key === "Enter" && e.target === b) cvOpenWork(w.path); };
   b.querySelector(".del").onclick = async () => {
     if (!await confirmDanger(`Delete ${w.name}?`, "This Combine 3D work file goes to the Trash, where you can still get it back in the Finder. The models in it stay where they are.", "Delete")) return;
-    try { await postBatch(`/combine/works/${encodeURIComponent(w.name)}/delete`); log(`${w.name} moved to the Trash`); }
+    try { await postBatch(workURL(w.path, "/delete")); log(`${w.name} moved to the Trash`); }
     catch (e) { log(`deleting ${w.name}: ${e.message}`, "error"); }
     galleryAgain();
   };
@@ -2953,6 +2957,9 @@ async function renderGallery() {
       ps.forEach((p, i) => g.appendChild(diskThumb(where, p, i)));
       if (!ps.length) g.innerHTML = '<span class="hint">No photos in this folder.</span>';
       await modelTiles(g, where, seq);
+      const works = await getJSON(`/combine/works?folder=${encodeURIComponent(where)}`).catch(() => []);
+      if (seq !== state.gal.seq) return;
+      g.prepend(...works.map(workTile)); // (Combine 3D's work files kept here: first)
     }
   } catch (e) {
     if (seq === state.gal.seq) g.innerHTML = `<span class="hint">Couldn't read it: ${escHTML(e.message)}</span>`;
@@ -3843,7 +3850,7 @@ async function cvWorksShow() {
   const grid = $("cvPickGrid");
   grid.innerHTML = '<div class="mve-label">Loading…</div>';
   let works = [];
-  try { works = await getJSON("/combine/works"); } catch (e) { grid.innerHTML = ""; const d = document.createElement("div"); d.className = "mve-label"; d.textContent = e.message; grid.appendChild(d); return; }
+  try { works = await getJSON("/combine/works?all=1"); } catch (e) { grid.innerHTML = ""; const d = document.createElement("div"); d.className = "mve-label"; d.textContent = e.message; grid.appendChild(d); return; }
   grid.innerHTML = "";
   const tile = (name, sub, img, open) => {
     const t = document.createElement("button");
@@ -3855,8 +3862,8 @@ async function cvWorksShow() {
     grid.appendChild(t);
   };
   const n = cvs.cv?.objects().length || 0;
-  if (n) tile(cvs.work ? `${cvs.work} (open)` : "What's open now", `Continue · ${n} object${n === 1 ? "" : "s"}`, "", () => { cvPickOpen(false); openCombine(); });
-  for (const w of works) tile(w.name, `${w.objects} object${w.objects === 1 ? "" : "s"}`, w.thumb ? `/combine/works/${encodeURIComponent(w.name)}/thumb?at=${w.at}` : "", () => { cvPickOpen(false); cvOpenWork(w.name); });
+  if (n) tile(cvs.work ? `${workName(cvs.work)} (open)` : "What's open now", `Continue · ${n} object${n === 1 ? "" : "s"}`, "", () => { cvPickOpen(false); openCombine(); });
+  for (const w of works) tile(w.folder ? `${w.folder} / ${w.name}` : w.name, `${w.objects} object${w.objects === 1 ? "" : "s"}`, w.thumb ? `${workURL(w.path, "/thumb")}&at=${w.at}` : "", () => { cvPickOpen(false); cvOpenWork(w.path); });
   if (!grid.children.length) grid.innerHTML = '<div class="mve-label">No saved work yet: Create New starts one.</div>';
 }
 $("cvPickNew").onclick = async () => {
@@ -4253,16 +4260,18 @@ $("cvSave").onclick = async () => {
   const name = $("cvSaveName").value.trim();
   if (!name) return cvStatus("A name first", "bad");
   if (cvs.cv.recutting()) return;
+  // (where it was opened from: its folder; a new one: the captures' folder)
+  const dir = cvs.work?.includes("/") ? cvs.work.slice(0, cvs.work.indexOf("/")) : "", path = dir ? `${dir}/${name}` : name;
   let replace = false;
-  try { replace = cvs.work !== name && (await getJSON("/combine/works")).some((w) => w.name === name); } catch {}
-  if (replace && !await confirmDanger(`Replace ${name}?`, `A work file named ${name} is there already: it goes to the Trash, and this one takes its place.`, "Replace")) return;
+  try { replace = cvs.work !== path && (await getJSON(`/combine/works?folder=${encodeURIComponent(dir)}`)).some((w) => w.path === path); } catch {}
+  if (replace && !await confirmDanger(`Replace ${name}?`, `A work file named ${name} is there already${dir ? ` (in ${dir})` : ""}: it goes to the Trash, and this one takes its place.`, "Replace")) return;
   cvs.busy = true; cvShow();
   try {
-    const r = await fetch(`/combine/works/${encodeURIComponent(name)}${replace ? "?trash=1" : ""}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cvWork()) });
+    const r = await fetch(workURL(path) + (replace ? "&trash=1" : ""), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cvWork()) });
     if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
-    cvs.work = name;
+    cvs.work = path;
     cvStatus("Saved", "ok", true);
-    if (!$("gallery").hidden && state.gal.where === null) galleryAgain();
+    if (!$("gallery").hidden && (state.gal.where === null || state.gal.where === dir)) galleryAgain();
   } catch (e) { cvStatus(e.message, "bad"); }
   cvs.busy = false; cvShow();
 };
@@ -4291,9 +4300,10 @@ function cvFillSub(i, t) {
   const how = subs[k].cut ? t.slice(`Cut: ${subs[k].cut}`.length).replace(/^'s /, "").trim() : "";
   cvSub(i, k, how);
 }
-async function cvOpenWork(name) {
+async function cvOpenWork(path) {
+  const name = workName(path);
   let w;
-  try { w = await getJSON(`/combine/works/${encodeURIComponent(name)}`); } catch (e) { return log(`opening ${name}: ${e.message}`, "error"); }
+  try { w = await getJSON(workURL(path)); } catch (e) { return log(`opening ${path}: ${e.message}`, "error"); }
   await openCombine();
   const cv = cvs.cv;
   if (cv.objects().length && !await confirmDanger(`Open ${name}?`, "What's in Combine 3D now is put away for it (Save it first to keep it).", "Open")) return;
@@ -4347,7 +4357,7 @@ async function cvOpenWork(name) {
   }
   cv.select(null);
   cv.fit();
-  cvs.work = name;
+  cvs.work = path;
   $("cvSaveName").value = name;
   let bad = "";
   for (const f of fills) {

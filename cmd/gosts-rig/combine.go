@@ -133,42 +133,52 @@ func (a *app) handleCombineSave(w http.ResponseWriter, r *http.Request) {
 
 // Combine Models' work files: what's in it as it's being worked on (its
 // objects, where they are, the fill and its cuts: JSON the page makes and
-// reads), kept in photoDir as <name>.combine.json, to open again from Browse.
-// The models in it are named (capture / model), not copied: one renamed,
-// moved or deleted since, the page marks missing.
+// reads), kept as <name>.combine.json in photoDir or in one of its capture
+// folders, to open again from Browse. Each is known by its path there:
+// "name", or "folder/name". The models in it are named (capture / model),
+// not copied: one renamed, moved or deleted since, the page marks missing.
 
 const workExt = ".combine.json"
 
-// workPath: the work file named, if the name's a fine one.
-func workPath(name string) (string, bool) {
+// workPath: the work file at rel ("name" or "folder/name"), if it's a fine
+// one.
+func workPath(rel string) (string, bool) {
+	dir, name, sub := strings.Cut(rel, "/")
+	if !sub {
+		dir, name = "", rel
+	} else if !cleanName(dir) {
+		return "", false
+	}
 	if !cleanName(name) || strings.Contains(name, workExt) {
 		return "", false
 	}
-	return filepath.Join(photoDir, name+workExt), true
+	return filepath.Join(photoDir, dir, name+workExt), true
 }
 
 // workInfo: a work file as Browse lists it.
 type workInfo struct {
-	Name    string `json:"name"`
+	Path    string `json:"path"`    // "name", or "folder/name"
+	Name    string `json:"name"`    // its name
+	Folder  string `json:"folder"`  // the capture folder it's in ("": the root)
 	At      int64  `json:"at"`      // last saved (ms)
 	Objects int    `json:"objects"` // how many things are in it
 	Thumb   bool   `json:"thumb"`   // a picture of it kept
 }
 
-// handleWorks lists the work files, the last saved first (GET /combine/works).
-func (a *app) handleWorks(w http.ResponseWriter, r *http.Request) {
-	ents, err := os.ReadDir(photoDir)
-	if err != nil && !os.IsNotExist(err) {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+// worksIn lists the work files in folder ("": photoDir itself).
+func worksIn(folder string) []workInfo {
+	ents, _ := os.ReadDir(filepath.Join(photoDir, folder))
 	out := []workInfo{}
 	for _, e := range ents {
 		n := e.Name()
 		if e.IsDir() || !strings.HasSuffix(n, workExt) || strings.HasPrefix(n, ".") {
 			continue
 		}
-		wi := workInfo{Name: strings.TrimSuffix(n, workExt)}
+		wi := workInfo{Name: strings.TrimSuffix(n, workExt), Folder: folder}
+		wi.Path = wi.Name
+		if folder != "" {
+			wi.Path = folder + "/" + wi.Name
+		}
 		if st, err := e.Info(); err == nil {
 			wi.At = st.ModTime().UnixMilli()
 		}
@@ -176,19 +186,42 @@ func (a *app) handleWorks(w http.ResponseWriter, r *http.Request) {
 			Objects []json.RawMessage `json:"objects"`
 			Thumb   string            `json:"thumb"`
 		}
-		if b, err := os.ReadFile(filepath.Join(photoDir, n)); err == nil && json.Unmarshal(b, &head) == nil {
+		if b, err := os.ReadFile(filepath.Join(photoDir, folder, n)); err == nil && json.Unmarshal(b, &head) == nil {
 			wi.Objects, wi.Thumb = len(head.Objects), head.Thumb != ""
 		}
 		out = append(out, wi)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].At > out[j].At })
+	return out
+}
+
+// handleWorks lists the work files, the last saved first (GET /combine/works):
+// photoDir's own; ?folder=: a capture folder's; ?all=1: everywhere.
+func (a *app) handleWorks(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	var out []workInfo
+	switch folder := q.Get("folder"); {
+	case q.Get("all") == "1":
+		out = worksIn("")
+		ents, _ := os.ReadDir(photoDir)
+		for _, e := range ents {
+			if e.IsDir() && cleanName(e.Name()) {
+				out = append(out, worksIn(e.Name())...)
+			}
+		}
+	case folder != "" && !cleanName(folder):
+		http.Error(w, "bad folder", http.StatusBadRequest)
+		return
+	default:
+		out = worksIn(folder)
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].At > out[j].At })
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(out)
 }
 
-// handleWork sends a work file (GET /combine/works/{name}).
+// handleWork sends a work file (GET /combine/work?path=).
 func (a *app) handleWork(w http.ResponseWriter, r *http.Request) {
-	p, ok := workPath(r.PathValue("name"))
+	p, ok := workPath(r.URL.Query().Get("path"))
 	if !ok {
 		http.Error(w, "bad name", http.StatusBadRequest)
 		return
@@ -198,10 +231,10 @@ func (a *app) handleWork(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, p)
 }
 
-// handleWorkThumb sends a work file's picture (GET /combine/works/{name}/thumb):
+// handleWorkThumb sends a work file's picture (GET /combine/work/thumb?path=):
 // a data: URL in it, as the image it holds.
 func (a *app) handleWorkThumb(w http.ResponseWriter, r *http.Request) {
-	p, ok := workPath(r.PathValue("name"))
+	p, ok := workPath(r.URL.Query().Get("path"))
 	if !ok {
 		http.Error(w, "bad name", http.StatusBadRequest)
 		return
@@ -229,12 +262,12 @@ func (a *app) handleWorkThumb(w http.ResponseWriter, r *http.Request) {
 	w.Write(img)
 }
 
-// handleWorkSave keeps a work file (POST /combine/works/{name}: its JSON),
+// handleWorkSave keeps a work file (POST /combine/work?path=: its JSON),
 // in place of the one by that name if there is one: with ?trash=1 (another
 // work replaced: the page asks first), that one to the Trash first; else
 // written over (the same work saved again).
 func (a *app) handleWorkSave(w http.ResponseWriter, r *http.Request) {
-	p, ok := workPath(r.PathValue("name"))
+	p, ok := workPath(r.URL.Query().Get("path"))
 	if !ok {
 		http.Error(w, "the name: one file name, no slashes, no leading dot", http.StatusBadRequest)
 		return
@@ -248,11 +281,11 @@ func (a *app) handleWorkSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not JSON", http.StatusBadRequest)
 		return
 	}
-	if err := os.MkdirAll(photoDir, 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	tmp, err := os.CreateTemp(photoDir, ".work-*.json")
+	tmp, err := os.CreateTemp(filepath.Dir(p), ".work-*.json")
 	if err == nil {
 		_, err = tmp.Write(b)
 		if cerr := tmp.Close(); err == nil {
@@ -276,9 +309,9 @@ func (a *app) handleWorkSave(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleWorkDelete moves a work file to the Trash (POST /combine/works/{name}/delete).
+// handleWorkDelete moves a work file to the Trash (POST /combine/work/delete?path=).
 func (a *app) handleWorkDelete(w http.ResponseWriter, r *http.Request) {
-	p, ok := workPath(r.PathValue("name"))
+	p, ok := workPath(r.URL.Query().Get("path"))
 	if !ok {
 		http.Error(w, "bad name", http.StatusBadRequest)
 		return
@@ -294,8 +327,9 @@ func (a *app) handleWorkDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleWorkRename renames a work file (POST /combine/works/{name}/rename,
-// {"to": …}); a name another one has: refused.
+// handleWorkRename renames a work file (POST /combine/work/rename?path=,
+// {"to": …}: its new name, in the same folder); a name another one has:
+// refused.
 func (a *app) handleWorkRename(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		To string `json:"to"`
@@ -304,8 +338,16 @@ func (a *app) handleWorkRename(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	from, ok := workPath(r.PathValue("name"))
-	to, ok2 := workPath(strings.TrimSpace(req.To))
+	rel := r.URL.Query().Get("path")
+	from, ok := workPath(rel)
+	toRel := strings.TrimSpace(req.To)
+	if dir, _, sub := strings.Cut(rel, "/"); sub {
+		toRel = dir + "/" + toRel
+	}
+	to, ok2 := workPath(toRel)
+	if strings.Contains(strings.TrimSpace(req.To), "/") {
+		ok2 = false
+	}
 	if !ok || !ok2 {
 		http.Error(w, "the name: one file name, no slashes, no leading dot", http.StatusBadRequest)
 		return
