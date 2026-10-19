@@ -977,7 +977,7 @@ export function createCombine(canvas) {
   };
   // fillState: what f has to show: "unset" (its settings not all there),
   // "new" (not made), "changed" (set otherwise since made), "made".
-  const setKey = (st) => JSON.stringify({ ...st, container: st.container?.id ?? null });
+  const setKey = (st) => JSON.stringify({ ...st, container: st.container ? [st.container.id, st.container.inner.uuid] : null }); // (its container's model replaced since: changed too; put back: as it was)
   api.fillState = (f) => {
     const st = f.fill.set;
     if (!st.container || st.top == null || !st.inside) return "unset";

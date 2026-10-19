@@ -4816,7 +4816,15 @@ function cvRelink(o, replace = false) {
     const was = o.ref ? `${o.ref.folder}/${o.ref.model}` : null, name = !was || o.name === was ? `${b}/${m.name}` : o.name; // (its own name kept, if it had one)
     try {
       await cvs.cv.relink(o, name, modelBase(b, m), m.file, window.modelEdit.UNITS[m.edit?.units] || 1, { ref: { folder: b, model: m.name }, what: replace ? `Replace ${o.name}` : null }, (t) => cvStatus(t + "…"));
-      cvStatus(replace ? `Replaced with ${b}/${m.name}` : `${name}: linked`, "ok");
+      // The fills it's the container of (made): made again in it as it is now.
+      const fills = cvs.cv.objects().filter((f) => f.kind === "fill" && f.fill.set.container === o && f.fill.g);
+      let bad = "";
+      for (const f of fills) {
+        try { await cvs.cv.makeFill(f, (t) => cvStatus(t ? `${f.name}: ${t}…` : "")); }
+        catch (e) { bad = `${f.name} not made again: ${e.message}`; }
+      }
+      const done = replace ? `Replaced with ${b}/${m.name}` : `${name}: linked`;
+      cvStatus(bad ? `${done}; ${bad}` : fills.length ? `${done}; ${fills.map((f) => f.name).join(", ")} made again in it` : done, bad ? "bad" : "ok");
     } catch (e) { cvStatus(e.message, "bad"); }
   }, replace ? `Replace ${o.name} with…` : `Re-link ${o.name}`, false, replace ? o.ref?.folder ?? null : null);
 }
