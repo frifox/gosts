@@ -290,7 +290,10 @@ export function createCombine(canvas) {
   axes.renderOrder = 5;
   axes.visible = false;
   scene.add(axes);
-  const sel = new THREE.BoxHelper(undefined, 0xffb020);
+  const sel = new THREE.Box3Helper(new THREE.Box3(), 0xffb020);
+  sel.material.depthTest = false; // (over all, a little out from it: on its own edges it'd be lost in them)
+  sel.material.transparent = true;
+  sel.renderOrder = 6;
   sel.visible = false;
   scene.add(sel);
   // Marks: the fill's level (a sheet) and its inside point (a dot, an arrow down).
@@ -391,18 +394,33 @@ export function createCombine(canvas) {
     movePlaneTick();
     last = now;
     controls.update();
-    if (sel.visible) sel.update();
+    if (sel.visible) fitSel();
     renderer.render(scene, camera);
     requestAnimationFrame(loop);
   }
   api.start = () => { if (!running) { running = true; last = 0; requestAnimationFrame(loop); } };
   api.stop = () => { running = false; };
 
-  // outline: no box round the one selected (the plane lit through it shows
-  // which; its row in the list too).
+  // outline: a box round the one the pointer's on, to show which a click
+  // would select: its row in the list (shown or hidden), or it in the view
+  // (not the one selected: the plane lit through it shows that one).
+  let hovered = null, listHover = null;
   function outline() {
-    sel.visible = false;
+    let o = listHover ?? (hovered !== selected ? hovered : null);
+    if (o && !objects.includes(o)) o = listHover = hovered = null;
+    sel.userData.o = o;
+    sel.visible = !!o && fitSel();
   }
+  // fitSel: the box round sel's object (as it is now), a little out from it;
+  // whether there's anything to box (a fill not made: no).
+  function fitSel() {
+    const b = sel.box.setFromObject(sel.userData.o.holder);
+    if (b.isEmpty()) return false;
+    const v = b.getSize(new THREE.Vector3());
+    b.expandByScalar(Math.max(0.001, Math.max(v.x, v.y, v.z) * 0.015));
+    return true;
+  }
+  api.hover = (o) => { if (listHover !== o) { listHover = o; outline(); } };
   // place: o's holder where its pos and rot say.
   function place(o) {
     o.holder.position.copy(toThree(o.pos));
@@ -760,9 +778,21 @@ export function createCombine(canvas) {
   };
   // A drag: the pointer's way along the plane, as Blender's X, Y, Z (mm), the
   // plane's own two only; ⇧ held: just the one moved along most so far.
+  let hoverAt = null;
   canvas.addEventListener("pointermove", (e) => {
     const d = dragging;
-    if (!d) return;
+    if (!d) { // (the one under the pointer: boxed; once a frame at most)
+      if (e.buttons || (picking && picking.plane != null)) { if (hovered) { hovered = null; outline(); } return; }
+      if (!hoverAt) requestAnimationFrame(() => {
+        const at = hoverAt;
+        hoverAt = null;
+        if (!at) return; // (left since)
+        const o = hitAt(at, picking?.only)?.o ?? null;
+        if (o !== hovered) { hovered = o; outline(); }
+      });
+      hoverAt = e;
+      return;
+    }
     const p = rayAt(e).intersectPlane(d.plane, new THREE.Vector3());
     if (!p) return;
     const v = p.sub(d.from), c = { x: v.x * 1000, y: -v.z * 1000, z: v.y * 1000 };
@@ -777,6 +807,7 @@ export function createCombine(canvas) {
     place(d.o);
     changed();
   });
+  canvas.addEventListener("pointerleave", () => { hoverAt = null; if (hovered) { hovered = null; outline(); } });
   let clickDown = null;
   canvas.addEventListener("pointerup", (e) => {
     const d = clickDown;

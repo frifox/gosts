@@ -4196,6 +4196,14 @@ $("cvFCont").onclick = () => {
 $("cvList").addEventListener("click", (e) => { if (e.target === $("cvList")) cvs.cv?.select(null); }); // (the list's empty space: none selected)
 // The list reordered: a row dragged (not by its buttons) up or down, a line
 // where it goes; let go: there (a step). A row only clicked: as a click.
+// A row hovered (in Objects, or Objects to Cut): its object boxed in the view.
+for (const id of ["cvList", "cvCutList"]) {
+  $(id).addEventListener("pointerover", (e) => {
+    const r = e.target.closest?.(".cv-obj[data-id]");
+    cvs.cv?.hover(r ? cvs.cv.objects().find((x) => String(x.id) === r.dataset.id) ?? null : null);
+  });
+  $(id).addEventListener("pointerleave", () => cvs.cv?.hover(null));
+}
 const cvRowDrag = { row: null, y0: 0, on: false, to: -1, justDropped: false };
 $("cvList").addEventListener("pointerdown", (e) => {
   const row = e.target.closest(".cv-obj");
@@ -4355,6 +4363,7 @@ function cvCutList(f) {
     const c = cv.cutOf(f, o), open = cvs.cutOpen === o.id;
     const row = document.createElement("div");
     row.className = "cv-obj" + (open ? " on" : "");
+    row.dataset.id = o.id;
     row.innerHTML = `<input type="checkbox" title="Cut it out of the fill"${c ? " checked" : ""}><span class="nm"></span>${c?.missed ? '<span class="kd miss">not in the fill</span>' : ""}<button class="caret${open ? " open" : ""}" title="${open ? "Hide" : "Show"} how it's cut"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 4.5l3 3 3-3"/></svg></button>`;
     row.querySelector(".nm").textContent = row.querySelector(".nm").title = o.name;
     row.querySelector("input").onchange = (e) => { if (open) cvs.cutDraft = null; cv.setCut(f, o, e.target.checked ? { ...CUT_DEFAULT } : null); };
