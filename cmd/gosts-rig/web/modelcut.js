@@ -70,7 +70,7 @@ function cutMesh(o, g, plane, eps, cap) {
   const corner = (i) => {
     const w = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(M);
     let d = plane.distanceToPoint(w);
-    if (Math.abs(d) < eps) d = 0;
+    if (Math.abs(d) < eps * 10) d = 0; // (on it: within a little more than the welding's (a point put on it before, stored as a float))
     return { w, d, a: attrs.map((at) => Array.from(at.array.subarray(i * at.itemSize, (i + 1) * at.itemSize))) };
   };
   const lerp = (p, q, t) => ({ w: p.w.clone().lerp(q.w, t), d: 0, a: p.a.map((v, k) => v.map((x, j) => x + (q.a[k][j] - x) * t)) });
@@ -85,6 +85,9 @@ function cutMesh(o, g, plane, eps, cap) {
   groups.forEach((gr, gi) => {
     for (let t = gr.start / 3; t < Math.min(T, (gr.start + gr.count) / 3); t++) {
       const cs = [corner(t * 3), corner(t * 3 + 1), corner(t * 3 + 2)];
+      // (on the plane itself (a face flattened onto it before): closing it
+      // up, that's the cap's: taken, the cap covers it, not two faces there)
+      if (cap && cs.every((c) => c.d === 0)) { removed++; continue; }
       if (cs.every((c) => c.d <= 0)) { tris.push([...cs, gi]); continue; }
       removed++;
       if (cs.every((c) => c.d >= 0)) continue;
@@ -255,7 +258,7 @@ function flattenMesh(o, g, plane, eps) {
   const corner = (i) => {
     const w = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(M);
     let h = -plane.distanceToPoint(w);
-    if (Math.abs(h) < eps) h = 0;
+    if (Math.abs(h) < eps * 10) h = 0; // (as cutMesh's)
     return { w, h, a: attrs.map((at) => Array.from(at.array.subarray(i * at.itemSize, (i + 1) * at.itemSize))) };
   };
   const less = (p, q) => p.w.x < q.w.x || (p.w.x === q.w.x && (p.w.y < q.w.y || (p.w.y === q.w.y && p.w.z < q.w.z)));

@@ -116,7 +116,7 @@ file.
 - **Crop**: cut away what's outside a box (the platform, say)
 - **Cut**: a plane (XY, XZ or YZ) placed by clicking the model, then slid along its axis (or typed), arrows showing
   the side it works on: **Cut** takes
-  away everything on one side of it (closed flat on the plane, or left open); **Flatten** pushes the hills on one side of
+  away everything on one side of it (closed flat on the plane, the faces already on it (hills flattened before) taken into that one face; or left open); **Flatten** pushes the hills on one side of
   it onto it (lumps in a scanned floor, say), the way picked (−Z: those over it, down): a hill is a piece of the surface
   past the plane whose edge is all on it, closed in by it; not one with an open edge, nor the walls. **Preview**
   shows the model as Apply would leave it (again, or any change: back)
