@@ -19,12 +19,14 @@ func Open(device string, baud int, opts ...Option) (*Bus, error) {
 	if baud <= 0 {
 		baud = DefaultBaudRate
 	}
+	resetSpeed(device) // (a speed left from before: see resetSpeed)
 	p, err := serial.Open(device, &serial.Mode{
 		BaudRate: baud,
 		DataBits: 8,
 		Parity:   serial.NoParity,
 		StopBits: serial.OneStopBit,
 	})
+	closeOnExec() // (the port: not handed down to programs started from here)
 	if err != nil {
 		return nil, fmt.Errorf("gosts: open %s: %w", device, err)
 	}
