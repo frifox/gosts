@@ -125,6 +125,18 @@ func run() bool {
 	ctl.OnChange = func() { a.rig.rolesFromGroups(ctl.Groups(), ctl.Mirrored) }
 	ctl.OnMove = a.rig.forgetTarget
 	ctl.OnScan = a.rig.adoptFound
+	// The move speed and acceleration: the Rig card's, shared with Servo
+	// Settings' Control card (one setting: a move from either goes the same
+	// way); changed in either, both show it.
+	ctl.Motion = func() (int, int, bool) { m := a.cfg.get().Motion; return m.Speed, m.Acc, true }
+	ctl.SetMotion = func(speed, acc int) error {
+		speed = max(50, min(3400, speed)) // (0 there: the servos' fastest; the rig's speeds are 5–298°/s)
+		acc = max(1, min(254, acc))       // (0 there: no ramp at all)
+		err := a.cfg.update(func(c *Config) { c.Motion.Speed, c.Motion.Acc = speed, acc })
+		a.rig.sendState()
+		return err
+	}
+	a.onMotion = ctl.BroadcastState
 	// The simulator has Servo Settings of its own (beside the real rig's):
 	// #1 and #2 a group, #1 mirrored, as the simulated rig has them.
 	simCtlPath := filepath.Join(filepath.Dir(*ctlPath), "gosts-rig-sim.toml")

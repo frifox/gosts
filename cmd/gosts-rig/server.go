@@ -41,6 +41,9 @@ type app struct {
 	quit    func()      // gosts-rig quits (cleanly: see main), as for Ctrl-C
 	restart atomic.Bool // quitting to start again (Settings' Restart: see main)
 	net     listening   // where the pages are served (see listen)
+	// onMotion, if set, is told the move speed and acceleration changed
+	// here (Servo Settings' Control card shows them too).
+	onMotion func()
 }
 
 type client struct {
@@ -157,6 +160,9 @@ func (a *app) exec(req request) (any, error) {
 			_ = a.cap.preview(a.cfg.get().Plan) // the plan follows the elevation range
 		}
 		a.rig.sendState()
+		if a.onMotion != nil {
+			a.onMotion()
+		}
 		return nil, err
 	case "move":
 		return nil, a.rig.moveTo(req.Elevation, req.Azimuth)

@@ -72,6 +72,15 @@ func (a *App) handle(c *web.Client, req internal.Request) {
 
 func (a *App) exec(c *web.Client, req internal.Request) error {
 	switch req.Type {
+	case "motion": // (the Control card's speed and acceleration: the host's, shared)
+		if a.SetMotion == nil {
+			return errors.New("the speed and acceleration aren't shared here")
+		}
+		if err := a.SetMotion(req.Speed, int(req.Acc)); err != nil {
+			return err
+		}
+		a.BroadcastState()
+		return nil
 	case "ports":
 		ports, err := board.ListPorts()
 		if err != nil {

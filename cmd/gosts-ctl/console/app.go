@@ -39,6 +39,12 @@ type App struct {
 	// OnScan, if set, is called with the servos a scan found (gosts-rig
 	// takes them: its board's servos are the same).
 	OnScan func(ids []uint8)
+	// Motion and SetMotion, if set, share the host's move speed (step/s) and
+	// acceleration (100 step/s²) with the Control card: shown there, and a
+	// change there made the host's (gosts-rig: its Rig card's, so a move
+	// from either goes the same way). Motion's ok: false, none to share.
+	Motion    func() (speed, acc int, ok bool)
+	SetMotion func(speed, acc int) error
 
 	mu      sync.Mutex
 	refresh map[uint8]*pendingRefresh
@@ -110,9 +116,15 @@ func (a *App) stateMsg() internal.StateMsg {
 	slices.Sort(mirrored)
 	slices.Sort(signed)
 	slices.Sort(weightComp)
+	var motion *internal.MotionInfo
+	if a.Motion != nil {
+		if speed, acc, ok := a.Motion(); ok {
+			motion = &internal.MotionInfo{Speed: speed, Acc: acc}
+		}
+	}
 	return internal.StateMsg{Type: "state", Connected: st.Port != "", Port: st.Port, Baud: st.Baud,
 		Scanning: st.Scanning, Scanned: st.Scanned, IDs: internal.ToInts(st.IDs), Mirrored: mirrored, Signed: signed, WeightComp: weightComp, Accs: accs, Names: names,
-		Colors: colors, DialUps: dialUps, Ranges: ranges, Groups: groupInfos(a.cfg.AllGroups())}
+		Colors: colors, DialUps: dialUps, Ranges: ranges, Groups: groupInfos(a.cfg.AllGroups()), Motion: motion}
 }
 
 // Run serves the console on addr until ctx is done. With port set it first

@@ -25,6 +25,13 @@ type StateMsg struct {
 	DialUps    map[string]float64 `json:"dialUps"`    // servo ID -> factory-scale angle that is physically up
 	Ranges     map[string][]int   `json:"ranges"`     // servo ID -> motion range [lo, hi], encoder-scale steps
 	Groups     []GroupInfo        `json:"groups"`
+	Motion     *MotionInfo        `json:"motion,omitempty"` // the host's move speed and acceleration, shared (see App.Motion)
+}
+
+// MotionInfo is a move speed (step/s) and acceleration (100 step/s²).
+type MotionInfo struct {
+	Speed int `json:"speed"`
+	Acc   int `json:"acc"`
 }
 
 type PortsMsg struct {

@@ -984,7 +984,24 @@ function accOf() {
   if (g) return g.acc || 0;
   return (state.accs || {})[state.selected] || 0;
 }
-function applyTunedAcc() { const a = accOf(); if (a) setPair("acc", a); }
+function applyTunedAcc() { if (state.motion) return applyMotion(); const a = accOf(); if (a) setPair("acc", a); }
+// Shared motion (gosts-rig: its Rig card's speed and acceleration): the
+// Control card shows them, not a servo's last move's or a tuned one, and a
+// change here is the rig's too (see shareMotion), so a move from either
+// goes the same way.
+const fieldBusy = (id) => document.activeElement === $(id) || document.activeElement === $(id + "Num");
+function applyMotion() {
+  const m = state.motion;
+  if (!m) return;
+  if (!fieldBusy("speed")) setPair("speed", m.speed);
+  if (!fieldBusy("acc")) setPair("acc", m.acc);
+}
+function shareMotion() {
+  if (!state.motion) return;
+  const speed = Number($("speed").value), acc = Number($("acc").value);
+  if (speed === state.motion.speed && acc === state.motion.acc) return;
+  send("motion", { speed, acc }).catch((e) => log(`speed and acceleration: ${e.message}`, "error"));
+}
 
 function selectGroup(key) {
   const g = (state.groups || []).find((x) => x.key === key);
@@ -1313,9 +1330,9 @@ function onConfig(m) {
     const busy = (id) => document.activeElement === $(id) || document.activeElement === $(id + "Num");
     if (!busy("target")) setTarget(c.mode === 0 ? c.goalPosition : 2048);
     if (c.mode === 1) { if (!busy("wheel")) setPair("wheel", c.goalSpeed); }
-    else if (c.goalSpeed > 0 && !busy("speed")) setPair("speed", c.goalSpeed);
+    else if (c.goalSpeed > 0 && !busy("speed") && !state.motion) setPair("speed", c.goalSpeed); // (shared: the rig's, not the last move's)
     if (c.mode === 2 && !busy("pwm")) setPair("pwm", c.goalTime);
-    if (!busy("acc")) setPair("acc", accOf() || c.acceleration); // a tuned acceleration wins over the last move's
+    if (!busy("acc") && !state.motion) setPair("acc", accOf() || c.acceleration); // a tuned acceleration wins over the last move's (shared: the rig's)
     if (!busy("tlimit")) setPair("tlimit", Math.round(c.torqueLimit / 10));
     state.syncControls = false;
   }
@@ -1427,8 +1444,8 @@ $("targetDegNum").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
   moveAngle(targetDeg());
 });
-bindPair("speed");
-bindPair("acc");
+bindPair("speed", () => debounce("motion", shareMotion, 300));
+bindPair("acc", () => debounce("motion", shareMotion, 300));
 bindPair("tlimit", (ev) => { if (ev === "change" || ev === "input") debounce("tl", () => ctl("torqueLimit", { percent: Number($("tlimit").value) }), 150); });
 bindPair("gSpread");
 bindPair("gFight");
@@ -1807,6 +1824,8 @@ function onState(m) {
   if (!m.scanning) $("scanBar").style.width = m.scanned ? "100%" : "0";
   state.groups = m.groups || []; // before setServos: it may open a group
   state.accs = m.accs || {};
+  state.motion = m.motion || null; // (the host's speed and acceleration, shared: see applyMotion)
+  applyMotion();
   setServos(m.ids);
   state.mirrored = new Set(m.mirrored || []);
   state.signed = new Set(m.signed || []);
