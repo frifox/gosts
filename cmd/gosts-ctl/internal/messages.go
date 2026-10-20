@@ -26,6 +26,7 @@ type StateMsg struct {
 	Ranges     map[string][]int   `json:"ranges"`     // servo ID -> motion range [lo, hi], encoder-scale steps
 	Groups     []GroupInfo        `json:"groups"`
 	Motion     *MotionInfo        `json:"motion,omitempty"` // the host's move speed and acceleration, shared (see App.Motion)
+	DialZero   *float64           `json:"dialZero,omitempty"` // where every dial's 0° is drawn, if the host says (see App.DialZero)
 }
 
 // MotionInfo is a move speed (step/s) and acceleration (100 step/s²).

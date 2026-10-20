@@ -46,7 +46,7 @@ what's missing and opens the rig's page in its own window.
 
 1. Set up the servos with [gosts-ctl](../gosts-ctl): IDs, tuning, and zero (elevation 0° = camera level with the
    object, azimuth 0° = the platform's front). Close it afterwards: only one program can use the serial port. The
-   same console is built into gosts-rig too, under the **gear** in the Rig card. There, its Control card's speed and acceleration are the Rig card's: change either and both show it, so a move from either goes the same way.
+   same console is built into gosts-rig too, under the **gear** in the Rig card. There, its Control card's speed and acceleration are the Rig card's: change either and both show it, so a move from either goes the same way. Its dials draw 0° on the left, as the Rig card's do.
 2. Group the two elevation servos (leader first); the remaining servo is the azimuth. By default that's #1 and #2
    for elevation, #3 for azimuth.
 3. Optionally limit how low and high the camera may go: **Set Min** / **Set Max** under the elevation dial.

@@ -137,6 +137,8 @@ func run() bool {
 		return err
 	}
 	a.onMotion = ctl.BroadcastState
+	left := -90.0 // (Servo Settings' dials: 0° on the left, as the Rig card's)
+	ctl.DialZero = &left
 	// The simulator has Servo Settings of its own (beside the real rig's):
 	// #1 and #2 a group, #1 mirrored, as the simulated rig has them.
 	simCtlPath := filepath.Join(filepath.Dir(*ctlPath), "gosts-rig-sim.toml")

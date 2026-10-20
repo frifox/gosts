@@ -45,6 +45,10 @@ type App struct {
 	// from either goes the same way). Motion's ok: false, none to share.
 	Motion    func() (speed, acc int, ok bool)
 	SetMotion func(speed, acc int) error
+	// DialZero, if set, is where every dial draws 0° (degrees clockwise
+	// from its top: -90, on the left), in place of each servo's DialUp
+	// (gosts-rig: as its Rig card's dials).
+	DialZero *float64
 
 	mu      sync.Mutex
 	refresh map[uint8]*pendingRefresh
@@ -124,7 +128,7 @@ func (a *App) stateMsg() internal.StateMsg {
 	}
 	return internal.StateMsg{Type: "state", Connected: st.Port != "", Port: st.Port, Baud: st.Baud,
 		Scanning: st.Scanning, Scanned: st.Scanned, IDs: internal.ToInts(st.IDs), Mirrored: mirrored, Signed: signed, WeightComp: weightComp, Accs: accs, Names: names,
-		Colors: colors, DialUps: dialUps, Ranges: ranges, Groups: groupInfos(a.cfg.AllGroups()), Motion: motion}
+		Colors: colors, DialUps: dialUps, Ranges: ranges, Groups: groupInfos(a.cfg.AllGroups()), Motion: motion, DialZero: a.DialZero}
 }
 
 // Run serves the console on addr until ctx is done. With port set it first
