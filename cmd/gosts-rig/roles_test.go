@@ -206,6 +206,61 @@ func TestTurnCountLearned(t *testing.T) {
 	})
 }
 
+// A servo let go and turned by hand past the seam, then left still: its
+// turn count's learned by itself (held a moment, let go again), not left
+// for the next move; while it's being turned, it's left alone.
+func TestTurnCountLearnedWhenStill(t *testing.T) {
+	var port *servosim.Port
+	old := newSimPort
+	newSimPort = func(ro Roles) *servosim.Port { port = newSim(ro); return port }
+	defer func() { newSimPort = old }()
+	cfg, _ := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go r.pollLoop(ctx) // (the telemetry: where it's watched)
+	ro := r.roles()
+	if err := r.torque(false, "azimuth"); err != nil {
+		t.Fatal(err)
+	}
+	unknown := func() bool {
+		var u bool
+		r.withBus(func(bus *gosts.Bus) error {
+			_, err := bus.Servo(ro.Azimuth).AbsolutePosition()
+			u = errors.Is(err, gosts.ErrTurnUnknown)
+			return nil
+		})
+		return u
+	}
+	// (turned on and on, a little at a time: not still, not touched)
+	for i := 0; i < 8; i++ {
+		port.Turn(ro.Azimuth, -15)
+		time.Sleep(250 * time.Millisecond)
+	}
+	if !unknown() {
+		t.Fatal("set up: the turn count should be unknown")
+	}
+	deadline := time.Now().Add(stillFor + 2*time.Second)
+	for unknown() && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	if unknown() {
+		t.Fatal("left still, its turn count wasn't learned")
+	}
+	// (known as soon as it's held: let go again once it's checked holding)
+	on := true
+	for end := time.Now().Add(2 * time.Second); on && time.Now().Before(end); time.Sleep(100 * time.Millisecond) {
+		r.withBus(func(bus *gosts.Bus) error { on, _ = bus.Servo(ro.Azimuth).TorqueEnabled(); return nil })
+	}
+	if on {
+		t.Error("torque left on: it was let go, it should be again")
+	}
+}
+
 // Near the end of the platform servo's reach (±7.5 turns), a move the short
 // way is out of it: gosts would turn the platform a whole turn back instead
 // (seen: nearly a full turn from 0° to 1.1°). The count's started afresh

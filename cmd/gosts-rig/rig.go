@@ -819,7 +819,7 @@ func (r *rig) knowTurns(bus *gosts.Bus, release bool, ids ...uint8) error {
 	if len(lock) == 0 {
 		return nil
 	}
-	r.logf("info", "servo %s: turn count unknown (turned by hand with torque off?): Torque Lock on to learn it", strings.Join(unknown, ", "))
+	r.logf("info", "servo %s: turn count unknown (turned by hand with torque off?): learning it (held a moment where it is%s)", strings.Join(unknown, ", "), map[bool]string{true: ", then let go", false: ""}[release])
 	defer r.torqueStale.Store(true) // (the page's switches: on)
 	for _, id := range lock {
 		if err := resetTurns(bus, id); err != nil {
@@ -913,12 +913,28 @@ type servoStatus struct {
 	Error  string  `json:"error,omitempty"`
 }
 
+// stillFor: how long a servo let go is left still before its turn count's
+// learned (not while it's being turned by hand).
+const stillFor = 1500 * time.Millisecond
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 // pollLoop streams telemetry while connected.
 func (r *rig) pollLoop(ctx context.Context) {
 	t := time.NewTicker(100 * time.Millisecond)
 	defer t.Stop()
 	n := 0
 	torque := map[uint8]bool{}
+	still := map[uint8]struct {
+		pos   int
+		since time.Time
+	}{}
+	retry := map[uint8]time.Time{} // (learning a turn count that didn't work: not again till then)
 	for {
 		select {
 		case <-ctx.Done():
@@ -968,6 +984,34 @@ func (r *rig) pollLoop(ctx context.Context) {
 			if f, ok := res[ro.Azimuth]; ok && f.Err == nil {
 				a := azimuthOf(f.Position, ro)
 				msg.Azimuth = &a
+			}
+			// A servo let go (torque off) and left still a moment, its turn
+			// count lost (turned past the seam by hand): learned at once
+			// (held a moment where it is, then let go again), not left to
+			// the next move.
+			now := time.Now()
+			for _, id := range ids {
+				f, ok := res[id]
+				if !ok || f.Err != nil {
+					delete(still, id)
+					continue
+				}
+				if s, ok := still[id]; !ok || absInt(f.Position-s.pos) > 2 {
+					still[id] = struct {
+						pos   int
+						since time.Time
+					}{f.Position, now}
+				}
+				if n%10 != 5 || torque[id] || f.Moving || now.Sub(still[id].since) < stillFor || now.Before(retry[id]) {
+					continue
+				}
+				if _, err := bus.Servo(id).AbsolutePosition(); !errors.Is(err, gosts.ErrTurnUnknown) {
+					continue
+				}
+				if err := r.knowTurns(bus, true, id); err != nil {
+					r.logf("error", "servo %d: %v", id, err)
+					retry[id] = now.Add(30 * time.Second)
+				}
 			}
 			return nil
 		})
