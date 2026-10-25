@@ -163,8 +163,9 @@ func run() bool {
 	}
 	// Unless the command line says what to connect: the board and the camera
 	// used last, if they're here; else the only one there is (see
-	// startupDevice); else the first there is (the rig: a likely adapter);
-	// with none (or it won't connect), the simulator, so it's ready to try.
+	// startupDevice); else the first there is (the rig: a likely adapter).
+	// With none (or it won't connect), nothing: the page lists what there is,
+	// the simulator picked, for a click (not connected to by itself).
 	go func() {
 		p, chosen := *port, *port != ""
 		if !chosen {
@@ -180,23 +181,18 @@ func run() bool {
 				p = real[0]
 			}
 			if p == "" {
-				p = simPort
+				log.Print("connect: no driver board found: pick one (or the simulator) in the Rig card")
+				return
 			}
 		}
 		if err := a.rig.connect(ctx, p, c.Baud); err != nil {
 			log.Printf("connect %s: %v", p, err)
-			if chosen || p == simPort {
-				return
-			}
-			log.Printf("connect: the simulated rig instead")
-			if err := a.rig.connect(ctx, simPort, c.Baud); err != nil {
-				log.Printf("connect %s: %v", simPort, err)
-			}
 		}
 	}()
 	go func() {
 		// The camera as the rig: the one used last, else the first there
-		// is; with none (or it won't connect), the simulated camera.
+		// is; with none (or it won't connect), nothing (the page: the
+		// simulated camera picked, for a click).
 		cam, chosen := *camera, *camera != ""
 		if !chosen {
 			var real []string
@@ -210,18 +206,12 @@ func run() bool {
 				cam = real[0]
 			}
 			if cam == "" {
-				cam = simCameraID
+				log.Print("camera: none found: pick one (or the simulated camera) in the Camera card")
+				return
 			}
 		}
 		if err := a.camera.connect(cam); err != nil {
 			log.Printf("camera %s: %v", cam, err)
-			if chosen || cam == simCameraID {
-				return
-			}
-			log.Printf("camera: the simulated camera instead")
-			if err := a.camera.connect(simCameraID); err != nil {
-				log.Printf("camera %s: %v", simCameraID, err)
-			}
 		}
 	}()
 	cleanStaleSamples()   // (sample shots a run that's gone left)

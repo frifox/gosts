@@ -13,7 +13,9 @@ straight off the camera, and turn them into a 3D model. An example app of [Go ST
 - One ST3215 turns the platform under the object
 - A camera on USB that [gphoto2](http://gphoto.org) can drive
 
-No hardware? Both the rig and the camera have simulators. The simulated camera saves what it "sees" in the 3D view
+No hardware? Both the rig and the camera have simulators. On starting, gosts-rig connects to a board and a camera it finds
+(the ones used last, if they're there); with none, it lists what there is with the simulator picked, for you to
+connect to. The simulated camera saves what it "sees" in the 3D view
 as JPEGs, just like a real one.
 
 ## Main Dependencies
