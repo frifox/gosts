@@ -29,7 +29,7 @@ jobs:
     env:
       BUILD: cmd/gosts-rig-macos/build
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # (the tags: build.sh names the version after them)
 
@@ -39,7 +39,7 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_ENV"
           echo "ZIP=GoSTSRig-${version}-arm64.zip" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
