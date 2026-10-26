@@ -1,10 +1,19 @@
 # Release: pushing a GoSTS Rig version tag (gosts-rig-v1.0.0, say: plain
 # v1.0.0 tags are the library's, Go module versions) builds GoSTS Rig for
-# macOS (Apple silicon, signed ad hoc) with what it bundles (gosts-rig and
-# Build Model's apple-obj-cap), and puts it on the tag's GitHub Release,
-# "GoSTS Rig v1.0.0".
+# macOS (Apple silicon) with what it bundles (gosts-rig and Build Model's
+# apple-obj-cap), signed with the Developer ID and notarized by Apple, and
+# puts it on the tag's GitHub Release, "GoSTS Rig v1.0.0", as
+# GoSTSRig-v1.0.0-arm64.zip (GoSTS Rig.app inside).
 #
 #   git tag gosts-rig-v1.0.0 && git push origin gosts-rig-v1.0.0
+#
+# Its secrets (repository settings, Secrets and variables → Actions):
+#   MACOS_CERT_P12_BASE64  the Developer ID Application certificate and its key (.p12), base64
+#   MACOS_CERT_PASSWORD    the .p12's password
+#   NOTARY_KEY_P8_BASE64   an App Store Connect API key (.p8), base64, for notarytool
+#   NOTARY_KEY_ID          its key ID
+#   NOTARY_ISSUER_ID       its issuer ID
+# (The two IDs may be variables instead of secrets.)
 name: Release
 
 on:
@@ -17,10 +26,18 @@ permissions:
 jobs:
   macos-app:
     runs-on: macos-15 # Apple silicon
+    env:
+      BUILD: cmd/gosts-rig-macos/build
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # (the tags: build.sh names the version after them)
+
+      - name: Version
+        run: |
+          version="${GITHUB_REF_NAME#gosts-rig-}" # (v1.0.0)
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "ZIP=GoSTSRig-${version}-arm64.zip" >> "$GITHUB_ENV"
 
       - uses: actions/setup-go@v5
         with:
@@ -29,23 +46,82 @@ jobs:
       - name: Test
         run: go test ./...
 
+      # The certificate in a keychain of the run's own (deleted at the end),
+      # for codesign; its identity for build.sh.
+      - name: Signing certificate
+        env:
+          CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          if [ -z "$CERT_P12_BASE64" ] || [ -z "$CERT_PASSWORD" ]; then
+            echo "::error::MACOS_CERT_P12_BASE64 and MACOS_CERT_PASSWORD are needed to sign"; exit 1
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          kpass=$(uuidgen)
+          echo "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$kpass" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$kpass" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kpass" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+          identity=$(security find-identity -v -p codesigning "$keychain" | sed -nE 's/.*"(Developer ID Application:[^"]*)".*/\1/p' | head -1)
+          if [ -z "$identity" ]; then
+            echo "::error::no Developer ID Application identity in the certificate"; security find-identity -v -p codesigning "$keychain"; exit 1
+          fi
+          echo "SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
       - name: Build GoSTS Rig.app
         run: make
 
+      # Notarized: the app zipped for Apple's notary service, its ticket
+      # stapled to the app once accepted, then zipped again for the Release.
+      - name: Notarize
+        env:
+          KEY_P8_BASE64: ${{ secrets.NOTARY_KEY_P8_BASE64 }}
+          KEY_ID: ${{ secrets.NOTARY_KEY_ID || vars.NOTARY_KEY_ID }}
+          ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID || vars.NOTARY_ISSUER_ID }}
+        run: |
+          if [ -z "$KEY_P8_BASE64" ] || [ -z "$KEY_ID" ] || [ -z "$ISSUER_ID" ]; then
+            echo "::error::NOTARY_KEY_P8_BASE64, NOTARY_KEY_ID and NOTARY_ISSUER_ID are needed to notarize"; exit 1
+          fi
+          key="$RUNNER_TEMP/notary.p8"
+          echo "$KEY_P8_BASE64" | base64 --decode > "$key"
+          cd "$BUILD"
+          ditto -c -k --sequesterRsrc --keepParent "GoSTS Rig.app" notarize.zip
+          xcrun notarytool submit notarize.zip --key "$key" --key-id "$KEY_ID" --issuer "$ISSUER_ID" --wait --timeout 30m --output-format json > notary.json || true
+          cat notary.json
+          id=$(plutil -extract id raw notary.json 2>/dev/null || true)
+          status=$(plutil -extract status raw notary.json 2>/dev/null || true)
+          if [ "$status" != "Accepted" ]; then
+            [ -n "$id" ] && xcrun notarytool log "$id" --key "$key" --key-id "$KEY_ID" --issuer "$ISSUER_ID" || true
+            echo "::error::notarization: ${status:-no answer}"; rm -f "$key"; exit 1
+          fi
+          rm -f "$key" notarize.zip
+          xcrun stapler staple "GoSTS Rig.app"
+          xcrun stapler validate "GoSTS Rig.app"
+          spctl --assess --type execute --verbose=2 "GoSTS Rig.app"
+
       - name: Zip
         run: |
-          cd cmd/gosts-rig-macos/build
-          ditto -c -k --sequesterRsrc --keepParent "GoSTS Rig.app" "GoSTS-Rig-${GITHUB_REF_NAME#gosts-rig-}-macos-arm64.zip"
+          cd "$BUILD"
+          ditto -c -k --sequesterRsrc --keepParent "GoSTS Rig.app" "$ZIP"
 
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${GITHUB_REF_NAME#gosts-rig-}" # (v1.0.0)
-          zip="cmd/gosts-rig-macos/build/GoSTS-Rig-${version}-macos-arm64.zip"
+          zip="$BUILD/$ZIP"
           notes="Automated photogrammetry rig. Configure hardware, capture photos, generate/edit 3D models. Use with MacOS."
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$zip" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$zip" --title "GoSTS Rig ${version}" --notes "$notes"
+            gh release create "$GITHUB_REF_NAME" "$zip" --title "GoSTS Rig ${VERSION}" --notes "$notes"
           fi
+
+      - name: Clean up the keychain
+        if: always()
+        run: |
+          [ -n "${KEYCHAIN:-}" ] && security delete-keychain "$KEYCHAIN" || true

@@ -16,14 +16,17 @@ Terminal or browser needed.
 
 ## Download
 
-Get `GoSTS-Rig-<version>-macos-arm64.zip` from the [Releases](https://github.com/frifox/gosts/releases) page (Apple
-silicon Macs), unzip it and move **GoSTS Rig** to Applications. It's signed ad hoc, not by Apple, so the first time
-macOS won't open it by double-click: try once, then System Settings → Privacy & Security → **Open Anyway** (on macOS
-14 and earlier, right-click it → **Open** works too). For a real camera, also `brew install gphoto2`.
+Get `GoSTSRig-<version>-arm64.zip` from the [Releases](https://github.com/frifox/gosts/releases) page (Apple
+silicon Macs), unzip it and move **GoSTS Rig** to Applications. It's signed with a Developer ID and notarized by
+Apple, so it opens with a double-click. For a real camera, also `brew install gphoto2`.
+
+Built here with `make`, it's signed ad hoc instead: fine on the Mac it's built on.
 
 A release is made by pushing a `gosts-rig-v…` tag (plain `v…` tags are the library's Go module versions): GitHub
-Actions ([release.yml](../../.github/workflows/release.yml)) runs the tests, builds the app (as `make` does) and
-attaches the zip to a release titled "GoSTS Rig v1.0.0". Tags aren't sent by a plain `git push`: push the tag itself.
+Actions ([release.yml](../../.github/workflows/release.yml)) runs the tests, builds the app (as `make` does, signed
+with the Developer ID: `SIGN_IDENTITY`, see build.sh), has Apple notarize it, and attaches the zip to a release
+titled "GoSTS Rig v1.0.0". It needs the repository's secrets `MACOS_CERT_P12_BASE64`, `MACOS_CERT_PASSWORD`,
+`NOTARY_KEY_P8_BASE64`, `NOTARY_KEY_ID` and `NOTARY_ISSUER_ID` (listed in release.yml). Tags aren't sent by a plain `git push`: push the tag itself.
 
 ```bash
 git tag gosts-rig-v1.0.0 && git push origin gosts-rig-v1.0.0

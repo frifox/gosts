@@ -3,6 +3,10 @@
 # (main.swift), with gosts-rig and apple-obj-cap (Build Model's tool) inside
 # it. Needs Go and the Xcode command line tools (xcode-select --install).
 # make runs it (make install: and puts the app in /Applications).
+#
+# Signed ad hoc, unless SIGN_IDENTITY names a Developer ID Application
+# certificate in a keychain (the release workflow's): then with the hardened
+# runtime and a secure timestamp, as notarizing wants.
 set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -31,8 +35,19 @@ rm -rf "$tmp"
 
 sed "s/VERSION/$version/g" "$here/Info.plist" > "$app/Contents/Info.plist"
 
-# Signed ad hoc (not by a developer): fine on the Mac it's built on.
-codesign --force --sign - "$app/Contents/MacOS/gosts-rig" "$app/Contents/MacOS/apple-obj-cap"
-codesign --force --sign - "$app"
+if [ -n "${SIGN_IDENTITY:-}" ]; then
+	# Developer ID: the programs inside first, then the app, each with the
+	# hardened runtime (and its exceptions: entitlements.plist) and a timestamp.
+	echo "signing ($SIGN_IDENTITY)"
+	for exe in "$app/Contents/MacOS/gosts-rig" "$app/Contents/MacOS/apple-obj-cap"; do
+		codesign --force --options runtime --timestamp --entitlements "$here/entitlements.plist" --sign "$SIGN_IDENTITY" "$exe"
+	done
+	codesign --force --options runtime --timestamp --entitlements "$here/entitlements.plist" --sign "$SIGN_IDENTITY" "$app"
+	codesign --verify --deep --strict --verbose=2 "$app"
+else
+	# Signed ad hoc (not by a developer): fine on the Mac it's built on.
+	codesign --force --sign - "$app/Contents/MacOS/gosts-rig" "$app/Contents/MacOS/apple-obj-cap"
+	codesign --force --sign - "$app"
+fi
 
 echo "built $app ($version)"
