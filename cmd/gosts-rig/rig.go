@@ -917,6 +917,10 @@ type servoStatus struct {
 // learned (not while it's being turned by hand).
 const stillFor = 1500 * time.Millisecond
 
+// learnRetry: how long before a learn that didn't hold (the servo moved:
+// still being turned by hand, say) is tried again.
+var learnRetry = 30 * time.Second
+
 func absInt(v int) int {
 	if v < 0 {
 		return -v
@@ -1010,7 +1014,7 @@ func (r *rig) pollLoop(ctx context.Context) {
 				}
 				if err := r.knowTurns(bus, true, id); err != nil {
 					r.logf("error", "servo %d: %v", id, err)
-					retry[id] = now.Add(30 * time.Second)
+					retry[id] = now.Add(learnRetry)
 				}
 			}
 			return nil

@@ -214,6 +214,9 @@ func TestTurnCountLearnedWhenStill(t *testing.T) {
 	old := newSimPort
 	newSimPort = func(ro Roles) *servosim.Port { port = newSim(ro); return port }
 	defer func() { newSimPort = old }()
+	oldRetry := learnRetry
+	learnRetry = 300 * time.Millisecond // (a learn caught while it moved: again soon, not in 30 s)
+	defer func() { learnRetry = oldRetry }()
 	cfg, _ := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
 	r := &rig{cfg: cfg, out: func(any) {}}
 	if err := r.connect(context.Background(), simPort, 0); err != nil {
@@ -236,15 +239,15 @@ func TestTurnCountLearnedWhenStill(t *testing.T) {
 		})
 		return u
 	}
-	// (turned on and on, a little at a time: not still, not touched)
-	for i := 0; i < 8; i++ {
+	// (turned on and on, a little at a time, for less than stillFor: not
+	// still yet, however slowly the polls come; then let go)
+	for start := time.Now(); time.Since(start) < stillFor*2/3; time.Sleep(100 * time.Millisecond) {
 		port.Turn(ro.Azimuth, -15)
-		time.Sleep(250 * time.Millisecond)
 	}
 	if !unknown() {
 		t.Fatal("set up: the turn count should be unknown")
 	}
-	deadline := time.Now().Add(stillFor + 2*time.Second)
+	deadline := time.Now().Add(stillFor + 10*time.Second) // (a slow machine: room for a retry or two)
 	for unknown() && time.Now().Before(deadline) {
 		time.Sleep(100 * time.Millisecond)
 	}
