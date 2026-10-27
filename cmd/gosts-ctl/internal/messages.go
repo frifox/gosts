@@ -27,6 +27,14 @@ type StateMsg struct {
 	Groups     []GroupInfo        `json:"groups"`
 	Motion     *MotionInfo        `json:"motion,omitempty"` // the host's move speed and acceleration, shared (see App.Motion)
 	DialZero   *float64           `json:"dialZero,omitempty"` // where every dial's 0° is drawn, if the host says (see App.DialZero)
+	Roles      *RolesInfo         `json:"roles,omitempty"`    // the host's servo roles, if it has them (see App.Roles)
+}
+
+// RolesInfo is the host's servo roles: the elevation pair (leader first)
+// and the azimuth servo.
+type RolesInfo struct {
+	Elevation []int `json:"elevation"`
+	Azimuth   int   `json:"azimuth"`
 }
 
 // MotionInfo is a move speed (step/s) and acceleration (100 step/s²).
@@ -128,6 +136,7 @@ type Request struct {
 	MaxDeg   float64    `json:"maxDeg"`  // for "limits": range end (clockwise from MinDeg)
 	// Groups: Group targets a command at a group; the rest is for "groupSave".
 	Group        string  `json:"group"`
+	Role         string  `json:"role"` // for "assignRole": "elevation" (Group's members) or "azimuth" (ID)
 	Members      []int   `json:"members"`
 	MaxSpread    int     `json:"maxSpread"`
 	MaxFightLoad float64 `json:"maxFightLoad"`

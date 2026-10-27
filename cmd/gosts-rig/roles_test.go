@@ -345,3 +345,38 @@ func TestElevationWithoutAzimuth(t *testing.T) {
 		t.Errorf("azimuth move: %v, want it to say servo %d isn't there", err, ro.Azimuth)
 	}
 }
+
+// Servo Settings' Assign Servo To: a group of two the elevation (leader
+// first, mirroring as the console has it), a servo the azimuth; not one
+// that has the other role.
+func TestAssignRole(t *testing.T) {
+	cfg, _ := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	cfg.update(func(c *Config) {
+		c.Roles = Roles{ElevationLeader: 10, ElevationFollower: 11, Azimuth: 12, FollowerMirrored: true}
+	})
+	r := &rig{cfg: cfg, out: func(any) {}}
+	told := 0
+	r.onRoles = func() { told++ }
+	mirrored := func(id uint8) bool { return id == 21 }
+	if err := r.assignRole("azimuth", []uint8{1}, mirrored); err != nil {
+		t.Fatal(err)
+	}
+	if ro := cfg.get().Roles; ro.Azimuth != 1 || ro.ElevationLeader != 10 || ro.ElevationFollower != 11 {
+		t.Errorf("azimuth #1: %+v", ro)
+	}
+	if err := r.assignRole("elevation", []uint8{20, 21}, mirrored); err != nil {
+		t.Fatal(err)
+	}
+	if ro := cfg.get().Roles; ro.ElevationLeader != 20 || ro.ElevationFollower != 21 || ro.LeaderMirrored || !ro.FollowerMirrored || ro.Azimuth != 1 {
+		t.Errorf("elevation #20 + #21: %+v", ro)
+	}
+	if err := r.assignRole("azimuth", []uint8{20}, mirrored); err == nil {
+		t.Error("an elevation servo made the azimuth")
+	}
+	if err := r.assignRole("elevation", []uint8{1, 30}, mirrored); err == nil {
+		t.Error("the azimuth made an elevation servo")
+	}
+	if told != 2 {
+		t.Errorf("Servo Settings told %d times, want 2 (one each change)", told)
+	}
+}

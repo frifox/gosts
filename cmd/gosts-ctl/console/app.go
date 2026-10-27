@@ -49,6 +49,12 @@ type App struct {
 	// from its top: -90, on the left), in place of each servo's DialUp
 	// (gosts-rig: as its Rig card's dials).
 	DialZero *float64
+	// Roles and AssignRole, if set, show and set the host's servo roles
+	// (gosts-rig: the rig's elevation pair, leader first, and azimuth): the
+	// Setup card's Assign Servo To. role: "elevation" (a group of two's
+	// members) or "azimuth" (one servo).
+	Roles      func() (elevation [2]uint8, azimuth uint8, ok bool)
+	AssignRole func(role string, ids []uint8) error
 
 	mu      sync.Mutex
 	refresh map[uint8]*pendingRefresh
@@ -126,7 +132,13 @@ func (a *App) stateMsg() internal.StateMsg {
 			motion = &internal.MotionInfo{Speed: speed, Acc: acc}
 		}
 	}
-	return internal.StateMsg{Type: "state", Connected: st.Port != "", Port: st.Port, Baud: st.Baud,
+	var roles *internal.RolesInfo
+	if a.Roles != nil {
+		if el, az, ok := a.Roles(); ok {
+			roles = &internal.RolesInfo{Elevation: []int{int(el[0]), int(el[1])}, Azimuth: int(az)}
+		}
+	}
+	return internal.StateMsg{Type: "state", Roles: roles, Connected: st.Port != "", Port: st.Port, Baud: st.Baud,
 		Scanning: st.Scanning, Scanned: st.Scanned, IDs: internal.ToInts(st.IDs), Mirrored: mirrored, Signed: signed, WeightComp: weightComp, Accs: accs, Names: names,
 		Colors: colors, DialUps: dialUps, Ranges: ranges, Groups: groupInfos(a.cfg.AllGroups()), Motion: motion, DialZero: a.DialZero}
 }

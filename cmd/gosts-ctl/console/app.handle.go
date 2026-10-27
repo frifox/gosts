@@ -72,6 +72,28 @@ func (a *App) handle(c *web.Client, req internal.Request) {
 
 func (a *App) exec(c *web.Client, req internal.Request) error {
 	switch req.Type {
+	case "assignRole": // (Setup's Assign Servo To: the host's roles)
+		if a.AssignRole == nil {
+			return errors.New("there are no roles to assign here")
+		}
+		var ids []uint8
+		switch req.Role {
+		case "elevation":
+			g, ok := a.cfg.Group(req.Group)
+			if !ok || len(g.Members) != 2 {
+				return errors.New("the elevation is a group of two servos: pick one")
+			}
+			ids = g.Members // (leader first)
+		case "azimuth":
+			ids = []uint8{req.ID}
+		default:
+			return fmt.Errorf("no role %q", req.Role)
+		}
+		if err := a.AssignRole(req.Role, ids); err != nil {
+			return err
+		}
+		a.BroadcastState()
+		return nil
 	case "motion": // (the Control card's speed and acceleration: the host's, shared)
 		if a.SetMotion == nil {
 			return errors.New("the speed and acceleration aren't shared here")

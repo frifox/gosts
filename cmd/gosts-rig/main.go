@@ -139,6 +139,13 @@ func run() bool {
 	a.onMotion = ctl.BroadcastState
 	left := -90.0 // (Servo Settings' dials: 0° on the left, as the Rig card's)
 	ctl.DialZero = &left
+	// The rig's roles, in Servo Settings' Setup: Assign Servo To.
+	ctl.Roles = func() ([2]uint8, uint8, bool) {
+		ro := a.rig.roles()
+		return [2]uint8{ro.ElevationLeader, ro.ElevationFollower}, ro.Azimuth, true
+	}
+	ctl.AssignRole = func(role string, ids []uint8) error { return a.rig.assignRole(role, ids, ctl.Mirrored) }
+	a.rig.onRoles = ctl.BroadcastState
 	// The simulator has Servo Settings of its own (beside the real rig's):
 	// #1 and #2 a group, #1 mirrored, as the simulated rig has them.
 	simCtlPath := filepath.Join(filepath.Dir(*ctlPath), "gosts-rig-sim.toml")

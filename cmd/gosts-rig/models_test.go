@@ -287,7 +287,10 @@ func TestModelMove(t *testing.T) {
 		os.WriteFile(filepath.Join(photoDir, d, "m.obj"), []byte("v 0 0 0\n"), 0o644)
 	}
 	os.WriteFile(filepath.Join(photoDir, "cases", "box.combine.json"), []byte(`{"objects":[{"ref":{"folder":"cap","model":"drone"}},{"ref":{"folder":"cap","model":"other"}}]}`), 0o644)
-	refs := func() string { b, _ := os.ReadFile(filepath.Join(photoDir, "cases", "box.combine.json")); return string(b) }
+	refs := func() string {
+		b, _ := os.ReadFile(filepath.Join(photoDir, "cases", "box.combine.json"))
+		return string(b)
+	}
 	if w := do("/batches/cap/models/drone/move", `{"to":""}`); w.Code != http.StatusBadRequest {
 		t.Errorf("to the root: %d, want 400", w.Code)
 	}

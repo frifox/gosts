@@ -24,6 +24,8 @@ const simPort = "sim"
 type rig struct {
 	cfg *configFile
 	out func(msg any) // broadcast to every window
+	// onRoles, if set, is told the roles changed (Servo Settings shows them).
+	onRoles func()
 
 	busMu sync.RWMutex
 	bus   *gosts.Bus
@@ -212,7 +214,34 @@ func (r *rig) setRoles(ro Roles) error {
 	r.mu.Unlock()
 	r.ensureMultiTurn(found) // the newly assigned servos too
 	r.sendState()
+	if r.onRoles != nil {
+		r.onRoles()
+	}
 	return nil
+}
+
+// assignRole makes ids the rig's role ("elevation": the pair, leader
+// first, their mirroring as mirrored says; "azimuth": one): Servo Settings'
+// Assign Servo To. Not a servo that has the other role (assign that one
+// first).
+func (r *rig) assignRole(role string, ids []uint8, mirrored func(uint8) bool) error {
+	ro := r.cfg.get().Roles
+	switch {
+	case role == "elevation" && len(ids) == 2:
+		if slices.Contains(ids, ro.Azimuth) {
+			return fmt.Errorf("#%d is the azimuth now: assign another servo to Azimuth first", ro.Azimuth)
+		}
+		ro.ElevationLeader, ro.ElevationFollower = ids[0], ids[1]
+		ro.LeaderMirrored, ro.FollowerMirrored = mirrored(ids[0]), mirrored(ids[1])
+	case role == "azimuth" && len(ids) == 1:
+		if ids[0] == ro.ElevationLeader || ids[0] == ro.ElevationFollower {
+			return fmt.Errorf("#%d is in the elevation now: assign another group to Elevation first", ids[0])
+		}
+		ro.Azimuth = ids[0]
+	default:
+		return fmt.Errorf("can't assign %d servo(s) to %q", len(ids), role)
+	}
+	return r.setRoles(ro)
 }
 
 // forgetTarget drops the rig's goal (the servos moved some other way: Servo

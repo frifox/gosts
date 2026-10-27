@@ -46,6 +46,7 @@ header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: .2px; 
 }
 .btn:hover { border-color: var(--accent); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.roles-block .btn.is-role { border-color: var(--accent); color: var(--accent); }
 .btn.danger { color: var(--bad); }
 .btn:disabled { opacity: .5; cursor: default; }
 .layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
@@ -442,6 +443,15 @@ html.embed #embedWait:not([hidden]) { display: block; }
           <button class="btn" id="gZeroHere" title="Make the pose the members are in now 0° on every member">Current position</button>
         </div>
         <p class="hint">Sets each member's own zero where it is now, so all of them read 0° in this pose. Saved on the servos.</p>
+        <div class="roles-block" id="gRolesBlock" hidden>
+        <hr class="sep">
+        <div class="row">
+          <span>Assign Servo To</span>
+          <button class="btn" id="gAsElevation" data-role="elevation" title="The rig's elevation: this group of two (its leader the leader)">Elevation</button>
+          <button class="btn" id="gAsAzimuth" data-role="azimuth" title="The rig's azimuth (the platform): this servo">Azimuth</button>
+        </div>
+        <p class="hint" id="gRolesHint"></p>
+        </div>
       </div>
     </section>
 
@@ -455,6 +465,15 @@ html.embed #embedWait:not([hidden]) { display: block; }
           <input class="num" type="number" id="zeroAtDeg" min="0" max="359.9" step="0.1" value="0" style="width:80px">
           <span>°</span>
           <button class="btn" id="zeroAtBtn">Set</button>
+        </div>
+        <div class="roles-block" id="sRolesBlock" hidden>
+        <hr class="sep">
+        <div class="row">
+          <span>Assign Servo To</span>
+          <button class="btn" id="sAsElevation" data-role="elevation" title="The rig's elevation: this group of two (its leader the leader)">Elevation</button>
+          <button class="btn" id="sAsAzimuth" data-role="azimuth" title="The rig's azimuth (the platform): this servo">Azimuth</button>
+        </div>
+        <p class="hint" id="sRolesHint"></p>
         </div>
         <hr class="sep">
         <div class="row lim-row">
@@ -828,6 +847,29 @@ function stepsFromVdeg(id, d) { return Math.round(wrap360(d) / DEG) % STEPS; }
 const fmtDeg = (d) => `${d.toFixed(1)}°`;
 
 function groupOf(id) { return (state.groups || []).find((g) => g.members.includes(id)); }
+// Assign Servo To (Setup): the host's roles (gosts-rig: the rig's), if it
+// has them. A group of two can be the elevation, a single servo the azimuth;
+// the role one already has is lit.
+function renderRoles() {
+  const ro = state.roles;
+  $("gRolesBlock").hidden = $("sRolesBlock").hidden = !ro;
+  if (!ro) return;
+  const g = curGroup(), now = `Now: elevation #${ro.elevation[0]} (leader) + #${ro.elevation[1]}, azimuth #${ro.azimuth}.`;
+  const isEl = !!g && g.members.length === 2 && g.members[0] === ro.elevation[0] && g.members[1] === ro.elevation[1];
+  $("gAsElevation").disabled = !g || g.members.length !== 2;
+  $("gAsAzimuth").disabled = true;
+  $("gAsElevation").classList.toggle("is-role", isEl);
+  $("gRolesHint").textContent = !g || g.members.length === 2 ? now : `${now} The elevation is a group of two servos.`;
+  const id = state.selected, isAz = id !== null && id === ro.azimuth;
+  $("sAsElevation").disabled = true;
+  $("sAsAzimuth").disabled = id === null || ro.elevation.includes(id); // (in the elevation: that group's to be reassigned first)
+  $("sAsAzimuth").classList.toggle("is-role", isAz);
+  $("sRolesHint").textContent = ro.elevation.includes(id) ? `${now} This servo is in the elevation: assign another group to Elevation first.` : now;
+}
+for (const id of ["gAsElevation", "sAsAzimuth"]) $(id).onclick = () => {
+  const role = $(id).dataset.role;
+  ctl("assignRole", { role }, `assigned to ${role[0].toUpperCase() + role.slice(1)}`);
+};
 function curGroup() { return state.selGroup ? (state.groups || []).find((g) => g.key === state.selGroup) || null : null; }
 // members lists the servos shown in the console: the group's, or the selected one.
 function members() { const g = curGroup(); return g ? g.members : state.selected === null ? [] : [state.selected]; }
@@ -1019,6 +1061,7 @@ function selectGroup(key) {
   renderHealthSettings();
   $("main").hidden = false;
   applyTunedAcc();
+  renderRoles();
   loadConfig(true);
 }
 
@@ -1054,6 +1097,7 @@ function selectServo(id) {
   $("mirrored").checked = !!state.mirrored?.has(id);
   $("main").hidden = false;
   applyTunedAcc();
+  renderRoles();
   loadConfig(true);
 }
 
@@ -1839,6 +1883,8 @@ function onState(m) {
   state.colors = m.colors || {};
   state.dialUps = m.dialUps || {};
   state.dialZero = m.dialZero ?? null;
+  state.roles = m.roles || null;
+  renderRoles();
   $("svDialUpRows").hidden = $("svDialUpHint").hidden = state.dialZero != null; // (the host's: not set here)
   state.ranges = m.ranges || {};
   state.groups = m.groups || [];
