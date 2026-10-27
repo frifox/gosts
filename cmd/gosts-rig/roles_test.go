@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -296,4 +297,51 @@ func TestPlatformRoom(t *testing.T) {
 	}
 	t.Logf("before %.2f turns, after %.2f", before, after)
 	_ = ro
+}
+
+// With the platform's servo not there (two of three on the bus), the
+// elevation still moves, stops, holds and lets go; an azimuth move says
+// which servo it's missing.
+func TestElevationWithoutAzimuth(t *testing.T) {
+	cfg, _ := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	ro := r.roles()
+	r.mu.Lock()
+	r.found = []uint8{ro.ElevationLeader, ro.ElevationFollower} // (the platform's: not found)
+	r.mu.Unlock()
+	e := 10.0
+	if err := r.moveTo(&e, nil); err != nil {
+		t.Fatalf("elevation move: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := r.waitStill(ctx); err != nil {
+		t.Fatalf("waiting for it: %v", err)
+	}
+	var got float64
+	r.withBus(func(bus *gosts.Bus) error {
+		pos, err := bus.Servo(ro.ElevationLeader).Position()
+		got = elevationOf(pos, ro)
+		return err
+	})
+	if math.Abs(got-e) > 1 {
+		t.Fatalf("elevation %.1f°, want about %.0f°", got, e)
+	}
+	if err := r.stop(); err != nil {
+		t.Errorf("stop: %v", err)
+	}
+	if err := r.torque(false, ""); err != nil {
+		t.Errorf("torque off (all there are): %v", err)
+	}
+	if err := r.torque(true, "elevation"); err != nil {
+		t.Errorf("elevation torque on: %v", err)
+	}
+	a := 20.0
+	if err := r.moveTo(nil, &a); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("servo %d", ro.Azimuth)) {
+		t.Errorf("azimuth move: %v, want it to say servo %d isn't there", err, ro.Azimuth)
+	}
 }

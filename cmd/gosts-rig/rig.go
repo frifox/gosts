@@ -362,17 +362,55 @@ func (r *rig) ensureMultiTurn(found []uint8) {
 }
 
 // ready checks that the three role servos were found.
-func (r *rig) ready() (Roles, error) {
+func (r *rig) ready(axes ...string) (Roles, error) {
 	ro := r.roles()
 	r.mu.Lock()
 	found := slices.Clone(r.found)
 	r.mu.Unlock()
-	for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
+	for _, id := range axisIDs(ro, axes...) {
 		if !slices.Contains(found, id) {
 			return ro, fmt.Errorf("servo %d was not found on the bus", id)
 		}
 	}
 	return ro, nil
+}
+
+// axisIDs are the role servos of axes ("elevation": the two, "azimuth"; none:
+// all three). An axis needs only its own: the elevation moves with the
+// platform's servo not there, say.
+func axisIDs(ro Roles, axes ...string) []uint8 {
+	if len(axes) == 0 {
+		return []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth}
+	}
+	var ids []uint8
+	for _, a := range axes {
+		switch a {
+		case "elevation":
+			ids = append(ids, ro.ElevationLeader, ro.ElevationFollower)
+		case "azimuth":
+			ids = append(ids, ro.Azimuth)
+		}
+	}
+	return ids
+}
+
+// present: the role servos found on the bus (a stop, a wait, torque: for
+// those there are), an error if none.
+func (r *rig) present() (Roles, []uint8, error) {
+	ro := r.roles()
+	r.mu.Lock()
+	found := slices.Clone(r.found)
+	r.mu.Unlock()
+	var ids []uint8
+	for _, id := range axisIDs(ro) {
+		if slices.Contains(found, id) {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return ro, nil, errors.New("none of the rig's servos was found on the bus")
+	}
+	return ro, ids, nil
 }
 
 // Angle conversions. Servo readings are logical (mirroring applied) and
@@ -423,7 +461,7 @@ func (r *rig) moveTo(elevation, azimuth *float64) error {
 // afresh where it stands (no move: resetTurns), and the move goes the short
 // way. (Not for a capture's moving shots: their laps see to it, see spiral.)
 func (r *rig) platformRoom(a float64) error {
-	ro, err := r.ready()
+	ro, err := r.ready("azimuth")
 	if err != nil {
 		return err
 	}
@@ -453,7 +491,14 @@ func (r *rig) platformRoom(a float64) error {
 
 // moveToAt is moveTo with a speed per axis (step/s).
 func (r *rig) moveToAt(elevation, azimuth *float64, speedE, speedA int) error {
-	ro, err := r.ready()
+	var axes []string // (the servos it moves: those needed, no others)
+	if elevation != nil {
+		axes = append(axes, "elevation")
+	}
+	if azimuth != nil {
+		axes = append(axes, "azimuth")
+	}
+	ro, err := r.ready(axes...)
 	if err != nil {
 		return err
 	}
@@ -546,7 +591,7 @@ func (r *rig) angles() (e, a float64, err error) {
 // powered up (logical direction: + counts like azimuth). The servo's
 // multi-turn goals reach about ±7.5 turns from there.
 func (r *rig) platformTurns() (float64, error) {
-	ro, err := r.ready()
+	ro, err := r.ready("azimuth")
 	if err != nil {
 		return 0, err
 	}
@@ -576,7 +621,7 @@ func (r *rig) platformTurns() (float64, error) {
 // if the platform's angle moved or the count isn't within a turn after, it
 // says so (see unwindPlatform for the slow way).
 func (r *rig) resetPlatformTurns() error {
-	ro, err := r.ready()
+	ro, err := r.ready("azimuth")
 	if err != nil {
 		return err
 	}
@@ -644,7 +689,7 @@ func resetTurns(bus *gosts.Bus, id uint8) error {
 // spiral unwinds it between laps. Briskly (unwindSpeed), at the configured
 // acceleration; it returns once the platform is there.
 func (r *rig) unwindPlatform(ctx context.Context, turns int) error {
-	ro, err := r.ready()
+	ro, err := r.ready("azimuth")
 	if err != nil {
 		return err
 	}
@@ -707,11 +752,10 @@ func (r *rig) home() error {
 // A heavy arm may stop a little short of its goal, so "stopped" rather than
 // "on target" is what counts; the shot records where it really is.
 func (r *rig) waitStill(ctx context.Context) error {
-	ro, err := r.ready()
+	_, ids, err := r.present()
 	if err != nil {
 		return err
 	}
-	ids := []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth}
 	still := 0
 	deadline := time.Now().Add(20 * time.Second)
 	for still < 3 {
@@ -746,35 +790,48 @@ func (r *rig) waitStill(ctx context.Context) error {
 }
 
 func (r *rig) stop() error {
-	ro, err := r.ready()
+	ro, ids, err := r.present()
 	if err != nil {
 		return err
 	}
 	return r.withBus(func(bus *gosts.Bus) error {
-		return errors.Join(bus.Group(ro.ElevationLeader, ro.ElevationFollower).Stop(), bus.Servo(ro.Azimuth).Stop())
+		var errs []error
+		if slices.Contains(ids, ro.ElevationLeader) && slices.Contains(ids, ro.ElevationFollower) {
+			errs = append(errs, bus.Group(ro.ElevationLeader, ro.ElevationFollower).Stop())
+		} else {
+			for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower} {
+				if slices.Contains(ids, id) {
+					errs = append(errs, bus.Servo(id).Stop())
+				}
+			}
+		}
+		if slices.Contains(ids, ro.Azimuth) {
+			errs = append(errs, bus.Servo(ro.Azimuth).Stop())
+		}
+		return errors.Join(errs...)
 	})
 }
 
 // torque switches torque on (holding) or off for an axis' servos:
 // "elevation" (the two), "azimuth", or "" all three.
 func (r *rig) torque(on bool, axis ...string) error {
-	ro, err := r.ready()
-	if err != nil {
-		return err
-	}
-	defer r.torqueStale.Store(true)
-	ids := []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth}
-	if len(axis) > 0 {
-		switch axis[0] {
-		case "elevation":
-			ids = ids[:2]
-		case "azimuth":
-			ids = ids[2:]
-		case "":
-		default:
+	var ids []uint8
+	if len(axis) > 0 && axis[0] != "" {
+		if axis[0] != "elevation" && axis[0] != "azimuth" {
 			return fmt.Errorf("no axis %q", axis[0])
 		}
+		ro, err := r.ready(axis[0])
+		if err != nil {
+			return err
+		}
+		ids = axisIDs(ro, axis[0])
+	} else { // (all three: those there are)
+		var err error
+		if _, ids, err = r.present(); err != nil {
+			return err
+		}
 	}
+	defer r.torqueStale.Store(true)
 	if !on {
 		return r.withBus(func(bus *gosts.Bus) error { return bus.SyncTorque(false, ids...) })
 	}
