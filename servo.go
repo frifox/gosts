@@ -814,7 +814,7 @@ func (s *Servo) AbsolutePosition() (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		if fromGoal != restarted {
+		if d := fromGoal - restarted; d > StepsPerRev/2 || d < -StepsPerRev/2 { // (a turn apart: not the few steps it may move between the reads)
 			return 0, fmt.Errorf("%w (servo %d: torque is off and its goal %d is a turn away from where a restarted count would put it, %d)", ErrTurnUnknown, s.id, goal, restarted)
 		}
 	}
@@ -966,6 +966,11 @@ func (s *Servo) Hold() error {
 	return s.EnableTorque(true)
 }
 
+// restartSlack is how far the reading may move while RestartTurns restarts
+// the count (torque off: a swing settling, say); a zero that didn't come back
+// moves it much further.
+const restartSlack = 20
+
 // RestartedPosition is where a multi-turn servo is in its turn count right
 // after the count restarted (RestartTurns, or a power-up), in the same
 // coordinates as goals. The count then follows the encoder (0..4095) less
@@ -1016,7 +1021,7 @@ func (s *Servo) RestartTurns() error {
 	if err != nil {
 		return err
 	}
-	if d := CircularDiff(now, before); d < -3 || d > 3 {
+	if d := CircularDiff(now, before); d < -restartSlack || d > restartSlack {
 		return fmt.Errorf("gosts: servo %d: its reading moved %d steps restarting its count", s.id, d)
 	}
 	return nil

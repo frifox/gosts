@@ -692,7 +692,7 @@ func resetTurns(bus *gosts.Bus, id uint8) error {
 			return err
 		}
 	}
-	if got, err := sv.AbsolutePosition(); err != nil || got != at {
+	if got, err := sv.AbsolutePosition(); err != nil || absInt(got-at) > gosts.StepsPerRev/2 {
 		return fmt.Errorf("servo %d's count is %d after the reset, want %d (%v)", id, got, at, err)
 	}
 	return nil

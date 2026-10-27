@@ -670,7 +670,25 @@ func TestSyncReadMixedBus(t *testing.T) {
 		}
 	}
 
+	// 12 answering at a fixed delay (the Feetech): garbled till it's asked
+	// first, and then asked first from then on.
 	p.syncClash = nil
+	p.syncFirst = map[uint8]bool{12: true}
+	check("fixed delay, asked last", 10, 11, 12)
+	corrupt := p.corrupt
+	for i := 0; i < 3; i++ {
+		res = check("fixed delay, learned", 10, 11, 12)
+		for id, want := range map[uint8]int{10: 100, 11: 200, 12: 300} {
+			if res[id].Err != nil || pos(res[id]) != want {
+				t.Errorf("fixed delay: #%d %v %d, want %d", id, res[id].Err, pos(res[id]), want)
+			}
+		}
+	}
+	if p.corrupt != corrupt || p.lastSync[0] != 12 {
+		t.Errorf("fixed delay: asked in order %v, %d garbled after it was learned: want 12 first, none", p.lastSync, p.corrupt-corrupt)
+	}
+	p.syncFirst = nil
+
 	res = check("one not there", 10, 13, 12)
 	if res[13].Err == nil {
 		t.Error("#13 isn't there: no error")

@@ -47,6 +47,11 @@ type fakePort struct {
 	// those of syncClash garbled (two replies on the wire at once).
 	syncReversed bool
 	syncClash    map[uint8]bool
+	// syncFirst: servos answering SYNC READ at a fixed delay (the Feetech):
+	// their reply garbled unless they're asked first. lastSync: the order
+	// the last SYNC READ asked in.
+	syncFirst map[uint8]bool
+	lastSync  []byte
 }
 
 func newFakePort(ids ...uint8) *fakePort {
@@ -160,6 +165,7 @@ func (p *fakePort) handle(pkt []byte) {
 	if inst == InstSyncRead {
 		addr, n := int(params[0]), int(params[1])
 		order := append([]byte(nil), params[2:]...)
+		p.lastSync = append([]byte(nil), order...)
 		if p.syncReversed {
 			for i, j := 0, len(order)-1; i < j; i, j = i+1, j-1 {
 				order[i], order[j] = order[j], order[i]
@@ -168,7 +174,7 @@ func (p *fakePort) handle(pkt []byte) {
 		for _, want := range order {
 			for _, s := range p.servos {
 				if s.mem[RegID.Addr] == want {
-					if p.syncClash[want] {
+					if p.syncClash[want] || p.syncFirst[want] && want != order[0] {
 						p.corrupt++
 					}
 					p.reply(s, append([]byte(nil), s.mem[addr:addr+n]...))
