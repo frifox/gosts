@@ -188,5 +188,13 @@ func (s *fakeServo) write(params []byte) {
 		putU16(s.mem[RegPresentPosition.Addr:], CenterPosition)
 		return
 	}
+	oldOff := decodeSignMag(getU16(s.mem[RegPositionOffset.Addr:]), 11)
 	copy(s.mem[addr:], data)
+	// The reading is the encoder's less the offset (as on hardware): a new
+	// offset moves it.
+	if addr <= int(RegPositionOffset.Addr) && addr+len(data) >= int(RegPositionOffset.Addr)+2 {
+		newOff := decodeSignMag(getU16(s.mem[RegPositionOffset.Addr:]), 11)
+		pos := int(getU16(s.mem[RegPresentPosition.Addr:])) + oldOff - newOff
+		putU16(s.mem[RegPresentPosition.Addr:], uint16(((pos%StepsPerRev)+StepsPerRev)%StepsPerRev))
+	}
 }

@@ -282,11 +282,10 @@ func TestPhotoDelete(t *testing.T) {
 	}
 }
 
-// A servo whose own turn count is a turn off from its reading (the
-// simulator doesn't restart the count, as the real servo does when Hold
-// toggles multi-turn): told to hold its reading, it heads a whole turn away.
-// Torque on must catch it at the limited torque and switch off again.
-func TestTorqueOnCatchesTurnOff(t *testing.T) {
+// A servo whose own turn count is a turn off from its reading (counts -20,
+// reads 4076: just below the seam): Torque Lock restarts the count and holds
+// it where it is, rather than heading a whole turn away.
+func TestTorqueOnHoldsAcrossSeam(t *testing.T) {
 	defer func(f func(Roles) *servosim.Port) { newSimPort = f }(newSimPort)
 	newSimPort = func(ro Roles) *servosim.Port {
 		p := servosim.NewPort(ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth)
@@ -305,19 +304,25 @@ func TestTorqueOnCatchesTurnOff(t *testing.T) {
 	}
 	defer r.disconnect()
 	ro := cfg.get().Roles
-	err = r.torque(true)
-	if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("#%d", ro.ElevationFollower)) {
-		t.Fatalf("torque on: %v, want it refused for #%d", err, ro.ElevationFollower)
+	if err := r.torque(true); err != nil {
+		t.Fatalf("torque on: %v", err)
 	}
+	time.Sleep(300 * time.Millisecond)
 	r.withBus(func(bus *gosts.Bus) error {
-		for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
-			if on, _ := bus.Servo(id).TorqueEnabled(); on {
-				t.Errorf("servo %d still has torque", id)
+		res, err := bus.SyncFeedback(ro.ElevationLeader, ro.ElevationFollower)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower} {
+			if d := gosts.CircularDiff(res[id].Position, 4076); abs(d) > 5 || math.Abs(res[id].Load) > 30 {
+				t.Errorf("servo %d: at %d (%+d), load %.0f%%: want held at 4076", id, res[id].Position, d, res[id].Load)
+			}
+			if on, _ := bus.Servo(id).TorqueEnabled(); !on {
+				t.Errorf("servo %d: no torque", id)
 			}
 		}
 		return nil
 	})
-	t.Log(err)
 }
 
 // TestSpiralFit: a spiral from 6.5 turns round fits till it would pass the

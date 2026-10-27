@@ -74,10 +74,10 @@ func TestGroupTorqueOnHolds(t *testing.T) {
 		if err := bus.Servo(id).SetMultiTurn(true); err != nil {
 			t.Fatal(err)
 		}
-		bus.Servo(id).EnableTorque(false)
 		if _, err := bus.Write(id, gosts.RegGoalPosition.Addr, []byte{0, 0}); err != nil { // stale
 			t.Fatal(err)
 		}
+		bus.Servo(id).EnableTorque(false) // (after: a goal written switches torque on)
 	}
 	c := New(cfg, nopNotifier{})
 	if err := c.GroupExec(bus, internal.Request{Type: "torque", Group: key, On: true}); err != nil {

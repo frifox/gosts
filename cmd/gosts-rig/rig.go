@@ -672,26 +672,19 @@ func resetTurns(bus *gosts.Bus, id uint8) error {
 	if err != nil {
 		return err
 	}
-	zero, err := sv.Zero()
+	if on { // (calibrating while it holds could jump: let go a moment)
+		if err := sv.EnableTorque(false); err != nil {
+			return err
+		}
+	}
+	if err := sv.RestartTurns(); err != nil {
+		return err
+	}
+	at, err := sv.RestartedPosition() // (where it is in the new count: not always the reading, near its seam)
 	if err != nil {
 		return err
 	}
-	before, err := sv.Position()
-	if err != nil {
-		return err
-	}
-	calErr := sv.CalibrateMiddle()
-	if err := sv.SetZero(zero); err != nil { // the zero back, whatever happened
-		return errors.Join(calErr, fmt.Errorf("putting servo %d's zero back (%d): %w", id, zero, err))
-	}
-	if calErr != nil {
-		return calErr
-	}
-	now, err := sv.Position()
-	if err != nil {
-		return err
-	}
-	if err := sv.SetGoal(now); err != nil { // its goal where it is (that switches torque on)
+	if err := sv.SetGoal(at); err != nil { // its goal where it is (that switches torque on)
 		return err
 	}
 	if !on {
@@ -699,14 +692,8 @@ func resetTurns(bus *gosts.Bus, id uint8) error {
 			return err
 		}
 	}
-	if z, err := sv.Zero(); err != nil || z != zero {
-		return fmt.Errorf("servo %d's zero is %d after the reset, not %d (%v)", id, z, zero, err)
-	}
-	if d := gosts.CircularDiff(now, before); d < -3 || d > 3 {
-		return fmt.Errorf("servo %d moved %d steps in the reset", id, d)
-	}
-	if at, err := sv.AbsolutePosition(); err != nil || at < -gosts.StepsPerRev || at > 2*gosts.StepsPerRev {
-		return fmt.Errorf("servo %d's count is %d after the reset (%v)", id, at, err)
+	if got, err := sv.AbsolutePosition(); err != nil || got != at {
+		return fmt.Errorf("servo %d's count is %d after the reset, want %d (%v)", id, got, at, err)
 	}
 	return nil
 }
@@ -905,13 +892,11 @@ func (r *rig) knowTurns(bus *gosts.Bus, release bool, ids ...uint8) error {
 	if len(lock) == 0 {
 		return nil
 	}
+	lock = ids // (all of them, held together: the elevation pair on one swing, one not left to hold it alone)
 	r.logf("info", "servo %s: turn count unknown (turned by hand with torque off?): learning it (held a moment where it is%s)", strings.Join(unknown, ", "), map[bool]string{true: ", then let go", false: ""}[release])
 	defer r.torqueStale.Store(true) // (the page's switches: on)
-	for _, id := range lock {
-		if err := resetTurns(bus, id); err != nil {
-			return fmt.Errorf("learning servo %d's turn count: %w", id, err)
-		}
-	}
+	// (Torque Lock, checked: Hold restarts each one's count where it is and
+	// holds there, in it)
 	if err := holdChecked(bus, lock); err != nil {
 		return fmt.Errorf("learning the turn count: %w", err)
 	}
@@ -1110,9 +1095,23 @@ func (r *rig) pollLoop(ctx context.Context) {
 				if _, err := bus.Servo(id).AbsolutePosition(); !errors.Is(err, gosts.ErrTurnUnknown) {
 					continue
 				}
-				if err := r.knowTurns(bus, true, id); err != nil {
+				// (one of the elevation pair: both, together, if its partner's
+				// let go too: one holding the swing alone would strain)
+				learn := []uint8{id}
+				if pair := []uint8{ro.ElevationLeader, ro.ElevationFollower}; slices.Contains(pair, id) {
+					other := pair[0]
+					if other == id {
+						other = pair[1]
+					}
+					if slices.Contains(asked, other) && !torque[other] {
+						learn = append(learn, other)
+					}
+				}
+				if err := r.knowTurns(bus, true, learn...); err != nil {
 					r.logf("error", "servo %d: %v", id, err)
-					retry[id] = now.Add(learnRetry)
+					for _, l := range learn {
+						retry[l] = now.Add(learnRetry)
+					}
 				}
 			}
 			return nil

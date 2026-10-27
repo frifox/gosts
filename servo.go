@@ -189,7 +189,7 @@ func (s *Servo) Feedback() (Feedback, error) {
 // Position returns the present position in steps.
 func (s *Servo) Position() (int, error) {
 	v, err := s.Read(RegPresentPosition)
-	return mirrorPos(s.Mirrored(), v), err
+	return mirrorReading(s.Mirrored(), v), err
 }
 
 // Speed returns the present speed in step/s.
@@ -782,7 +782,8 @@ func CircularDiff(a, b int) int {
 //
 // With torque off neither source is reliable: the goal may be stale (seen on
 // hardware: a 4011 goal left from earlier made a move to 0° spin a full turn)
-// and the reported position lacks the turn. If both agree that is the
+// and the reported position lacks the turn. If the goal's count agrees with
+// where a restarted count would put it (RestartedPosition) that is the
 // answer; otherwise ErrTurnUnknown is returned rather than a guess that could
 // send the servo a whole turn. In single-turn mode it is just Position.
 func (s *Servo) AbsolutePosition() (int, error) {
@@ -804,17 +805,27 @@ func (s *Servo) AbsolutePosition() (int, error) {
 	}
 	goal = mirrorPos(s.Mirrored(), goal)
 	fromGoal := goal + CircularDiff(cur, goal)
-	if !holding && fromGoal != cur {
-		return 0, fmt.Errorf("%w (servo %d: torque is off and its goal %d is a turn away from the reading %d)", ErrTurnUnknown, s.id, goal, cur)
+	if !holding {
+		// Torque off: the goal's count holds if the count hasn't restarted
+		// since (a power cycle: then it's where RestartedPosition says).
+		// The two agreeing, it's known; a turn apart, it isn't. (Not the
+		// reading: near the seam that's a turn off a count that's fine.)
+		restarted, err := s.RestartedPosition()
+		if err != nil {
+			return 0, err
+		}
+		if fromGoal != restarted {
+			return 0, fmt.Errorf("%w (servo %d: torque is off and its goal %d is a turn away from where a restarted count would put it, %d)", ErrTurnUnknown, s.id, goal, restarted)
+		}
 	}
 	return fromGoal, nil
 }
 
 // ErrTurnUnknown is returned in multi-turn mode when the servo's turn count
 // can't be determined (torque off with a stale goal). Moving then could take
-// the servo a whole turn the wrong way. Turn torque on where the servo is
-// (EnableTorque holds the goal, so write a goal first only if it is known),
-// or switch multi-turn off and on to start counting from the reading.
+// the servo a whole turn the wrong way. Hold restarts the count
+// (RestartTurns) and holds the servo where it is; toggling multi-turn off and
+// on does not restart it.
 var ErrTurnUnknown = errors.New("gosts: turn count unknown")
 
 // ShortestGoal returns the goal that reaches the angle of pos (taken modulo
@@ -902,32 +913,113 @@ func (s *Servo) Stop() error {
 // Hold switches the torque on with the servo holding where it is. Torque on
 // by itself drives the servo to its goal register, which is stale if the
 // servo was moved by hand meanwhile, or rezeroed (a new offset with torque
-// off leaves the goal in the old frame): the arm would jump. In multi-turn
-// mode the servo's own turn count can't be read either, so a goal worked out
-// from the stale one can be a whole turn off. Hold therefore restarts the
-// turn count first (multi-turn off and on: the servo counts from its reading
-// again), then holds the reading. The angle limits are rewritten (EEPROM).
+// off leaves the goal in the old frame): the arm would jump.
+//
+// In multi-turn mode the goal is also measured in the servo's own turn
+// count, which the reading (0..4095, wrapping every turn) doesn't show: a
+// servo just past its 0/4095 seam reads 5 while its count may say 4101, or
+// read 4090 with a count of -6. A goal of the reading would then be a whole
+// turn away, and the servo spins (or, in a pair on one frame, fights its
+// partner). So with torque off Hold restarts the count where the servo is
+// first (RestartTurns), then holds where that puts it (RestartedPosition:
+// not always the reading); already holding, its count is known (its goal's), and it holds
+// where it is in it. Switching multi-turn off and on doesn't restart the
+// count (seen on an ST3215).
 func (s *Servo) Hold() error {
 	lo, hi, err := s.AngleLimits()
 	if err != nil {
 		return err
 	}
-	if lo == 0 && hi == 0 { // multi-turn: count from the reading
-		if err := s.SetMultiTurn(false); err != nil {
+	if lo == 0 && hi == 0 { // multi-turn
+		on, err := s.TorqueEnabled()
+		if err != nil {
 			return err
 		}
-		if err := s.SetMultiTurn(true); err != nil {
+		if on { // (holding: where it is in its count, from its goal)
+			at, err := s.AbsolutePosition()
+			if err != nil {
+				return err
+			}
+			return s.SetGoal(at)
+		}
+		if err := s.RestartTurns(); err != nil {
 			return err
 		}
+		at, err := s.RestartedPosition()
+		if err != nil {
+			return err
+		}
+		if err := s.SetGoal(at); err != nil { // (that switches torque on)
+			return err
+		}
+		return s.EnableTorque(true)
 	}
-	cur, err := s.Position()
+	// Single-turn: the reading as it's read (physical: no mirroring to
+	// round a seam position to a turn away), as the goal.
+	raw, err := s.Read(RegPresentPosition)
 	if err != nil {
 		return err
 	}
-	if _, err := s.bus.Write(s.id, RegGoalPosition.Addr, mustEncode(RegGoalPosition, mirrorPos(s.Mirrored(), cur))); err != nil {
+	if _, err := s.bus.Write(s.id, RegGoalPosition.Addr, mustEncode(RegGoalPosition, raw)); err != nil {
 		return err
 	}
 	return s.EnableTorque(true)
+}
+
+// RestartedPosition is where a multi-turn servo is in its turn count right
+// after the count restarted (RestartTurns, or a power-up), in the same
+// coordinates as goals. The count then follows the encoder (0..4095) less
+// the PositionOffset, so it's the reading only if that doesn't wrap: with 0°
+// set just ahead of the servo (its 0/4095 seam there) it reads 4090 while
+// its count is -6, and a goal of 4090 would be a whole turn away.
+func (s *Servo) RestartedPosition() (int, error) {
+	raw, err := s.Read(RegPresentPosition) // physical, 0..4095
+	if err != nil {
+		return 0, err
+	}
+	off, err := s.Read(RegPositionOffset) // physical
+	if err != nil {
+		return 0, err
+	}
+	enc := ((raw+off)%StepsPerRev + StepsPerRev) % StepsPerRev
+	return mirrorPos(s.Mirrored(), enc-off), nil
+}
+
+// RestartTurns starts a multi-turn servo's turn count afresh where it is,
+// without moving it: its count then follows the encoder (see
+// RestartedPosition). The servo's
+// own calibrate-middle does it (seen on an ST3215: a power cycle aside,
+// it's the only thing that does), which also moves its zero; the zero is
+// put back right after. Checked: the zero as it was, the reading the same.
+// PositionOffset is written (EEPROM). With torque off (calibrating while it
+// holds could jump).
+func (s *Servo) RestartTurns() error {
+	zero, err := s.Zero()
+	if err != nil {
+		return err
+	}
+	before, err := s.Position()
+	if err != nil {
+		return err
+	}
+	calErr := s.CalibrateMiddle()
+	if err := s.SetZero(zero); err != nil { // the zero back, whatever happened
+		return errors.Join(calErr, fmt.Errorf("gosts: servo %d: putting its zero back (%d): %w", s.id, zero, err))
+	}
+	if calErr != nil {
+		return calErr
+	}
+	if z, err := s.Zero(); err != nil || z != zero {
+		return fmt.Errorf("gosts: servo %d: its zero is %d after restarting its count, not %d (%v)", s.id, z, zero, err)
+	}
+	now, err := s.Position()
+	if err != nil {
+		return err
+	}
+	if d := CircularDiff(now, before); d < -3 || d > 3 {
+		return fmt.Errorf("gosts: servo %d: its reading moved %d steps restarting its count", s.id, d)
+	}
+	return nil
 }
 
 // SetWheelSpeed sets the rotation speed in ModeWheel (step/s, sign = direction,

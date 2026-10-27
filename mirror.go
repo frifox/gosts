@@ -72,6 +72,16 @@ func mirrorPos(on bool, pos int) int {
 	return pos
 }
 
+// mirrorReading converts a present-position reading (0..4095: it wraps
+// every turn, in multi-turn mode too): mirrored, physical 0 is logical 0,
+// not 4096 (the reflection of the seam is the seam).
+func mirrorReading(on bool, pos int) int {
+	if on {
+		return (2*CenterPosition - pos) % StepsPerRev
+	}
+	return pos
+}
+
 // mirrorSign flips a signed quantity (speed, load, current, duty, steps).
 func mirrorSign[T int | float64](on bool, v T) T {
 	if on {
@@ -94,7 +104,7 @@ func (f Feedback) mirrored(on bool) Feedback {
 	if !on {
 		return f
 	}
-	f.Position = mirrorPos(true, f.Position)
+	f.Position = mirrorReading(true, f.Position)
 	f.Speed = -f.Speed
 	f.Load = -f.Load
 	f.Current = -f.Current
