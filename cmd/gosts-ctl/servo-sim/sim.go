@@ -239,6 +239,11 @@ func (s *simServo) write(params []byte) {
 		return
 	}
 	copy(s.mem[addr:], data)
+	// A new offset: the count is the new reading, 0..4095 (one of the ways
+	// the real ST3215 has it; always so after calibrate-middle).
+	if addr <= 31 && addr+len(data) >= 33 {
+		s.pos -= 4096 * math.Floor(float64(s.reported())/4096)
+	}
 	// Like the real ST3215, a new goal position switches torque on.
 	if addr <= 42 && addr+len(data) >= 44 {
 		s.mem[40] = 1

@@ -559,10 +559,15 @@ func (s *Servo) SetPositionAs(pos int) error {
 }
 
 // shiftOffset adds delta (physical steps) to PositionOffset, so physical
-// readings drop by delta. If the servo is holding torque, its goal moves by
-// the same amount so it stays put. With torque off the goal is left alone:
-// writing a goal switches torque on (seen on hardware), which would drive
-// the arm to a stale goal.
+// readings drop by delta. If the servo is holding torque it stays put. With
+// torque off the goal is left alone: writing a goal switches torque on (seen
+// on hardware), which would drive the arm to a stale goal.
+//
+// In multi-turn mode a new offset moves the turn count in no way to rely on
+// (seen on an ST3215: to the new reading, a turn off it, or further), so the
+// count is restarted right after (RestartTurns: the count is the reading),
+// and a servo that was holding holds again there, let go only that moment.
+// A stale goal is then turns from the count: AbsolutePosition says so.
 func (s *Servo) shiftOffset(delta int) error {
 	off, err := s.Read(RegPositionOffset)
 	if err != nil {
@@ -584,11 +589,32 @@ func (s *Servo) shiftOffset(delta int) error {
 	if newOff == -StepsPerRev/2 {
 		newOff = StepsPerRev/2 - 1 // -2048 isn't representable; one step off
 	}
-	applied := newOff - off
-	newGoal := goal - applied
-	if lo != 0 || hi != 0 { // single-turn goals live within one turn
-		newGoal = (newGoal%StepsPerRev + StepsPerRev) % StepsPerRev
+	if lo == 0 && hi == 0 { // multi-turn
+		if holding {
+			if err := s.EnableTorque(false); err != nil {
+				return err
+			}
+		}
+		if err := s.Write(RegPositionOffset, newOff); err != nil {
+			return err
+		}
+		if err := s.RestartTurns(); err != nil {
+			return err
+		}
+		if !holding {
+			return nil
+		}
+		at, err := s.RestartedPosition()
+		if err != nil {
+			return err
+		}
+		if err := s.SetGoal(at); err != nil { // (that switches torque on)
+			return err
+		}
+		return s.EnableTorque(true)
 	}
+	applied := newOff - off
+	newGoal := ((goal-applied)%StepsPerRev + StepsPerRev) % StepsPerRev // single-turn goals live within one turn
 	if err := s.Write(RegPositionOffset, newOff); err != nil {
 		return err
 	}
@@ -922,8 +948,8 @@ func (s *Servo) Stop() error {
 // turn away, and the servo spins (or, in a pair on one frame, fights its
 // partner). So with torque off Hold restarts the count where the servo is
 // first (RestartTurns), then holds where that puts it (RestartedPosition:
-// not always the reading); already holding, its count is known (its goal's), and it holds
-// where it is in it. Switching multi-turn off and on doesn't restart the
+// the reading); already holding, its count is known (its goal's), and it
+// holds where it is in it. Switching multi-turn off and on doesn't restart the
 // count (seen on an ST3215).
 func (s *Servo) Hold() error {
 	lo, hi, err := s.AngleLimits()
@@ -973,33 +999,28 @@ const restartSlack = 20
 
 // RestartedPosition is where a multi-turn servo is in its turn count right
 // after the count restarted (RestartTurns, or a power-up), in the same
-// coordinates as goals. The count then follows the encoder (0..4095) less
-// the PositionOffset, so it's the reading only if that doesn't wrap: with 0°
-// set just ahead of the servo (its 0/4095 seam there) it reads 4090 while
-// its count is -6, and a goal of 4090 would be a whole turn away.
+// coordinates as goals: the reading itself, 0..4095 physical, whatever the
+// PositionOffset (seen on an ST3215, both signs of offset, either side of
+// its seam). Mirrored, a reading of 0 is a count of 4096 logical: physical 0.
 func (s *Servo) RestartedPosition() (int, error) {
 	raw, err := s.Read(RegPresentPosition) // physical, 0..4095
 	if err != nil {
 		return 0, err
 	}
-	off, err := s.Read(RegPositionOffset) // physical
-	if err != nil {
-		return 0, err
-	}
-	enc := ((raw+off)%StepsPerRev + StepsPerRev) % StepsPerRev
-	return mirrorPos(s.Mirrored(), enc-off), nil
+	return mirrorPos(s.Mirrored(), raw), nil
 }
 
 // RestartTurns starts a multi-turn servo's turn count afresh where it is,
-// without moving it: its count then follows the encoder (see
-// RestartedPosition). The servo's
-// own calibrate-middle does it (seen on an ST3215: a power cycle aside,
-// it's the only thing that does), which also moves its zero; the zero is
-// put back right after. Checked: the zero as it was, the reading the same.
-// PositionOffset is written (EEPROM). With torque off (calibrating while it
-// holds could jump).
+// without moving it: its count is then its reading (see RestartedPosition).
+// The servo's own calibrate-middle does it (seen on an ST3215: a power
+// cycle aside, it's the only thing that does: the count reads 2048), which
+// also moves its zero; the zero is put back right after, the count then
+// following the reading (seen: 0..4095, never a turn off, as it's never more
+// than half a turn from 2048). Checked: the zero as it was, the reading the
+// same. PositionOffset is written (EEPROM). With torque off (calibrating
+// while it holds could jump).
 func (s *Servo) RestartTurns() error {
-	zero, err := s.Zero()
+	off, err := s.Read(RegPositionOffset)
 	if err != nil {
 		return err
 	}
@@ -1008,14 +1029,14 @@ func (s *Servo) RestartTurns() error {
 		return err
 	}
 	calErr := s.CalibrateMiddle()
-	if err := s.SetZero(zero); err != nil { // the zero back, whatever happened
-		return errors.Join(calErr, fmt.Errorf("gosts: servo %d: putting its zero back (%d): %w", s.id, zero, err))
+	if err := s.Write(RegPositionOffset, off); err != nil { // the zero back, whatever happened
+		return errors.Join(calErr, fmt.Errorf("gosts: servo %d: putting its zero back (offset %d): %w", s.id, off, err))
 	}
 	if calErr != nil {
 		return calErr
 	}
-	if z, err := s.Zero(); err != nil || z != zero {
-		return fmt.Errorf("gosts: servo %d: its zero is %d after restarting its count, not %d (%v)", s.id, z, zero, err)
+	if o, err := s.Read(RegPositionOffset); err != nil || o != off {
+		return fmt.Errorf("gosts: servo %d: its offset is %d after restarting its count, not %d (%v)", s.id, o, off, err)
 	}
 	now, err := s.Position()
 	if err != nil {

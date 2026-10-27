@@ -680,7 +680,7 @@ func resetTurns(bus *gosts.Bus, id uint8) error {
 	if err := sv.RestartTurns(); err != nil {
 		return err
 	}
-	at, err := sv.RestartedPosition() // (where it is in the new count: not always the reading, near its seam)
+	at, err := sv.RestartedPosition() // (where it is in the new count: the reading, physical)
 	if err != nil {
 		return err
 	}

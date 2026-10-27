@@ -102,6 +102,13 @@ func seamCase(t *testing.T, nudge, turns int, holdOn, move bool) {
 	if !move {
 		return
 	}
+	held := map[uint8]int{} // (each one's count, holding: the moves go from it, never a turn off)
+	r.withBus(func(bus *gosts.Bus) error {
+		for _, id := range []uint8{lead, fol} {
+			held[id], _ = bus.Servo(id).AbsolutePosition()
+		}
+		return nil
+	})
 	for _, e := range []float64{5, -5, 0} {
 		e := e
 		if err := r.moveTo(&e, nil); err != nil {
@@ -122,7 +129,8 @@ func seamCase(t *testing.T, nudge, turns int, holdOn, move bool) {
 		r.withBus(func(bus *gosts.Bus) error {
 			for _, id := range []uint8{lead, fol} {
 				at, err := bus.Servo(id).AbsolutePosition()
-				want := int(math.Round(e * stepsPerDegree)) // (its count: signed, near 0)
+				// (its count: as held, plus the move from there to e)
+				want := held[id] - gosts.CircularDiff(held[id], 0) + int(math.Round(e*stepsPerDegree))
 				if err != nil || abs(at-want) > 8 {
 					t.Errorf("move to %.0f°: #%d's count at %d (%v), want about %d", e, id, at, err, want)
 				}
