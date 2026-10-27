@@ -260,8 +260,14 @@ type SyncReadResult struct {
 }
 
 // SyncRead reads n bytes from addr on several servos with a single request.
-// Servos answer in the order given. The returned error is non-nil only for
-// bus-level failures; per-servo failures are reported in SyncReadResult.Err.
+// The servos are asked to answer in the order given, but their replies are
+// taken in whatever order they come. A servo whose reply doesn't come, or
+// comes garbled, is asked again on its own (one READ, no retries): servos of
+// other firmware answer SYNC READ at a fixed delay by their place in the
+// list instead of waiting for the one before them (seen: a Feetech ST3215,
+// firmware 3.10, beside Waveshare ones), so on a mixed bus replies can land
+// on each other. The returned error is non-nil only for bus-level failures;
+// per-servo failures are reported in SyncReadResult.Err.
 func (b *Bus) SyncRead(addr uint8, n int, ids []uint8) (map[uint8]SyncReadResult, error) {
 	params := append([]byte{addr, byte(n)}, ids...)
 	b.mu.Lock()
@@ -270,8 +276,49 @@ func (b *Bus) SyncRead(addr uint8, n int, ids []uint8) (map[uint8]SyncReadResult
 		return nil, err
 	}
 	out := make(map[uint8]SyncReadResult, len(ids))
+	want := make(map[uint8]bool, len(ids))
 	for _, id := range ids {
-		r, err := b.recv(id, n)
+		want[id] = true
+	}
+	// The replies, in any order, till all are in or the time's up (a
+	// servo's timeout for all of them: they come within a millisecond or so).
+	deadline := time.Now().Add(b.timeout)
+	for len(out) < len(want) {
+		for {
+			r, used, ok := parseReply(b.rx)
+			b.rx = b.rx[:copy(b.rx, b.rx[used:])]
+			if !ok {
+				break
+			}
+			if want[r.ID] && len(r.Params) == n {
+				if _, dup := out[r.ID]; !dup {
+					if r.Status != 0 && b.onStatus != nil {
+						b.onStatus(r.ID, r.Status)
+					}
+					out[r.ID] = SyncReadResult{Data: r.Params, Status: r.Status}
+				}
+			}
+		}
+		if len(out) == len(want) || time.Now().After(deadline) {
+			break
+		}
+		k, err := b.port.Read(b.tmp)
+		if err != nil {
+			return nil, fmt.Errorf("gosts: read: %w", err)
+		}
+		b.rx = append(b.rx, b.tmp[:k]...)
+	}
+	// The ones missing: each asked on its own.
+	b.rx = b.rx[:0] // (what's left: garbled, or late)
+	for _, id := range ids {
+		if _, ok := out[id]; ok {
+			continue
+		}
+		var r reply
+		err := b.send(id, InstRead, []byte{addr, byte(n)})
+		if err == nil {
+			r, err = b.recv(id, n)
+		}
 		if err != nil {
 			out[id] = SyncReadResult{Err: fmt.Errorf("gosts: servo %d: %w", id, err)}
 			continue

@@ -1035,15 +1035,25 @@ func (r *rig) pollLoop(ctx context.Context) {
 		r.mu.Lock()
 		connected, scanning := r.port != "", r.scanning
 		tg := r.target
+		found := slices.Clone(r.found)
 		r.mu.Unlock()
 		if !connected || scanning {
 			continue
 		}
 		roles := map[uint8]string{ro.ElevationLeader: "elevation", ro.ElevationFollower: "elevation", ro.Azimuth: "azimuth"}
 		ids := []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth}
+		var asked []uint8 // (those found: one that isn't, not asked each time)
+		for _, id := range ids {
+			if slices.Contains(found, id) {
+				asked = append(asked, id)
+			}
+		}
 		msg := telemetry{Type: "telemetry", Time: time.Now().UnixMilli(), Servos: map[string]servoStatus{}}
 		_ = r.withBus(func(bus *gosts.Bus) error {
-			res, _ := bus.SyncFeedback(ids...)
+			res := map[uint8]gosts.FeedbackResult{}
+			if len(asked) > 0 {
+				res, _ = bus.SyncFeedback(asked...)
+			}
 			if n%10 == 0 || r.torqueStale.Swap(false) { // torque switch once a second (not part of the feedback), or just changed
 				for _, id := range ids {
 					if on, err := bus.Servo(id).TorqueEnabled(); err == nil {
@@ -1055,6 +1065,8 @@ func (r *rig) pollLoop(ctx context.Context) {
 				f, ok := res[id]
 				st := servoStatus{Role: roles[id], Torque: torque[id]}
 				switch {
+				case !ok && !slices.Contains(found, id):
+					st.Error = "not found on the bus"
 				case !ok:
 					st.Error = "no reply"
 				case f.Err != nil:

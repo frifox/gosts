@@ -42,6 +42,11 @@ type fakePort struct {
 	timeout time.Duration
 	garbage []byte // prepended to the next reply (noise test)
 	corrupt int    // corrupt the checksum of the next n replies
+	// SYNC READ as a mixed bus answers it: the replies in reverse order (a
+	// servo answering at a fixed delay ahead of the one before it), and
+	// those of syncClash garbled (two replies on the wire at once).
+	syncReversed bool
+	syncClash    map[uint8]bool
 }
 
 func newFakePort(ids ...uint8) *fakePort {
@@ -154,9 +159,18 @@ func (p *fakePort) handle(pkt []byte) {
 	}
 	if inst == InstSyncRead {
 		addr, n := int(params[0]), int(params[1])
-		for _, want := range params[2:] {
+		order := append([]byte(nil), params[2:]...)
+		if p.syncReversed {
+			for i, j := 0, len(order)-1; i < j; i, j = i+1, j-1 {
+				order[i], order[j] = order[j], order[i]
+			}
+		}
+		for _, want := range order {
 			for _, s := range p.servos {
 				if s.mem[RegID.Addr] == want {
+					if p.syncClash[want] {
+						p.corrupt++
+					}
 					p.reply(s, append([]byte(nil), s.mem[addr:addr+n]...))
 				}
 			}

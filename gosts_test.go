@@ -635,3 +635,47 @@ func TestAbsolutePositionTorqueOff(t *testing.T) {
 		}
 	}
 }
+
+// SYNC READ on a mixed bus (seen: a Feetech ST3215 beside Waveshare ones):
+// replies out of order are taken all the same, and a garbled or missing one
+// is read again on its own; a servo that isn't there still says so.
+func TestSyncReadMixedBus(t *testing.T) {
+	b, p := newTestBus(t, 10, 11, 12)
+	for id, pos := range map[uint8]int{10: 100, 11: 200, 12: 300} {
+		putU16(p.servos[id].mem[RegPresentPosition.Addr:], uint16(pos))
+	}
+	check := func(name string, ids ...uint8) map[uint8]SyncReadResult {
+		res, err := b.SyncRead(RegPresentPosition.Addr, 2, ids)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		return res
+	}
+	pos := func(r SyncReadResult) int { return int(getU16(r.Data)) }
+
+	p.syncReversed = true // (12 answering ahead of 10 and 11)
+	res := check("out of order", 10, 11, 12)
+	for id, want := range map[uint8]int{10: 100, 11: 200, 12: 300} {
+		if res[id].Err != nil || pos(res[id]) != want {
+			t.Errorf("out of order: #%d %v %d, want %d", id, res[id].Err, pos(res[id]), want)
+		}
+	}
+
+	p.syncReversed = false
+	p.syncClash = map[uint8]bool{11: true, 12: true} // (their replies on top of each other)
+	res = check("clashing", 10, 11, 12)
+	for id, want := range map[uint8]int{10: 100, 11: 200, 12: 300} {
+		if res[id].Err != nil || pos(res[id]) != want {
+			t.Errorf("clashing: #%d %v %d, want %d (read again on its own)", id, res[id].Err, pos(res[id]), want)
+		}
+	}
+
+	p.syncClash = nil
+	res = check("one not there", 10, 13, 12)
+	if res[13].Err == nil {
+		t.Error("#13 isn't there: no error")
+	}
+	if res[10].Err != nil || res[12].Err != nil || pos(res[12]) != 300 {
+		t.Errorf("the others: %v, %v", res[10].Err, res[12].Err)
+	}
+}
