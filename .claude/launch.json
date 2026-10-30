@@ -29,6 +29,17 @@
       "port": 8082
     },
     {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "cmd/gosts-rig/devserver",
+        "run",
+        "dev"
+      ],
+      "port": 5173
+    },
+    {
       "name": "make install",
       "runtimeExecutable": "sh",
       "runtimeArgs": [

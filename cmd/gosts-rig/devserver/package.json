@@ -1,0 +1,9 @@
+{
+  "name": "gosts-rig-devserver",
+  "private": true,
+  "description": "gosts-rig's page from web/ on disk (reloaded on a save), the rest from a running gosts-rig",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs"
+  }
+}
