@@ -49,6 +49,8 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .card > h2 .dev-name { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--muted); opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .card > h2 .btn.small { margin-block: -3px; } /* buttons in a title don't make it taller */
 .card > h2 .hdr-btn { text-transform: none; letter-spacing: 0; }
+/* The Photos card's title: the capture's path, as Browse's (root, its folders, it; ✎). */
+.card > h2 .crumbs { text-transform: none; letter-spacing: 0; color: var(--text); }
 .card.collapsed > h2 { border-bottom: 0; }
 .card.collapsed > .card-body { display: none; }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
@@ -1086,9 +1088,7 @@ kbd + kbd { margin-left: 3px; }
 
   <div class="right">
   <section class="card" id="cameraCard">
-    <h2>Photos
-      <span class="dev-name" id="batchName" title="The capture the photos and sample shots go to: its folder"></span>
-      <button class="icon-btn pen-btn" id="batchRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button>
+    <h2><nav class="crumbs" id="batchCrumbs"><span class="btn-join"><button class="btn small crumb-home" id="batchHome" data-tip="~/Pictures/gosts-rig" aria-label="All captures"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 7.5L8 2.8l5.5 4.7"/><path d="M4 6.5V13h3V9.5h2V13h3V6.5"/></svg>root</button><button class="btn small crumb-btn" id="batchName" title="The capture the photos and sample shots go to: its folder" hidden></button></span><button class="icon-btn pen-btn" id="batchRename" title="Rename this capture (its folder)" aria-label="Rename this capture" hidden></button></nav>
       <span class="spacer"></span>
       <button class="btn small" id="resetPhotosBtn" title="Start a new capture: a new folder for the photos from now on, and the timeline cleared (asks first; the photos taken stay saved)" style="text-transform:none;letter-spacing:0">New Capture</button>
       <button class="btn small" id="viewAllBtn" title="All the photos, large" style="text-transform:none;letter-spacing:0" disabled>Gallery</button>
@@ -1596,9 +1596,9 @@ function onMessage(m) {
     case "flashMeasure": onFlashMeasure(m); break;
     case "model": onModel(m); break; // a model being built (Browse → Build Model)
     case "batch": // the capture's name (its folder), and whether it's empty
-      $("batchName").textContent = m.name || ""; $("batchRename").hidden = !m.name;
+      batchCrumbs(m.name || "");
       state.batchEmpty = !!m.empty;
-      if (m.dir) { state.photoDir = m.dir; for (const e of document.querySelectorAll(".photo-dir")) e.textContent = m.dir; $("galleryUp").dataset.tip = $("mvHome").dataset.tip = $("viewerHome").dataset.tip = m.dir; $("batchName").title = `The capture the photos and sample shots go to: its folder in ${m.dir}`; }
+      if (m.dir) { state.photoDir = m.dir; for (const e of document.querySelectorAll(".photo-dir")) e.textContent = m.dir; $("galleryUp").dataset.tip = $("batchHome").dataset.tip = $("mvHome").dataset.tip = $("viewerHome").dataset.tip = m.dir; $("batchName").title = `The capture the photos and sample shots go to: its folder in ${m.dir}`; }
       cameraButtons();
       break;
     case "simShoot": simShoot(m.n, m.exposure, m.settings, m.blur); break;
@@ -1908,9 +1908,31 @@ const moveIcon = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" str
 const pencilIcon = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2.5l2.5 2.5L5.5 13H3v-2.5z"/><path d="M9.5 4l2.5 2.5"/></svg>';
 $("batchRename").innerHTML = $("galleryRename").innerHTML = $("mvRename").innerHTML = pencilIcon;
 $("mvRename").onclick = () => { if (state.mv) renameModel(state.mv.name, state.mv.m); };
-$("batchRename").onclick = () => { const n = $("batchName").textContent; if (n) renameCapture(n); };
+$("batchRename").onclick = () => { const n = capName(); if (n) renameCapture(n); };
+// The current capture: its name (its folder, in the photos' folder; "" none).
+const capName = () => $("batchName").dataset.name || "";
+// batchCrumbs: the Photos card's title, the current capture's path (as
+// Browse's): root, each folder it's in, it, each a button to it there.
+function batchCrumbs(name) {
+  for (const b of document.querySelectorAll("#batchHome ~ .crumb-anc")) b.remove();
+  const n = $("batchName"), parts = name.split("/");
+  n.dataset.name = name;
+  n.textContent = parts[parts.length - 1];
+  n.hidden = $("batchRename").hidden = !name;
+  if (!name) return;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const p = parts.slice(0, i + 1).join("/"), b = document.createElement("button");
+    b.className = "btn small crumb-btn crumb-anc";
+    b.textContent = parts[i];
+    b.title = `${p} in Browse`;
+    b.onclick = () => openGallery(p);
+    n.before(b);
+  }
+}
+$("batchHome").onclick = () => openGallery(null);
+$("batchName").onclick = () => openGallery("current");
 // The folder open in the gallery: its name (the batch being taken: the current capture's).
-const galleryFolder = () => state.gal.where === "current" ? $("batchName").textContent : state.gal.where;
+const galleryFolder = () => state.gal.where === "current" ? capName() : state.gal.where;
 $("galleryRename").onclick = () => { const n = galleryFolder(); if (n) renameCapture(n); };
 // folderTile: a capture's tile; a click opens it; ✎ (on hover) renames its
 // folder (one on disk: rename).
@@ -3598,7 +3620,7 @@ $("hdrBuilding").onclick = async () => {
   if (!$("modelViewer").hidden) closeModel();
   if (!$("viewer").hidden) closePhoto();
   $("gallery").hidden = false;
-  await galleryGo(f === $("batchName").textContent ? "current" : f);
+  await galleryGo(f === capName() ? "current" : f);
   if ($("modelPanel").hidden) modelPanel(true);
 };
 function hdrBuilding() {
@@ -3722,7 +3744,7 @@ function viewerSrc(src) {
 function viewerButtons() {
   const gallery = !$("gallery").hidden, d = state.disk;
   $("viewerHome").hidden = $("viewerBack").hidden = false; // (a sample's view hides them)
-  $("viewerBack").textContent = d ? d.name : galleryFolder() || $("batchName").textContent || "Capture";
+  $("viewerBack").textContent = d ? d.name : galleryFolder() || capName() || "Capture";
   $("viewerNewer").hidden = $("viewerOlder").hidden = false; // (a sample's view hides them)
   $("viewerNewer").textContent = d ? "‹ Previous" : "‹ Newer";
   $("viewerOlder").textContent = d ? "Next ›" : "Older ›";
