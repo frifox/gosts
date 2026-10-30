@@ -139,19 +139,29 @@ var nudgeSettle = 300 * time.Millisecond
 
 // ---------------------------------------------------------------- simulator
 
-// The simulated lens: focus is a position, sharp at 0; it starts sharp
-// (simFocusStart: the defaults take perfect photos), a nudge moves it by its
-// steps (bigger steps further: 1, 2, 4…), and autofocus puts it near
-// (simAFLands: the camera's focus area isn't quite the part that matters, so
-// the Focus tool's Auto has something to do). Its photos blur with it.
-const simFocusStart, simAFLands = 0, 3
+// The simulated lens: focus is a position, sharp at 0, from simFocusNear
+// to simFocusFar (the range: about 15 steps of 4, a few of 7 cross it, as
+// the A6600's kit zoom has it); it starts sharp (simFocusStart: the defaults
+// take perfect photos), a nudge moves it by its steps (bigger steps further:
+// 1, 2, 4…), and autofocus puts it near (simAFLands: the camera's focus
+// area isn't quite the part that matters, so the Focus tool's Auto has
+// something to do), unless it's too blurred to see anything (further than
+// simAFSees: then it finds nothing, the lens left as it was). Its photos
+// blur with it.
+const simFocusStart, simAFLands, simAFSees = 0, 3, 30
+const simFocusNear, simFocusFar = -40, 80
 
 func (s *simCamera) Autofocus() (string, error) {
 	time.Sleep(600 * time.Millisecond) // finding it
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !s.focusSet {
+		s.focus, s.focusSet = simFocusStart, true
+	}
+	if abs(s.focus) > simAFSees {
+		return "No Focus - Low Contrast", nil
+	}
 	s.focus = simAFLands
-	s.focusSet = true
 	return "Focus Locked", nil
 }
 
@@ -168,7 +178,7 @@ func (s *simCamera) Nudge(steps int) error {
 	if steps < 0 {
 		d = -d
 	}
-	s.focus += d
+	s.focus = max(simFocusNear, min(simFocusFar, s.focus+d))
 	return nil
 }
 

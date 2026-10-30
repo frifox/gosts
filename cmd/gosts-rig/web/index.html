@@ -5540,6 +5540,7 @@ function openFocus(rect, far = null) {
   state.focusRect = rect;
   state.focusRect2 = far;
   state.focusSharp = [];
+  state.focusCoarse = [];
   state.focusSharp2 = [];
   $("focusAF").textContent = far ? "Focus between" : "Auto";
   $("focusAF").title = far ? "The app steps the lens through the near card's and the far card's sharpest, a sample each step, and leaves it where both are equally sharp (each against its own sharpest): the depth of field centered between them (a minute or so; click again to stop)" : $("focusAF").dataset.title || $("focusAF").title;
@@ -5599,19 +5600,37 @@ function drawFocus(fresh) {
     return;
   }
   const s = sharpness(img, sx, sy, sw, sh), list = state.focusSharp;
+  state.focusCoarse.push(coarseSharpness(img, sx, sy, sw, sh));
   list.push(s);
   const best = Math.max(...list), prev = list.at(-2);
   const trend = prev === undefined ? "" : s > prev * 1.03 ? " ▲ sharper" : s < prev * 0.97 ? " ▼ softer" : " = about the same";
-  $("focusStat").textContent = `${state.focusSaid ? state.focusSaid + " · " : ""}Sharpness ${s}${trend}${list.length > 1 ? ` · best ${best}` : ""}`;
+  $("focusStat").textContent = `${state.focusSaid ? state.focusSaid + " · " : ""}Sharpness ${fmtSharp(s)}${trend}${list.length > 1 ? ` · best ${fmtSharp(best)}` : ""}`;
 }
+// fmtSharp shows a sharpness: whole numbers, a decimal when it's small
+// (very blurred: 1.8 and 2.4 differ).
+const fmtSharp = (v) => (v >= 20 ? String(Math.round(v)) : v.toFixed(1));
 window.addEventListener("resize", () => drawFocus(false));
 // sharpness is how sharp a part of a picture is: the spread of its
 // Laplacian (edges), at the photo's own pixels (the middle 800×800 at most).
+// Not rounded: very blurred, it's 1.8 or 2.4, and that difference counts.
 function sharpness(img, x, y, w, h) {
   const n = 800, cw = Math.min(n, Math.round(w)), ch = Math.min(n, Math.round(h));
+  return laplacianSpread(img, x + (w - cw) / 2, y + (h - ch) / 2, cw, ch, cw, ch);
+}
+// coarseSharpness is sharpness on the whole part shrunk to about 150 px
+// across: blurred far past where the photo's own pixels show any edge (they
+// all say about 2), its broad shapes still get crisper towards focus.
+function coarseSharpness(img, x, y, w, h) {
+  const k = Math.max(1, Math.max(w, h) / 150);
+  return laplacianSpread(img, x, y, w, h, Math.max(8, Math.round(w / k)), Math.max(8, Math.round(h / k)));
+}
+// laplacianSpread: the spread of the Laplacian of the part (x, y, w, h) of
+// img, drawn at cw×ch.
+function laplacianSpread(img, x, y, w, h, cw, ch) {
   const c = document.createElement("canvas"); c.width = cw; c.height = ch;
   const ctx = c.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(img, x + (w - cw) / 2, y + (h - ch) / 2, cw, ch, 0, 0, cw, ch);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, x, y, w, h, 0, 0, cw, ch);
   const p = ctx.getImageData(0, 0, cw, ch).data;
   const g = (i, j) => { const q = (j * cw + i) * 4; return 0.3 * p[q] + 0.59 * p[q + 1] + 0.11 * p[q + 2]; };
   let s = 0, s2 = 0, m = 0;
@@ -5619,7 +5638,7 @@ function sharpness(img, x, y, w, h) {
     const l = 4 * g(i, j) - g(i - 1, j) - g(i + 1, j) - g(i, j - 1) - g(i, j + 1);
     s += l; s2 += l * l; m++;
   }
-  return m ? Math.round(s2 / m - (s / m) ** 2) : 0;
+  return m ? Math.round((s2 / m - (s / m) ** 2) * 1000) / 1000 : 0;
 }
 // focusAct runs a focus command, then takes a sample to see it by.
 async function focusAct(what, run) {
@@ -5647,14 +5666,29 @@ async function focusSample() {
 }
 // Auto: the app focuses on the part selected (contrast detection, as a
 // camera does, but on the part chosen). The camera's own autofocus gets it
-// close first (the A6600's: where its focus area says); then the lens is
-// stepped medium steps, then small ones, a sample taken after each and the
-// part's sharpness measured: on in one direction while it gets sharper,
-// one step back once it doesn't. Only small and medium steps: the big ones
-// don't come back to the same place. At the end, if it's softer than the
-// sharpest seen (the small steps are about the size of the noise), it goes
-// back there: the moves since, undone.
+// close first (the A6600's: where its focus area says).
+//
+// Too blurred for that (the camera finds nothing, or a medium step changes
+// nothing: far from focus everything is equally a blur), it searches the
+// lens's whole range first: to its nearest (the biggest steps: one crosses
+// all of it), then towards far in steps of WIDE_STEP (about 1/14 of the
+// range, seen on the A6600's kit zoom), a sample each, measured on the part
+// shrunk (coarseSharpness: blurred that far, the photo's own pixels show
+// nothing). It goes back to where the part was sharpest. If that's an end of
+// the range (the part nearer than the lens focuses, say), or the part
+// sharpens nowhere, the lens is left at the better end and it says so.
+//
+// Then it's stepped medium steps, then small ones, a sample after each: on
+// in one direction while it gets sharper, one step back once it doesn't,
+// each measured on the scale that shows the change (the photo's own pixels
+// near focus, the part shrunk further off). The big steps don't come back
+// to the same place: the search only finds where to go on from. At the end,
+// if it's softer than the sharpest seen (the small steps are about the size
+// of the noise), it goes back there: the moves since, undone.
 const AUTO_STEPS = [3, 1], AUTO_MAX = 8; // the steps (see Nudge), at most so many each way
+const WIDE_STEP = 4, WIDE_MAX = 20; // the search's steps, at most so many (the A6600's kit zoom: about 14 across)
+const END_STEP = 7, END_RUNS = 3; // to an end of the range: so many of the biggest step (one crosses it)
+const FLAT = 0.03; // a change this small (relative) is no change
 $("focusAF").dataset.title = $("focusAF").title;
 $("focusAF").onclick = async () => {
   if (state.focusAuto) { state.focusAuto.stop = true; $("focusAF").textContent = "Stopping…"; return; }
@@ -5666,37 +5700,83 @@ $("focusAF").onclick = async () => {
   focusControls();
   $("camConfigErr").textContent = "";
   const say = (t) => ($("focusStat").textContent = "Auto: " + t);
-  let shots = 0;
+  let shots = 0, note = null; // note: how the search ended, if at an end
   const stopped = () => run.stop;
-  const moves = []; // the moves made, each with the sharpness after it
-  let best = { s: -1, at: 0 }; // the sharpest, and how many moves in
+  let moves = []; // the moves made since the search, each with the sharpness after it
+  let trail = []; // {at: moves made, f: sharpness, c: coarse}
   const measure = async () => {
     shots++;
-    const v = await focusSample();
-    if (v > best.s) best = { s: v, at: moves.length };
-    return v;
+    const f = await focusSample();
+    const m = { at: moves.length, f, c: state.focusCoarse.at(-1) };
+    trail.push(m);
+    return m;
   };
   const move = (n) => { moves.push(n); return send("focusNudge", { n }); };
+  const rel = (a, b) => Math.abs(a - b) / Math.max(b, 1e-9);
+  const toEnd = async (dir) => { for (let i = 0; i < END_RUNS; i++) await send("focusNudge", { n: dir * END_STEP }); };
+  // search: the lens's whole range; true if it ended at an end (note says which).
+  const search = async () => {
+    moves = []; trail = []; // (on from where it ends)
+    say("searching the whole range: to the nearest…");
+    await toEnd(-1);
+    const pts = [await measure()];
+    for (let i = 1; i <= WIDE_MAX && !stopped(); i++) {
+      say(`searching the whole range, towards far (${i})…`);
+      await send("focusNudge", { n: WIDE_STEP });
+      pts.push(await measure());
+      const lo = Math.min(...pts.map((p) => p.c)), bi = pts.reduce((b, p, j) => (p.c > pts[b].c ? j : b), 0);
+      if (pts[bi].c > 1.3 * lo && pts.at(-1).c < 0.5 * pts[bi].c && i - bi >= 2) break; // well past the sharpest
+    }
+    if (stopped()) return true;
+    const lo = Math.min(...pts.map((p) => p.c)), bi = pts.reduce((b, p, j) => (p.c > pts[b].c ? j : b), 0);
+    const nowhere = pts[bi].c < (1 + 3 * FLAT) * lo, last = pts.length - 1;
+    if (nowhere || bi === 0 || (bi === last && last >= WIDE_MAX)) {
+      // An end: the nearest if it's the better (or the sharpest), else the farthest.
+      const near = nowhere ? pts[0].c >= pts[last].c : bi === 0;
+      say(`to the ${near ? "nearest" : "farthest"} focus…`);
+      await toEnd(near ? -1 : 1);
+      await measure();
+      note = nowhere
+        ? `⚠ Nothing came into focus anywhere in the lens's range: left at its ${near ? "nearest" : "farthest"} focus, the less blurred end. Check the part has detail, and the lens can focus that ${near ? "close" : "far"}.`
+        : near
+          ? "⚠ The part is sharpest at the lens's nearest focus, and may be nearer than the lens can focus: left there. Move the camera back (or zoom out) for it to come into focus."
+          : "⚠ The part is sharpest at the lens's farthest focus: left there.";
+      return true;
+    }
+    say("back to where it was sharpest…");
+    for (let i = 0; i < last - bi && !stopped(); i++) await send("focusNudge", { n: -WIDE_STEP });
+    return false;
+  };
   try {
     say("the camera focusing first…");
     const ind = await send("autofocus");
     loadSettings(); // in Manual it went to AF-S and back
     state.focusSaid = "Auto…";
-    best = { s: -1, at: 0 }; // from the camera's focus on
-    let prev = await measure();
+    let prev = await measure(), searched = false, done = false;
+    if (ind !== "Focus Locked") { searched = true; done = await search(); if (!done) prev = await measure(); }
+    let key = "f"; // the scale the last steps were judged by
     for (const h of AUTO_STEPS) {
-      if (stopped()) break;
+      if (stopped() || done) break;
       // Which way is sharper: a step further; if not, back the other way.
       say(`which way (steps of ${h})…`);
       await move(h);
       let s = await measure();
-      const dir = s > prev ? 1 : -1;
+      if (!searched && h === AUTO_STEPS[0] && rel(s.f, prev.f) < FLAT && rel(s.c, prev.c) < FLAT) {
+        // Nothing changes: far from focus. The whole range, then on from there.
+        searched = true; done = await search();
+        if (done) break;
+        prev = await measure();
+        await move(h);
+        s = await measure();
+      }
+      key = rel(s.f, prev.f) >= rel(s.c, prev.c) ? "f" : "c"; // the scale that shows the change
+      const dir = s[key] > prev[key] ? 1 : -1;
       prev = s;
       for (let i = 0; i < AUTO_MAX + (dir < 0 ? 1 : 0) && !stopped(); i++) {
         say(`${dir > 0 ? "further" : "nearer"}, steps of ${h}…`);
         await move(dir * h);
         s = await measure();
-        if (s > prev) { prev = s; continue; }
+        if (s[key] > prev[key]) { prev = s; continue; }
         // Past the sharpest: one step back.
         say(`back a step of ${h}…`);
         await move(-dir * h);
@@ -5705,21 +5785,22 @@ $("focusAF").onclick = async () => {
       }
     }
     // Back to the sharpest seen, if this isn't (about) it: the moves since, undone (net per step size).
-    const last = state.focusSharp.at(-1);
-    if (!stopped() && last < best.s * 0.97 && best.at < moves.length) {
-      say(`back to the sharpest (${best.s})…`);
+    const last = trail.at(-1) || prev, best = done ? last : trail.reduce((b, m) => (m[key] > b[key] ? m : b), last);
+    if (!stopped() && !done && last[key] < best[key] * 0.97 && best.at < moves.length) {
+      say(`back to the sharpest (${fmtSharp(best.f)})…`);
       const net = {};
       for (const n of moves.slice(best.at)) net[Math.abs(n)] = (net[Math.abs(n)] || 0) + Math.sign(n);
       for (const [h, c] of Object.entries(net)) for (let i = 0; i < Math.abs(c); i++) await send("focusNudge", { n: -Math.sign(c) * Number(h) });
       await measure();
     }
-    state.focusSaid = `Auto: ${stopped() ? "stopped" : "done"} (${shots} samples; the camera: ${ind === "Focus Locked" ? "Focus Applied" : ind})`;
+    const camera = ind === "Focus Locked" ? "Focus Applied" : ind;
+    state.focusSaid = `Auto: ${stopped() ? "stopped" : "done"} (${shots} samples; the camera: ${camera}${searched ? "; searched the whole range" : ""})`;
     drawFocus(false);
-    const now = state.focusSharp.at(-1);
-    if (!stopped()) focusNote(now >= best.s * 0.95
-      ? `✓ In focus: sharpness ${now}, the sharpest found (${shots} samples).`
-      : `⚠ Sharpness ${now}, short of the sharpest seen (${best.s}): try Auto again, or the arrows.`, now >= best.s * 0.95);
-    $("focusStat").textContent = `${state.focusSaid} · Sharpness ${now}${now < best.s * 0.95 ? ` (best seen ${best.s})` : ""}`;
+    const now = trail.at(-1) || prev, ok = now[key] >= best[key] * 0.95;
+    if (!stopped()) focusNote(note || (ok
+      ? `✓ In focus: sharpness ${fmtSharp(now.f)}, the sharpest found (${shots} samples).`
+      : `⚠ Sharpness ${fmtSharp(now.f)}, short of the sharpest seen (${fmtSharp(best.f)}): try Auto again, or the arrows.`), !note && ok);
+    $("focusStat").textContent = `${state.focusSaid} · Sharpness ${fmtSharp(now.f)}${!ok ? ` (best seen ${fmtSharp(best.f)})` : ""}`;
   } catch (e) { $("camConfigErr").textContent = e.message; say("stopped: " + e.message); }
   state.focusAuto = null; state.focusBusy = false;
   $("focusAF").textContent = "Auto";
