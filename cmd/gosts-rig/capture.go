@@ -235,6 +235,11 @@ type capture struct {
 	// and the photos to delete as the capture carries on (kept while cooling).
 	bright    []float64
 	dropLater []int
+	// How many photos the flash lasts before one comes out dark: those
+	// since the last (or the start: darkSince), and each run before
+	// (darkRuns, the latest darkRunsKept: across captures, the same flash).
+	darkSince int
+	darkRuns  []int
 }
 
 type captureMsg struct {
@@ -249,6 +254,12 @@ type captureMsg struct {
 	CoolUntil int64   `json:"coolUntil,omitempty"`
 	Elapsed   float64 `json:"elapsed"` // s
 	Active    float64 `json:"active"`  // s of it not paused (the pace of the photos: see the page's time left)
+	// DarkEvery: how many photos the flash lasts before one comes out dark,
+	// on average so far (Cooldown.Dark; 0: none dark yet), and DarkSince,
+	// how many since the last: the pauses still to come (see the page's time
+	// left).
+	DarkEvery float64 `json:"darkEvery,omitempty"`
+	DarkSince int     `json:"darkSince,omitempty"`
 	Rows      int     `json:"rows"`
 	Spacing   float64 `json:"spacing"` // degrees between neighboring shots
 	// Estimate is about how long (s) the plan takes, not running (see
@@ -270,6 +281,9 @@ func (c *capture) msg() captureMsg {
 	}
 	if !c.cooling.IsZero() {
 		m.CoolUntil = c.cooling.UnixMilli()
+	}
+	if c.rig.cfg.get().Cooldown.Dark {
+		m.DarkEvery, m.DarkSince = c.darkEvery(), c.darkSince
 	}
 	c.mu.Unlock()
 	if !m.Running { // (outside the lock: it asks the rig and the camera)
@@ -403,9 +417,17 @@ func (c *capture) estimate(p Plan, shots []shot) float64 {
 				stillTime + float64(p.SettleMS)/1000 + shot + hold
 		}
 	}
-	// The pauses to cool (after every so many photos, not the last).
-	if every := c.rig.cfg.get().Cooldown.every(); every > 0 {
-		total += float64((len(shots)-1)/every) * c.rig.cfg.get().Cooldown.Minutes * 60
+	// The pauses to cool (after every so many photos, not the last); or,
+	// pausing after a no-flash photo, as many as the flash has needed (as
+	// often as it's lasted so far: see darkEvery), each with the dark photo.
+	cd := c.rig.cfg.get().Cooldown
+	if every := cd.every(); every > 0 {
+		total += float64((len(shots)-1)/every) * cd.Minutes * 60
+	} else if cd.Dark {
+		c.mu.Lock()
+		n := c.darkEvery()
+		c.mu.Unlock()
+		total += darkPauses(len(shots), n, 0) * (cd.DarkMinutes*60 + shot + hold)
 	}
 	return total + move(clamp(last.Elevation), last.Azimuth, 0, 0)
 }
@@ -501,7 +523,7 @@ func (c *capture) begin(p Plan) error {
 	c.rows, c.spacing = rows, spacing
 	c.resume, c.note, c.started = make(chan struct{}), "", time.Now()
 	c.plan, c.folder, c.photoShot, c.complete, c.resumable, c.began = p, batchFolder(), map[int]int{}, false, false, c.started
-	c.bright = nil
+	c.bright, c.darkSince = nil, 0
 	c.mu.Unlock()
 	c.saveNow() // (its plan and shots, in its folder: resumable from the start)
 	how := fmt.Sprintf("in %d rows, Stop & Shoot", rows)
@@ -604,7 +626,7 @@ func (c *capture) resumeRun() error {
 	if c.photoShot == nil {
 		c.photoShot = map[int]int{}
 	}
-	c.bright = nil
+	c.bright, c.darkSince = nil, 0
 	left, total := len(c.shots)-c.index, len(c.shots)
 	c.mu.Unlock()
 	c.seedBright() // (its photos before: what a new one's compared with)

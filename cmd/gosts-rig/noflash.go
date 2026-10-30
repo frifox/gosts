@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"path/filepath"
 	"time"
 )
@@ -39,6 +40,7 @@ func (c *capture) checkFlash(n, i int, p photo) {
 	normal := median(c.bright)
 	dark := len(c.bright) > 0 && b < flashDark*normal
 	if !dark {
+		c.darkSince++
 		c.bright = append(c.bright, b)
 		if len(c.bright) > noFlashRecent {
 			c.bright = c.bright[1:]
@@ -57,6 +59,38 @@ func (c *capture) dropNow() {
 		c.camera.delete(k)
 	}
 	c.dropLater = nil
+}
+
+// darkRunsKept is how many of the flash's last runs (photos till one came
+// out dark) set how long it lasts.
+const darkRunsKept = 10
+
+// darkEvery is how many photos the flash lasts before one comes out dark:
+// the average of its runs so far (each no-flash photo: another, in case one
+// was a fluke), 0 if none yet. c.mu held.
+func (c *capture) darkEvery() float64 {
+	if len(c.darkRuns) == 0 {
+		return 0
+	}
+	t := 0
+	for _, n := range c.darkRuns {
+		t += n
+	}
+	return float64(t) / float64(len(c.darkRuns))
+}
+
+// darkPauses is how many no-flash pauses left photos still take, the flash
+// lasting every photos (0: unknown, none counted), since photos already
+// since the last: the first after every-since more, then one each every.
+func darkPauses(left int, every float64, since int) float64 {
+	if every <= 0 {
+		return 0
+	}
+	first := math.Max(0, math.Round(every)-float64(since))
+	if float64(left) <= first {
+		return 0
+	}
+	return math.Ceil((float64(left) - first) / math.Max(1, math.Round(every)))
 }
 
 // photoBrightness is a photo's brightness (its camera preview's, if it has one).
@@ -118,6 +152,11 @@ func (c *capture) noFlash(n, i int, b, normal float64) {
 	}
 	c.index = i
 	c.dropLater = append(c.dropLater, drop...)
+	if c.darkSince > 0 { // (the flash lasted so many: the time left counts on it, see darkEvery)
+		c.darkRuns = append(c.darkRuns, c.darkSince)
+		c.darkRuns = c.darkRuns[max(0, len(c.darkRuns)-darkRunsKept):]
+	}
+	c.darkSince = 0
 	cooling := !c.cooling.IsZero()
 	c.mu.Unlock()
 	d := time.Duration(c.rig.cfg.get().Cooldown.DarkMinutes * float64(time.Minute))

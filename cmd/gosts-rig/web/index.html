@@ -6637,19 +6637,29 @@ function capCount() {
     t = fmtDur(elapsed);
     // Time left: the photos left at the pace so far (the time not paused,
     // since the first photo this page saw done), the cooling pauses still
-    // to come, and what's left of one going on. A pause by hand: as from
-    // when it carries on.
+    // to come, and what's left of one going on. Pausing after a no-flash
+    // photo: as many pauses as the flash needs, lasting as many photos as
+    // it has on average so far (each pause: counted again). A pause by
+    // hand: as from when it carries on.
     const base = state.capBase, cd = state.server?.config.Cooldown;
     if (base && done > base.done && done < m.total) {
       const per = (m.active - base.active) / (done - base.done);
       let left = Math.max(0, per * (m.total - done) - since);
       const every = cd?.On && cd.Shots >= 1 && cd.Minutes > 0 ? cd.Shots : 0;
       if (every) left += (Math.floor((m.total - 1) / every) - Math.floor(done / every)) * cd.Minutes * 60; // (after every so many, not the last)
+      else if (cd?.Dark && m.darkEvery) left += darkPauses(m.total - done, m.darkEvery, m.darkSince || 0) * cd.DarkMinutes * 60;
       if (m.coolUntil) left += Math.max(0, (m.coolUntil - Date.now()) / 1000);
       t += ` / ${fmtDur(left)} left`;
     }
   }
   $("capCount").textContent = t;
+}
+// darkPauses is how many no-flash pauses left photos still take, the flash
+// lasting every photos, since photos already since the last (as the
+// server's darkPauses).
+function darkPauses(left, every, since) {
+  const n = Math.max(1, Math.round(every)), first = Math.max(0, n - since);
+  return left <= first ? 0 : Math.ceil((left - first) / n);
 }
 // fmtDur: "45s", "10m 3s", "1h 2m" (as Go writes durations, a space apart).
 function fmtDur(sec) {

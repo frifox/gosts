@@ -70,6 +70,9 @@ func TestNoFlash(t *testing.T) {
 	if m.Index != 1 || m.Shots[1].Done || m.CoolUntil == 0 {
 		t.Fatalf("index %d, shot 2 done %v, cooling %v: want back at shot 2, paused", m.Index, m.Shots[1].Done, m.CoolUntil)
 	}
+	if m.DarkEvery != 1 || m.DarkSince != 0 {
+		t.Errorf("the flash lasted %v photos, %d since: want 1 (the one before), 0", m.DarkEvery, m.DarkSince)
+	}
 	if _, err := os.Stat(filepath.Join(dir, "p2.jpg")); err != nil {
 		t.Fatal("the dark photo's gone while cooling")
 	}
@@ -100,5 +103,40 @@ func TestNoFlashSeededOnResume(t *testing.T) {
 	c.add(t, 3, 2, 15)
 	if m := c.msg(); m.Index != 2 || m.CoolUntil == 0 {
 		t.Fatalf("index %d, cooling %v: the first dark photo after resuming wasn't caught", m.Index, m.CoolUntil)
+	}
+}
+
+// TestDarkPauses: the no-flash pauses still to come, the flash lasting so
+// many photos (its runs' average, each new run counted in).
+func TestDarkPauses(t *testing.T) {
+	for _, tc := range []struct {
+		left  int
+		every float64
+		since int
+		want  float64
+	}{
+		{100, 0, 0, 0},   // none dark yet: none counted
+		{30, 40, 0, 0},   // all within the next run
+		{40, 40, 0, 0},   // exactly
+		{41, 40, 0, 1},   // one more: a pause
+		{100, 40, 0, 2},  // 40, pause, 40, pause, 20
+		{100, 40, 30, 3}, // 10, pause, 40, pause, 40, pause, 10
+		{100, 40, 50, 3}, // past the average already: the next one now
+	} {
+		if got := darkPauses(tc.left, tc.every, tc.since); got != tc.want {
+			t.Errorf("darkPauses(%d, %v, %d) = %v, want %v", tc.left, tc.every, tc.since, got, tc.want)
+		}
+	}
+	c := &capture{}
+	if c.darkEvery() != 0 {
+		t.Error("no runs: not 0")
+	}
+	c.darkRuns = []int{60} // (a fluke, say)
+	if c.darkEvery() != 60 {
+		t.Errorf("one run: %v", c.darkEvery())
+	}
+	c.darkRuns = append(c.darkRuns, 30, 30)
+	if c.darkEvery() != 40 {
+		t.Errorf("three runs: %v, want their average, 40", c.darkEvery())
 	}
 }
