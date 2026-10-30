@@ -2392,7 +2392,7 @@ function mvePicking(st) {
   if (st) mveTool(null); // (Delete's tool: no longer)
   mve.picking = st;
   if (st) window.modelView.hoverColor(MVE_COLORS[st]);
-  window.modelView.onPick = st === "cut" ? (p) => { mvePicking(null); mveCutAt(p); } : st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 2) mve.picks.center.shift(); if (st === "center" && mve.originFrom) { mve.centerPts.push(p.clone().applyMatrix4(mveMoveMatrix().invert())); if (mve.centerPts.length > 2) mve.centerPts.shift(); mveCenterAxes(); mveCenterGo(); } if (st === "align" && mve.alignFrom) { mve.alignPts.push(p.clone().applyMatrix4(mve.alignOff.clone().invert())); mveAlignGo(); } mveShow(); } : null;
+  window.modelView.onPick = st === "cut" ? (p) => { mvePicking(null); mveCutAt(p); } : st ? (p) => { mve.picks[st].push(p); if (st === "scale" && mve.picks.scale.length > 2) mve.picks.scale.shift(); if (st === "center" && mve.picks.center.length > 2) mve.picks.center.shift(); if (st === "center" && mve.originFrom) { mve.centerPts.push(p.clone().applyMatrix4(mveMoveMatrix().invert())); if (mve.centerPts.length > 2) mve.centerPts.shift(); mveCenterAxes(); mveCenterGo(); } if (st === "align" && mve.alignFrom) { mve.alignPts.push(p.clone().applyMatrix4(mve.alignOff.clone().invert())); mveAlignGo(); } else if (st === "align" && segOf("mveAxis")) mveAlignStart(); /* (the axis picked first: turned once there are 2) */ mveShow(); } : null;
   mveShow();
 }
 $("mvEdit").addEventListener("click", (e) => {
@@ -2816,16 +2816,22 @@ mve.alignPts = null;
 mve.alignOff = null;
 mve.alignFlip = false;
 $("mveAxis").onclick = async (e) => {
-  const v = e.target.closest("[data-v]")?.dataset.v, mv = window.modelView;
+  const v = e.target.closest("[data-v]")?.dataset.v;
   if (!v) return;
   segPick("mveAxis", segOf("mveAxis") === v ? null : v); // (the lit one again: unlit)
   if (!mve.alignFrom && mve.picks.align.length < 2) return mveShow();
   if (!segOf("mveAxis")) return mveAlignCancel(true);
+  await mveAlignStart();
+};
+// mveAlignStart turns the model to the axis lit (2 or more points picked):
+// from the edit now, if not turned already.
+async function mveAlignStart() {
+  if (!mve.alignFrom && mve.picks.align.length < 2) return mveShow();
   mveRotCommit();
   mveOriginCommit();
-  if (!mve.alignFrom) { mve.alignFrom = mv.matrix(); mve.alignPts = mve.picks.align.map((p) => p.clone()); mve.alignOff = null; }
+  if (!mve.alignFrom) { mve.alignFrom = window.modelView.matrix(); mve.alignPts = mve.picks.align.map((p) => p.clone()); mve.alignOff = null; }
   await mveAlignGo();
-};
+}
 $("mveFlip").onclick = async () => {
   if (!mve.alignFrom) return;
   mve.alignFlip = !mve.alignFlip;
