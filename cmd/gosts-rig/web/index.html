@@ -545,6 +545,8 @@ body.cv-reordering, body.cv-reordering * { cursor: grabbing !important; user-sel
 .mv-edit .mve-close { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 7px; font-size: 12px; }
 .mv-edit .mve-top { padding-right: 30px; } /* (clear of ✕) */
 .mv-edit section { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+/* A step set up, not Applied yet: its section faintly tinted (to the panel's edges; no shift). */
+.mv-edit section.pending { margin: 0 -12px -10px; padding: 10px 12px; background: rgba(255,176,32,.06); }
 .mve-head { color: var(--muted); font-size: 12px; line-height: 1.4; }
 .mve-head b { display: block; color: var(--text); font-size: 13px; font-weight: 600; margin-bottom: 2px; }
 .mve-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -2548,6 +2550,7 @@ for (const b of document.querySelectorAll("#mvEdit [data-cancel]")) {
   const sync = () => {
     const started = !apply.disabled || (mve.picks[k]?.length > 0) || (k === "align" && !!mve.alignFrom);
     b.hidden = !started;
+    b.closest("section").classList.toggle("pending", started);
   };
   new MutationObserver(sync).observe(apply, { attributes: true, attributeFilter: ["disabled"] });
   window.mveCancelSyncs.push(sync);
