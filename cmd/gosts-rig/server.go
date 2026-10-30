@@ -152,6 +152,19 @@ func (a *app) exec(req request) (any, error) {
 		if m.Acc < 1 || m.Acc > 254 {
 			return nil, errors.New("acceleration must be 1–254 (×100 step/s²)")
 		}
+		saved := a.cfg.get().Motion
+		if m.AzimuthSpeed == 0 { // (a page from before: one speed)
+			m.AzimuthSpeed = saved.AzimuthSpeed
+		}
+		if m.AzimuthAcc == 0 {
+			m.AzimuthAcc = saved.AzimuthAcc
+		}
+		if m.AzimuthSpeed < 50 || m.AzimuthSpeed > 3400 {
+			return nil, errors.New("azimuth speed must be 5–298°/s")
+		}
+		if m.AzimuthAcc < 1 || m.AzimuthAcc > 254 {
+			return nil, errors.New("azimuth acceleration must be 1–254 (×100 step/s²)")
+		}
 		if m.ElevationMin < -90 || m.ElevationMax > 90 || m.ElevationMin >= m.ElevationMax {
 			return nil, errors.New("elevation limits must be within -90°…90°, min below max")
 		}

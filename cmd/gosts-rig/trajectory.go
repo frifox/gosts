@@ -10,8 +10,9 @@ import (
 
 // trajectory is a smooth timed path for moving shots: the Catmull-Rom
 // curve through the points (elevation and unwrapped azimuth, as the preview
-// draws it), timed so that neither axis goes faster than maxRate and the
-// speed changes at most by accel, starting and ending at rest, and so that
+// draws it), timed so that neither axis goes faster than its rate (rateE,
+// rateA, °/s) nor speeds up or slows down faster than its accel (accE,
+// accA, °/s²), starting and ending at rest, and so that
 // the path takes at least minGap seconds from each point to the next (the
 // camera's time between photos; 0: no minimum).
 type trajectory struct {
@@ -21,7 +22,7 @@ type trajectory struct {
 
 const trajSteps = 32 // samples per hop
 
-func newTrajectory(e, a []float64, maxRate, accel, minGap float64) *trajectory {
+func newTrajectory(e, a []float64, rateE, rateA, accE, accA, minGap float64) *trajectory {
 	n := len(e)
 	az := make([]float64, n) // unwrapped: each hop the short way
 	for i := range az {
@@ -46,15 +47,18 @@ func newTrajectory(e, a []float64, maxRate, accel, minGap float64) *trajectory {
 	tr.e = append(tr.e, e[n-1])
 	tr.a = append(tr.a, az[n-1])
 
-	// Speed profile, in degrees per second of the faster axis: at most
-	// maxRate, changing by at most accel (forward and backward passes), at
-	// rest at both ends.
+	// Speed profile, as a share of top speed (1: the axis the path leans on
+	// most at its rate): distances are in seconds at top speed, so neither
+	// axis goes past its rate; the speed changes at most by the lower of
+	// the axes' accel/rate (forward and backward passes: either axis then
+	// within its accel), at rest at both ends.
 	m := len(tr.e)
-	ds := make([]float64, m) // distance from the previous sample
+	ds := make([]float64, m) // distance from the previous sample (s at top speed)
 	for i := 1; i < m; i++ {
-		ds[i] = math.Max(math.Abs(tr.e[i]-tr.e[i-1]), math.Abs(tr.a[i]-tr.a[i-1]))
+		ds[i] = math.Max(math.Abs(tr.e[i]-tr.e[i-1])/rateE, math.Abs(tr.a[i]-tr.a[i-1])/rateA)
 	}
-	// Each hop's top speed: maxRate, or slower so the hop takes minGap.
+	maxRate, accel := 1.0, math.Min(accE/rateE, accA/rateA)
+	// Each hop's top speed: full, or slower so the hop takes minGap.
 	vcap := make([]float64, m)
 	for h := 0; h+1 < n; h++ {
 		dist := 0.0

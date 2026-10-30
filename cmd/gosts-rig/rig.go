@@ -474,13 +474,13 @@ func stepsFor(deg float64, invert bool) int {
 // moveTo starts moves to an elevation and/or azimuth (nil = leave as is),
 // the short way round. The elevation is kept within the configured range.
 func (r *rig) moveTo(elevation, azimuth *float64) error {
-	speed := r.cfg.get().Motion.Speed
+	m := r.cfg.get().Motion
 	if azimuth != nil {
 		if err := r.platformRoom(wrap180(*azimuth)); err != nil {
 			return err
 		}
 	}
-	return r.moveToAt(elevation, azimuth, speed, speed)
+	return r.moveToAt(elevation, azimuth, m.Speed, m.AzimuthSpeed)
 }
 
 // platformRoom: the platform servo's goals reach only about ±7.5 turns from
@@ -518,7 +518,8 @@ func (r *rig) platformRoom(a float64) error {
 	})
 }
 
-// moveToAt is moveTo with a speed per axis (step/s).
+// moveToAt is moveTo with a speed per axis (step/s); each axis at its own
+// acceleration.
 func (r *rig) moveToAt(elevation, azimuth *float64, speedE, speedA int) error {
 	var axes []string // (the servos it moves: those needed, no others)
 	if elevation != nil {
@@ -560,7 +561,7 @@ func (r *rig) moveToAt(elevation, azimuth *float64, speedE, speedA int) error {
 		}
 		if azimuth != nil {
 			a := wrap180(*azimuth)
-			if _, err := bus.Servo(ro.Azimuth).MoveToShortest(stepsFor(a, ro.InvertAzimuth), speedA, acc); err != nil {
+			if _, err := bus.Servo(ro.Azimuth).MoveToShortest(stepsFor(a, ro.InvertAzimuth), speedA, uint8(c.Motion.AzimuthAcc)); err != nil {
 				return fmt.Errorf("azimuth: %w", err)
 			}
 			r.mu.Lock()
@@ -703,13 +704,13 @@ func resetTurns(bus *gosts.Bus, id uint8) error {
 // ±7.5 turns from where it powered up (a power cycle is the only reset:
 // switching it to single-turn and back doesn't), so a long moving-shots
 // spiral unwinds it between laps. Briskly (unwindSpeed), at the configured
-// acceleration; it returns once the platform is there.
+// acceleration (the platform's); it returns once the platform is there.
 func (r *rig) unwindPlatform(ctx context.Context, turns int) error {
 	ro, err := r.ready("azimuth")
 	if err != nil {
 		return err
 	}
-	acc := uint8(r.cfg.get().Motion.Acc)
+	acc := uint8(r.cfg.get().Motion.AzimuthAcc)
 	raw := turns
 	if ro.InvertAzimuth {
 		raw = -raw

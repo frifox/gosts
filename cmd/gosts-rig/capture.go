@@ -329,13 +329,19 @@ func (c *capture) moveTime(m Motion, settleMS int) float64 {
 // moveTimeMin: the quickest a Stop & Shoot move is made to take.
 const moveTimeMin = 0.3
 
-// capRate is the fastest (°/s) a capture's moves go: the servos' speed set,
-// or (seconds a photo) as fast as they're asked to (the pace from photoGap).
-func capRate(m Motion) float64 {
+// capRates is the fastest (°/s) a capture's moves go, elevation and
+// azimuth: each axis's speed set, or (seconds a photo) as fast as they're
+// asked to (the pace from photoGap).
+func capRates(m Motion) (e, a float64) {
 	if m.byRate() {
-		return float64(m.Speed) / stepsPerDegree
+		return float64(m.Speed) / stepsPerDegree, float64(m.AzimuthSpeed) / stepsPerDegree
 	}
-	return float64(servoTop) / stepsPerDegree
+	return float64(servoTop) / stepsPerDegree, float64(servoTop) / stepsPerDegree
+}
+
+// accels is each axis's acceleration set (°/s²), elevation and azimuth.
+func accels(m Motion) (e, a float64) {
+	return float64(m.Acc) * 100 / stepsPerDegree, float64(m.AzimuthAcc) * 100 / stepsPerDegree
 }
 
 // timedSpeed is the speed (step/s) that moves d degrees in sec seconds,
@@ -363,9 +369,9 @@ func (c *capture) estimate(p Plan, shots []shot) float64 {
 		return 0
 	}
 	m := c.rig.cfg.get().Motion
-	vmax := float64(m.Speed) / stepsPerDegree    // °/s
-	acc := float64(m.Acc) * 100 / stepsPerDegree // °/s²
-	hop := func(d float64) float64 {             // a move of d degrees: speeding up, at speed, slowing down
+	vE, vA := float64(m.Speed)/stepsPerDegree, float64(m.AzimuthSpeed)/stepsPerDegree // °/s
+	accE, accA := accels(m)                                                           // °/s²
+	hop := func(d, vmax, acc float64) float64 {                                       // a move of d degrees: speeding up, at speed, slowing down
 		if d <= 0 || vmax <= 0 || acc <= 0 {
 			return 0
 		}
@@ -375,25 +381,16 @@ func (c *capture) estimate(p Plan, shots []shot) float64 {
 		return 2 * math.Sqrt(d/acc)
 	}
 	move := func(e0, a0, e1, a1 float64) float64 {
-		return math.Max(hop(math.Abs(e1-e0)), hop(math.Abs(wrap180(a1-a0))))
+		return math.Max(hop(math.Abs(e1-e0), vE, accE), hop(math.Abs(wrap180(a1-a0)), vA, accA))
 	}
 	clamp := func(e float64) float64 { return math.Max(m.ElevationMin, math.Min(m.ElevationMax, e)) }
-	top := capRate(m)
-	topHop := func(d float64) float64 { // as hop, at the servos' top speed
-		if d <= 0 || acc <= 0 {
-			return 0
-		}
-		if d >= top*top/acc {
-			return d/top + top/acc
-		}
-		return 2 * math.Sqrt(d/acc)
-	}
+	topE, topA := capRates(m)
 	mt := c.moveTime(m, p.SettleMS)
 	timed := func(e0, a0, e1, a1 float64) float64 { // a Stop & Shoot move: moveTime, or longer if the servos can't
 		if m.byRate() {
 			return move(e0, a0, e1, a1) // (at the servos' speed)
 		}
-		return math.Max(mt, math.Max(topHop(math.Abs(e1-e0)), topHop(math.Abs(wrap180(a1-a0)))))
+		return math.Max(mt, math.Max(hop(math.Abs(e1-e0), topE, accE), hop(math.Abs(wrap180(a1-a0)), topA, accA))) // (at the servos' top speed)
 	}
 	e0, a0 := c.rig.where()
 	first, last := shots[0], shots[len(shots)-1]
@@ -408,7 +405,7 @@ func (c *capture) estimate(p Plan, shots []shot) float64 {
 		for i, s := range shots {
 			es[i], as[i] = clamp(s.Elevation), s.Azimuth
 		}
-		total += newTrajectory(es, as, top, acc/2, c.photoGap(m)).duration()
+		total += newTrajectory(es, as, topE, topA, accE/2, accA/2, c.photoGap(m)).duration()
 		total += 2 * math.Floor(math.Abs(spiralTurns(shots))/(2*spiralRange)) // a stop and a reset a lap
 	} else {
 		total += shot + hold // the first photo
@@ -934,8 +931,8 @@ func (c *capture) spiral(ctx context.Context) error {
 		m := c.rig.cfg.get().Motion
 		// The servos' limits: speed, and acceleration kept to half the
 		// configured one so the speed changes gently.
-		maxRate := capRate(m) // (seconds a photo: the pace set by photoGap)
-		accel := float64(m.Acc) * 100 / stepsPerDegree / 2
+		rateE, rateA := capRates(m) // (seconds a photo: the pace set by photoGap)
+		accE, accA := accels(m)
 		// The platform servo's goals reach only so far: the spiral goes
 		// as far as fits (a lap), then the platform unwinds whole turns to
 		// the same angle and the spiral carries on from there.
@@ -1000,7 +997,7 @@ func (c *capture) spiral(ctx context.Context) error {
 		// pace (see measurePace) and a little, else as it's been going (an
 		// estimate from its timings, on the safe side). If it falls behind
 		// anyway, the path slows (see pace).
-		tr := newTrajectory(es, as, maxRate, accel, c.photoGap(m))
+		tr := newTrajectory(es, as, rateE, rateA, accE/2, accA/2, c.photoGap(m))
 		err = c.rig.follow(ctx, tr, func(k int) error {
 			if k < first {
 				return nil

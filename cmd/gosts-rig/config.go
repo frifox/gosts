@@ -110,8 +110,10 @@ type Roles struct {
 
 // Motion is how the rig moves.
 type Motion struct {
-	Speed        int     `toml:"Speed"`        // step/s
-	Acc          int     `toml:"Acc"`          // 100 step/s²
+	Speed        int     `toml:"Speed"`        // step/s: the elevation's
+	Acc          int     `toml:"Acc"`          // 100 step/s²: the elevation's
+	AzimuthSpeed int     `toml:"AzimuthSpeed"` // step/s: the platform's (from before: as Speed)
+	AzimuthAcc   int     `toml:"AzimuthAcc"`   // 100 step/s²: the platform's (from before: as Acc)
 	ElevationMin float64 `toml:"ElevationMin"` // degrees; the camera never goes outside
 	ElevationMax float64 `toml:"ElevationMax"`
 	// SecPerPhoto is how long a capture takes a photo (s, a test of speed
@@ -185,7 +187,7 @@ func defaultConfig() Config {
 	return Config{
 		ListenAddr: ":8081",
 		Roles:      Roles{ElevationLeader: 1, ElevationFollower: 2, Azimuth: 3, LeaderMirrored: true},
-		Motion:     Motion{Speed: 600, Acc: 30, ElevationMin: -45, ElevationMax: 80, SecPerPhoto: 2, SpeedBy: SpeedByPhoto},
+		Motion:     Motion{Speed: 600, Acc: 30, AzimuthSpeed: 600, AzimuthAcc: 30, ElevationMin: -45, ElevationMax: 80, SecPerPhoto: 2, SpeedBy: SpeedByPhoto},
 		Plan:       Plan{Photos: 150, SettleMS: 800, Path: PathRings, ExportFor: ExportApple},
 		Cooldown:   Cooldown{Shots: 50, Minutes: 2, DarkMinutes: 10},
 		Rig:        rigBuilt(),
@@ -225,6 +227,14 @@ func loadConfig(path string) (*configFile, error) {
 			}
 		}
 		f.c.Plan.ExportOn, f.c.Plan.Export = false, ""
+		changed = true
+	}
+	if !md.IsDefined("Motion", "AzimuthSpeed") { // (from before: one speed, both axes)
+		f.c.Motion.AzimuthSpeed = f.c.Motion.Speed
+		changed = true
+	}
+	if !md.IsDefined("Motion", "AzimuthAcc") {
+		f.c.Motion.AzimuthAcc = f.c.Motion.Acc
 		changed = true
 	}
 	if changed {

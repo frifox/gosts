@@ -59,6 +59,9 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .field label { color: var(--muted); font-size: 13px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
 .grid2 label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 12px; }
+/* The Rig card's speed and acceleration: a column an axis (seconds a photo: the one speed, across both). */
+.motion-axis { font-size: 12px; font-weight: 600; color: var(--text); }
+.motion-grid #speedField.both { grid-column: 1 / -1; }
 /* Rig Setup: a line per part, its measurements side by side (columns lining up); two columns: the frame
    (base, posts, swing) on the left, the camera, turntable and elevation on the right. */
 .fgroups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, auto); grid-auto-flow: column; gap: 10px 24px; }
@@ -1064,10 +1067,13 @@ kbd + kbd { margin-left: 3px; }
             <div class="dial-btns"><button class="btn small torque-btn" id="azimTorque" aria-pressed="false" hidden>Torque Lock</button>
               <button class="btn small" id="azimZero" title="Turn the platform to 0°">Go 0°</button></div></div>
         </div>
-        <!-- How fast the servos move, saved as soon as a value is entered. -->
-        <div class="grid2" style="margin-top:10px">
+        <!-- How fast the servos move (each axis its own), saved as soon as a value is entered. -->
+        <div class="grid2 motion-grid" style="margin-top:10px">
+          <div class="motion-axis">Elevation</div><div class="motion-axis">Azimuth</div>
           <label id="speedField"><span class="label-head"><span id="speedLabel">Speed (s/pic)</span><button class="mini" id="speedBy" title="Set the speed the other way: in °/s (the servos' speed)" aria-label="Set the speed the other way"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4 3 8l4 4"/><path d="M3 8h14"/><path d="m17 20 4-4-4-4"/><path d="M21 16H7"/></svg></button></span><input type="number" id="mSecPic" min="0.3" max="120" step="0.1"><input type="number" id="mSpeed" min="5" max="298" step="1" hidden></label>
-          <label title="How quickly they speed up and slow down: lower is gentler on the frame">Acceleration (°/s²)<input type="number" id="mAcc" min="9" max="2232"></label>
+          <label id="azSpeedField" title="The platform's top speed, in captures and moves by hand" hidden>Speed (°/s)<input type="number" id="mAzSpeed" min="5" max="298" step="1"></label>
+          <label title="How quickly the camera arm speeds up and slows down: lower is gentler on the frame">Acceleration (°/s²)<input type="number" id="mAcc" min="9" max="2232"></label>
+          <label title="How quickly the platform speeds up and slows down: lower is gentler on the object">Acceleration (°/s²)<input type="number" id="mAzAcc" min="9" max="2232"></label>
         </div>
         <p class="hint" id="motionHint"></p>
         <div class="err" id="motionErr"></div>
@@ -6115,13 +6121,16 @@ function motionFields(m) {
   const rate = m.SpeedBy === "rate";
   $("speedLabel").textContent = rate ? "Speed (°/s)" : "Speed (s/pic)";
   $("mSecPic").hidden = rate; $("mSpeed").hidden = !rate;
-  $("speedField").title = rate ? "The servos' top speed, in captures and moves by hand" :
+  $("azSpeedField").hidden = !rate; $("speedField").classList.toggle("both", !rate);
+  $("speedField").title = rate ? "The camera arm's top speed, in captures and moves by hand" :
     "How long a capture takes a photo: Continuous, from one photo to the next (the camera's pace at least); Stop & Shoot, each move, settle and photo together. The servos go as fast as that takes.";
   $("speedBy").title = rate ? "Set the speed the other way: seconds a photo" : "Set the speed the other way: in °/s (the servos' speed)";
   if (document.activeElement !== $("mSecPic")) $("mSecPic").value = m.SecPerPhoto;
   if (document.activeElement !== $("mSpeed")) $("mSpeed").value = speedDeg(m.Speed);
   if (document.activeElement !== $("mAcc")) $("mAcc").value = accDeg(m.Acc);
-  $("motionHint").textContent = rate ? `Full speed reached in ${(m.Speed / (m.Acc * 100)).toFixed(2)} s` :
+  if (document.activeElement !== $("mAzSpeed")) $("mAzSpeed").value = speedDeg(m.AzimuthSpeed);
+  if (document.activeElement !== $("mAzAcc")) $("mAzAcc").value = accDeg(m.AzimuthAcc);
+  $("motionHint").textContent = rate ? `Full speed reached in ${(m.Speed / (m.Acc * 100)).toFixed(2)} s (elevation), ${(m.AzimuthSpeed / (m.AzimuthAcc * 100)).toFixed(2)} s (azimuth)` :
     `Captures take about ${m.SecPerPhoto} s a photo (Continuous: at least the camera's pace)`;
 }
 $("speedBy").onclick = async (e) => {
@@ -6131,15 +6140,17 @@ $("speedBy").onclick = async (e) => {
   try { await send("motion", { motion: { ...saved, SpeedBy: saved.SpeedBy === "rate" ? "photo" : "rate" } }); }
   catch (err) { $("motionErr").textContent = err.message; }
 };
-for (const id of ["mSecPic", "mSpeed", "mAcc"]) {
+for (const id of ["mSecPic", "mSpeed", "mAcc", "mAzSpeed", "mAzAcc"]) {
   const save = async () => {
     const saved = state.server.config.Motion;
     const sec = Math.round(Number($("mSecPic").value) * 10) / 10;
     // An unchanged °/s keeps the exact steps/s saved (it may not be a whole number of °/s).
     const speed = +$("mSpeed").value === speedDeg(saved.Speed) ? saved.Speed : speedSteps(+$("mSpeed").value);
     const acc = +$("mAcc").value === accDeg(saved.Acc) ? saved.Acc : accUnits(+$("mAcc").value); // the servos' steps of 100 steps/s² (≈ 8.8°/s²)
-    const motion = { ...saved, SecPerPhoto: sec, Speed: speed, Acc: acc };
-    if (motion.SecPerPhoto === saved.SecPerPhoto && motion.Speed === saved.Speed && motion.Acc === saved.Acc) return;
+    const azSpeed = +$("mAzSpeed").value === speedDeg(saved.AzimuthSpeed) ? saved.AzimuthSpeed : speedSteps(+$("mAzSpeed").value);
+    const azAcc = +$("mAzAcc").value === accDeg(saved.AzimuthAcc) ? saved.AzimuthAcc : accUnits(+$("mAzAcc").value);
+    const motion = { ...saved, SecPerPhoto: sec, Speed: speed, Acc: acc, AzimuthSpeed: azSpeed, AzimuthAcc: azAcc };
+    if (["SecPerPhoto", "Speed", "Acc", "AzimuthSpeed", "AzimuthAcc"].every((k) => motion[k] === saved[k])) return;
     $("motionErr").textContent = "";
     try { await send("motion", { motion }); } catch (e) {
       $("motionErr").textContent = e.message;
@@ -6790,17 +6801,17 @@ let skLast = 0;
   $("skNow").textContent = s.moving ? `${Math.round(s.v)}°/s` : "–";
   $("skMark").style.left = `${(s.x + 1) * 50}%`;
   $("skMark").style.opacity = s.moving ? 1 : 0.3;
-  // The axes, against the servos' top speed (Setup's speed, steps/s).
-  const top = (state.server?.config.Motion.Speed || 0) * 360 / 4096;
-  $("skMax").textContent = top ? `top ${Math.round(top)}°/s` : "";
-  const axis = (v, el, bar, up, down) => {
+  // The axes, each against its top speed (the Rig card's, steps/s).
+  const mo = state.server?.config.Motion, topE = (mo?.Speed || 0) * 360 / 4096, topA = (mo?.AzimuthSpeed || 0) * 360 / 4096;
+  $("skMax").textContent = topE ? (Math.round(topE) === Math.round(topA) ? `top ${Math.round(topE)}°/s` : `top ${Math.round(topE)}°/s ↕, ${Math.round(topA)}°/s ↻`) : "";
+  const axis = (v, el, bar, up, down, top) => {
     const a = Math.abs(v), still = a < 0.5;
     $(el).textContent = still ? "0°/s" : `${v > 0 ? up : down} ${Math.round(a)}°/s`;
     $(bar).style.width = top ? `${Math.min(100, 100 * a / top)}%` : "0";
     $(bar).classList.toggle("over", !!top && a > top * 1.02);
   };
-  axis(s.elevation, "skElev", "skElevBar", "↑", "↓");
-  axis(s.azimuth, "skAzim", "skAzimBar", "↺", "↻");
+  axis(s.elevation, "skElev", "skElevBar", "↑", "↓", topE);
+  axis(s.azimuth, "skAzim", "skAzimBar", "↺", "↻", topA);
 })(0);
 // Cards fold by their title (not by the buttons and switches in it). All
 // start open; each window remembers which were folded. Both Camera cards,

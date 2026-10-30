@@ -153,14 +153,14 @@ func TestTrajectory(t *testing.T) {
 	e := []float64{0, 10, 20, 30}
 	a := []float64{170, -170, -150, -130} // crosses ±180 the short way
 	// With a camera needing 2 s between photos, every hop takes at least that.
-	if slow := newTrajectory(e, a, 50, 100, 2); true {
+	if slow := newTrajectory(e, a, 50, 50, 100, 100, 2); true {
 		for i := 1; i < len(slow.pointT); i++ {
 			if d := slow.pointT[i] - slow.pointT[i-1]; d < 2-1e-6 {
 				t.Errorf("hop %d takes %.2f s, under the camera's 2 s", i, d)
 			}
 		}
 	}
-	tr := newTrajectory(e, a, 50, 100, 0)
+	tr := newTrajectory(e, a, 50, 50, 100, 100, 0)
 	if d := tr.duration(); d <= 0 {
 		t.Fatalf("duration %v", d)
 	}
@@ -632,7 +632,7 @@ func TestSecPerPhoto(t *testing.T) {
 		es[i], as[i] = s.Elevation, s.Azimuth
 	}
 	acc := float64(m.Acc) * 100 / stepsPerDegree / 2
-	tr := newTrajectory(es, as, float64(servoTop)/stepsPerDegree, acc, 3)
+	tr := newTrajectory(es, as, float64(servoTop)/stepsPerDegree, float64(servoTop)/stepsPerDegree, acc, acc, 3)
 	for i := 2; i < len(shots)-2; i++ { // (not the ends: speeding up, slowing down)
 		if d := tr.pointT[i] - tr.pointT[i-1]; d < 2.9 || d > 3.6 {
 			t.Fatalf("photos %d and %d %.2f s apart, want about 3", i-1, i, d)
@@ -727,5 +727,46 @@ func TestSpeedBy(t *testing.T) {
 		if a, b := est(SpeedByRate, 4, 600), est(SpeedByRate, 4, 100); b <= a {
 			t.Errorf("moving %v, by the servos' speed: slower servos, no longer (%.0f, %.0f)", moving, a, b)
 		}
+	}
+}
+
+// Each axis at its own rate: the elevation's 50°/s, the platform's 20°/s;
+// neither goes over its own (and the path's slower than at 50°/s both).
+func TestTrajectoryPerAxis(t *testing.T) {
+	e := []float64{0, 10, 20, 30}
+	a := []float64{0, 40, 80, 120}
+	both := newTrajectory(e, a, 50, 50, 100, 100, 0)
+	tr := newTrajectory(e, a, 50, 20, 100, 40, 0)
+	for k := 1; k < len(tr.t); k++ {
+		dt := tr.t[k] - tr.t[k-1]
+		if dt <= 0 {
+			continue
+		}
+		if r := math.Abs(tr.e[k]-tr.e[k-1]) / dt; r > 50*1.001 {
+			t.Fatalf("sample %d: elevation %v°/s, over 50", k, r)
+		}
+		if r := math.Abs(tr.a[k]-tr.a[k-1]) / dt; r > 20*1.001 {
+			t.Fatalf("sample %d: azimuth %v°/s, over 20", k, r)
+		}
+	}
+	if tr.duration() <= both.duration() {
+		t.Errorf("%.2f s with the platform slower, %.2f s both at 50°/s", tr.duration(), both.duration())
+	}
+}
+
+// A config from before (one speed, one acceleration): the platform's are
+// the same, and saved.
+func TestAzimuthMotionFromBefore(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.toml")
+	os.WriteFile(p, []byte("[Motion]\nSpeed = 900\nAcc = 40\n"), 0o644)
+	cfg, err := loadConfig(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := cfg.get().Motion; m.AzimuthSpeed != 900 || m.AzimuthAcc != 40 {
+		t.Fatalf("azimuth %d, %d: want 900, 40 (as the one speed before)", m.AzimuthSpeed, m.AzimuthAcc)
+	}
+	if b, _ := os.ReadFile(p); !strings.Contains(string(b), "AzimuthSpeed = 900") {
+		t.Errorf("not saved:\n%s", b)
 	}
 }
