@@ -380,3 +380,35 @@ func TestAssignRole(t *testing.T) {
 		t.Errorf("Servo Settings told %d times, want 2 (one each change)", told)
 	}
 }
+
+// A capture done or stopped with the platform turns round: its count's
+// started afresh where it is (no move), so a move after goes the short way,
+// not unwinding those turns; within a turn, left as it is.
+func TestTurnsResetAfterCapture(t *testing.T) {
+	var port *servosim.Port
+	old := newSimPort
+	newSimPort = func(ro Roles) *servosim.Port {
+		port = newSim(ro)
+		return port
+	}
+	defer func() { newSimPort = old }()
+	cfg, _ := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	r := &rig{cfg: cfg, out: func(any) {}}
+	if err := r.connect(context.Background(), simPort, 0); err != nil {
+		t.Fatal(err)
+	}
+	defer r.disconnect()
+	ro := r.roles()
+	c := &capture{rig: r, out: func(any) {}}
+	port.SetPosition(ro.Azimuth, 3*gosts.StepsPerRev+819) // 3.2 turns round
+	r.withBus(func(bus *gosts.Bus) error { return bus.Servo(ro.Azimuth).EnableTorque(true) })
+	c.resetTurnsAfter()
+	if at, _ := r.platformTurns(); math.Abs(at) >= 1 {
+		t.Fatalf("the platform is %.2f turns round after the capture: its count not reset", at)
+	}
+	port.SetPosition(ro.Azimuth, -1000) // within a turn: left as it is
+	c.resetTurnsAfter()
+	if at, _ := r.platformTurns(); math.Abs(at+1000.0/gosts.StepsPerRev) > 0.01 {
+		t.Fatalf("within a turn, the count changed: %.3f turns", at)
+	}
+}

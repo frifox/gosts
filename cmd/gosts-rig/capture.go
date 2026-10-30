@@ -570,6 +570,7 @@ func (c *capture) run(ctx context.Context, p Plan) {
 			c.rig.logf("error", "capture: returning to 0°/0°: %v", werr)
 		}
 	}
+	c.resetTurnsAfter()
 	c.waitPictures()
 	c.mu.Lock()
 	c.dropNow() // (no-flash photos kept while cooling, stopped then: not a shot's)
@@ -607,6 +608,29 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	c.rig.logf(level, "capture: %s", note)
 	c.saveNow() // (its state, and its alignment data: all the photos taken)
 	c.send()
+}
+
+// resetTurnsAfter starts the platform's turn count afresh where it is once
+// a capture's done or stopped (as between a spiral's laps: no move), so a
+// move after goes the short way rather than unwinding the turns the capture
+// made. Once the rig's still; not when it's within a turn already.
+func (c *capture) resetTurnsAfter() {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := c.rig.waitStill(ctx); err != nil {
+		return // (no rig, or still moving: left as it is)
+	}
+	at, err := c.rig.platformTurns()
+	if err != nil || math.Abs(at) < 1 {
+		return
+	}
+	c.setNote("Resetting the platform's turn count…")
+	if err := c.rig.resetPlatformTurns(); err != nil {
+		c.rig.logf("error", "capture: couldn't reset the platform's turn count (it's %.1f turns round): %v", at, err)
+	} else {
+		c.rig.logf("info", "capture: the platform's turn count reset (it was %.1f turns round)", at)
+	}
+	c.setNote("")
 }
 
 // resumeRun carries on the capture's plan with the shots left (the plan as
