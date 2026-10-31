@@ -325,6 +325,7 @@ export function createModelView(canvas) {
     drop(grid); drop(axes); grid = axes = null;
     clip(null);
     section(null);
+    rotGuide(null);
     markers([]);
     modify.reset();
     editOn = false;
@@ -640,6 +641,68 @@ export function createModelView(canvas) {
     scene.add(sectionG);
     return seg.length / 6;
   }
+  // rotGuide shows a turn about an axis through the origin (axis: a unit
+  // [x, y, z]; null: none): the axis, a rod through the model, and a ring
+  // round it, its arrowhead the way the turn goes (dir +1: about the axis by
+  // the right hand; −1 the other way; 0: both ways), in color. Solid, lit,
+  // in the scene (the model in front of it hides it), and a faint ghost of
+  // it through the model, so the part behind still shows.
+  let rotG = null;
+  function rotGuide(axis, dir = 1, color = 0xffffff) {
+    if (rotG) { scene.remove(rotG); rotG.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); }); rotG = null; }
+    if (!axis || !obj) return;
+    holder.updateMatrixWorld(true);
+    // How far along the axis the model goes (its corners): the rod through
+    // it, past both ends; the ring round the rod just past the end nearer
+    // the camera (not hidden by the model), or the other if that's out of
+    // view.
+    const n = new THREE.Vector3(...axis).normalize(), b = box();
+    let lo = Infinity, hi = -Infinity;
+    for (let k = 0; k < 8; k++) {
+      const d = new THREE.Vector3(k & 1 ? b.max.x : b.min.x, k & 2 ? b.max.y : b.min.y, k & 4 ? b.max.z : b.min.z).dot(n);
+      lo = Math.min(lo, d); hi = Math.max(hi, d);
+    }
+    const size = b.getSize(new THREE.Vector3()).length(), r = size * 0.17, w = size * 0.0035;
+    const mid = n.clone().multiplyScalar((lo + hi) / 2), near = camera.position.clone().sub(mid).dot(n) < 0 ? -1 : 1;
+    const end = (k) => mid.clone().addScaledVector(n, k * ((hi - lo) / 2 + r * 0.6));
+    const inView = (p) => { const q = p.clone().project(camera); return Math.abs(q.x) < 0.8 && Math.abs(q.y) < 0.8 && q.z < 1; };
+    const c = [end(near), end(-near)].find(inView) || mid; // (the ring's middle: the near end, else the far one, if seen; else the model's middle)
+    rotG = new THREE.Group();
+    const add = (geo, m, shade, seen = 0.22) => { // solid, and its ghost (seen: how much, through the model)
+      m = m || new THREE.Mesh(geo);
+      m.material = new THREE.MeshStandardMaterial({ color: shade, emissive: shade, emissiveIntensity: 0.25, roughness: 0.45, metalness: 0.1 });
+      const ghost = new THREE.Mesh(m.geometry, new THREE.MeshBasicMaterial({ color: shade, transparent: true, opacity: seen, depthTest: false, depthWrite: false }));
+      ghost.position.copy(m.position); ghost.quaternion.copy(m.quaternion);
+      ghost.renderOrder = 11;
+      rotG.add(m, ghost);
+    };
+    // The rod: a lighter shade than the ring (where they cross, both seen).
+    const rodShade = new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.55), ringShade = new THREE.Color(color);
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(w, w, hi - lo + r * 2.8, 12)); // (the axis: through the model, past the ring)
+    rod.position.copy(mid);
+    rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
+    add(null, rod, rodShade);
+    // The arc: 300° round the rod, the gap (the arrowheads at its ends) on
+    // the side towards the camera (the axis pointing at the camera: any side).
+    const toCam = camera.position.clone().sub(c), front = toCam.addScaledVector(n, -toCam.dot(n));
+    const u = front.lengthSq() > 1e-9 * size * size ? front.normalize().negate() : new THREE.Vector3(Math.abs(n.y) < 0.9 ? 0 : 1, Math.abs(n.y) < 0.9 ? 1 : 0, 0).cross(n).normalize();
+    const v = n.clone().cross(u);
+    const at = (t) => c.clone().addScaledVector(u, r * Math.cos(t)).addScaledVector(v, r * Math.sin(t)); // (t growing: the right hand's way about n)
+    const span = Math.PI * 5 / 3, pts = [];
+    for (let i = 0; i <= 64; i++) pts.push(at(-span / 2 + span * i / 64));
+    add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 128, w, 8, false), null, ringShade);
+    const head = (t, way) => { // a cone at t, pointing along the arc (way: +1 with t, −1 against)
+      const tan = u.clone().multiplyScalar(-Math.sin(t)).addScaledVector(v, Math.cos(t)).multiplyScalar(way);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(r * 0.14, r * 0.4, 24));
+      cone.position.copy(at(t)).addScaledVector(tan, r * 0.18);
+      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan);
+      add(null, cone, ringShade, 0.55); // (the way it turns: seen through the model clearly)
+    };
+    if (dir >= 0) head(span / 2, 1);
+    if (dir <= 0) head(-span / 2, -1);
+    rotG.traverse((o) => { o.raycast = () => {}; });
+    scene.add(rotG);
+  }
   // cut slices the model by plane (as edited; its normal: the side taken
   // away), or with flatten pushes the hills closed in by it onto it (its
   // normal: the way they're pushed) (see modelcut.js). A function that puts it back, and
@@ -800,7 +863,7 @@ export function createModelView(canvas) {
   }
   return {
     show, look, reset, view, clear, stats, box,
-    editing, shown, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, simplify, parts, section, cut,
+    editing, shown, markers, matrix, setMatrix, apply, boxWith, center, clip, trim, simplify, parts, section, cut, rotGuide,
     settle: () => tweenEnd(), // (a move going on: there at once)
     peek: (m) => { if (holder) { tweenEnd(); target = m.clone(); place(m); } }, // (the model there, as a slider drags: the ground left till setMatrix)
     setInset, modify,

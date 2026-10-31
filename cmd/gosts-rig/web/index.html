@@ -2917,6 +2917,7 @@ async function rotSet(ax, deg, animate) {
   }
   mve.rot[ax] = rotWrap(Math.round(deg));
   rotShow();
+  if (rotHover) rotGuideShow(); // (the axes the others turn: turned with them)
   const m = rotMatrix().multiply(mve.rotFrom);
   if (animate) { await mv.setMatrix(m, true); mveTrimReset(); mveShow(); }
   else mv.peek(m);
@@ -2952,6 +2953,36 @@ $("mvEdit").querySelector(".mve-rot").addEventListener("change", (e) => {
   mveShow();
 });
 $("mveRot").onclick = () => { mveRotCommit(); mveShow(); };
+// A turn's slider or ±90° hovered (or a slider dragged): its axis on the
+// model, an arrow round it the way it turns (±90°: that way; a slider:
+// both). The axis as it turns the model: X's turned by the Y and Z turns
+// after it, Y's by Z's (the turns' order: X, then Y, then Z).
+const ROT_COLORS = { x: 0xe5484d, y: 0x46a758, z: 0x3e7bfa };
+let rotHover = null, rotDrag = false; // { ax, dir }
+function rotGuideShow() {
+  const mv = window.modelView, h = rotHover;
+  if (!h || $("mvEdit").hidden) return mv.rotGuide(null);
+  const E = window.modelEdit, r = mve.rot;
+  const m = h.ax === "x" ? E.rotate("z", r.z).multiply(E.rotate("y", r.y)) : h.ax === "y" ? E.rotate("z", r.z) : E.rotate("z", 0), e = m.elements;
+  const axis = h.ax === "x" ? [e[0], e[1], e[2]] : h.ax === "y" ? [-e[8], -e[9], -e[10]] : [e[4], e[5], e[6]]; // (Blender's X, Y, Z: x, −z, y here)
+  mv.rotGuide(axis, h.dir, ROT_COLORS[h.ax]);
+}
+const rotEl = $("mvEdit").querySelector(".mve-rot");
+rotEl.addEventListener("pointerover", (e) => {
+  if (rotDrag) return;
+  const b = e.target.closest("button[data-rot]"), sl = e.target.closest("[data-rax]");
+  const h = b ? { ax: b.dataset.rot, dir: Math.sign(Number(b.dataset.deg)) } : sl ? { ax: sl.dataset.rax, dir: 0 } : null;
+  if (h?.ax === rotHover?.ax && h?.dir === rotHover?.dir) return;
+  rotHover = h;
+  rotGuideShow();
+});
+rotEl.addEventListener("pointerleave", () => { if (!rotDrag) { rotHover = null; rotGuideShow(); } });
+rotEl.addEventListener("pointerdown", (e) => { if (e.target.closest("input[data-rax]")) rotDrag = true; });
+window.addEventListener("pointerup", (e) => {
+  if (!rotDrag) return;
+  rotDrag = false;
+  if (!rotEl.contains(document.elementFromPoint(e.clientX, e.clientY))) { rotHover = null; rotGuideShow(); }
+});
 // Undo: a step back (an edit's matrix before, or a trim's putting back).
 async function mveBack() {
   if (mve.cut.preview) { mveCutUnpreview(); return; } // (a preview: that's the step back)
@@ -3117,7 +3148,7 @@ function mveOpen(on) {
   $("mvEditBtn").classList.toggle("primary", on);
   window.modelView.editing(on);
   window.modelView.setInset(on ? $("mvEdit").offsetWidth + 12 : 0); // (the panel over the stage's right: the model centered in the rest)
-  if (on) mveTrimReset(); else { mveCutUnpreview(); window.modelView.clip(null); window.modelView.section(null); }
+  if (on) mveTrimReset(); else { mveCutUnpreview(); window.modelView.clip(null); window.modelView.section(null); window.modelView.rotGuide(null); }
   mvePicking(null);
 }
 // Replace: the name is the model's own (and fixed); off, the name before.
