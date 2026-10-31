@@ -111,6 +111,7 @@ func run() bool {
 	a.model = &modelBuilder{out: a.broadcast}
 	a.camera.onPicture = a.cap.pictured // (the capture's shots: their files, saved as they come)
 	a.camera.nameFor = a.cap.fileStem   // (named after their place in the plan: capt_001.jpg)
+	a.camera.numFor = a.cap.shotNum     // (and shown by it)
 	startBatch(false)                   // a new capture each start: named now, its folder made as it's needed
 	// The servo console (Servo Ctl): gosts-ctl's, on the rig's board.
 	ctlCfg, warnings, err := console.LoadConfig(*ctlPath)

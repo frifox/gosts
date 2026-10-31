@@ -304,6 +304,17 @@ func (c *capture) fileStem(n int) string {
 	return fmt.Sprintf("capt_%0*d", max(3, len(strconv.Itoa(len(c.shots)))), c.shots[i].Num)
 }
 
+// shotNum is the number photo n shows if it's one of the capture's shots:
+// its place in the plan, as its file's name (capt_001: 1); 0 if it isn't.
+func (c *capture) shotNum(n int) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if i, ok := c.photoShot[n]; ok && i < len(c.shots) {
+		return c.shots[i].Num
+	}
+	return 0
+}
+
 // renameStem renames files (a photo's: its JPEG, its RAW) to stem, each
 // keeping its extension (lower case); one there already by that name (the
 // shot's photo before, taken again) goes to the Trash first. The files as

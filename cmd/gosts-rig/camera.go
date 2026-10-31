@@ -13,6 +13,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -532,6 +533,7 @@ type cameraConn struct {
 	simDirs        map[int]string            // the folders simulated photos are saved in (see simSave)
 	onPicture      func(n int, p photo)      // a photo's picture came over (the capture records its file: see capture.pictured)
 	nameFor        func(n int) string        // the name (no extension) photo n's files get, "" for the camera's (see capture.fileStem)
+	numFor         func(n int) int           // the number photo n shows: a capture's shot's (its file's, capt_001: 1), 0 if it isn't one (see capture.shotNum)
 	simLink        time.Time                 // the simulated camera's link is busy till then (see simDownload)
 	exposed        time.Duration             // the shutter speed last read (see exposure), for the estimate
 	taken          int                       // the capture's photos asked for, sample shots not counted: their numbers to show (see photoInfo)
@@ -754,15 +756,22 @@ func (c *cameraConn) takeIn(ctx context.Context, wait bool, firing func(), sampl
 	c.mu.Lock()
 	c.count++
 	n, gen := c.count, c.gen
+	c.mu.Unlock()
 	if numbered != nil {
-		c.mu.Unlock()
 		numbered(n)
-		c.mu.Lock()
 	}
+	shotNum := 0 // (a capture's shot: its number, as its file's; asked with c.mu not held)
+	if !sample && c.numFor != nil {
+		shotNum = c.numFor(n)
+	}
+	c.mu.Lock()
 	num := 0
 	if !sample { // (a sample shot isn't counted: the photos are 1, 2… all the same)
 		c.taken++
 		num = c.taken
+		if shotNum > 0 { // (seen: 213 shown for capt_001, the session's count)
+			num = shotNum
+		}
 		if c.nums == nil {
 			c.nums = map[int]int{}
 		}
@@ -1157,6 +1166,9 @@ func (c *cameraConn) timeline() photosMsg {
 	return m
 }
 
+// captNum: a capture's photo's number in its file's name (capt_001.jpg: 1).
+var captNum = regexp.MustCompile(`^capt_0*(\d+)\.`)
+
 // resumeIn makes the capture in folder dir (an interrupted one: see
 // resume.go) the current one: its photos taken (files, in order) on the
 // timeline again (their pictures read from the files when they're wanted:
@@ -1168,11 +1180,15 @@ func (c *cameraConn) resumeIn(dir string, files []string) {
 	c.nums = map[int]int{}
 	for i, f := range files {
 		n, path := i+1, filepath.Join(dir, f)
-		p := photo{Files: []string{path}, Num: n, At: time.Now()}
+		num := n
+		if m := captNum.FindStringSubmatch(f); m != nil { // (its shot's number, as its name says: deleted ones leave gaps)
+			num, _ = strconv.Atoi(m[1])
+		}
+		p := photo{Files: []string{path}, Num: num, At: time.Now()}
 		if st, err := os.Stat(path); err == nil {
 			p.At = st.ModTime()
 		}
-		c.photos[n], c.nums[n] = p, n
+		c.photos[n], c.nums[n] = p, num
 	}
 	c.count, c.pending, c.taken = len(files), 0, len(files)
 	c.gen++
