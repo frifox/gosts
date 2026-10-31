@@ -857,14 +857,14 @@ func (c *cameraConn) shooter(q chan queuedShot) {
 			c.out(photoEventMsg{Type: "photoFailed", N: s.n})
 			c.out(c.batchStatus())
 			if s.ctx.Err() == nil {
-				c.warn("photo %d: %v", s.n, err)
+				c.warn("%s: %v", c.label(s.n), err)
 			}
 			continue
 		}
 		// The rig moved on meanwhile: how late the shutter was says how far
 		// from its point the photo was taken (said only when late).
 		if late := time.Since(s.asked); late > fireLate {
-			log.Printf("camera: photo %d fired %v late", s.n, late.Round(time.Millisecond))
+			log.Printf("camera: %s fired %v late", c.label(s.n), late.Round(time.Millisecond))
 		}
 	}
 }
@@ -940,7 +940,7 @@ func (c *cameraConn) got(cam Camera, n int, p photo, err error) {
 		c.landed(n)
 		c.out(photoEventMsg{Type: "photoFailed", N: n, Sample: c.isSample(n)})
 		c.out(c.batchStatus())
-		c.warn("photo %d: %v", n, err)
+		c.warn("%s: %v", c.label(n), err)
 	case len(p.JPEG) > 0:
 		c.picture(n, p)
 	case sim: // a page renders it; if none does, a made-up one
@@ -1006,6 +1006,20 @@ func (c *cameraConn) isSample(n int) bool {
 }
 
 // warn logs a camera problem, also on the page.
+// label is photo n as the log says it: by the number it shows (a capture's
+// shot's: its file's, capt_001 is 1), or a sample shot. c.mu not held.
+func (c *cameraConn) label(n int) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.samples[n]; ok {
+		return "sample shot"
+	}
+	if k := c.nums[n]; k > 0 {
+		return fmt.Sprintf("photo %d", k)
+	}
+	return fmt.Sprintf("photo %d", n)
+}
+
 func (c *cameraConn) warn(format string, args ...any) {
 	msg := "camera: " + fmt.Sprintf(format, args...)
 	log.Print(msg)

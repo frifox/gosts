@@ -498,7 +498,7 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			keep(h.name, h.data, fmt.Sprintf("%s isn't any waiting photo's", h.name))
 			return
 		}
-		log.Printf("camera: photo %d not taken (refused?); %s is the next", h.k, h.name)
+		log.Printf("camera: card file %d not taken (refused?); %s is the next", h.k, h.name)
 		for j := range queue {
 			queue[j].num--
 		}
