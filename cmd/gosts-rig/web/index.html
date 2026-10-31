@@ -6307,11 +6307,13 @@ function flashMeasureBtn() {
 $("flashMeasureBtn").onclick = async () => {
   try {
     if (flash.running) await send("flashMeasureStop", {});
-    else await send("flashMeasure", { key: heat.power });
+    else { flash.mine = true; await send("flashMeasure", { key: heat.power }); } // (this page's: its result applied here only)
   } catch (e) { $("heatNote").textContent = e.message; }
 };
 function onFlashMeasure(m) {
   flash.running = m.running;
+  const mine = flash.mine;
+  if (!m.running) flash.mine = false;
   flashMeasureBtn();
   const b = (v) => Math.round(v);
   if (m.running) {
@@ -6324,7 +6326,7 @@ function onFlashMeasure(m) {
   } else if (m.result) {
     $("heatNote").textContent = `${m.power}: ${m.result} flashes in a row before it stopped firing` +
       (m.saved ? " (saved: the table has it, ✓). " : " (the simulated camera's: not saved). ") + "Let the flash cool down before using it.";
-    if (m.saved && heat.power === m.power) heatApply(); // (the pause from the measured limit)
+    if (m.saved && heat.power === m.power && mine) heatApply(); // (the pause from the measured limit: by the page that measured, not every page open)
   }
 }
 // The plan's photos changed: the note follows (the pause stays as set).
