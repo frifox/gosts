@@ -633,6 +633,7 @@ func (c *capture) resetTurnsAfter() {
 // resumeRun carries on the capture's plan with the shots left (the plan as
 // it was: c.plan).
 func (c *capture) resumeRun() error {
+	c.recheck() // (photos deleted since it stopped, in the Finder too: taken again)
 	ctx, cancel := context.WithCancel(context.Background())
 	c.mu.Lock()
 	if c.running {

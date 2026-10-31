@@ -676,5 +676,6 @@ func (a *app) handleBatchPhotoDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.camera.forgetFile(path) // (off the timeline too, if it's on it)
+	a.cap.recheck()           // (an interrupted capture's: its shot taken again on Resume)
 	w.WriteHeader(http.StatusNoContent)
 }

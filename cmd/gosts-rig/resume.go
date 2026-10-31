@@ -153,6 +153,35 @@ func (c *capture) pictured(n int, p photo) {
 	}
 }
 
+// recheck: an interrupted capture (opened to resume, or stopped) whose
+// photos have gone since (deleted: the timeline's bin, Browse, the Finder):
+// their shots aren't taken, so Resume takes them again (taken first, then
+// the rest, as adopt orders them). Said when any have.
+func (c *capture) recheck() {
+	c.mu.Lock()
+	if c.running || !c.resumable {
+		c.mu.Unlock()
+		return
+	}
+	gone := 0
+	for i := range c.shots {
+		if f := c.shots[i].File; f != "" && !fileExists(filepath.Join(c.folder, f)) {
+			c.shots[i].File = ""
+			gone++
+		}
+	}
+	if gone == 0 {
+		c.mu.Unlock()
+		return
+	}
+	c.shots, c.index = takenFirst(c.shots)
+	c.note = fmt.Sprintf("Interrupted: %d of %d photos taken. Resume takes the rest; New Capture starts afresh.", c.index, len(c.shots))
+	c.mu.Unlock()
+	c.rig.logf("info", "capture: %d photo(s) deleted: their shots to be taken again on Resume", gone)
+	c.saveNow()
+	c.send()
+}
+
 // adopt makes the capture in folder name the current one: its photos to
 // come go into its folder. An interrupted one (see resumable): its plan is
 // the plan again, and its shots are the capture's, the ones taken marked

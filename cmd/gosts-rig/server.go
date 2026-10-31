@@ -352,6 +352,7 @@ func (a *app) exec(req request) (any, error) {
 		return a.rig.diag()
 	case "photoDelete": // one photo off the timeline
 		a.camera.delete(req.N)
+		a.cap.recheck() // (an interrupted capture's: its shot taken again on Resume)
 		return nil, nil
 	case "modelStart": // Build Model (Browse): a capture's model, with Object Capture
 		if req.Model == nil {
