@@ -202,6 +202,7 @@ type capture struct {
 	out    func(any)
 
 	mu          sync.Mutex
+	stopping    bool // Stop asked, the run still finishing (pictures coming, back to 0°/0°)
 	shots       []shot
 	index       int // next shot
 	running     bool
@@ -471,12 +472,29 @@ func (c *capture) start(p Plan) error {
 	return err
 }
 
+// stopWait is how long Start (Resume) waits for a capture stopping to finish.
+const stopWait = 30 * time.Second
+
 func (c *capture) begin(p Plan) error {
 	if _, err := c.rig.ready(); err != nil {
 		return err
 	}
 	if !c.camera.connected() {
 		return errors.New("connect a camera first (the simulator will do for a try)")
+	}
+	// Stopping still (its pictures coming, back to 0°/0°): waited for, then
+	// resumed (seen: Resume then, refused as running, and its photos
+	// deleted meanwhile not taken again).
+	for deadline := time.Now().Add(stopWait); ; time.Sleep(100 * time.Millisecond) {
+		c.mu.Lock()
+		stopping := c.stopping
+		c.mu.Unlock()
+		if !stopping {
+			break
+		}
+		if time.Now().After(deadline) {
+			return errors.New("the capture's still stopping: try again in a moment")
+		}
 	}
 	c.mu.Lock()
 	resuming := c.resumable && c.index < len(c.shots)
@@ -571,7 +589,7 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	c.waitPictures()
 	c.mu.Lock()
 	c.dropNow() // (no-flash photos kept while cooling, stopped then: not a shot's)
-	c.running, c.paused, c.cancel, c.cooling = false, false, nil, time.Time{}
+	c.running, c.paused, c.cancel, c.cooling, c.stopping = false, false, nil, time.Time{}, false
 	// Complete: every shot's photo saved. Else it's resumable: the shots
 	// taken first (marked Before), the rest after, in their order, Resume
 	// carrying on with them.
@@ -605,6 +623,7 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	c.rig.logf(level, "capture: %s", note)
 	c.saveNow() // (its state, and its alignment data: all the photos taken)
 	c.send()
+	c.recheck() // (photos deleted while it was stopping: their shots taken again on Resume, shown so)
 }
 
 // resetTurnsAfter starts the platform's turn count afresh where it is once
@@ -1138,6 +1157,7 @@ func (c *capture) pausedFor() time.Duration {
 func (c *capture) stop() {
 	c.mu.Lock()
 	cancel := c.cancel
+	c.stopping = c.running
 	c.mu.Unlock()
 	if cancel != nil {
 		cancel()
