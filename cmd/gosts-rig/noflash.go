@@ -153,7 +153,7 @@ func (c *capture) noFlash(n, i int, b, normal float64) {
 	c.index = i
 	c.dropLater = append(c.dropLater, drop...)
 	since, first := c.darkSince, len(c.darkRuns) == 0 // (for the log: the flash's run, this time)
-	if c.darkSince > 0 { // (the flash lasted so many: the time left counts on it, see darkEvery)
+	if c.darkSince > 0 {                              // (the flash lasted so many: the time left counts on it, see darkEvery)
 		c.darkRuns = append(c.darkRuns, c.darkSince)
 		c.darkRuns = c.darkRuns[max(0, len(c.darkRuns)-darkRunsKept):]
 	}
