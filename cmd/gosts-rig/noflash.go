@@ -152,6 +152,7 @@ func (c *capture) noFlash(n, i int, b, normal float64) {
 	}
 	c.index = i
 	c.dropLater = append(c.dropLater, drop...)
+	since, first := c.darkSince, len(c.darkRuns) == 0 // (for the log: the flash's run, this time)
 	if c.darkSince > 0 { // (the flash lasted so many: the time left counts on it, see darkEvery)
 		c.darkRuns = append(c.darkRuns, c.darkSince)
 		c.darkRuns = c.darkRuns[max(0, len(c.darkRuns)-darkRunsKept):]
@@ -160,8 +161,19 @@ func (c *capture) noFlash(n, i int, b, normal float64) {
 	cooling := !c.cooling.IsZero()
 	c.mu.Unlock()
 	d := time.Duration(c.rig.cfg.get().Cooldown.DarkMinutes * float64(time.Minute))
-	c.rig.logf("info", "capture: photo %d came out dark (brightness %.0f, the ones before %.0f: the flash didn't fire?): it (and %d after it) deleted as it carries on; %s, then it's taken again (shot %d)",
-		n, b, normal, len(drop)-1, map[bool]string{true: "pausing already", false: fmt.Sprintf("pausing %v to let the flash cool", d.Round(time.Second))}[cooling], i+1)
+	photos := fmt.Sprintf("%d photos", since)
+	if since == 1 {
+		photos = "1 photo"
+	}
+	ran := photos + " since the last pause"
+	switch {
+	case first:
+		ran = photos + " since the capture started (or resumed)"
+	case since == 0:
+		ran = "none since the last pause (the photo taken again, dark too)"
+	}
+	c.rig.logf("info", "capture: photo %d came out dark (brightness %.0f, the ones before %.0f: the flash didn't fire?), %s: it (and %d after it) deleted as it carries on; %s, then it's taken again (shot %d)",
+		n, b, normal, ran, len(drop)-1, map[bool]string{true: "pausing already", false: fmt.Sprintf("pausing %v to let the flash cool", d.Round(time.Second))}[cooling], i+1)
 	if !cooling {
 		c.pauseFor(d)
 	}
