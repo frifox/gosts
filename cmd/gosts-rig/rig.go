@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"runtime"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/frifox/gosts"
@@ -65,9 +67,56 @@ func (r *rig) withBus(f func(*gosts.Bus) error) error {
 	r.busMu.RLock()
 	defer r.busMu.RUnlock()
 	if r.bus == nil {
-		return errors.New("no driver board connected")
+		return errNoBoard
 	}
 	return f(r.bus)
+}
+
+// errNoBoard: no driver board connected (or it's dropped off USB).
+var errNoBoard = errors.New("no driver board connected")
+
+// portGone is whether err is the port itself failing, not a servo not
+// answering: the driver board off USB (unplugged, or reset: seen when the
+// servos' power sags under load, "device not configured"), or no board.
+func portGone(err error) bool {
+	return err != nil && (errors.Is(err, errNoBoard) || errors.Is(err, syscall.ENXIO) || errors.Is(err, syscall.EIO) ||
+		errors.Is(err, syscall.EBADF) || strings.Contains(err.Error(), "device not configured"))
+}
+
+// portLost: the driver board dropped off USB: disconnected, and connected
+// again once its port's back (a reset: a second or two), for a minute; not
+// if it's been connected (or another picked) meanwhile.
+func (r *rig) portLost(ctx context.Context) {
+	r.mu.Lock()
+	port, baud := r.port, r.baud
+	r.mu.Unlock()
+	if port == "" || port == simPort {
+		return
+	}
+	r.logf("error", "the driver board dropped off USB (%s): its power sagging as the servos pull? (a servo restarting with it loses its turn count) Connecting again once it's back", port)
+	r.disconnect()
+	go func() {
+		for range 60 {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second):
+			}
+			r.mu.Lock()
+			idle := r.port == ""
+			r.mu.Unlock()
+			if !idle {
+				return
+			}
+			if _, err := os.Stat(port); err != nil {
+				continue // (not back yet)
+			}
+			if err := r.connect(ctx, port, baud); err == nil {
+				return
+			}
+		}
+		r.logf("error", "the driver board didn't come back on %s: connect it again", port)
+	}()
 }
 
 // connect opens port (simPort for the simulator), applies the mirroring of
@@ -1035,10 +1084,15 @@ func (r *rig) pollLoop(ctx context.Context) {
 			}
 		}
 		msg := telemetry{Type: "telemetry", Time: time.Now().UnixMilli(), Servos: map[string]servoStatus{}}
+		lost := false // (the board off USB)
 		_ = r.withBus(func(bus *gosts.Bus) error {
 			res := map[uint8]gosts.FeedbackResult{}
 			if len(asked) > 0 {
-				res, _ = bus.SyncFeedback(asked...)
+				var err error
+				if res, err = bus.SyncFeedback(asked...); portGone(err) {
+					lost = true
+					return err
+				}
 			}
 			if n%10 == 0 || r.torqueStale.Swap(false) { // torque switch once a second (not part of the feedback), or just changed
 				for _, id := range ids {
@@ -1117,6 +1171,10 @@ func (r *rig) pollLoop(ctx context.Context) {
 			}
 			return nil
 		})
+		if lost {
+			r.portLost(ctx)
+			continue
+		}
 		if tg.set {
 			msg.Target = &[2]float64{tg.elevation, tg.azimuth}
 		}

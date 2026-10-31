@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"time"
@@ -169,6 +170,9 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 		// row stop it.
 		e0, a0, err := r.angles()
 		if err != nil {
+			if portGone(err) {
+				return boardGone(err)
+			}
 			if missed++; missed < followMissMax && ctx.Err() == nil {
 				r.logf("info", "moving path: a servo didn't answer (%v): carried on", err)
 				time.Sleep(followTick)
@@ -189,6 +193,9 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 		dt := math.Min(followLookahead, math.Max(end-t, followTick.Seconds()))
 		speed := func(d float64) int { return max(20, int(math.Abs(d)/dt*stepsPerDegree)) }
 		if err := r.moveToAt(&e1, &a1, speed(e1-e0), speed(wrap180(a1-a0))); err != nil {
+			if portGone(err) {
+				return boardGone(err)
+			}
 			if missed++; missed < followMissMax && ctx.Err() == nil {
 				r.logf("info", "moving path: a servo didn't answer (%v): carried on", err)
 				time.Sleep(followTick)
@@ -210,6 +217,11 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 		case <-time.After(wait):
 		}
 	}
+}
+
+// boardGone: what a capture stopping as the driver board drops off USB says.
+func boardGone(err error) error {
+	return fmt.Errorf("the driver board dropped off USB (%w): its power sagging as the servos pull?", err)
 }
 
 // followMissMax: ticks in a row with the bus not answering that stop a
