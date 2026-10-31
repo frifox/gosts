@@ -144,6 +144,7 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 	}
 	next := 0 // next point
 	end := tr.duration()
+	missed := 0 // ticks in a row the bus didn't answer (the servos go on to the goal before)
 	for {
 		t := clock()
 		for next < len(tr.pointT) && t >= tr.pointT[next] {
@@ -163,8 +164,16 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 			return errors.Join(errPaused, r.stop())
 		}
 		// Speeds from where the rig really is, so it catches up if it lags.
+		// A reply missed (a busy bus, now and then): this tick skipped, the
+		// servos going on to the goal set before; only followMissMax in a
+		// row stop it.
 		e0, a0, err := r.angles()
 		if err != nil {
+			if missed++; missed < followMissMax && ctx.Err() == nil {
+				r.logf("info", "moving path: a servo didn't answer (%v): carried on", err)
+				time.Sleep(followTick)
+				continue
+			}
 			return err
 		}
 		// The goal: just ahead on the path (as far ahead as the path moves:
@@ -180,8 +189,14 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 		dt := math.Min(followLookahead, math.Max(end-t, followTick.Seconds()))
 		speed := func(d float64) int { return max(20, int(math.Abs(d)/dt*stepsPerDegree)) }
 		if err := r.moveToAt(&e1, &a1, speed(e1-e0), speed(wrap180(a1-a0))); err != nil {
+			if missed++; missed < followMissMax && ctx.Err() == nil {
+				r.logf("info", "moving path: a servo didn't answer (%v): carried on", err)
+				time.Sleep(followTick)
+				continue
+			}
 			return err
 		}
+		missed = 0
 		// The next tick, or the next photo if that comes first.
 		wait := followTick
 		if rate > 0 {
@@ -196,6 +211,11 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 		}
 	}
 }
+
+// followMissMax: ticks in a row with the bus not answering that stop a
+// moving path (about a third of a second: the servos run on to their last
+// goal, followLookahead ahead, meanwhile).
+const followMissMax = 10
 
 const stepsPerDegree = 4096.0 / 360
 

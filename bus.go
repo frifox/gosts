@@ -32,6 +32,7 @@ type Bus struct {
 	rx       []byte
 	tmp      []byte
 	orders   map[string][]uint8 // SyncRead: an order that worked for a set of IDs (shared with views)
+	misses   map[string]int     // SyncRead: an order that worked, how many times in a row it's missed since (shared)
 
 	cfgMu  sync.RWMutex
 	mirror map[uint8]bool  // IDs of mirrored servos, see mirror.go
@@ -62,7 +63,7 @@ func WithStatusHandler(f func(id uint8, s Status)) Option {
 // NewBus wraps an already opened Port. If the port implements io.Closer it is
 // closed by Bus.Close.
 func NewBus(p Port, opts ...Option) (*Bus, error) {
-	b := &Bus{mu: &sync.Mutex{}, port: p, timeout: 50 * time.Millisecond, retries: 2, tmp: make([]byte, 512), orders: map[string][]uint8{}}
+	b := &Bus{mu: &sync.Mutex{}, port: p, timeout: 50 * time.Millisecond, retries: 2, tmp: make([]byte, 512), orders: map[string][]uint8{}, misses: map[string]int{}}
 	if c, ok := p.(io.Closer); ok {
 		b.closer = c
 	}
@@ -82,7 +83,7 @@ func NewBus(p Port, opts ...Option) (*Bus, error) {
 // the port.
 func (b *Bus) View() *Bus {
 	return &Bus{mu: b.mu, port: b.port, closer: b.closer, timeout: b.timeout, retries: b.retries,
-		noAck: b.noAck, onStatus: b.onStatus, tmp: make([]byte, len(b.tmp)), orders: b.orders}
+		noAck: b.noAck, onStatus: b.onStatus, tmp: make([]byte, len(b.tmp)), orders: b.orders, misses: b.misses}
 }
 
 // Close closes the underlying port.
@@ -268,13 +269,16 @@ type SyncReadResult struct {
 // SyncRead reads n bytes from addr on several servos with a single request.
 // The servos are asked to answer in the order given, but their replies are
 // taken in whatever order they come. A servo whose reply doesn't come, or
-// comes garbled, is asked again on its own (one READ, no retries): servos of
+// comes garbled, is asked again on its own (retried as any read, once the
+// line's gone quiet: a late reply would land on it): servos of
 // other firmware answer SYNC READ at a fixed delay by their place in the
 // list instead of waiting for the one before them (seen: a Feetech ST3215,
 // firmware 3.10, beside Waveshare ones), so on a mixed bus replies can land
 // on each other. So the order asked in is learned: after replies go
 // missing, the set is asked next time in another order (the last one first),
-// till one works (on that bus: the Feetech first), and that order is kept.
+// till one works (on that bus: the Feetech first), and that order is kept
+// (a reply missed now and then with it, as a busy bus does: kept still; only
+// syncKeepMisses in a row and it's learned again).
 // The wait ends once all have answered, or the line has been quiet a moment
 // after the last reply (syncQuiet), or the timeout. The returned error is
 // non-nil only for bus-level failures; per-servo failures are reported in
@@ -344,21 +348,42 @@ func (b *Bus) SyncRead(addr uint8, n int, ids []uint8) (map[uint8]SyncReadResult
 			return nil, fmt.Errorf("gosts: set read timeout: %w", err)
 		}
 	}
-	if len(out) < len(want) && len(order) > 1 { // (next time: another order)
-		b.orders[key] = append([]uint8{order[len(order)-1]}, order[:len(order)-1]...)
-	} else if len(out) == len(want) && !slices.Equal(order, ids) {
-		b.orders[key] = order
+	if len(out) < len(want) && len(order) > 1 { // (next time: another order, unless this one's worked and it's a miss now and then)
+		run, worked := b.misses[key]
+		if worked && run+1 < syncKeepMisses {
+			b.misses[key] = run + 1
+		} else {
+			delete(b.misses, key)
+			b.orders[key] = append([]uint8{order[len(order)-1]}, order[:len(order)-1]...)
+		}
+	} else if len(out) == len(want) {
+		b.misses[key] = 0 // (it works)
+		if !slices.Equal(order, ids) {
+			b.orders[key] = order
+		}
 	}
-	// The ones missing: each asked on its own.
-	b.rx = b.rx[:0] // (what's left: garbled, or late)
+	if len(out) == len(want) {
+		return out, nil
+	}
+	// The ones missing: each asked on its own, once the line's quiet (a
+	// reply still coming, late, would land on the question), retried as
+	// any read is.
+	if err := b.drain(); err != nil {
+		return nil, err
+	}
 	for _, id := range ids {
 		if _, ok := out[id]; ok {
 			continue
 		}
 		var r reply
-		err := b.send(id, InstRead, []byte{addr, byte(n)})
-		if err == nil {
-			r, err = b.recv(id, n)
+		var err error
+		for attempt := 0; attempt <= b.retries; attempt++ {
+			if err = b.send(id, InstRead, []byte{addr, byte(n)}); err != nil {
+				break
+			}
+			if r, err = b.recv(id, n); err == nil {
+				break
+			}
 		}
 		if err != nil {
 			out[id] = SyncReadResult{Err: fmt.Errorf("gosts: servo %d: %w", id, err)}
@@ -367,6 +392,30 @@ func (b *Bus) SyncRead(addr uint8, n int, ids []uint8) (map[uint8]SyncReadResult
 		out[id] = SyncReadResult{Data: r.Params, Status: r.Status}
 	}
 	return out, nil
+}
+
+// syncKeepMisses: a SyncRead order that's worked is learned again only after
+// missing replies this many times in a row.
+const syncKeepMisses = 3
+
+// drain waits for the line to go quiet (nothing for syncQuiet; at most the
+// reply timeout), dropping what comes: late or garbled replies.
+func (b *Bus) drain() error {
+	b.rx = b.rx[:0]
+	if err := b.port.SetReadTimeout(syncQuiet); err != nil {
+		return fmt.Errorf("gosts: set read timeout: %w", err)
+	}
+	defer b.port.SetReadTimeout(b.timeout)
+	for deadline := time.Now().Add(b.timeout); time.Now().Before(deadline); {
+		k, err := b.port.Read(b.tmp)
+		if err != nil {
+			return fmt.Errorf("gosts: read: %w", err)
+		}
+		if k == 0 {
+			return nil
+		}
+	}
+	return nil
 }
 
 // ScanResult describes a servo found by Scan.

@@ -687,6 +687,20 @@ func TestSyncReadMixedBus(t *testing.T) {
 	if p.corrupt != corrupt || p.lastSync[0] != 12 {
 		t.Errorf("fixed delay: asked in order %v, %d garbled after it was learned: want 12 first, none", p.lastSync, p.corrupt-corrupt)
 	}
+	// A reply missed now and then with the order learned (a busy bus): the
+	// order's kept, and the one missed is read on its own, again if that
+	// comes garbled too (seen: a capture stopped by one timeout).
+	for i := 0; i < syncKeepMisses-1; i++ {
+		p.corrupt = 2 // (12's reply to the SYNC READ, and to the READ after)
+		res = check("a miss, learned", 10, 11, 12)
+		if res[12].Err != nil || pos(res[12]) != 300 {
+			t.Fatalf("a miss: #12 %v %d, want 300 (read again)", res[12].Err, pos(res[12]))
+		}
+		check("after a miss", 10, 11, 12)
+		if p.lastSync[0] != 12 {
+			t.Fatalf("after a miss: asked in order %v, want 12 first still", p.lastSync)
+		}
+	}
 	p.syncFirst = nil
 
 	res = check("one not there", 10, 13, 12)
