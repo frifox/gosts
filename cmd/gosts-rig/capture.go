@@ -573,6 +573,7 @@ func (c *capture) begin(p Plan) error {
 }
 
 func (c *capture) run(ctx context.Context, p Plan) {
+	defer keepAwake()() // (asleep, the driver board drops off USB)
 	err := c.loop(ctx, p)
 	// The capture is done once the rig is back at 0°/0° and every photo's
 	// pictures are in: till then it runs (a note says which it's waiting for).
