@@ -642,65 +642,14 @@ export function createModelView(canvas) {
     return seg.length / 6;
   }
   // rotGuide shows a turn about an axis through the origin (axis: a unit
-  // [x, y, z]; null: none): the axis, a rod through the model, and a ring
-  // round it, its arrowhead the way the turn goes (dir +1: about the axis by
-  // the right hand; −1 the other way; 0: both ways), in color. Solid, lit,
-  // in the scene (the model in front of it hides it), and a faint ghost of
-  // it through the model, so the part behind still shows.
+  // [x, y, z]; null: none), as turnGuide draws it (dir +1: about the axis by
+  // the right hand; −1 the other way; 0: both ways), in color.
   let rotG = null;
   function rotGuide(axis, dir = 1, color = 0xffffff) {
-    if (rotG) { scene.remove(rotG); rotG.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); }); rotG = null; }
+    if (rotG) { scene.remove(rotG); disposeGuide(rotG); rotG = null; }
     if (!axis || !obj) return;
     holder.updateMatrixWorld(true);
-    // How far along the axis the model goes (its corners): the rod through
-    // it, past both ends; the ring round the rod just past the end nearer
-    // the camera (not hidden by the model), or the other if that's out of
-    // view.
-    const n = new THREE.Vector3(...axis).normalize(), b = box();
-    let lo = Infinity, hi = -Infinity;
-    for (let k = 0; k < 8; k++) {
-      const d = new THREE.Vector3(k & 1 ? b.max.x : b.min.x, k & 2 ? b.max.y : b.min.y, k & 4 ? b.max.z : b.min.z).dot(n);
-      lo = Math.min(lo, d); hi = Math.max(hi, d);
-    }
-    const size = b.getSize(new THREE.Vector3()).length(), r = size * 0.17, w = size * 0.0035;
-    const mid = n.clone().multiplyScalar((lo + hi) / 2), near = camera.position.clone().sub(mid).dot(n) < 0 ? -1 : 1;
-    const end = (k) => mid.clone().addScaledVector(n, k * ((hi - lo) / 2 + r * 0.6));
-    const inView = (p) => { const q = p.clone().project(camera); return Math.abs(q.x) < 0.8 && Math.abs(q.y) < 0.8 && q.z < 1; };
-    const c = [end(near), end(-near)].find(inView) || mid; // (the ring's middle: the near end, else the far one, if seen; else the model's middle)
-    rotG = new THREE.Group();
-    const add = (geo, m, shade, seen = 0.22) => { // solid, and its ghost (seen: how much, through the model)
-      m = m || new THREE.Mesh(geo);
-      m.material = new THREE.MeshStandardMaterial({ color: shade, emissive: shade, emissiveIntensity: 0.25, roughness: 0.45, metalness: 0.1 });
-      const ghost = new THREE.Mesh(m.geometry, new THREE.MeshBasicMaterial({ color: shade, transparent: true, opacity: seen, depthTest: false, depthWrite: false }));
-      ghost.position.copy(m.position); ghost.quaternion.copy(m.quaternion);
-      ghost.renderOrder = 11;
-      rotG.add(m, ghost);
-    };
-    // The rod: a lighter shade than the ring (where they cross, both seen).
-    const rodShade = new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.55), ringShade = new THREE.Color(color);
-    const rod = new THREE.Mesh(new THREE.CylinderGeometry(w, w, hi - lo + r * 2.8, 12)); // (the axis: through the model, past the ring)
-    rod.position.copy(mid);
-    rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
-    add(null, rod, rodShade);
-    // The arc: 300° round the rod, the gap (the arrowheads at its ends) on
-    // the side towards the camera (the axis pointing at the camera: any side).
-    const toCam = camera.position.clone().sub(c), front = toCam.addScaledVector(n, -toCam.dot(n));
-    const u = front.lengthSq() > 1e-9 * size * size ? front.normalize().negate() : new THREE.Vector3(Math.abs(n.y) < 0.9 ? 0 : 1, Math.abs(n.y) < 0.9 ? 1 : 0, 0).cross(n).normalize();
-    const v = n.clone().cross(u);
-    const at = (t) => c.clone().addScaledVector(u, r * Math.cos(t)).addScaledVector(v, r * Math.sin(t)); // (t growing: the right hand's way about n)
-    const span = Math.PI * 5 / 3, pts = [];
-    for (let i = 0; i <= 64; i++) pts.push(at(-span / 2 + span * i / 64));
-    add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 128, w, 8, false), null, ringShade);
-    const head = (t, way) => { // a cone at t, pointing along the arc (way: +1 with t, −1 against)
-      const tan = u.clone().multiplyScalar(-Math.sin(t)).addScaledVector(v, Math.cos(t)).multiplyScalar(way);
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(r * 0.14, r * 0.4, 24));
-      cone.position.copy(at(t)).addScaledVector(tan, r * 0.18);
-      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan);
-      add(null, cone, ringShade, 0.55); // (the way it turns: seen through the model clearly)
-    };
-    if (dir >= 0) head(span / 2, 1);
-    if (dir <= 0) head(-span / 2, -1);
-    rotG.traverse((o) => { o.raycast = () => {}; });
+    rotG = turnGuide({ axis: new THREE.Vector3(...axis), through: new THREE.Vector3(), box: box(), camera, color, heads: dir > 0 ? [1] : dir < 0 ? [-1] : [1, -1] });
     scene.add(rotG);
   }
   // cut slices the model by plane (as edited; its normal: the side taken
@@ -871,6 +820,63 @@ export function createModelView(canvas) {
     hoverColor, // (the hover ball's color: the step picking's)
   };
 }
+
+// turnGuide: a turn about an axis (unit axis, through the point through),
+// for what's in box: a slim rod along it through the box, past both ends,
+// and a ring round the rod just past the end nearer camera (not hidden by
+// what's turned), or the other if that's out of view, or the middle; the
+// ring's gap towards the camera, an arrowhead in it each way of heads (+1:
+// about the axis by the right hand, −1 the other way). In color, the rod a
+// lighter shade (where they cross, both seen). Solid and lit, in the scene
+// (hidden by what's in front), and a faint ghost through it all, so the
+// part behind still shows (the arrowheads clearly). A Group, for the scene.
+export function turnGuide({ axis, through, box: b, camera, color, heads }) {
+  const n = axis.clone().normalize(), o = through.clone().addScaledVector(n, -through.dot(n)); // (o: the axis's point nearest the origin)
+  let lo = Infinity, hi = -Infinity;
+  for (let k = 0; k < 8; k++) {
+    const d = new THREE.Vector3(k & 1 ? b.max.x : b.min.x, k & 2 ? b.max.y : b.min.y, k & 4 ? b.max.z : b.min.z).dot(n);
+    lo = Math.min(lo, d); hi = Math.max(hi, d);
+  }
+  const size = b.getSize(new THREE.Vector3()).length(), r = size * 0.17, w = size * 0.0035;
+  const mid = o.clone().addScaledVector(n, (lo + hi) / 2), near = camera.position.clone().sub(mid).dot(n) < 0 ? -1 : 1;
+  const end = (k) => mid.clone().addScaledVector(n, k * ((hi - lo) / 2 + r * 0.6));
+  const inView = (p) => { const q = p.clone().project(camera); return Math.abs(q.x) < 0.8 && Math.abs(q.y) < 0.8 && q.z < 1; };
+  const c = [end(near), end(-near)].find(inView) || mid; // (the ring's middle)
+  const g = new THREE.Group();
+  const add = (m, shade, seen = 0.22) => { // solid, and its ghost (seen: how much, through what's in front)
+    m.material = new THREE.MeshStandardMaterial({ color: shade, emissive: shade, emissiveIntensity: 0.25, roughness: 0.45, metalness: 0.1 });
+    const ghost = new THREE.Mesh(m.geometry, new THREE.MeshBasicMaterial({ color: shade, transparent: true, opacity: seen, depthTest: false, depthWrite: false }));
+    ghost.position.copy(m.position); ghost.quaternion.copy(m.quaternion);
+    ghost.renderOrder = 11;
+    m.renderOrder = 10;
+    g.add(m, ghost);
+  };
+  const rodShade = new THREE.Color(color).lerp(new THREE.Color(0xffffff), 0.55), ringShade = new THREE.Color(color);
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(w, w, hi - lo + r * 2.8, 12));
+  rod.position.copy(mid);
+  rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n);
+  add(rod, rodShade);
+  // The arc: 300° round the rod, the gap on the side towards the camera
+  // (the axis pointing at the camera: any side).
+  const toCam = camera.position.clone().sub(c), front = toCam.addScaledVector(n, -toCam.dot(n));
+  const u = front.lengthSq() > 1e-9 * size * size ? front.normalize().negate() : new THREE.Vector3(Math.abs(n.y) < 0.9 ? 0 : 1, Math.abs(n.y) < 0.9 ? 1 : 0, 0).cross(n).normalize();
+  const v = n.clone().cross(u);
+  const at = (t) => c.clone().addScaledVector(u, r * Math.cos(t)).addScaledVector(v, r * Math.sin(t)); // (t growing: the right hand's way about n)
+  const span = Math.PI * 5 / 3, pts = [];
+  for (let i = 0; i <= 64; i++) pts.push(at(-span / 2 + span * i / 64));
+  add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 128, w, 8, false)), ringShade);
+  for (const way of heads) { // a cone at the arc's end, pointing along it into the gap
+    const t = way * span / 2, tan = u.clone().multiplyScalar(-Math.sin(t)).addScaledVector(v, Math.cos(t)).multiplyScalar(way);
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(r * 0.14, r * 0.4, 24));
+    cone.position.copy(at(t)).addScaledVector(tan, r * 0.18);
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan);
+    add(cone, ringShade, 0.55);
+  }
+  g.traverse((m) => { m.raycast = () => {}; });
+  return g;
+}
+// disposeGuide frees a turnGuide's geometry and materials.
+export function disposeGuide(g) { g.traverse((m) => { m.geometry?.dispose(); m.material?.dispose(); }); }
 
 // The gallery's pictures of models: one renderer, one model at a time.
 let thumbR = null, thumbQueue = Promise.resolve();

@@ -11,7 +11,7 @@
 // y here) in mm.
 import * as THREE from "three";
 import { OrbitControls } from "./vendor/OrbitControls.js";
-import { loadOBJ, VIEWS } from "./modelview.js";
+import { loadOBJ, VIEWS, turnGuide, disposeGuide } from "./modelview.js";
 
 const SHAPE_MAT = () => new THREE.MeshStandardMaterial({ color: 0xb9bdc5, roughness: 0.85, metalness: 0, side: THREE.DoubleSide });
 const MISSING_MAT = () => new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide });
@@ -893,19 +893,19 @@ export function createCombine(canvas) {
   api.planeName = () => (dragging ? dragging.pn : planeName());
 
   // ------------------------------------------------------------ turn ring
-  // turnRing: a circle round o along which its ax slider (Blender's X, Y or
-  // Z, as its rot applies them: X first, then Y, then Z) turns it, an
-  // arrowhead on it the way it'd turn (sign: 1, up; −1, down; 0: no arrow);
+  // turnRing: o's ax turn (Blender's X, Y or Z, as its rot applies them: X
+  // first, then Y, then Z), drawn as the model editor's Rotate draws its
+  // (turnGuide: a rod along the axis through o, a ring round it with the
+  // arrowhead the way it'd turn: sign 1, up; −1, down; 0, no arrowhead);
   // none (ax null).
   const ring = new THREE.Group();
   ring.visible = false;
-  ring.renderOrder = 10;
   scene.add(ring);
   const RING_COLOR = { x: 0xe5484d, y: 0x46a758, z: 0x3e7bfa };
   api.turnRing = (o, ax, sign = 1) => {
     const key = o && JSON.stringify([o.id, ax, sign, o.pos, o.rot, o.size ?? null]);
     if (ring.visible && key && ring.userData.key === key) return; // (as it is: not made again)
-    for (const c of [...ring.children]) { ring.remove(c); c.geometry.dispose(); c.material.dispose(); } // (a geometry shared by two: disposing twice is harmless)
+    for (const c of [...ring.children]) { ring.remove(c); disposeGuide(c); }
     ring.visible = !!(o && ax && objects.includes(o));
     if (!ring.visible) return;
     ring.userData = { o, ax, sign, key };
@@ -917,23 +917,7 @@ export function createCombine(canvas) {
       : new THREE.Vector3(1, 0, 0).applyQuaternion(qy).applyQuaternion(qz);
     o.holder.updateMatrixWorld(true);
     const at = o.holder.getWorldPosition(new THREE.Vector3()), box = new THREE.Box3().setFromObject(o.inner);
-    let R = 0.01;
-    for (let i = 0; i < 8; i++) R = Math.max(R, new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).distanceTo(at));
-    R *= 1.08;
-    // (lit and shaded, hidden where it's behind things; and faintly over
-    // everything, so what's behind still shows)
-    const lit = () => new THREE.MeshStandardMaterial({ color: RING_COLOR[ax], roughness: 0.35, metalness: 0.1, emissive: RING_COLOR[ax], emissiveIntensity: 0.15 });
-    const ghost = () => new THREE.MeshBasicMaterial({ color: RING_COLOR[ax], depthTest: false, depthWrite: false, transparent: true, opacity: 0.25 });
-    const add = (geo, place = () => {}) => {
-      for (const [mat, order] of [[ghost(), 9], [lit(), 10]]) { const m = new THREE.Mesh(geo, mat); m.renderOrder = order; place(m); ring.add(m); }
-    };
-    add(new THREE.TorusGeometry(R, R * 0.022, 24, 160));
-    if (sign) for (let k = 0; k < 3; k++) { // (arrowheads round it: at angle a, along it the way it'd turn: + about +Z, counterclockwise)
-      const a = (k * 2 * Math.PI) / 3, cone = new THREE.ConeGeometry(R * 0.06, R * 0.16, 32);
-      add(cone, (m) => { m.position.set(R * Math.cos(a), R * Math.sin(a), 0); m.rotation.z = a + (sign < 0 ? Math.PI : 0); });
-    }
-    ring.position.copy(at);
-    ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
+    ring.add(turnGuide({ axis, through: at, box, camera, color: RING_COLOR[ax], heads: sign ? [sign] : [] }));
   };
 
   // ------------------------------------------------------------ marks
