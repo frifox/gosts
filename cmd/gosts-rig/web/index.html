@@ -3184,6 +3184,7 @@ function mveFresh(m) {
   rotShow();
   mve.cut.at = mve.cut.preview = null; // (Cut's plane: to be placed; a preview: with the model before)
   segPick("mveAxis", null); // (Align's axis: to be picked)
+  $("mveDist").value = $("mveTris").value = ""; // (Scale's distance, Simplify's triangles: typed for the model before)
   const base = m.name.replace(/-aligned(-\d+)?$/, "");
   mveTyped = "";
   mveReplace(false);
