@@ -6249,17 +6249,22 @@ function heatRows() {
   for (const tr of $("flashHeat").tBodies[0].rows) tr.classList.toggle("on", $("coolOn").checked && tr.dataset.power === heat.power);
   flashMeasureBtn();
 }
-// heatApply sets the pause to the line's (the power's, at the level) and
-// saves it.
+// heatApply sets the every-so-many pause to the line's (the power's, at
+// the level) and saves it; switched on, unless the no-flash pause is the
+// one on: that's kept (the numbers saved for when the other's picked; seen:
+// a row clicked mid-capture switched the no-flash pause off, the black
+// photos after it not caught).
 function heatApply() {
   const row = AR400_HEAT.find(([p]) => p === heat.power);
   if (!row) { $("heatNote").textContent = "Pick the flash's power in the table first."; return; }
-  const L = HEAT_LEVELS[heat.level], cd = { On: true, Minutes: L.rest, Shots: heatEvery(heatLimit(heat.power)) };
-  $("coolOn").checked = cd.On;
+  const keepDark = $("coolDark").checked;
+  const L = HEAT_LEVELS[heat.level], cd = { On: !keepDark, Minutes: L.rest, Shots: heatEvery(heatLimit(heat.power)) };
+  if (cd.On) $("coolOn").checked = true;
   $("coolMin").value = cd.Minutes;
   $("coolShots").value = cd.Shots;
   heat.applied = cd;
   heatNote();
+  if (keepDark) $("heatNote").textContent += " (Kept for \"after every so many photos\": the pause after a no-flash photo is the one on.)";
   saveCool();
 }
 // heatNote: what the pause set means for the plan's photos.

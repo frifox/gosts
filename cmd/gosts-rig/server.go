@@ -198,8 +198,12 @@ func (a *app) exec(req request) (any, error) {
 		if cd.On && cd.Dark {
 			return nil, errors.New("one way of pausing at a time")
 		}
+		was := a.cfg.get().Cooldown
 		if err := a.cfg.update(func(c *Config) { c.Cooldown = cd }); err != nil {
 			return nil, err
+		}
+		if how := cd.how(); how != was.how() && a.cap.isRunning() { // (a capture going: said, so it's seen in its log)
+			a.rig.logf("info", "capture: the flash pause changed to %s (from %s), from the next photo", how, was.how())
 		}
 		a.rig.sendState()
 		a.cap.send() // the estimate

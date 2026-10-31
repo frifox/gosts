@@ -183,6 +183,17 @@ func (p Plan) path() string {
 	return PathRings
 }
 
+// how says which pause a Cooldown makes.
+func (cd Cooldown) how() string {
+	switch {
+	case cd.On:
+		return fmt.Sprintf("every %d photos, %g min", cd.Shots, cd.Minutes)
+	case cd.Dark:
+		return fmt.Sprintf("after a no-flash photo, %g min", cd.DarkMinutes)
+	}
+	return "none"
+}
+
 func defaultConfig() Config {
 	return Config{
 		ListenAddr: ":8081",
