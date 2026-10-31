@@ -441,7 +441,7 @@ func rewriteRefs(what string, fix func(ref map[string]any) bool) {
 		}
 		tmp := p + ".tmp"
 		if os.WriteFile(tmp, out, 0o644) == nil && os.Rename(tmp, p) == nil {
-			log.Printf("combine: %s: its models in %s, where they are now", wi.Path, what)
+			log.Printf("combine: %s: models found in %s", wi.Path, what)
 		} else {
 			os.Remove(tmp)
 		}

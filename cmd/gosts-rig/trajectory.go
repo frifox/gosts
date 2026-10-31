@@ -179,7 +179,7 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 				return boardGone(err)
 			}
 			if missed++; missed < followMissMax && ctx.Err() == nil {
-				r.logf("info", "moving path: a servo didn't answer (%v): carried on", err)
+				r.logf("info", "moving path: no answer (%v), tick skipped", err)
 				time.Sleep(followTick)
 				continue
 			}
@@ -202,7 +202,7 @@ func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, 
 				return boardGone(err)
 			}
 			if missed++; missed < followMissMax && ctx.Err() == nil {
-				r.logf("info", "moving path: a servo didn't answer (%v): carried on", err)
+				r.logf("info", "moving path: no answer (%v), tick skipped", err)
 				time.Sleep(followTick)
 				continue
 			}

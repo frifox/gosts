@@ -289,7 +289,7 @@ func (g *gphoto2Camera) findZoom() string {
 	g.zoomFound, g.zoomPath = true, path
 	g.mu.Unlock()
 	if path != "" {
-		log.Printf("camera: the lens's zoom is %s", path)
+		log.Printf("camera: zoom at %s", path)
 	}
 	return path
 }
@@ -601,7 +601,7 @@ func (g *gphoto2Camera) Probe(key string) error {
 	g.mu.Lock()
 	g.apertures, g.noAperture = [2]int{lo, hi}, nil
 	g.mu.Unlock()
-	log.Printf("camera: the lens has %s to %s", c.choices[lo], c.choices[hi])
+	log.Printf("camera: lens %s–%s", c.choices[lo], c.choices[hi])
 	return nil
 }
 

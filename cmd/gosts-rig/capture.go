@@ -516,7 +516,7 @@ func (c *capture) begin(p Plan) error {
 			return err
 		}
 		if spiralFit(at, shots) < len(shots) && spiralFit(at, mirrored(shots)) > spiralFit(at, shots) {
-			c.rig.logf("info", "capture: the platform is %.1f turns round, so the spiral turns the other way this time", at)
+			c.rig.logf("info", "capture: platform at %.1f turns: spiral reversed", at)
 			shots = mirrored(shots)
 		}
 	}
@@ -548,12 +548,12 @@ func (c *capture) begin(p Plan) error {
 	case p.Moving:
 		how = fmt.Sprintf("on a %d-turn spiral, Continuous", rows)
 	}
-	c.rig.logf("info", "capture started: %d photos about %.0f° apart, %s", len(shots), spacing, how)
+	c.rig.logf("info", "capture started: %d photos, %.0f° apart, %s", len(shots), spacing, how)
 	if len(prior) > 0 || top > 0 {
-		c.rig.logf("info", "capture: adding to the %d photos in its folder already (numbered on from capt_%03d)", len(prior), top)
+		c.rig.logf("info", "capture: adding to %d photos already there (after capt_%03d)", len(prior), top)
 	}
 	if at, err := c.rig.platformTurns(); err == nil {
-		c.rig.logf("info", "capture: the platform is %.2f turns round (its servo reaches ±7.5)", at)
+		c.rig.logf("info", "capture: platform at %.2f turns (limit ±7.5)", at)
 	}
 	if !p.Moving {
 		// Stop & Shoot keeps still while the shutter's open (see shutterHold).
@@ -562,9 +562,9 @@ func (c *capture) begin(p Plan) error {
 		c.hold = shutterHold(exp)
 		c.mu.Unlock()
 		if exp >= time.Second/15 {
-			c.rig.logf("info", "capture: holding still %v after each shutter (the shutter's open %v)", c.hold.Round(time.Millisecond), exp.Round(time.Millisecond))
+			c.rig.logf("info", "capture: holding %v after each shutter (exposure %v)", c.hold.Round(time.Millisecond), exp.Round(time.Millisecond))
 		} else if exp == 0 {
-			c.rig.logf("info", "capture: the shutter speed isn't known (Bulb?): no holding still after each shutter")
+			c.rig.logf("info", "capture: shutter speed unknown (Bulb?): no hold")
 		}
 	}
 	c.send()
@@ -577,10 +577,10 @@ func (c *capture) run(ctx context.Context, p Plan) {
 	// The capture is done once the rig is back at 0°/0° and every photo's
 	// pictures are in: till then it runs (a note says which it's waiting for).
 	if err == nil { // all taken: back to 0°/0°
-		c.rig.logf("info", "capture: all photos taken, returning to 0°/0°")
+		c.rig.logf("info", "capture: all taken, returning to 0°/0°")
 		c.setNote("Returning to 0°/0°…")
 		if herr := c.rig.home(); herr != nil {
-			c.rig.logf("error", "capture: couldn't return to 0°/0°: %v", herr)
+			c.rig.logf("error", "capture: return to 0°/0° failed: %v", herr)
 		} else if werr := c.rig.waitStill(ctx); werr != nil && !errors.Is(werr, context.Canceled) {
 			c.rig.logf("error", "capture: returning to 0°/0°: %v", werr)
 		}
@@ -642,9 +642,9 @@ func (c *capture) resetTurnsAfter() {
 	}
 	c.setNote("Resetting the platform's turn count…")
 	if err := c.rig.resetPlatformTurns(); err != nil {
-		c.rig.logf("error", "capture: couldn't reset the platform's turn count (it's %.1f turns round): %v", at, err)
+		c.rig.logf("error", "capture: turn count reset failed (%.1f turns): %v", at, err)
 	} else {
-		c.rig.logf("info", "capture: the platform's turn count reset (it was %.1f turns round)", at)
+		c.rig.logf("info", "capture: turn count reset (was %.1f turns)", at)
 	}
 	c.setNote("")
 }
@@ -717,7 +717,7 @@ func (c *capture) waitPictures() {
 			c.setNote(fmt.Sprintf("Downloading the last %d %s…", n, what))
 		}
 	}
-	c.rig.logf("error", "capture: %d photos didn't come over from the camera", c.camera.backlog())
+	c.rig.logf("error", "capture: %d photos never came from the camera", c.camera.backlog())
 }
 
 // spiralRange is how far (turns) the platform servo's goals reach either way.
@@ -896,7 +896,7 @@ func (c *capture) cooldown() {
 	c.mu.Lock()
 	n := c.index
 	c.mu.Unlock()
-	c.rig.logf("info", "capture: pausing %v after %d photos, to let the flash cool", d.Round(time.Second), n)
+	c.rig.logf("info", "capture: flash cooldown %v after %d photos", d.Round(time.Second), n)
 	c.pauseFor(d)
 }
 
@@ -974,7 +974,7 @@ func (c *capture) spiral(ctx context.Context) error {
 			}
 			rerr := c.rig.resetPlatformTurns()
 			if rerr == nil {
-				c.rig.logf("info", "capture: the platform's turn count reset (it was %.1f turns round), after %d of %d photos", at, idx, idx+len(left))
+				c.rig.logf("info", "capture: turn count reset (was %.1f turns) at %d/%d", at, idx, idx+len(left))
 				c.setNote("")
 				continue
 			}
@@ -982,7 +982,7 @@ func (c *capture) spiral(ctx context.Context) error {
 			if n < 1 {
 				return fmt.Errorf("the platform is %.1f turns round, its count couldn't be reset (%v), and there's no room to unwind", at, rerr)
 			}
-			c.rig.logf("info", "capture: couldn't reset the platform's turn count (%v): unwinding it %d turns instead", rerr, n)
+			c.rig.logf("info", "capture: turn count reset failed (%v): unwinding %d turns", rerr, n)
 			c.setNote(fmt.Sprintf("Unwinding the platform %d turns…", n))
 			err := c.rig.unwindPlatform(ctx, -dir*n)
 			c.setNote("")
@@ -1034,7 +1034,7 @@ func (c *capture) spiral(ctx context.Context) error {
 			paused := c.paused
 			c.mu.Unlock()
 			if now := c.rig.cfg.get().Motion; !paused && now != m {
-				c.rig.logf("info", "capture: the motion changed (speed %.0f°/s): carrying on along a new path", float64(now.Speed)/stepsPerDegree)
+				c.rig.logf("info", "capture: motion changed (%.0f°/s): new path", float64(now.Speed)/stepsPerDegree)
 			}
 			continue
 		}
@@ -1088,7 +1088,7 @@ func (c *capture) pace(hop float64) float64 {
 	holding := c.holding
 	c.mu.Unlock()
 	if started {
-		c.rig.logf("info", "capture: %d photos waiting for the camera: holding till it catches up", b)
+		c.rig.logf("info", "capture: %d photos queued: holding for the camera", b)
 	}
 	switch {
 	case holding:

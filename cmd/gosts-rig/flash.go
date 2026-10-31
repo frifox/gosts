@@ -194,7 +194,7 @@ func (a *app) flashLoop(ctx context.Context, power string) {
 		return
 	}
 	m.Saved = true
-	log.Printf("flash: %d flashes at %s before it stopped firing (saved)", m.Result, power)
+	log.Printf("flash: %d flashes at %s before it stopped (saved)", m.Result, power)
 	a.rig.sendState() // (the config, with it)
 }
 

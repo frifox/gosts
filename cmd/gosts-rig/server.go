@@ -203,7 +203,7 @@ func (a *app) exec(req request) (any, error) {
 			return nil, err
 		}
 		if how := cd.how(); how != was.how() && a.cap.isRunning() { // (a capture going: said, so it's seen in its log)
-			a.rig.logf("info", "capture: the flash pause changed to %s (from %s), from the next photo", how, was.how())
+			a.rig.logf("info", "capture: flash pause now %s (was %s)", how, was.how())
 		}
 		a.rig.sendState()
 		a.cap.send() // the estimate

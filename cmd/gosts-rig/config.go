@@ -350,7 +350,7 @@ func defaultConfigPath() string {
 	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 		if old, err := os.ReadFile(filepath.Join(dir, "gosts", "config.toml")); err == nil {
 			if os.MkdirAll(filepath.Dir(path), 0o755) == nil && os.WriteFile(path, old, 0o644) == nil {
-				log.Printf("config: copied the settings from before the rename, %s", filepath.Join(dir, "gosts", "config.toml"))
+				log.Printf("config: copied from %s", filepath.Join(dir, "gosts", "config.toml"))
 			}
 		}
 	}

@@ -282,7 +282,7 @@ func (b *modelBuilder) start(a *app, name string, o modelOptions) error {
 		if err := trash(out); err != nil {
 			return fmt.Errorf("the model from before (%s) couldn't go to the Trash: %w", o.Out, err)
 		}
-		log.Printf("model: %s's model from before (%s) moved to the Trash", name, o.Out)
+		log.Printf("model: %s: old %s trashed", name, o.Out)
 	}
 	if err := os.MkdirAll(work, 0o755); err != nil {
 		return err
@@ -305,7 +305,7 @@ func (b *modelBuilder) start(a *app, name string, o modelOptions) error {
 	b.cmd = cmd
 	b.state = modelState{Folder: name, Out: o.Out, Running: true, Photos: map[string]string{}, Reasons: map[string]string{}, Started: time.Now().UnixMilli()}
 	b.mu.Unlock()
-	log.Printf("model: building %s (%s)", name, strings.Join(o.args(), " "))
+	log.Printf("model: building %s", name)
 	b.send()
 	go b.follow(cmd, stdout, &stderr, work)
 	return nil

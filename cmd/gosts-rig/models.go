@@ -585,7 +585,7 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 			fail(http.StatusInternalServerError, "the one saved before couldn't go to the Trash: %v", err)
 			return
 		}
-		log.Printf("model: %s's %s from before moved to the Trash", folder, to)
+		log.Printf("model: %s: old %s trashed", folder, to)
 	} else {
 		os.Remove(dst) // (an empty folder)
 	}
@@ -593,7 +593,7 @@ func (a *app) handleModelSave(w http.ResponseWriter, r *http.Request) {
 		fail(http.StatusInternalServerError, "%v", err)
 		return
 	}
-	log.Printf("model: %s's %s saved as %s/%s (%s, %d triangles)", name, model, folder, to, edit.Units, edit.Triangles)
+	log.Printf("model: %s/%s saved (%s, %d triangles)", folder, to, edit.Units, edit.Triangles)
 	m, _ := modelIn(dst)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(m)

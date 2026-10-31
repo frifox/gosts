@@ -862,8 +862,10 @@ func (c *cameraConn) shooter(q chan queuedShot) {
 			continue
 		}
 		// The rig moved on meanwhile: how late the shutter was says how far
-		// from its point the photo was taken.
-		log.Printf("camera: photo %d fired %v after it was asked for", s.n, time.Since(s.asked).Round(time.Millisecond))
+		// from its point the photo was taken (said only when late).
+		if late := time.Since(s.asked); late > fireLate {
+			log.Printf("camera: photo %d fired %v late", s.n, late.Round(time.Millisecond))
+		}
 	}
 }
 
@@ -1466,7 +1468,7 @@ func (c *cameraConn) measurePace(ctx context.Context) (float64, error) {
 			return pace, err
 		}
 	}
-	log.Printf("camera: %s keeps up with a photo every %.2f s", id, pace)
+	log.Printf("camera: %s pace %.2f s/photo", id, pace)
 	c.out(c.msg())
 	return pace, nil
 }

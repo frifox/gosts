@@ -93,7 +93,7 @@ func (r *rig) portLost(ctx context.Context) {
 	if port == "" || port == simPort {
 		return
 	}
-	r.logf("error", "the driver board dropped off USB (%s): its power sagging as the servos pull? (a servo restarting with it loses its turn count) Connecting again once it's back", port)
+	r.logf("error", "driver board lost from USB (%s): power sag? Reconnecting when it's back", port)
 	r.disconnect()
 	go func() {
 		for range 60 {
@@ -115,7 +115,7 @@ func (r *rig) portLost(ctx context.Context) {
 				return
 			}
 		}
-		r.logf("error", "the driver board didn't come back on %s: connect it again", port)
+		r.logf("error", "driver board not back on %s: reconnect it", port)
 	}()
 }
 
@@ -318,7 +318,7 @@ func (r *rig) adoptFound(ids []uint8) {
 	if same {
 		return
 	}
-	r.logf("info", "found servos %v (Servo Settings' scan)", found)
+	r.logf("info", "found servos %v (Servo Settings scan)", found)
 	r.ensureMultiTurn(found)
 	r.sendState()
 }
@@ -358,7 +358,7 @@ func (r *rig) rolesFromGroups(groups [][]uint8, mirrored func(uint8) bool) {
 	if ro == old {
 		return
 	}
-	r.logf("info", "roles from Servo Ctl's group of #%d and #%d: they're the elevation, #%d the azimuth", pair[0], pair[1], ro.Azimuth)
+	r.logf("info", "roles from Servo Settings group: elevation #%d + #%d, azimuth #%d", pair[0], pair[1], ro.Azimuth)
 	if err := r.setRoles(ro); err != nil {
 		r.logf("error", "roles: %v", err)
 	}
@@ -403,7 +403,7 @@ func (r *rig) scan(ctx context.Context) error {
 		ro := r.roles()
 		for _, id := range []uint8{ro.ElevationLeader, ro.ElevationFollower, ro.Azimuth} {
 			if !slices.Contains(found, id) {
-				r.logf("error", "servo %d (in the rig's roles) was not found: check its power and cable, or make a group of the two elevation servos in Servo Settings (the rig takes the roles from it)", id)
+				r.logf("error", "servo %d (in roles) not found: check power and cable", id)
 			}
 		}
 	}
@@ -433,7 +433,7 @@ func (r *rig) ensureMultiTurn(found []uint8) {
 				r.logf("error", "servo %d: enabling multi-turn: %v", id, err)
 				continue
 			}
-			r.logf("info", "servo %d: multi-turn enabled, so moves always take the short way round", id)
+			r.logf("info", "servo %d: multi-turn on", id)
 		}
 		return nil
 	})
@@ -562,7 +562,7 @@ func (r *rig) platformRoom(a float64) error {
 		if moving, err := sv.Moving(); err != nil || moving {
 			return err // (not while it's turning: the move goes as it is)
 		}
-		r.logf("info", "azimuth: the platform is %.1f turns round, at the end of its servo's reach: its count started afresh where it is (no move), so it goes the short way, not a whole turn back", float64(cur)/gosts.StepsPerRev)
+		r.logf("info", "azimuth: at %.1f turns, near the limit: turn count reset", float64(cur)/gosts.StepsPerRev)
 		return resetTurns(bus, ro.Azimuth)
 	})
 }
@@ -943,7 +943,7 @@ func (r *rig) knowTurns(bus *gosts.Bus, release bool, ids ...uint8) error {
 		return nil
 	}
 	lock = ids // (all of them, held together: the elevation pair on one swing, one not left to hold it alone)
-	r.logf("info", "servo %s: turn count unknown (turned by hand with torque off?): learning it (held a moment where it is%s)", strings.Join(unknown, ", "), map[bool]string{true: ", then let go", false: ""}[release])
+	r.logf("info", "servo %s: turn count unknown: relearned%s", strings.Join(unknown, ", "), map[bool]string{true: " (released)", false: ""}[release])
 	defer r.torqueStale.Store(true) // (the page's switches: on)
 	// (Torque Lock, checked: Hold restarts each one's count where it is and
 	// holds there, in it)
@@ -1111,14 +1111,14 @@ func (p *powerSag) check(now time.Time, asked int) string {
 		return ""
 	}
 	p.said = now
-	msg := fmt.Sprintf("the servos' power sagged to %.1f V (from %.1f V)", low, p.normal)
+	msg := fmt.Sprintf("servo power sagged to %.1f V (from %.1f V)", low, p.normal)
 	if silent > 0 {
-		msg += fmt.Sprintf(", and they went silent %.1f s (restarted: torque off, turn counts lost)", silent.Seconds())
+		msg += fmt.Sprintf(", servos silent %.1f s (restarted)", silent.Seconds())
 	}
 	if math.Abs(low-5) < 0.4 {
-		msg += ": 5 V is a USB-C PD charger's default, dropped back to under the load: a supply that gives the current the servos draw starting (a 12 V one of 5 A or more), or a large capacitor on the board's power in"
+		msg += ": USB-C PD charger fell back to 5 V: needs a stronger supply"
 	} else {
-		msg += ": the supply can't give the current the servos draw starting (a bigger one, thicker or shorter wires, or a large capacitor on the board's power in)"
+		msg += ": supply too weak for the servos"
 	}
 	return msg
 }

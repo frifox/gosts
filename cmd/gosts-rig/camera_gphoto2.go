@@ -267,7 +267,7 @@ func (g *gphoto2Camera) Close() error {
 	}
 	// Still at it (the camera not answering, say): gphoto2 goes, so the
 	// worker's commands fail at once and it ends.
-	log.Printf("camera: closing: gphoto2 isn't done, stopping it")
+	log.Printf("camera: closing: stopping gphoto2")
 	g.sh.kill()
 	select {
 	case <-g.done:
@@ -498,7 +498,7 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 			keep(h.name, h.data, fmt.Sprintf("%s isn't any waiting photo's", h.name))
 			return
 		}
-		log.Printf("camera: the photo numbered %d wasn't taken (the camera refused?): %s is the next one's", h.k, h.name)
+		log.Printf("camera: photo %d not taken (refused?); %s is the next", h.k, h.name)
 		for j := range queue {
 			queue[j].num--
 		}
@@ -534,7 +534,7 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 		}
 		for _, l := range strings.Split(out, "\n") {
 			if m := gphoto2Added.FindStringSubmatch(l); m != nil {
-				log.Printf("camera: on the card: %s", m[1])
+				log.Printf("camera: %s on the card", m[1])
 				k := unwrap(cameraFileNumber(m[1]))
 				confirm(k)
 				if k > 0 {
@@ -707,12 +707,12 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 				continue
 			}
 			if pend.retries >= 2 {
-				log.Printf("camera: the camera didn't take a photo for its shutter, fired 3 times: going on")
+				log.Printf("camera: no photo after 3 shutters: moving on")
 				pend.on = false
 				break
 			}
 			pend.retries++
-			log.Printf("camera: no photo %v after the shutter (the camera busy?): firing it again", confirmWait)
+			log.Printf("camera: no photo %v after the shutter: firing again", confirmWait)
 			if _, err := sh.run("trigger-capture", 15*time.Second); err != nil {
 				log.Printf("camera: firing again: %v", err)
 			}
@@ -909,7 +909,7 @@ func (sh *gphoto2Shell) run(line string, timeout time.Duration) (string, error) 
 	out, err := sh.wait(timeout)
 	if errors.Is(err, errNoAnswer) {
 		sh.stuck = true
-		log.Printf("camera: no answer to %q in %v: the camera isn't answering gphoto2", line, timeout)
+		log.Printf("camera: no reply to %q in %v", line, timeout)
 		err = errCameraStuck
 	}
 	// The shell echoes the command first.

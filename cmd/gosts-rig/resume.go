@@ -109,11 +109,11 @@ func (c *capture) saveNow() {
 		return
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		c.rig.logf("error", "capture: saving its state: %v", err)
+		c.rig.logf("error", "capture: saving state: %v", err)
 		return
 	}
 	if err := writeCaptureState(dir, s); err != nil {
-		c.rig.logf("error", "capture: saving its state: %v", err)
+		c.rig.logf("error", "capture: saving state: %v", err)
 	}
 	if s.Plan.ExportFor == "" {
 		return
@@ -177,7 +177,7 @@ func (c *capture) recheck() {
 	c.shots, c.index = takenFirst(c.shots)
 	c.note = fmt.Sprintf("Interrupted: %d of %d photos taken. Resume takes the rest; New Capture starts afresh.", c.index, len(c.shots))
 	c.mu.Unlock()
-	c.rig.logf("info", "capture: %d photo(s) deleted: their shots to be taken again on Resume", gone)
+	c.rig.logf("info", "capture: %d deleted photo(s) to retake", gone)
 	c.saveNow()
 	c.send()
 }
@@ -230,7 +230,7 @@ func (a *app) adopt(name string) error {
 	c.began, c.photoShot = s.Started, map[int]int{}
 	c.note = fmt.Sprintf("Interrupted: %d of %d photos taken. Resume takes the rest; New Capture starts afresh.", s.taken(), len(shots))
 	c.mu.Unlock()
-	c.rig.logf("info", "capture: %s opened to resume (%d of %d photos taken)", name, s.taken(), len(shots))
+	c.rig.logf("info", "capture: %s opened (%d/%d taken)", name, s.taken(), len(shots))
 	a.rig.sendState() // (the plan: back)
 	c.send()
 	return nil
@@ -257,7 +257,7 @@ func (a *app) addTo(name, dir string) error {
 	c.photoShot = map[int]int{}
 	c.note = fmt.Sprintf("Adding to %s (%d photos in it): a capture's photos go in with them, numbered on.", filepath.Base(dir), len(files))
 	c.mu.Unlock()
-	c.rig.logf("info", "capture: %s opened to add photos to (%d in it)", name, len(files))
+	c.rig.logf("info", "capture: %s opened to add to (%d photos)", name, len(files))
 	c.send()
 	return nil
 }
