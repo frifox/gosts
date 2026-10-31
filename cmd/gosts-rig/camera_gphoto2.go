@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,6 +55,91 @@ func gphoto2Detect() []gphoto2Device {
 			devs = append(devs, gphoto2Device{model: m[1], port: m[2]})
 		}
 	}
+	return realOnes(devs, usbVendors)
+}
+
+// realOnes drops the phantoms: a camera gphoto2 lists more than once (seen:
+// the A6600 at usb:001,006 and usb:000,006, macOS having it only at the
+// first; bus 0's address 6 a USB-C display cable), each port checked with
+// the system's USB devices (vendors: bus and address to its vendor name):
+// kept if its vendor's in the model's name ("Sony" in "Sony Alpha-A6600").
+// None confirmed (or the devices unknown): all kept, as listed.
+func realOnes(devs []gphoto2Device, vendors func() map[[2]int]string) []gphoto2Device {
+	seen := map[string]int{}
+	for _, d := range devs {
+		seen[d.model]++
+	}
+	var v map[[2]int]string
+	var out []gphoto2Device
+	for _, d := range devs {
+		if seen[d.model] < 2 {
+			out = append(out, d)
+			continue
+		}
+		if v == nil {
+			if v = vendors(); v == nil {
+				return devs
+			}
+		}
+		var bus, addr int
+		if _, err := fmt.Sscanf(d.port, "usb:%d,%d", &bus, &addr); err != nil {
+			continue
+		}
+		if name := v[[2]int{bus, addr}]; name != "" && strings.Contains(strings.ToLower(d.model), strings.ToLower(name)) {
+			out = append(out, d)
+		}
+	}
+	for m, n := range seen { // (a model none of whose ports checked out: all kept)
+		if n < 2 || slices.ContainsFunc(out, func(d gphoto2Device) bool { return d.model == m }) {
+			continue
+		}
+		for _, d := range devs {
+			if d.model == m {
+				out = append(out, d)
+			}
+		}
+	}
+	return out
+}
+
+// usbVendors is the USB devices attached (macOS's registry: ioreg), each by
+// its bus (its locationID's top byte, as libusb numbers them) and address,
+// to its vendor's name; nil if they can't be listed.
+var usbVendors = func() map[[2]int]string {
+	out, err := exec.Command("ioreg", "-p", "IOUSB", "-l", "-w0").Output()
+	if err != nil {
+		return nil
+	}
+	return parseIoreg(string(out))
+}
+
+var (
+	ioregDev    = regexp.MustCompile(`\+-o .*@([0-9a-fA-F]+)\s+<class IOUSBHostDevice`)
+	ioregAddr   = regexp.MustCompile(`"USB Address" = (\d+)`)
+	ioregVendor = regexp.MustCompile(`"USB Vendor Name" = "([^"]*)"`)
+)
+
+// parseIoreg: ioreg's USB devices, bus and address to vendor name.
+func parseIoreg(out string) map[[2]int]string {
+	devs := map[[2]int]string{}
+	bus, addr, vendor := -1, -1, ""
+	flush := func() {
+		if bus >= 0 && addr >= 0 {
+			devs[[2]int{bus, addr}] = vendor
+		}
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if m := ioregDev.FindStringSubmatch(line); m != nil {
+			flush()
+			loc, _ := strconv.ParseUint(m[1], 16, 32)
+			bus, addr, vendor = int(loc>>24), -1, ""
+		} else if m := ioregAddr.FindStringSubmatch(line); m != nil && addr < 0 {
+			addr, _ = strconv.Atoi(m[1])
+		} else if m := ioregVendor.FindStringSubmatch(line); m != nil && vendor == "" {
+			vendor = m[1]
+		}
+	}
+	flush()
 	return devs
 }
 
