@@ -128,22 +128,27 @@ const (
 // at(k) is called as the path passes point k (the photo; an error stops
 // the rig and follow). When paused() says so the rig stops and follow
 // returns errPaused.
-func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, paused func() bool, pace func() float64) error {
-	// The path's own clock: it runs at pace() (1: as planned; slower, or
-	// held at 0, while the camera catches up with the photos asked of it),
+func (r *rig) follow(ctx context.Context, tr *trajectory, at func(k int) error, paused func() bool, pace func(hop float64) float64) error {
+	// The path's own clock: it runs at pace(hop) (1: as planned; slower, or
+	// held at 0, while the camera catches up with the photos asked of it;
+	// hop: the path's time, as planned, from the shot before to the next),
 	// and stands still while a photo is being asked for.
+	next := 0 // next point
 	vt, last, rate := 0.0, time.Now(), 1.0
 	clock := func() float64 {
 		now := time.Now()
 		rate = 1
 		if pace != nil {
-			rate = math.Max(0, math.Min(1, pace()))
+			hop := 0.0
+			if next > 0 && next < len(tr.pointT) {
+				hop = tr.pointT[next] - tr.pointT[next-1]
+			}
+			rate = math.Max(0, math.Min(1, pace(hop)))
 		}
 		vt += now.Sub(last).Seconds() * rate
 		last = now
 		return vt
 	}
-	next := 0 // next point
 	end := tr.duration()
 	missed := 0 // ticks in a row the bus didn't answer (the servos go on to the goal before)
 	for {

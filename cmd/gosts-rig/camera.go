@@ -529,6 +529,7 @@ type cameraConn struct {
 	inFlight       map[int]bool              // photos asked for whose picture hasn't come yet (nor failed): see backlog
 	unfired        []time.Time               // photos queued whose shutter hasn't gone yet: when each was asked for (see firingLate)
 	firedAt        []time.Time               // when the queued photos' shutters went, recently (see measurePace)
+	cycle          time.Duration             // how long the camera's taken from photo to photo when kept busy, lately (see noteCycle)
 	simRendered    map[int]bool              // simulated photos a page has rendered (coming over: see simPicture)
 	simDirs        map[int]string            // the folders simulated photos are saved in (see simSave)
 	onPicture      func(n int, p photo)      // a photo's picture came over (the capture records its file: see capture.pictured)
@@ -844,6 +845,7 @@ func (c *cameraConn) shooter(q chan queuedShot) {
 			c.unfired = c.unfired[1:]
 		}
 		if err == nil {
+			c.noteCycle(time.Since(s.asked))
 			c.firedAt = append(c.firedAt, time.Now())
 			if len(c.firedAt) > 64 {
 				c.firedAt = c.firedAt[len(c.firedAt)-64:]
@@ -1306,6 +1308,44 @@ func (c *cameraConn) landed(n int) {
 	c.mu.Lock()
 	delete(c.inFlight, n)
 	c.mu.Unlock()
+}
+
+// noteCycle learns how long the camera takes from photo to photo (c.mu
+// held; a photo's shutter just went, waited asked since it was asked for):
+// one that waited (the camera busy with the last) shows it, the time since
+// the shutter before; one that didn't, that it's keeping up: the cycle
+// eased down (cycleEase), so it's tried quicker again. Moving shots go no
+// faster than that from shot to shot (see capture.pace): arriving at each
+// as the camera's ready, not early, held, and lurching on.
+func (c *cameraConn) noteCycle(waited time.Duration) {
+	if len(c.firedAt) == 0 {
+		return
+	}
+	since := time.Since(c.firedAt[len(c.firedAt)-1])
+	switch {
+	case since > cycleStale: // (a pause between: nothing to go on)
+	case waited > cycleWaited:
+		c.cycle = max(since, c.cycle)
+	default:
+		c.cycle = time.Duration(float64(c.cycle) * cycleEase)
+	}
+}
+
+// The camera's cycle (see noteCycle): a photo that waited more than
+// cycleWaited for its shutter shows it; each one that didn't eases it by
+// cycleEase; photos further apart than cycleStale don't count.
+const (
+	cycleWaited = 60 * time.Millisecond
+	cycleEase   = 0.97
+	cycleStale  = 10 * time.Second
+)
+
+// photoCycle is how long (s) the camera's taken from photo to photo when
+// kept busy, lately (0: it's kept up).
+func (c *cameraConn) photoCycle() float64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.cycle.Seconds()
 }
 
 // firingLate is how long the oldest queued photo has been waiting for its

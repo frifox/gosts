@@ -1042,12 +1042,20 @@ const paceHold, paceSlow, paceGo = 4, 3, 2
 const fireLate = 150 * time.Millisecond
 
 // pace is how fast moving shots' path goes (1: as planned) for how far the
-// camera is behind: held while a photo's shutter hasn't gone yet (so each
-// is taken at its shot, not further along), and at paceHold photos waiting
-// for their pictures till it's down to paceGo; half speed at paceSlow.
-func (c *capture) pace() float64 {
+// camera is behind, the hop to the next shot taking hop seconds as planned:
+// no quicker than the camera's been taking photos (its cycle: the rig at
+// each shot as the camera's ready, not early, held, and lurching on; seen:
+// the platform at 20°/s ahead of a slower camera); held while a photo's
+// shutter hasn't gone yet (so each is taken at its shot, not further
+// along), and at paceHold photos waiting for their pictures till it's down
+// to paceGo; half speed at paceSlow.
+func (c *capture) pace(hop float64) float64 {
 	if c.camera.firingLate() > fireLate {
 		return 0
+	}
+	slower := 1.0
+	if cy := c.camera.photoCycle(); hop > 0 && cy > hop {
+		slower = hop / cy
 	}
 	b := c.camera.backlog()
 	c.mu.Lock()
@@ -1067,9 +1075,9 @@ func (c *capture) pace() float64 {
 	case holding:
 		return 0
 	case b >= paceSlow:
-		return 0.5
+		return 0.5 * slower
 	}
-	return 1
+	return slower
 }
 
 // setNote says something on the page while the capture runs (e.g. that the

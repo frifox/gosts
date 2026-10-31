@@ -418,7 +418,7 @@ func TestCapturePace(t *testing.T) {
 		want    float64
 	}{{0, 1}, {2, 1}, {3, 0.5}, {4, 0}, {3, 0}, {2, 1}, {3, 0.5}} {
 		waiting(step.waiting)
-		if got := c.pace(); got != step.want {
+		if got := c.pace(0); got != step.want {
 			t.Errorf("%d waiting: pace %v, want %v", step.waiting, got, step.want)
 		}
 	}
@@ -768,5 +768,42 @@ func TestAzimuthMotionFromBefore(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(p); !strings.Contains(string(b), "AzimuthSpeed = 900") {
 		t.Errorf("not saved:\n%s", b)
+	}
+}
+
+// The camera's cycle, learned from photos that waited for their shutter
+// (the camera busy: the time since the last one's how long it takes),
+// eased down by those that didn't; a moving path's hop no quicker than it
+// (seen: the platform at 20°/s ahead of the camera, held, lurching on).
+func TestPaceCamCycle(t *testing.T) {
+	cfg, _ := loadConfig(filepath.Join(t.TempDir(), "config.toml"))
+	cam := &cameraConn{out: func(any) {}}
+	c := &capture{rig: &rig{cfg: cfg, out: func(any) {}}, camera: cam, out: func(any) {}}
+	fire := func(ago time.Duration, waited time.Duration) {
+		cam.mu.Lock()
+		cam.firedAt = []time.Time{time.Now().Add(-ago)}
+		cam.noteCycle(waited)
+		cam.mu.Unlock()
+	}
+	if got := c.pace(1); got != 1 {
+		t.Fatalf("nothing learned: pace %v, want 1", got)
+	}
+	fire(2*time.Second, 300*time.Millisecond) // (waited: the camera took 2 s)
+	if cy := cam.photoCycle(); math.Abs(cy-2) > 0.01 {
+		t.Fatalf("cycle %v, want 2 s", cy)
+	}
+	if got := c.pace(1); math.Abs(got-0.5) > 0.01 {
+		t.Errorf("a 1 s hop, the camera 2 s: pace %v, want 0.5 (the hop taking 2 s)", got)
+	}
+	if got := c.pace(3); got != 1 {
+		t.Errorf("a 3 s hop: pace %v, want 1 (the camera's ready before)", got)
+	}
+	fire(2*time.Second, 0) // (on time: it's keeping up)
+	if cy := cam.photoCycle(); cy >= 2 || cy < 1.9 {
+		t.Errorf("after one on time: cycle %v, want eased a little under 2", cy)
+	}
+	fire(time.Minute, time.Second) // (a pause between: nothing to go on)
+	if cy := cam.photoCycle(); cy >= 2 {
+		t.Errorf("after a pause: cycle %v, changed", cy)
 	}
 }
