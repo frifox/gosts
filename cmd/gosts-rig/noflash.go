@@ -159,6 +159,10 @@ func (c *capture) noFlash(n, i int, b, normal float64) {
 	}
 	c.darkSince = 0
 	cooling := !c.cooling.IsZero()
+	num := c.shots[i].Num // (its number: the capture's, as its file's)
+	if num == 0 {
+		num = i + 1 // (from before Num: its place)
+	}
 	c.mu.Unlock()
 	d := time.Duration(c.rig.cfg.get().Cooldown.DarkMinutes * float64(time.Minute))
 	ran := fmt.Sprintf("%d since last pause", since)
@@ -172,7 +176,7 @@ func (c *capture) noFlash(n, i int, b, normal float64) {
 	if cooling {
 		pause = "already paused"
 	}
-	c.rig.logf("info", "capture: photo %d dark (no flash? %.0f vs %.0f), %s; %s, retaking shot %d", n, b, normal, ran, pause, i+1)
+	c.rig.logf("info", "capture: photo %d is dark (no flash? %.0f vs %.0f), %s; %s", num, b, normal, ran, pause)
 	if !cooling {
 		c.pauseFor(d)
 	}
