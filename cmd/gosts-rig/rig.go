@@ -1049,6 +1049,83 @@ func absInt(v int) int {
 	return v
 }
 
+// powerSag watches the servos' supply voltage (telemetry's): a drop well
+// under what it's been (seen: 12.2 V to 5.0 V as the elevation started to
+// move, a USB-C PD charger resetting to its 5 V under the load), and the
+// servos going silent after, restarting (torque off, turn counts lost), is
+// said as what it is, not left as timeouts.
+type powerSag struct {
+	normal float64           // the voltage as it's been (highest lately, easing down)
+	low    float64           // the lowest in a sag going on (0: none)
+	min    map[uint8]float64 // this tick's
+	silent time.Time         // when the servos went silent, in a sag (zero: they didn't)
+	back   time.Time         // when they answered again
+	said   time.Time
+}
+
+func (p *powerSag) seen(id uint8, v float64) {
+	if p.min == nil {
+		p.min = map[uint8]float64{}
+	}
+	p.min[id] = v
+}
+
+// check, once a tick (asked: how many servos were asked): a line for the
+// log when a sag's over (the servos going silent in it: said too).
+func (p *powerSag) check(now time.Time, asked int) string {
+	defer clear(p.min)
+	lo := 0.0
+	for _, v := range p.min {
+		if v > 0 && (lo == 0 || v < lo) {
+			lo = v
+		}
+	}
+	if lo == 0 { // (none answered)
+		if p.low > 0 && asked > 0 && p.silent.IsZero() {
+			p.silent = now
+		}
+		return ""
+	}
+	if !p.silent.IsZero() && p.back.IsZero() {
+		p.back = now
+	}
+	if p.normal == 0 || lo > p.normal {
+		p.normal = lo
+	}
+	if lo < p.normal*sagShare {
+		if p.low == 0 || lo < p.low {
+			p.low = lo
+		}
+		return ""
+	}
+	p.normal = math.Max(lo, p.normal*0.999) // (a supply changed for a lower one: followed, slowly)
+	if p.low == 0 {
+		return ""
+	}
+	low, silent := p.low, time.Duration(0)
+	if !p.silent.IsZero() {
+		silent = p.back.Sub(p.silent)
+	}
+	p.low, p.silent, p.back = 0, time.Time{}, time.Time{}
+	if now.Sub(p.said) < 5*time.Second {
+		return ""
+	}
+	p.said = now
+	msg := fmt.Sprintf("the servos' power sagged to %.1f V (from %.1f V)", low, p.normal)
+	if silent > 0 {
+		msg += fmt.Sprintf(", and they went silent %.1f s (restarted: torque off, turn counts lost)", silent.Seconds())
+	}
+	if math.Abs(low-5) < 0.4 {
+		msg += ": 5 V is a USB-C PD charger's default, dropped back to under the load: a supply that gives the current the servos draw starting (a 12 V one of 5 A or more), or a large capacitor on the board's power in"
+	} else {
+		msg += ": the supply can't give the current the servos draw starting (a bigger one, thicker or shorter wires, or a large capacitor on the board's power in)"
+	}
+	return msg
+}
+
+// sagShare: a voltage under this share of the usual is a sag.
+const sagShare = 0.8
+
 // pollLoop streams telemetry while connected.
 func (r *rig) pollLoop(ctx context.Context) {
 	t := time.NewTicker(100 * time.Millisecond)
@@ -1060,6 +1137,7 @@ func (r *rig) pollLoop(ctx context.Context) {
 		since time.Time
 	}{}
 	retry := map[uint8]time.Time{} // (learning a turn count that didn't work: not again till then)
+	var sag powerSag
 	for {
 		select {
 		case <-ctx.Done():
@@ -1113,6 +1191,7 @@ func (r *rig) pollLoop(ctx context.Context) {
 					st.Error = f.Err.Error()
 				default:
 					st.Pos, st.Moving, st.Load, st.Volt, st.Temp, st.Status = f.Position, f.Moving, f.Load, f.Voltage, f.Temperature, f.Status.String()
+					sag.seen(id, f.Voltage)
 				}
 				msg.Servos[fmt.Sprint(id)] = st
 			}
@@ -1174,6 +1253,9 @@ func (r *rig) pollLoop(ctx context.Context) {
 		if lost {
 			r.portLost(ctx)
 			continue
+		}
+		if msg := sag.check(time.Now(), len(asked)); msg != "" {
+			r.logf("error", "%s", msg)
 		}
 		if tg.set {
 			msg.Target = &[2]float64{tg.elevation, tg.azimuth}
