@@ -235,6 +235,7 @@ type capture struct {
 	// No-flash photos (see noflash.go): the last bright ones' brightness,
 	// and the photos to delete as the capture carries on (kept while cooling).
 	bright    []float64
+	brightBy  string // (how they were measured: Cooldown.DarkBy's way, see photoLight)
 	dropLater []int
 	// How many photos the flash lasts before one comes out dark: those
 	// since the last (or the start: darkSince), and each run before

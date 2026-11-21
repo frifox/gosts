@@ -39,14 +39,21 @@ type Config struct {
 // every Shots photos, for Minutes, then it carries on by itself (On). Or,
 // with Dark instead, when a photo comes out much darker than the ones before
 // (the flash didn't fire: overheated), for DarkMinutes, then it carries on
-// from that photo's shot (see capture.noFlash).
+// from that photo's shot (see capture.noFlash). DarkBy is how a photo's
+// brightness is told: "masked" (the default, ""), the part not near-black
+// only (the subject the flash lights, however much of the frame it
+// fills), or "whole", the whole photo's.
 type Cooldown struct {
 	On          bool    `toml:"On"`
 	Shots       int     `toml:"Shots"`
 	Minutes     float64 `toml:"Minutes"`
 	Dark        bool    `toml:"Dark"`
 	DarkMinutes float64 `toml:"DarkMinutes"`
+	DarkBy      string  `toml:"DarkBy"`
 }
+
+// masked is whether a no-flash photo is told by its lit part (DarkBy).
+func (cd Cooldown) masked() bool { return cd.DarkBy != "whole" }
 
 // every is how many photos go between pauses (0: none).
 func (cd Cooldown) every() int {
@@ -189,7 +196,11 @@ func (cd Cooldown) how() string {
 	case cd.On:
 		return fmt.Sprintf("every %d photos, %g min", cd.Shots, cd.Minutes)
 	case cd.Dark:
-		return fmt.Sprintf("after a no-flash photo, %g min", cd.DarkMinutes)
+		by := "lit part"
+		if !cd.masked() {
+			by = "whole photo"
+		}
+		return fmt.Sprintf("after a no-flash photo (by %s), %g min", by, cd.DarkMinutes)
 	}
 	return "none"
 }

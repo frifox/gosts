@@ -25,10 +25,11 @@ const noFlashRecent = 10
 // checkFlash looks at shot i's photo n (just come over, its file saved) for
 // a flash that didn't fire. (In the background: it's decoded.)
 func (c *capture) checkFlash(n, i int, p photo) {
-	if !c.rig.cfg.get().Cooldown.Dark || len(p.JPEG) == 0 {
+	cd := c.rig.cfg.get().Cooldown
+	if !cd.Dark || len(p.JPEG) == 0 {
 		return
 	}
-	b, err := photoBrightness(p.JPEG) // (the camera's preview: much quicker)
+	b, err := photoLight(p.JPEG, cd.masked()) // (the camera's preview: much quicker)
 	if err != nil {
 		return
 	}
@@ -36,6 +37,9 @@ func (c *capture) checkFlash(n, i int, p photo) {
 	if !c.running || i >= len(c.shots) || c.photoShot[n] != i {
 		c.mu.Unlock()
 		return // (stopped, or deleted meanwhile)
+	}
+	if by := cd.DarkBy; by != c.brightBy { // (measured another way: compared from here on)
+		c.bright, c.brightBy = nil, by
 	}
 	normal := median(c.bright)
 	dark := len(c.bright) > 0 && b < flashDark*normal
@@ -48,7 +52,7 @@ func (c *capture) checkFlash(n, i int, p photo) {
 	}
 	c.mu.Unlock()
 	if dark {
-		c.noFlash(n, i, b, normal)
+		c.noFlash(n, i, b, normal, cd.masked())
 	}
 }
 
@@ -93,10 +97,14 @@ func darkPauses(left int, every float64, since int) float64 {
 	return math.Ceil((float64(left) - first) / math.Max(1, math.Round(every)))
 }
 
-// photoBrightness is a photo's brightness (its camera preview's, if it has one).
-func photoBrightness(jpg []byte) (float64, error) {
+// photoLight is a photo's brightness (its camera preview's, if it has one):
+// its lit part's if masked (see litBrightness), else the whole photo's.
+func photoLight(jpg []byte, masked bool) (float64, error) {
 	if small := jpegPreview(jpg, 400); small != nil {
 		jpg = small
+	}
+	if masked {
+		return litBrightness(jpg)
 	}
 	return meanBrightness(jpg)
 }
@@ -104,7 +112,8 @@ func photoBrightness(jpg []byte) (float64, error) {
 // seedBright: a resumed capture's photos are compared with its last ones
 // taken before (their files), from its first photo on.
 func (c *capture) seedBright() {
-	if !c.rig.cfg.get().Cooldown.Dark {
+	cd := c.rig.cfg.get().Cooldown
+	if !cd.Dark {
 		return
 	}
 	c.mu.Lock()
@@ -119,13 +128,13 @@ func (c *capture) seedBright() {
 	var bright []float64
 	for _, f := range files[max(0, len(files)-noFlashRecent):] {
 		if jpg, err := photoJPEG(filepath.Join(dir, f)); err == nil {
-			if b, err := photoBrightness(jpg); err == nil {
+			if b, err := photoLight(jpg, cd.masked()); err == nil {
 				bright = append(bright, b)
 			}
 		}
 	}
 	c.mu.Lock()
-	c.bright = bright
+	c.bright, c.brightBy = bright, cd.DarkBy
 	c.mu.Unlock()
 }
 
@@ -133,7 +142,7 @@ func (c *capture) seedBright() {
 // normal): the capture goes back to shot i, its photos from there to be
 // deleted as it carries on (dropLater: their pictures still coming too), and
 // pauses for the Cooldown's DarkMinutes (unless it's pausing already).
-func (c *capture) noFlash(n, i int, b, normal float64) {
+func (c *capture) noFlash(n, i int, b, normal float64, masked bool) {
 	var drop []int
 	c.mu.Lock()
 	if !c.running || i > c.index {
@@ -176,7 +185,11 @@ func (c *capture) noFlash(n, i int, b, normal float64) {
 	if cooling {
 		pause = "already paused"
 	}
-	c.rig.logf("info", "capture: photo %d is dark (no flash? %.0f vs %.0f), %s; %s", num, b, normal, ran, pause)
+	what := ""
+	if masked {
+		what = "lit part "
+	}
+	c.rig.logf("info", "capture: photo %d is dark (no flash? %s%.0f vs %.0f), %s; %s", num, what, b, normal, ran, pause)
 	if !cooling {
 		c.pauseFor(d)
 	}

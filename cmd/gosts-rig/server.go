@@ -195,6 +195,9 @@ func (a *app) exec(req request) (any, error) {
 		if cd.DarkMinutes <= 0 || cd.DarkMinutes > 120 {
 			return nil, errors.New("pause after a no-flash photo for more than 0 and up to 120 minutes")
 		}
+		if cd.DarkBy != "" && cd.DarkBy != "masked" && cd.DarkBy != "whole" {
+			return nil, errors.New(`no-flash told by "masked" or "whole"`)
+		}
 		if cd.On && cd.Dark {
 			return nil, errors.New("one way of pausing at a time")
 		}

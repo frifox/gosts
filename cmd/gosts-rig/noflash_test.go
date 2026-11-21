@@ -42,8 +42,12 @@ func flashCapture(t *testing.T, n int) (*capture, string) {
 
 // add: photo k (brightness lum) came over for shot i, its file saved.
 func (c *capture) add(t *testing.T, k, i int, lum uint8) photo {
+	return c.addJPEG(t, k, i, grayJPEG(lum))
+}
+
+// addJPEG: photo k (the picture jpg) came over for shot i, its file saved.
+func (c *capture) addJPEG(t *testing.T, k, i int, jpg []byte) photo {
 	name := filepath.Join(c.folder, "p"+string(rune('0'+k))+".jpg")
-	jpg := grayJPEG(lum)
 	if err := os.WriteFile(name, jpg, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -138,5 +142,60 @@ func TestDarkPauses(t *testing.T) {
 	c.darkRuns = append(c.darkRuns, 30, 30)
 	if c.darkEvery() != 40 {
 		t.Errorf("three runs: %v, want their average, 40", c.darkEvery())
+	}
+}
+
+// subjectJPEG is a black picture with a lit subject (brightness lum)
+// filling share of it (a band across: the top rows).
+func subjectJPEG(share float64, lum uint8) []byte {
+	img := image.NewGray(image.Rect(0, 0, 160, 100))
+	rows := int(share * 100)
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 160; x++ {
+			if y < rows {
+				img.Pix[y*img.Stride+x] = lum
+			} else {
+				img.Pix[y*img.Stride+x] = 3
+			}
+		}
+	}
+	var b bytes.Buffer
+	jpeg.Encode(&b, img, &jpeg.Options{Quality: 95})
+	return b.Bytes()
+}
+
+// Masked: a subject filling little of the frame (turned sideways) is still
+// lit, unlike the whole photo's brightness says; no subject at all (no
+// flash) is dark either way.
+func TestNoFlashMasked(t *testing.T) {
+	for _, tc := range []struct {
+		by         string
+		small, off bool // dark: the small subject, the black one
+	}{{"", false, true}, {"whole", true, true}} {
+		cd := Cooldown{Dark: true, DarkMinutes: 1, Shots: 50, Minutes: 2, DarkBy: tc.by}
+		dark := func(jpg []byte) bool {
+			c, _ := flashCapture(t, 0)
+			c.rig.cfg.update(func(c *Config) { c.Cooldown = cd })
+			for i := 0; i < 3; i++ {
+				c.addJPEG(t, i+1, i, subjectJPEG(0.3, 120))
+			}
+			c.addJPEG(t, 4, 3, jpg)
+			return c.msg().Index == 3
+		}
+		if got := dark(subjectJPEG(0.05, 120)); got != tc.small {
+			t.Errorf("by %q: a small lit subject dark %v, want %v", tc.by, got, tc.small)
+		}
+		if got := dark(subjectJPEG(0, 120)); got != tc.off {
+			t.Errorf("by %q: an all-black photo dark %v, want %v", tc.by, got, tc.off)
+		}
+	}
+}
+
+func TestLitBrightness(t *testing.T) {
+	if b, _ := litBrightness(subjectJPEG(0.05, 120)); b < 100 || b > 130 {
+		t.Errorf("a small subject's lit part: %.1f, want about 120", b)
+	}
+	if b, _ := litBrightness(subjectJPEG(0, 120)); b != 0 {
+		t.Errorf("all black: %.1f, want 0", b)
 	}
 }
