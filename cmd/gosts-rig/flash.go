@@ -224,31 +224,28 @@ func (c *cameraConn) waitPicture(ctx context.Context, n int, timeout time.Durati
 
 // meanBrightness is a JPEG's mean brightness (0–255): its luma, every 8th
 // pixel each way.
-func meanBrightness(jpg []byte) (float64, error) { return lumaMean(jpg, 0, 8) }
+func meanBrightness(jpg []byte) (float64, error) {
+	b, _, err := lumaMean(jpg, 0, 8)
+	return b, err
+}
 
 // nearBlack: pixels under it are the black backdrop (or the dark, no flash),
-// not the subject the flash lights (measured on flash photos of a flat board
-// on black: what's left at or over it stays within 0.78 of the photos
-// before, however little of the frame the subject fills; a no-flash photo:
-// nothing left).
+// not the subject the flash lights (see light.dark).
 const nearBlack = 16
 
-// litBrightness is a picture's brightness with its near-black pixels masked
-// off: that of the subject the flash lit (0: all near-black, no flash).
-func litBrightness(jpg []byte) (float64, error) { return lumaMean(jpg, nearBlack, 4) }
-
 // lumaMean is the mean brightness (0-255) of a picture's pixels of cut or
-// over, every step pixels across and down (0: none of them).
-func lumaMean(jpg []byte, cut float64, step int) (float64, error) {
+// over, every step pixels across and down (0: none of them), and the share
+// of its pixels they are.
+func lumaMean(jpg []byte, cut float64, step int) (bright, share float64, err error) {
 	img, err := jpeg.Decode(bytes.NewReader(jpg))
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	b := img.Bounds()
 	if b.Empty() {
-		return 0, errors.New("an empty picture")
+		return 0, 0, errors.New("an empty picture")
 	}
-	var sum, n float64
+	var sum, n, all float64
 	yc, _ := img.(*image.YCbCr)
 	for y := b.Min.Y; y < b.Max.Y; y += step {
 		for x := b.Min.X; x < b.Max.X; x += step {
@@ -259,6 +256,7 @@ func lumaMean(jpg []byte, cut float64, step int) (float64, error) {
 				r, g, bl, _ := img.At(x, y).RGBA()
 				v = (0.299*float64(r) + 0.587*float64(g) + 0.114*float64(bl)) / 257
 			}
+			all++
 			if v >= cut {
 				sum += v
 				n++
@@ -266,9 +264,9 @@ func lumaMean(jpg []byte, cut float64, step int) (float64, error) {
 		}
 	}
 	if n == 0 {
-		return 0, nil
+		return 0, 0, nil
 	}
-	return sum / n, nil
+	return sum / n, n / all, nil
 }
 
 func median(v []float64) float64 {

@@ -29,7 +29,7 @@ func (c *capture) checkFlash(n, i int, p photo) {
 	if !cd.Dark || len(p.JPEG) == 0 {
 		return
 	}
-	b, err := photoLight(p.JPEG, cd.masked()) // (the camera's preview: much quicker)
+	l, err := photoLight(p.JPEG, cd.masked()) // (the camera's preview: much quicker)
 	if err != nil {
 		return
 	}
@@ -41,18 +41,18 @@ func (c *capture) checkFlash(n, i int, p photo) {
 	if by := cd.DarkBy; by != c.brightBy { // (measured another way: compared from here on)
 		c.bright, c.brightBy = nil, by
 	}
-	normal := median(c.bright)
-	dark := len(c.bright) > 0 && b < flashDark*normal
+	normal := typical(c.bright)
+	dark := len(c.bright) > 0 && l.dark(normal, cd.masked())
 	if !dark {
 		c.darkSince++
-		c.bright = append(c.bright, b)
+		c.bright = append(c.bright, l)
 		if len(c.bright) > noFlashRecent {
 			c.bright = c.bright[1:]
 		}
 	}
 	c.mu.Unlock()
 	if dark {
-		c.noFlash(n, i, b, normal, cd.masked())
+		c.noFlash(n, i, l, normal, cd.masked())
 	}
 }
 
@@ -99,14 +99,50 @@ func darkPauses(left int, every float64, since int) float64 {
 
 // photoLight is a photo's brightness (its camera preview's, if it has one):
 // its lit part's if masked (see litBrightness), else the whole photo's.
-func photoLight(jpg []byte, masked bool) (float64, error) {
+func photoLight(jpg []byte, masked bool) (light, error) {
 	if small := jpegPreview(jpg, 400); small != nil {
 		jpg = small
 	}
 	if masked {
-		return litBrightness(jpg)
+		b, share, err := lumaMean(jpg, nearBlack, 4)
+		return light{b, share}, err
 	}
-	return meanBrightness(jpg)
+	b, err := meanBrightness(jpg)
+	return light{b, 1}, err
+}
+
+// light is a photo's brightness, and the share of it lit (masked: the
+// share over nearBlack; else 1, the whole photo).
+type light struct{ bright, lit float64 }
+
+// typical is the median brightness and lit share of photos.
+func typical(ls []light) light {
+	b, s := make([]float64, len(ls)), make([]float64, len(ls))
+	for i, l := range ls {
+		b[i], s[i] = l.bright, l.lit
+	}
+	return light{median(b), median(s)}
+}
+
+// Masked, a photo's lit part and its share both count: with no flash
+// there's hardly anything lit (what light there is about: shot #4 of a
+// capture, 0.17% of the frame lit, by 41 vs its flash photos' 22-31% by
+// 63-79), while a flash photo's subject can be turned to fill little of the
+// frame (measured over 807 flash photos of flat boards on black: down to
+// 1.8% of the frame, 0.24 of the photos before; the lit part's brightness
+// down to 0.57 of theirs).
+const (
+	litMinShare = 0.005 // a photo less of it lit than this: no flash
+	litDrop     = 0.1   // nor one lit under this share of the photos before
+	litDark     = 0.35  // nor one its lit part under this of theirs
+)
+
+// dark is whether a photo is a no-flash one, the photos before normal.
+func (l light) dark(normal light, masked bool) bool {
+	if !masked {
+		return l.bright < flashDark*normal.bright
+	}
+	return l.lit < litMinShare || l.lit < litDrop*normal.lit || l.bright < litDark*normal.bright
 }
 
 // seedBright: a resumed capture's photos are compared with its last ones
@@ -125,11 +161,11 @@ func (c *capture) seedBright() {
 		}
 	}
 	c.mu.Unlock()
-	var bright []float64
+	var bright []light
 	for _, f := range files[max(0, len(files)-noFlashRecent):] {
 		if jpg, err := photoJPEG(filepath.Join(dir, f)); err == nil {
-			if b, err := photoLight(jpg, cd.masked()); err == nil {
-				bright = append(bright, b)
+			if l, err := photoLight(jpg, cd.masked()); err == nil {
+				bright = append(bright, l)
 			}
 		}
 	}
@@ -142,7 +178,7 @@ func (c *capture) seedBright() {
 // normal): the capture goes back to shot i, its photos from there to be
 // deleted as it carries on (dropLater: their pictures still coming too), and
 // pauses for the Cooldown's DarkMinutes (unless it's pausing already).
-func (c *capture) noFlash(n, i int, b, normal float64, masked bool) {
+func (c *capture) noFlash(n, i int, l, normal light, masked bool) {
 	var drop []int
 	c.mu.Lock()
 	if !c.running || i > c.index {
@@ -185,11 +221,11 @@ func (c *capture) noFlash(n, i int, b, normal float64, masked bool) {
 	if cooling {
 		pause = "already paused"
 	}
-	what := ""
+	how := fmt.Sprintf("%.0f vs %.0f", l.bright, normal.bright)
 	if masked {
-		what = "lit part "
+		how = fmt.Sprintf("%.1f%% lit vs %.0f%%, by %.0f vs %.0f", 100*l.lit, 100*normal.lit, l.bright, normal.bright)
 	}
-	c.rig.logf("info", "capture: photo %d is dark (no flash? %s%.0f vs %.0f), %s; %s", num, what, b, normal, ran, pause)
+	c.rig.logf("info", "capture: photo %d is dark (no flash? %s), %s; %s", num, how, ran, pause)
 	if !cooling {
 		c.pauseFor(d)
 	}

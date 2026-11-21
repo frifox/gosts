@@ -146,17 +146,14 @@ func TestDarkPauses(t *testing.T) {
 }
 
 // subjectJPEG is a black picture with a lit subject (brightness lum)
-// filling share of it (a band across: the top rows).
+// filling share of it (spread over it: as many in any part).
 func subjectJPEG(share float64, lum uint8) []byte {
 	img := image.NewGray(image.Rect(0, 0, 160, 100))
-	rows := int(share * 100)
-	for y := 0; y < 100; y++ {
-		for x := 0; x < 160; x++ {
-			if y < rows {
-				img.Pix[y*img.Stride+x] = lum
-			} else {
-				img.Pix[y*img.Stride+x] = 3
-			}
+	lit := int(share * float64(len(img.Pix)))
+	for i := range img.Pix {
+		img.Pix[i] = 3
+		if i*7919%len(img.Pix) < lit {
+			img.Pix[i] = lum
 		}
 	}
 	var b bytes.Buffer
@@ -185,17 +182,24 @@ func TestNoFlashMasked(t *testing.T) {
 		if got := dark(subjectJPEG(0.05, 120)); got != tc.small {
 			t.Errorf("by %q: a small lit subject dark %v, want %v", tc.by, got, tc.small)
 		}
+		if got := dark(subjectJPEG(0.002, 60)); got != tc.off { // (a few pixels lit about: shot #4's)
+			t.Errorf("by %q: a nearly black photo dark %v, want %v", tc.by, got, tc.off)
+		}
+		if got := dark(subjectJPEG(0.02, 60)); got != tc.off { // (more lit about, little next to the subject before)
+			t.Errorf("by %q: a photo lit 2%% (vs 30%%) dark %v, want %v", tc.by, got, tc.off)
+		}
 		if got := dark(subjectJPEG(0, 120)); got != tc.off {
 			t.Errorf("by %q: an all-black photo dark %v, want %v", tc.by, got, tc.off)
 		}
 	}
 }
 
-func TestLitBrightness(t *testing.T) {
-	if b, _ := litBrightness(subjectJPEG(0.05, 120)); b < 100 || b > 130 {
-		t.Errorf("a small subject's lit part: %.1f, want about 120", b)
+func TestPhotoLightMasked(t *testing.T) {
+	l, _ := photoLight(subjectJPEG(0.05, 120), true)
+	if l.bright < 100 || l.bright > 130 || l.lit < 0.03 || l.lit > 0.07 {
+		t.Errorf("a small subject: %+v, want about 120 on 5%%", l)
 	}
-	if b, _ := litBrightness(subjectJPEG(0, 120)); b != 0 {
-		t.Errorf("all black: %.1f, want 0", b)
+	if l, _ := photoLight(subjectJPEG(0, 120), true); l.lit != 0 {
+		t.Errorf("all black: %+v, want none lit", l)
 	}
 }
