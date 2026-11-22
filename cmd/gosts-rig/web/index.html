@@ -992,16 +992,16 @@ kbd + kbd { margin-left: 3px; }
             <div class="progress big"><div class="bar" id="capBar"></div><span class="label" id="capCount"></span></div></div>
         </div>
         <div class="plan-line opts">
-          <div class="opt"><span class="opt-label label-head">Path<span class="help" tabindex="0" aria-label="Which path to use" data-tip="Rings: full circles at a few heights. Best for photogrammetry (RealityScan, Metashape, Apple Object Capture): a steady overlap between neighboring photos.&#10;&#10;Sphere: photos spread evenly over the sphere. Best for Gaussian splatting and NeRF (Nerfstudio); the quickest with Continuous.">?</span></span>
+          <div class="opt"><span class="opt-label label-head">Path<span class="help" tabindex="0" aria-label="Which path to use" data-tip="Rings: full circles at a few heights. Best for photogrammetry (RealityScan, Metashape, Apple Object Capture): a steady overlap between neighboring photos.&#10;&#10;Sphere: photos spread evenly over the sphere. Best for Gaussian splatting and NeRF (Nerfstudio); the quickest with Fluid.">?</span></span>
             <div class="views seg" id="pathSeg"><button data-v="rings">Rings</button><button data-v="sphere">Sphere</button></div></div>
-          <div class="opt" title="Continuous: the rig doesn't stop, each photo taken as it passes its shot (needs a fast shutter). Stop &amp; Shoot: the rig stops at each shot and waits a moment (the settle time) before the photo. Spaced: the rig goes from shot to shot without settling, each photo taken as it gets there, but at least the time set after the one before (it waits at the shot if it gets there sooner)."><span class="opt-label">Rig motion</span>
-            <div class="views seg" id="shootSeg"><button data-v="moving">Continuous</button><button data-v="settle">Stop &amp; Shoot</button><button data-v="spaced">Spaced</button></div></div>
+          <div class="opt" title="Fluid: the rig doesn't stop, each photo taken as it passes its shot (needs a fast shutter). Stagger: the rig goes from shot to shot without settling, each photo taken as it gets there, but at least the time set after the one before (it waits at the shot if it gets there sooner). Settle: the rig stops at each shot and waits a moment (the settle time) before the photo."><span class="opt-label">Rig motion</span>
+            <div class="views seg" id="shootSeg"><button data-v="moving">Fluid</button><button data-v="spaced">Stagger</button><button data-v="settle">Settle</button></div></div>
           <label class="settle-field" id="settleField" title="How long the rig waits after arriving, before each photo">Settle (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
           <label class="settle-field" id="spacedField" title="The least time between photos: the rig waits at a shot if it gets there sooner" hidden>Time (s)<input type="number" id="pSpacedSec" min="0" step="0.5" value="2"></label>
           <input type="checkbox" id="pMoving" hidden><input type="checkbox" id="pSpaced" hidden><input type="hidden" id="pPath" value="rings">
         </div>
         <div class="pace-line"><span class="hint" id="paceText"></span>
-          <button class="btn small" id="paceBtn" title="Takes a few sample shots back to back and times them coming over: how often the camera keeps up taking photos. Continuous then spaces the photos at least that far apart (and slows down if the camera still falls behind).">Measure</button></div>
+          <button class="btn small" id="paceBtn" title="Takes a few sample shots back to back and times them coming over: how often the camera keeps up taking photos. Fluid then spaces the photos at least that far apart (and slows down if the camera still falls behind).">Measure</button></div>
         <!-- Alignment data for a photogrammetry app: where each photo was taken from (the rig's poses),
              written beside the photos when a capture ends. -->
         <div class="export-line" title="When a capture ends, write where each photo was taken from (the rig's poses, as starting points the app refines) beside the photos, in the chosen app's format">
@@ -6158,7 +6158,7 @@ function motionFields(m) {
   $("mSecPic").hidden = rate; $("mSpeed").hidden = !rate;
   $("azSpeedField").hidden = !rate; $("speedField").classList.toggle("both", !rate);
   $("speedField").title = rate ? "The camera arm's top speed, in captures and moves by hand" :
-    "How long a capture takes a photo: Continuous, from one photo to the next (the camera's pace at least); Stop & Shoot, each move, settle and photo together. The servos go as fast as that takes.";
+    "How long a capture takes a photo: Fluid and Stagger, from one photo to the next (the camera's pace at least; Stagger: its time, if longer); Settle, each move, settle and photo together. The servos go as fast as that takes.";
   $("speedBy").title = rate ? "Set the speed the other way: seconds a photo" : "Set the speed the other way: in °/s (the servos' speed)";
   if (document.activeElement !== $("mSecPic")) $("mSecPic").value = m.SecPerPhoto;
   if (document.activeElement !== $("mSpeed")) $("mSpeed").value = speedDeg(m.Speed);
@@ -6166,7 +6166,7 @@ function motionFields(m) {
   if (document.activeElement !== $("mAzSpeed")) $("mAzSpeed").value = speedDeg(m.AzimuthSpeed);
   if (document.activeElement !== $("mAzAcc")) $("mAzAcc").value = accDeg(m.AzimuthAcc);
   $("motionHint").textContent = rate ? `Full speed reached in ${(m.Speed / (m.Acc * 100)).toFixed(2)} s (elevation), ${(m.AzimuthSpeed / (m.AzimuthAcc * 100)).toFixed(2)} s (azimuth)` :
-    `Captures take about ${m.SecPerPhoto} s a photo (Continuous: at least the camera's pace)`;
+    `Captures take about ${m.SecPerPhoto} s a photo (Fluid: at least the camera's pace)`;
 }
 $("speedBy").onclick = async (e) => {
   e.preventDefault();

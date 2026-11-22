@@ -555,14 +555,14 @@ func (c *capture) begin(p Plan) error {
 	c.bright, c.darkSince = nil, 0
 	c.mu.Unlock()
 	c.saveNow() // (its plan and shots, in its folder: resumable from the start)
-	how := fmt.Sprintf("in %d rows, Stop & Shoot", rows)
+	how := fmt.Sprintf("in %d rows, Settle", rows)
 	switch {
 	case p.Moving && p.path() == PathRings:
-		how = fmt.Sprintf("in %d rows, Continuous", rows)
+		how = fmt.Sprintf("in %d rows, Fluid", rows)
 	case p.Moving:
-		how = fmt.Sprintf("on a %d-turn spiral, Continuous", rows)
+		how = fmt.Sprintf("on a %d-turn spiral, Fluid", rows)
 	case p.Spaced:
-		how = fmt.Sprintf("in %d rows, Spaced (%g s apart at least)", rows, spacedGap(c.rig.cfg.get().Motion, p))
+		how = fmt.Sprintf("in %d rows, Stagger (%g s apart at least)", rows, spacedGap(c.rig.cfg.get().Motion, p))
 	}
 	c.rig.logf("info", "capture started: %d photos, %.0f° apart, %s", len(shots), spacing, how)
 	if len(prior) > 0 || top > 0 {

@@ -60,10 +60,10 @@ Pick how many photos you want in the **Camera** card, and how:
 
 - **Path**: **Rings** (best for photogrammetry: RealityScan, Metashape, Apple Object Capture) or **Sphere** (an even
   spread, best for Gaussian splatting and NeRF).
-- **Rig motion**: **Continuous** glides along one smooth path and shoots on the move (much faster), **Stop & Shoot**
-  stops and settles for every photo, **Spaced** goes from shot to shot without settling and shoots as it gets
-  there, but waits at the shot when needed so photos are at least **Time** seconds apart (a flash's recycle time, say).
-- **Measure** finds how fast your camera can keep up, so a Continuous capture never outruns it.
+- **Rig motion**: **Fluid** glides along one smooth path and shoots on the move (much faster); **Stagger** goes from
+  shot to shot without settling and shoots as it gets there, but waits at the shot when needed so photos are at least
+  **Time** seconds apart (a flash's recycle time, say); **Settle** stops and settles for every photo.
+- **Measure** finds how fast your camera can keep up, so a Fluid capture never outruns it.
 - **Capture alignment data for**: writes where each photo was taken from, for Metashape, RealityScan, Nerfstudio,
   COLMAP or Apple Object Capture, so they start from the rig's poses.
 
