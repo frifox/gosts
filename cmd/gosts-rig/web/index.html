@@ -77,6 +77,10 @@ header .sub { color: var(--muted); font-size: 15px; font-weight: 650; } /* same 
 .plan-line .progress-field { flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 3px; }
 .plan-line .progress-field .progress { margin: 0; }
 .plan-line .settle-field input { width: 7ch; box-sizing: content-box; }
+/* Settle's and Stagger's fields share one cell, kept with neither shown (Fluid): the line never shifts */
+.plan-line .mode-slot { display: grid; }
+.plan-line .mode-slot > label { grid-area: 1 / 1; }
+.plan-line .mode-slot > .off { visibility: hidden; }
 .plan-line .opt { display: flex; flex-direction: column; gap: 3px; }
 .plan-line .opt-label { color: var(--muted); font-size: 12px; }
 .views.seg { margin-left: 0; }
@@ -996,8 +1000,8 @@ kbd + kbd { margin-left: 3px; }
             <div class="views seg" id="pathSeg"><button data-v="rings">Rings</button><button data-v="sphere">Sphere</button></div></div>
           <div class="opt" title="Fluid: the rig doesn't stop, each photo taken as it passes its shot (needs a fast shutter). Stagger: the rig goes from shot to shot without settling, each photo taken as it gets there, but at least the time set after the one before (it waits at the shot if it gets there sooner). Settle: the rig stops at each shot and waits a moment (the settle time) before the photo."><span class="opt-label">Rig motion</span>
             <div class="views seg" id="shootSeg"><button data-v="moving">Fluid</button><button data-v="spaced">Stagger</button><button data-v="settle">Settle</button></div></div>
-          <label class="settle-field" id="settleField" title="How long the rig waits after arriving, before each photo">Settle (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
-          <label class="settle-field" id="spacedField" title="The least time between photos: the rig waits at a shot if it gets there sooner" hidden>Time (s)<input type="number" id="pSpacedSec" min="0" step="0.5" value="2"></label>
+          <div class="mode-slot"><label class="settle-field" id="settleField" title="How long the rig waits after arriving, before each photo">Settle (ms)<input type="number" id="pSettle" min="0" step="100" value="800"></label>
+          <label class="settle-field" id="spacedField" title="The least time between photos: the rig waits at a shot if it gets there sooner">Time (s)<input type="number" id="pSpacedSec" min="0" step="0.5" value="2"></label></div>
           <input type="checkbox" id="pMoving" hidden><input type="checkbox" id="pSpaced" hidden><input type="hidden" id="pPath" value="rings">
         </div>
         <div class="pace-line"><span class="hint" id="paceText"></span>
@@ -6637,8 +6641,8 @@ function segSync() {
   const mode = shootMode(), path = $("pPath").value || "rings";
   for (const b of $("pathSeg").children) b.classList.toggle("active", b.dataset.v === path);
   for (const b of $("shootSeg").children) b.classList.toggle("active", b.dataset.v === mode);
-  $("settleField").hidden = mode !== "settle";
-  $("spacedField").hidden = mode !== "spaced";
+  $("settleField").classList.toggle("off", mode !== "settle"); // (hidden in place: see .mode-slot)
+  $("spacedField").classList.toggle("off", mode !== "spaced");
 }
 $("pathSeg").onclick = (e) => {
   const v = e.target.dataset?.v;
