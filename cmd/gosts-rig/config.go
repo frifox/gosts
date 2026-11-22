@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -158,6 +159,12 @@ type Plan struct {
 	// one smooth spiral and each photo is taken as it passes its shot (needs
 	// a fast shutter). Otherwise the rig stops and settles for each photo.
 	Moving bool `toml:"Moving"`
+	// Spaced (not Moving) goes from shot to shot without settling: each
+	// photo is taken as the rig gets to its shot, but at least SpacedSec
+	// after the photo before (s): it waits at the shot if it gets there
+	// sooner.
+	Spaced    bool    `toml:"Spaced"`
+	SpacedSec float64 `toml:"SpacedSec"`
 	// Path is how the shots are laid out: PathRings (rings of one elevation
 	// each, the elevation changing only between rings; fewer shots in the
 	// rings nearer the poles; the default: best for photogrammetry) or
@@ -172,6 +179,14 @@ type Plan struct {
 	// (Before ExportFor: a switch and the app, read once into it.)
 	ExportOn bool   `toml:"ExportOn,omitempty,omitzero" json:"-"`
 	Export   string `toml:"Export,omitempty" json:"-"`
+}
+
+// tidy makes a plan from the page one rig motion: Continuous (Moving),
+// Spaced or Stop & Shoot; the spacing not negative.
+func (p *Plan) tidy() {
+	p.Path = p.path()
+	p.Spaced = p.Spaced && !p.Moving
+	p.SpacedSec = math.Max(0, p.SpacedSec)
 }
 
 // The paths (Plan.Path).
@@ -210,7 +225,7 @@ func defaultConfig() Config {
 		ListenAddr: ":8081",
 		Roles:      Roles{ElevationLeader: 1, ElevationFollower: 2, Azimuth: 3, LeaderMirrored: true},
 		Motion:     Motion{Speed: 600, Acc: 30, AzimuthSpeed: 600, AzimuthAcc: 30, ElevationMin: -45, ElevationMax: 80, SecPerPhoto: 2, SpeedBy: SpeedByPhoto},
-		Plan:       Plan{Photos: 150, SettleMS: 800, Path: PathRings, ExportFor: ExportApple},
+		Plan:       Plan{Photos: 150, SettleMS: 800, SpacedSec: 2, Path: PathRings, ExportFor: ExportApple},
 		Cooldown:   Cooldown{Shots: 50, Minutes: 2, DarkMinutes: 10},
 		Rig:        rigBuilt(),
 	}

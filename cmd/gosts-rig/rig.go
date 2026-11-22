@@ -1383,3 +1383,50 @@ func (r *rig) diag() (map[string]map[string]int, error) {
 	})
 	return out, err
 }
+
+// waitNear waits till the rig is within tol degrees of elevation e and
+// azimuth a (read every 30 ms), or has stopped short of it (three still
+// readings: as near as it gets), for 20 s at most.
+func (r *rig) waitNear(ctx context.Context, e, a, tol float64) error {
+	ro, err := r.ready()
+	if err != nil {
+		return err
+	}
+	still, begun := 0, time.Now()
+	deadline := begun.Add(20 * time.Second)
+	for {
+		near, moving := false, false
+		err := r.withBus(func(bus *gosts.Bus) error {
+			res, err := bus.SyncFeedback(ro.ElevationLeader, ro.Azimuth)
+			if err != nil {
+				return err
+			}
+			fe, fa := res[ro.ElevationLeader], res[ro.Azimuth]
+			if fe.Err != nil || fa.Err != nil {
+				return errors.Join(fe.Err, fa.Err)
+			}
+			near = math.Abs(elevationOf(fe.Position, ro)-e) <= tol && math.Abs(wrap180(azimuthOf(fa.Position, ro)-a)) <= tol
+			moving = fe.Moving || fa.Moving || abs(fe.Speed) > 30 || abs(fa.Speed) > 30
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		if moving {
+			still = 0
+		} else {
+			still++
+		}
+		if near || still >= 3 && time.Since(begun) > 200*time.Millisecond { // (not before it's been seen to start)
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return errors.New("the rig didn't get to its shot within 20 s")
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(30 * time.Millisecond):
+		}
+	}
+}

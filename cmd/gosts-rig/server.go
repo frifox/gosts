@@ -215,7 +215,7 @@ func (a *app) exec(req request) (any, error) {
 		if req.Plan == nil {
 			return nil, errors.New("no plan")
 		}
-		req.Plan.Path = req.Plan.path()
+		req.Plan.tidy()
 		if err := a.cfg.update(func(c *Config) { c.Plan = *req.Plan }); err != nil {
 			return nil, err
 		}
@@ -254,7 +254,7 @@ func (a *app) exec(req request) (any, error) {
 		if req.Plan == nil {
 			return nil, errors.New("no plan")
 		}
-		req.Plan.Path = req.Plan.path()
+		req.Plan.tidy()
 		if err := a.cfg.update(func(c *Config) { c.Plan = *req.Plan }); err != nil {
 			return nil, err
 		}

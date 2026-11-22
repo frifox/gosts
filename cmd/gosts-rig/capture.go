@@ -409,6 +409,19 @@ func (c *capture) estimate(p Plan, shots []shot) float64 {
 		}
 		total += newTrajectory(es, as, topE, topA, accE/2, accA/2, c.photoGap(m)).duration()
 		total += 2 * math.Floor(math.Abs(spiralTurns(shots))/(2*spiralRange)) // a stop and a reset a lap
+	} else if p.Spaced {
+		// Each photo: its gap, or the move (and the shutter hold before
+		// it) if longer, or the camera's pace.
+		gap := spacedGap(m, p)
+		total += shot + hold // the first photo
+		for i := 1; i < len(shots); i++ {
+			e0, a0, e1, a1 := clamp(shots[i-1].Elevation), shots[i-1].Azimuth, clamp(shots[i].Elevation), shots[i].Azimuth
+			t := move(e0, a0, e1, a1)
+			if !m.byRate() {
+				t = math.Max(hop(math.Abs(e1-e0), topE, accE), hop(math.Abs(wrap180(a1-a0)), topA, accA))
+			}
+			total += math.Max(gap, math.Max(t+hold, shot))
+		}
 	} else {
 		total += shot + hold // the first photo
 		for i := 1; i < len(shots); i++ {
@@ -548,6 +561,8 @@ func (c *capture) begin(p Plan) error {
 		how = fmt.Sprintf("in %d rows, Continuous", rows)
 	case p.Moving:
 		how = fmt.Sprintf("on a %d-turn spiral, Continuous", rows)
+	case p.Spaced:
+		how = fmt.Sprintf("in %d rows, Spaced (%g s apart at least)", rows, spacedGap(c.rig.cfg.get().Motion, p))
 	}
 	c.rig.logf("info", "capture started: %d photos, %.0f° apart, %s", len(shots), spacing, how)
 	if len(prior) > 0 || top > 0 {
@@ -789,37 +804,13 @@ func (c *capture) loop(ctx context.Context, p Plan) error {
 			continue
 		}
 		e, a := sh.Elevation, sh.Azimuth
-		// Timed: the move takes what the seconds a photo leave it (each
-		// axis at its own speed, so both arrive together).
 		m := c.rig.cfg.get().Motion
-		if m.byRate() { // (the servos' speed set: at it)
-			if err := c.rig.moveTo(&e, &a); err != nil {
+		if p.Spaced {
+			if err := c.spacedTo(ctx, m, p, e, a, lastShot); err != nil {
 				return err
 			}
-		} else {
-			e0, a0 := c.rig.where()
-			mt := c.moveTime(m, p.SettleMS)
-			ec := math.Max(m.ElevationMin, math.Min(m.ElevationMax, e))
-			if err := c.rig.moveToAt(&e, &a, timedSpeed(ec-e0, mt), timedSpeed(wrap180(a-a0), mt)); err != nil {
-				return err
-			}
-		}
-		if err := c.rig.waitStill(ctx); err != nil {
+		} else if err := c.stopAt(ctx, m, p, e, a, lastShot); err != nil {
 			return err
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Duration(p.SettleMS) * time.Millisecond):
-		}
-		// The seconds a photo, from the last one's shutter: waited out if
-		// the move (timed by an estimate of the rest) came in early.
-		if !lastShot.IsZero() && !m.byRate() {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(time.Until(lastShot.Add(time.Duration(m.SecPerPhoto * float64(time.Second))))):
-			}
 		}
 		lastShot = time.Now()
 		if err := c.photo(ctx, true); err != nil {
@@ -837,6 +828,88 @@ func (c *capture) loop(ctx context.Context, p Plan) error {
 		}
 	}
 }
+
+// stopAt takes the rig to the shot at e, a for Stop & Shoot and returns
+// when the photo's due: the rig still there, settled, and (by the seconds
+// a photo) that long after the last photo.
+func (c *capture) stopAt(ctx context.Context, m Motion, p Plan, e, a float64, lastShot time.Time) error {
+	// Timed: the move takes what the seconds a photo leave it (each
+	// axis at its own speed, so both arrive together).
+	if m.byRate() { // (the servos' speed set: at it)
+		if err := c.rig.moveTo(&e, &a); err != nil {
+			return err
+		}
+	} else {
+		e0, a0 := c.rig.where()
+		mt := c.moveTime(m, p.SettleMS)
+		ec := math.Max(m.ElevationMin, math.Min(m.ElevationMax, e))
+		if err := c.rig.moveToAt(&e, &a, timedSpeed(ec-e0, mt), timedSpeed(wrap180(a-a0), mt)); err != nil {
+			return err
+		}
+	}
+	if err := c.rig.waitStill(ctx); err != nil {
+		return err
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(time.Duration(p.SettleMS) * time.Millisecond):
+	}
+	// The seconds a photo, from the last one's shutter: waited out if
+	// the move (timed by an estimate of the rest) came in early.
+	if !lastShot.IsZero() && !m.byRate() {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Until(lastShot.Add(time.Duration(m.SecPerPhoto * float64(time.Second))))):
+		}
+	}
+	return nil
+}
+
+// spacedGap is the least time (s) between a Spaced capture's photos: its
+// spacing, or the seconds a photo if longer (speed set by those).
+func spacedGap(m Motion, p Plan) float64 {
+	if m.byRate() {
+		return p.SpacedSec
+	}
+	return math.Max(p.SpacedSec, m.SecPerPhoto)
+}
+
+// spacedTo takes the rig to the shot at e, a for a Spaced capture and
+// returns when the photo's due: the rig there (within arriveTol; not
+// waiting for it to settle) and spacedGap after the last photo, waiting
+// at the shot if it got there sooner. Speed set by the seconds a photo,
+// the move is timed to take what's left of the gap (so the rig gets there
+// as the photo's due, not stopping long); else at the servos' speed.
+func (c *capture) spacedTo(ctx context.Context, m Motion, p Plan, e, a float64, lastShot time.Time) error {
+	due := lastShot.Add(time.Duration(spacedGap(m, p) * float64(time.Second)))
+	ec := math.Max(m.ElevationMin, math.Min(m.ElevationMax, e))
+	if m.byRate() {
+		if err := c.rig.moveTo(&e, &a); err != nil {
+			return err
+		}
+	} else {
+		e0, a0 := c.rig.where()
+		mt := math.Max(moveTimeMin, time.Until(due).Seconds())
+		if err := c.rig.moveToAt(&e, &a, timedSpeed(ec-e0, mt), timedSpeed(wrap180(a-a0), mt)); err != nil {
+			return err
+		}
+	}
+	if err := c.rig.waitNear(ctx, ec, a, arriveTol); err != nil {
+		return err
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(time.Until(due)):
+	}
+	return nil
+}
+
+// arriveTol is how near (°) a Spaced capture's rig is to its shot for the
+// photo.
+const arriveTol = 0.5
 
 // photo takes the next shot with the camera, recording where the rig really
 // is as the shutter goes (read fresh then: moving shots are taken in
