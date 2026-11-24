@@ -11,7 +11,9 @@ straight off the camera, and turn them into a 3D model. An example app of [Go ST
 - Based on aluminum extrusion profiles
 - Two ST3215 servos on the posts tilt a frame carrying the camera
 - One ST3215 turns the platform under the object
-- A camera on USB that [gphoto2](http://gphoto.org) can drive
+- A camera on USB that [gphoto2](http://gphoto.org) can drive, or an
+  [Arducam OwlSight](https://docs.arducam.com/Raspberry-Pi-Camera/Native-camera/64MP-OV64A40/) 64 MP on a Raspberry Pi 5
+  plugged in over USB (see [gosts-cam](../gosts-cam))
 
 No hardware? Both the rig and the camera have simulators. On starting, gosts-rig connects to a board and a camera it finds
 (the ones used last, if they're there); with none, it lists what there is with the simulator picked, for you to
@@ -23,6 +25,7 @@ as JPEGs, just like a real one.
 - **[go.bug.st/serial](https://github.com/bugst/go-serial)**: the serial port to the servos
 - **[gosts](../../README.md)**: drives the servos
 - **[gphoto2](http://gphoto.org)**: drives the camera over USB (settings, live view, shooting, downloading)
+- **[gosts-cam](../gosts-cam)**: on a Raspberry Pi, drives its camera (the OwlSight) for gosts-rig
 - **[Apple Object Capture](https://developer.apple.com/documentation/realitykit/photogrammetrysession)**: turns captured photos into a 3D model
 - **[three.js](https://threejs.org)**: page's 3D engine: rig view, camera's view,
   3D model viewer and editor
@@ -91,6 +94,12 @@ shot (zoom, focus, shutter, aperture, ISO and white balance).
   nearest and farthest points and let it focus between them.
 - **F-stop sweep**: the button by the f-stop takes a sample at every f-stop your lens has, to compare side by side;
   **Use** sets the one you like.
+
+On a Raspberry Pi camera (the OwlSight), the settings are its own: focus (Manual or Automatic), exposure mode (P or M),
+shutter, ISO, white balance, and the photo's **Resolution** (16 or 64 MP) and **Format** (RAW + JPEG, or JPEG). Its lens
+has a fixed f-stop (f/1.9), so there's no F-stop sweep. The Pi's USB-C port is set up as a USB network adapter: gosts-rig
+finds it at 10.12.194.1 or gosts-cam.local, or wherever `PiCameraHost` in the config says. No flash yet: light the
+object steadily.
 
 The **gear** next to it opens **Settings**, for flash cooling: pause after a photo comes out without flash, or every so
 many shots, with presets for the Godox AR400 (and **Measure** to find your flash's own limit).

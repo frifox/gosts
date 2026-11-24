@@ -93,6 +93,7 @@ func run() bool {
 		photoDir = expandHome(c.PhotoDir)
 	}
 	log.Printf("photos: %s", photoDir)
+	piConfigHost = c.PiCameraHost
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

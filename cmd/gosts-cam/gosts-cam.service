@@ -1,0 +1,12 @@
+[Unit]
+Description=gosts-cam: the OwlSight camera over HTTP for gosts-rig
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/gosts-cam/gosts_cam.py
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

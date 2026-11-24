@@ -328,15 +328,17 @@ type previewCamera interface {
 // simCameraID selects the simulated camera.
 const simCameraID = "sim"
 
-// listCameras lists the cameras that can be connected: the simulator, and
+// listCameras lists the cameras that can be connected: the simulator,
 // whatever gphoto2 finds attached over USB right now (the Sony A6600,
-// PTP-connected).
+// PTP-connected), and a Raspberry Pi's camera on USB (see piDetect).
 func listCameras() []cameraInfo {
 	cams := []cameraInfo{{ID: simCameraID, Name: "Simulator", Detail: "Simulated camera"}}
+	pis := make(chan []cameraInfo, 1)
+	go func() { pis <- piDetect() }()
 	for _, d := range gphoto2Detect() {
 		cams = append(cams, cameraInfo{ID: gphoto2Prefix + d.port, Name: d.model, Detail: "USB, " + d.port + " (gphoto2)"})
 	}
-	return cams
+	return append(cams, <-pis...)
 }
 
 // lastCameras is the list last made by scanning (see camerasNow).
@@ -369,6 +371,8 @@ func openCamera(id string) (Camera, string, error) {
 		return &simCamera{lag: 30 * time.Millisecond}, "Simulator", nil
 	case strings.HasPrefix(id, gphoto2Prefix):
 		return openGphoto2Camera(strings.TrimPrefix(id, gphoto2Prefix))
+	case strings.HasPrefix(id, piPrefix):
+		return openPiCamera(strings.TrimPrefix(id, piPrefix))
 	}
 	return nil, "", fmt.Errorf("no camera %q", id)
 }

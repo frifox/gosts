@@ -34,6 +34,9 @@ type Config struct {
 	// FlashLimits are the flash's overheat limits as measured (Camera
 	// Settings' Measure: see flash.go), by its power ("1/1", "1/2 +0.7", …).
 	FlashLimits map[string]FlashLimit `toml:"FlashLimits,omitempty"`
+	// PiCameraHost is where a Raspberry Pi camera (gosts-cam) answers, if
+	// not at its usual USB addresses (see piHosts): host or host:port.
+	PiCameraHost string `toml:"PiCameraHost,omitempty"`
 }
 
 // Cooldown pauses a capture now and then (a flash that gets hot): after

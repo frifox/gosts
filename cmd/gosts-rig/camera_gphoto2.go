@@ -747,6 +747,20 @@ func (g *gphoto2Camera) work(sh *gphoto2Shell, tmp string) {
 // saveUnique writes data to dir/name, or name with -2, -3… before the
 // extension if that's taken (the camera's numbering restarts on a new card).
 func saveUnique(dir, name string, data []byte) (string, error) {
+	f, p, err := createUnique(dir, name)
+	if err != nil {
+		return "", err
+	}
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	return p, err
+}
+
+// createUnique creates dir/name, or name with -2, -3… before the extension
+// if that's taken, returning it open for writing, and where.
+func createUnique(dir, name string) (*os.File, string, error) {
 	ext := filepath.Ext(name)
 	base := strings.TrimSuffix(name, ext)
 	for i := 1; ; i++ {
@@ -759,13 +773,9 @@ func saveUnique(dir, name string, data []byte) (string, error) {
 			continue
 		}
 		if err != nil {
-			return "", err
+			return nil, "", err
 		}
-		_, err = f.Write(data)
-		if cerr := f.Close(); err == nil {
-			err = cerr
-		}
-		return p, err
+		return f, p, nil
 	}
 }
 
